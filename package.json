@@ -6,11 +6,14 @@
   "scripts": {
     "dev": "npm run dev:seller",
     "dev:seller": "vite --config apps/seller-lookup/vite.config.js",
+    "dev:public": "vite --config apps/public-web/vite.config.js",
     "dev:admin": "vite --config apps/admin-web/vite.config.js",
-    "build": "npm run build:seller && npm run build:admin",
+    "build": "npm run build:seller && npm run build:admin && npm run build:public",
     "build:seller": "vite build --config apps/seller-lookup/vite.config.js",
+    "build:public": "vite build --config apps/public-web/vite.config.js",
     "build:admin": "vite build --config apps/admin-web/vite.config.js",
     "preview:seller": "vite preview --config apps/seller-lookup/vite.config.js",
+    "preview:public": "vite preview --config apps/public-web/vite.config.js",
     "preview:admin": "vite preview --config apps/admin-web/vite.config.js"
   },
   "dependencies": {
