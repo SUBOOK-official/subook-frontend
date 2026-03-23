@@ -1,0 +1,139 @@
+<svg width="1600" height="1600" viewBox="0 0 1600 1600" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <filter id="cover-shadow" x="214" y="32" width="1176" height="1496" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feOffset dx="18" dy="18"/>
+      <feGaussianBlur stdDeviation="26"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.15 0 0 0 0 0.15 0 0 0 0 0.15 0 0 0 0.18 0"/>
+      <feBlend in2="SourceGraphic" mode="normal" result="shape"/>
+    </filter>
+    <linearGradient id="desk-bg" x1="144" y1="80" x2="1452" y2="1504" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F0EEE9"/>
+      <stop offset="1" stop-color="#D9D6D0"/>
+    </linearGradient>
+    <linearGradient id="paper-bg" x1="320" y1="90" x2="1280" y2="1490" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FBFAF6"/>
+      <stop offset="1" stop-color="#F6F4EF"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1600" height="1600" fill="url(#desk-bg)"/>
+
+  <g filter="url(#cover-shadow)">
+    <rect x="305" y="88" width="1008" height="1408" fill="url(#paper-bg)"/>
+    <rect x="340" y="88" width="3" height="1408" fill="#E7E3DC"/>
+    <path d="M808 250V1290" stroke="#C9C7C2" stroke-width="3"/>
+
+    <g opacity="0.74" stroke="#595959" stroke-width="2.4">
+      <path d="M1200 332C1136 356 1067 414 1028 484"/>
+      <path d="M1216 322C1151 352 1084 408 1039 492"/>
+      <path d="M1232 312C1168 349 1100 406 1051 499"/>
+      <path d="M1248 302C1185 348 1117 407 1062 507"/>
+      <path d="M1264 292C1200 350 1134 411 1073 514"/>
+      <path d="M1280 282C1217 352 1150 416 1084 522"/>
+      <path d="M1198 332C1134 356 1067 414 1027 486"/>
+      <path d="M1212 352C1146 385 1088 430 1038 504"/>
+      <path d="M1228 370C1161 410 1111 448 1051 521"/>
+      <path d="M1244 388C1178 434 1132 468 1063 540"/>
+      <path d="M1260 406C1194 457 1151 486 1074 559"/>
+      <path d="M1274 424C1209 480 1170 504 1084 577"/>
+    </g>
+
+    <text
+      x="1088"
+      y="252"
+      transform="rotate(90 1088 252)"
+      fill="#121212"
+      font-family="Arial, Helvetica, sans-serif"
+      font-size="112"
+      font-weight="700"
+      letter-spacing="6"
+    >
+      BRIDGE
+    </text>
+
+    <circle cx="1036" cy="804" r="50" fill="#141414"/>
+    <text
+      x="1036"
+      y="787"
+      fill="#FAFAF8"
+      font-family="'Pretendard', 'Noto Sans KR', sans-serif"
+      font-size="20"
+      font-weight="700"
+      text-anchor="middle"
+    >
+      정답
+    </text>
+    <text
+      x="1036"
+      y="813"
+      fill="#FAFAF8"
+      font-family="'Pretendard', 'Noto Sans KR', sans-serif"
+      font-size="20"
+      font-weight="700"
+      text-anchor="middle"
+    >
+      및
+    </text>
+    <text
+      x="1036"
+      y="839"
+      fill="#FAFAF8"
+      font-family="'Pretendard', 'Noto Sans KR', sans-serif"
+      font-size="20"
+      font-weight="700"
+      text-anchor="middle"
+    >
+      해설
+    </text>
+
+    <text
+      x="1183"
+      y="1016"
+      transform="rotate(90 1183 1016)"
+      fill="#212121"
+      font-family="'Pretendard', 'Noto Sans KR', sans-serif"
+      font-size="22"
+      font-weight="500"
+      letter-spacing="0.4"
+    >
+      2026 시대인재 자연계 브릿지 모의고사
+    </text>
+
+    <text
+      x="392"
+      y="1308"
+      fill="#121212"
+      font-family="'Pretendard', 'Noto Sans KR', sans-serif"
+      font-size="34"
+      font-weight="800"
+      letter-spacing="-0.5"
+    >
+      브릿지 모의고사 11
+    </text>
+
+    <text
+      x="836"
+      y="1308"
+      fill="#2A2A2A"
+      font-family="'Pretendard', 'Noto Sans KR', sans-serif"
+      font-size="30"
+      font-weight="500"
+      letter-spacing="-0.3"
+    >
+      지구과학 I
+    </text>
+
+    <rect x="1128" y="1256" width="82" height="44" rx="4" stroke="#7C7C7C" stroke-width="2"/>
+    <text
+      x="1169"
+      y="1285"
+      fill="#1B1B1B"
+      font-family="Arial, Helvetica, sans-serif"
+      font-size="24"
+      font-weight="700"
+      text-anchor="middle"
+    >
+      sclii
+    </text>
+  </g>
+</svg>

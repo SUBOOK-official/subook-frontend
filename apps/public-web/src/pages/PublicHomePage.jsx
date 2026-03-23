@@ -12,6 +12,7 @@ import categoryDImage from "../assets/category-d.png";
 import heroBooksBannerImage from "../assets/hero-books-banner.png";
 import heroFaqBubbleImage from "../assets/hero-faq-bubble.svg";
 import heroFaqMascotImage from "../assets/hero-faq-mascot.png";
+import PublicFooter from "../components/PublicFooter";
 
 const HERO_ROTATION_MS = 5000;
 const DESKTOP_FRAME_WIDTH = 1920;
@@ -46,15 +47,15 @@ const categoryCards = [
 ];
 
 const productLabels = [
-  { label: "국어", tone: "subject" },
-  { label: "기출", tone: "type" },
+  { label: "과학", tone: "subject" },
+  { label: "모의고사", tone: "type" },
   { label: "시대인재", tone: "brand" },
   { label: "S(새책)", tone: "status" },
 ];
 
 const productCards = Array.from({ length: 10 }, (_, index) => ({
   id: `product-${index + 1}`,
-  title: "2026 시대인재 파이널 브릿지 전국 물리학1",
+  title: "2026 시대인재 브릿지 모의고사 지구과학1",
   discount: "80%",
   salePrice: "4,000원",
   originalPrice: "20,000원",
@@ -163,6 +164,7 @@ function FaqHeroSlide() {
 function PublicHomePage() {
   const [heroClock, setHeroClock] = useState(() => Math.floor(Date.now() / HERO_ROTATION_MS));
   const [heroOffset, setHeroOffset] = useState(0);
+  const [selectedMenu, setSelectedMenu] = useState(null);
   const [desktopScale, setDesktopScale] = useState(1);
   const [desktopFrameHeight, setDesktopFrameHeight] = useState(0);
   const [isDesktopLocked, setIsDesktopLocked] = useState(false);
@@ -259,14 +261,21 @@ function PublicHomePage() {
 
         <div className="public-shell public-menu" role="tablist" aria-label="상단 메뉴">
           <Link
-            aria-selected="true"
-            className="public-menu-tab public-menu-tab--active"
+            aria-selected={selectedMenu === "store"}
+            className={`public-menu-tab ${selectedMenu === "store" ? "public-menu-tab--active" : ""}`}
+            onClick={() => setSelectedMenu("store")}
             role="tab"
             to="/store"
           >
             스토어
           </Link>
-          <button aria-selected="false" className="public-menu-tab" role="tab" type="button">
+          <button
+            aria-selected={selectedMenu === "sell"}
+            className={`public-menu-tab ${selectedMenu === "sell" ? "public-menu-tab--active" : ""}`}
+            onClick={() => setSelectedMenu("sell")}
+            role="tab"
+            type="button"
+          >
             판매하기
           </button>
         </div>
@@ -359,6 +368,8 @@ function PublicHomePage() {
           </div>
         </div>
       </section>
+
+      <PublicFooter />
     </>
   );
 

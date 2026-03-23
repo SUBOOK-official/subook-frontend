@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import bridgeEarthScienceCover from "../assets/bridge-earth-science-cover.svg";
 import searchIconImage from "../assets/search-icon.svg";
 import searchActionImage from "../assets/search-action.svg";
-import storeTop1Image from "../assets/store-top-1.png";
+import PublicFooter from "../components/PublicFooter";
 import storeTop2Image from "../assets/store-top-2.png";
 import storeTop3Image from "../assets/store-top-3.png";
 import storeTop4Image from "../assets/store-top-4.png";
@@ -12,8 +13,7 @@ const DESKTOP_LOCK_MIN_WIDTH = 1280;
 const ITEMS_PER_PAGE = 15;
 
 const subjectTabs = ["전체", "국어", "수학", "영어", "과학", "사회", "한국사", "기타"];
-const sortOptions = ["인기순", "최신순", "낮은 가격순", "높은 할인순"];
-const rankingOptions = ["인기순", "최신순", "할인율순"];
+const sortOptions = ["인기순", "할인율순", "관심 많은순", "낮은 가격순"];
 
 const filterGroups = [
   { key: "type", label: "유형", options: ["전체", "개념", "기출", "모의고사", "N제", "EBS", "주간지", "내신"] },
@@ -24,10 +24,10 @@ const filterGroups = [
 
 const storeCatalog = [
   {
-    id: "physics-bridge-2026",
-    title: "2026 시대인재 파이널 브릿지 전국 물리학1",
+    id: "earth-science-bridge-2026",
+    title: "2026 시대인재 브릿지 모의고사 지구과학1",
     subject: "과학",
-    type: "기출",
+    type: "모의고사",
     brand: "시대인재",
     year: "2026",
     status: "S(새책)",
@@ -35,7 +35,7 @@ const storeCatalog = [
     originalPrice: 20000,
     popularity: 98,
     publishedOrder: 20260312,
-    coverImage: storeTop1Image,
+    coverImage: bridgeEarthScienceCover,
     featured: true,
   },
   {
@@ -345,19 +345,6 @@ const storeCatalog = [
   },
 ];
 
-const footerLinks = ["이용약관", "개인정보처리방침", "사업자정보확인", "1:1문의"];
-
-const footerMetaRows = [
-  ["상호", "수북(SUBOOK)"],
-  ["대표", "박영제"],
-  ["개인정보관리책임자", "이다솔"],
-  ["전화", "010-6271-5792"],
-  ["이메일", "subook2025@gmail.com"],
-  ["주소", "서울 서대문구 연세로 50 제1공학관"],
-  ["사업자등록번호", "00"],
-  ["통신판매업신고번호", "00"],
-];
-
 const initialFilters = {
   type: "전체",
   brand: "전체",
@@ -373,6 +360,10 @@ function getDiscountRate(product) {
   return Math.round(((product.originalPrice - product.salePrice) / product.originalPrice) * 100);
 }
 
+function getInterestScore(product) {
+  return product.popularity * 10 + getDiscountRate(product);
+}
+
 function getStorePills(product) {
   return [
     { label: product.subject, tone: "subject" },
@@ -386,28 +377,22 @@ function sortProducts(products, criterion) {
   const nextProducts = [...products];
 
   nextProducts.sort((left, right) => {
-    if (criterion === "최신순") {
-      return right.publishedOrder - left.publishedOrder;
-    }
-
     if (criterion === "낮은 가격순") {
       return left.salePrice - right.salePrice || right.popularity - left.popularity;
     }
 
-    if (criterion === "높은 할인순" || criterion === "할인율순") {
+    if (criterion === "할인율순") {
       return getDiscountRate(right) - getDiscountRate(left) || right.popularity - left.popularity;
+    }
+
+    if (criterion === "관심 많은순") {
+      return getInterestScore(right) - getInterestScore(left) || right.popularity - left.popularity;
     }
 
     return right.popularity - left.popularity || right.publishedOrder - left.publishedOrder;
   });
 
   return nextProducts;
-}
-
-function cycleOption(currentValue, options) {
-  const currentIndex = options.indexOf(currentValue);
-  const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % options.length;
-  return options[nextIndex];
 }
 
 function StorePill({ label, tone }) {
@@ -483,15 +468,17 @@ function PublicStorePage() {
   const [desktopScale, setDesktopScale] = useState(1);
   const [desktopFrameHeight, setDesktopFrameHeight] = useState(0);
   const [isDesktopLocked, setIsDesktopLocked] = useState(false);
+  const [selectedMenu, setSelectedMenu] = useState("store");
   const [selectedSubject, setSelectedSubject] = useState("전체");
   const [selectedFilters, setSelectedFilters] = useState(initialFilters);
   const [sortOption, setSortOption] = useState(sortOptions[0]);
-  const [rankingCriterion, setRankingCriterion] = useState(rankingOptions[0]);
+  const [isSortMenuOpen, setIsSortMenuOpen] = useState(false);
   const [viewMode, setViewMode] = useState("grid");
   const [currentPage, setCurrentPage] = useState(1);
   const [searchKeyword, setSearchKeyword] = useState("");
   const [favoriteIds, setFavoriteIds] = useState(["math-climax-2026"]);
   const desktopFrameRef = useRef(null);
+  const sortMenuRef = useRef(null);
 
   useEffect(() => {
     const syncDesktopFrame = () => {
@@ -536,6 +523,32 @@ function PublicStorePage() {
     };
   }, [isDesktopLocked]);
 
+  useEffect(() => {
+    if (!isSortMenuOpen) {
+      return undefined;
+    }
+
+    const handlePointerDown = (event) => {
+      if (sortMenuRef.current && !sortMenuRef.current.contains(event.target)) {
+        setIsSortMenuOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        setIsSortMenuOpen(false);
+      }
+    };
+
+    window.addEventListener("mousedown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("mousedown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isSortMenuOpen]);
+
   const normalizedKeyword = searchKeyword.trim().toLowerCase();
 
   const filteredStoreItems = sortProducts(
@@ -575,7 +588,7 @@ function PublicStorePage() {
 
   const rankingItems = sortProducts(
     storeCatalog.filter((product) => product.featured),
-    rankingCriterion,
+    "인기순",
   ).slice(0, 4);
 
   const totalPages = Math.max(1, Math.ceil(filteredStoreItems.length / ITEMS_PER_PAGE));
@@ -613,13 +626,10 @@ function PublicStorePage() {
     setCurrentPage(1);
   };
 
-  const handleCycleSortOption = () => {
-    setSortOption((currentValue) => cycleOption(currentValue, sortOptions));
+  const handleSelectSortOption = (option) => {
+    setSortOption(option);
+    setIsSortMenuOpen(false);
     setCurrentPage(1);
-  };
-
-  const handleCycleRankingCriterion = () => {
-    setRankingCriterion((currentValue) => cycleOption(currentValue, rankingOptions));
   };
 
   const pageNumbers = Array.from({ length: totalPages }, (_, index) => index + 1);
@@ -648,14 +658,21 @@ function PublicStorePage() {
 
         <div className="public-shell public-menu" role="tablist" aria-label="상단 메뉴">
           <Link
-            aria-selected="true"
-            className="public-menu-tab public-menu-tab--active"
+            aria-selected={selectedMenu === "store"}
+            className={`public-menu-tab ${selectedMenu === "store" ? "public-menu-tab--active" : ""}`}
+            onClick={() => setSelectedMenu("store")}
             role="tab"
             to="/store"
           >
             스토어
           </Link>
-          <button aria-selected="false" className="public-menu-tab" role="tab" type="button">
+          <button
+            aria-selected={selectedMenu === "sell"}
+            className={`public-menu-tab ${selectedMenu === "sell" ? "public-menu-tab--active" : ""}`}
+            onClick={() => setSelectedMenu("sell")}
+            role="tab"
+            type="button"
+          >
             판매하기
           </button>
         </div>
@@ -682,14 +699,12 @@ function PublicStorePage() {
             <h2 className="public-section-title" id="public-store-best-books">
               📚 BEST 교재
             </h2>
-            <button
-              className="public-store-best__meta"
-              onClick={handleCycleRankingCriterion}
-              type="button"
-            >
-              랭킹기준 {rankingCriterion}
-              <span aria-hidden="true">⌄</span>
-            </button>
+            <div className="public-store-best__meta">
+              <span>랭킹기준</span>
+              <span aria-hidden="true" className="public-store-best__meta-icon">
+                !
+              </span>
+            </div>
           </div>
 
           <div className="public-store-best__list">
@@ -788,14 +803,42 @@ function PublicStorePage() {
             </button>
           </div>
 
-          <button
-            className="public-nav-button public-store-route__sort"
-            onClick={handleCycleSortOption}
-            type="button"
-          >
-            {sortOption}
-            <span aria-hidden="true">⌄</span>
-          </button>
+          <div className="public-store-route__sort-wrap" ref={sortMenuRef}>
+            <button
+              aria-expanded={isSortMenuOpen}
+              aria-haspopup="menu"
+              className="public-store-route__sort-trigger"
+              onClick={() => setIsSortMenuOpen((currentValue) => !currentValue)}
+              type="button"
+            >
+              <span>{sortOption}</span>
+              <span aria-hidden="true" className="public-store-route__sort-trigger-icon">
+                ↑↓
+              </span>
+            </button>
+
+            {isSortMenuOpen ? (
+              <div className="public-store-route__sort-menu" role="menu">
+                {sortOptions.map((option) => (
+                  <button
+                    aria-checked={sortOption === option}
+                    className={`public-store-route__sort-option ${sortOption === option ? "is-active" : ""}`}
+                    key={option}
+                    onClick={() => handleSelectSortOption(option)}
+                    role="menuitemradio"
+                    type="button"
+                  >
+                    <span>{option}</span>
+                    {sortOption === option ? (
+                      <span aria-hidden="true" className="public-store-route__sort-option-check">
+                        ✓
+                      </span>
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
         </div>
       </section>
 
@@ -869,49 +912,7 @@ function PublicStorePage() {
         </button>
       </section>
 
-      <footer className="public-store-footer">
-        <div className="public-shell public-store-footer__inner">
-          <div className="public-store-footer__brand-block">
-            <div className="public-store-footer__brand">SUBOOK®</div>
-
-            <div className="public-store-footer__links">
-              {footerLinks.map((link) => (
-                <button className="public-store-footer__text-button" key={link} type="button">
-                  {link}
-                </button>
-              ))}
-            </div>
-
-            <div className="public-store-footer__meta">
-              {footerMetaRows.map(([label, value]) => (
-                <div className="public-store-footer__meta-item" key={label}>
-                  <span>{label}</span>
-                  <span className="public-store-footer__divider" aria-hidden="true">
-                    |
-                  </span>
-                  <span>{value}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="public-store-footer__side">
-            <div className="public-store-footer__socials">
-              <button aria-label="메일" className="public-store-footer__social" type="button">
-                @
-              </button>
-              <button aria-label="인스타그램" className="public-store-footer__social" type="button">
-                ig
-              </button>
-              <button aria-label="카카오톡" className="public-store-footer__social" type="button">
-                k
-              </button>
-            </div>
-
-            <p className="public-store-footer__copyright">©SUBOOK All Right Reserved.</p>
-          </div>
-        </div>
-      </footer>
+      <PublicFooter />
     </div>
   );
 

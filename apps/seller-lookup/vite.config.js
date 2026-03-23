@@ -18,6 +18,7 @@ const envDir = existsSync(resolve(frontendRepoRoot, ".env")) ? frontendRepoRoot 
 
 export default defineConfig({
   root: appRoot,
+  cacheDir: resolve(appRoot, ".vite"),
   envDir,
   plugins: [react()],
   css: {
