@@ -12,6 +12,7 @@ const SHIPMENT_BOOK_QUERY_CHUNK_SIZE = 40;
 const BOOK_ID_QUERY_CHUNK_SIZE = 100;
 const BOOK_FETCH_PAGE_SIZE = 1000;
 const BULK_SETTLEMENT_TEMPLATE_FILE_NAME = "subook-bulk-settlement-template.xlsx";
+const BULK_SETTLEMENT_PURCHASE_SELLER_KEY = "매입";
 
 const initialForm = {
   sellerName: "",
@@ -102,6 +103,10 @@ function normalizeOptionalText(value) {
     .toLowerCase()
     .replace(/[\u00d7\u2715]/g, "x")
     .replace(/\s+/g, "");
+}
+
+function isBulkSettlementPurchaseRow(row) {
+  return row.sellerName === BULK_SETTLEMENT_PURCHASE_SELLER_KEY;
 }
 
 function normalizePhone(value) {
@@ -273,6 +278,7 @@ function parseBulkSettlementRows(rows) {
   const validRows = [];
   const invalidIssues = [];
   let blankRowCount = 0;
+  let purchaseCount = 0;
 
   rows.forEach((rawRow, index) => {
     const rowNumber = index + 2;
@@ -322,6 +328,11 @@ function parseBulkSettlementRows(rows) {
       option: normalizeOptionalText(rawOption),
       optionText,
     };
+
+    if (isBulkSettlementPurchaseRow(parsedRow)) {
+      purchaseCount += optionValues.length;
+      return;
+    }
 
     if (Number.isNaN(bookId)) {
       invalidIssues.push({
@@ -388,7 +399,7 @@ function parseBulkSettlementRows(rows) {
     });
   });
 
-  return { validRows, invalidIssues, blankRowCount };
+  return { validRows, invalidIssues, blankRowCount, purchaseCount };
 }
 
 function buildBulkSettlementGroupKey(row) {
@@ -868,12 +879,16 @@ function AdminDashboardPage() {
         return;
       }
 
-      const { validRows, invalidIssues, blankRowCount } = parseBulkSettlementRows(rawRows);
+      const { validRows, invalidIssues, blankRowCount, purchaseCount } =
+        parseBulkSettlementRows(rawRows);
+      const purchaseNotice =
+        purchaseCount > 0 ? ` 매입 ${purchaseCount}건은 정산 대상에서 제외했습니다.` : "";
 
       if (validRows.length === 0) {
         setBulkSettlementReport({
           totalRowCount: rawRows.length,
           blankRowCount,
+          purchaseCount,
           invalidCount: invalidIssues.length,
           duplicateCount: 0,
           updatedCount: 0,
@@ -882,7 +897,11 @@ function AdminDashboardPage() {
           notFoundCount: 0,
           issuePreview: invalidIssues.map(formatBulkSettlementIssue),
         });
-        setError("처리 가능한 행이 없습니다. 템플릿 형식을 확인해 주세요.");
+        if (invalidIssues.length === 0 && purchaseCount > 0) {
+          setSuccess(`매입 ${purchaseCount}건을 제외하고 처리할 정산 대상은 없었습니다.`);
+        } else {
+          setError(`처리 가능한 행이 없습니다. 템플릿 형식을 확인해 주세요.${purchaseNotice}`);
+        }
         return;
       }
 
@@ -1008,6 +1027,7 @@ function AdminDashboardPage() {
       setBulkSettlementReport({
         totalRowCount: rawRows.length,
         blankRowCount,
+        purchaseCount,
         invalidCount: invalidIssues.length,
         duplicateCount: duplicateIssues.length,
         updatedCount: updateBookIds.length,
@@ -1018,11 +1038,11 @@ function AdminDashboardPage() {
       });
 
       if (updateBookIds.length > 0) {
-        setSuccess(`${updateBookIds.length}권을 정산 완료로 변경했습니다.`);
+        setSuccess(`${updateBookIds.length}권을 정산 완료로 변경했습니다.${purchaseNotice}`);
       } else if (alreadySettledCount > 0 && issuePreview.length === 0 && invalidIssues.length === 0) {
-        setSuccess("업로드한 책은 이미 모두 정산 완료 상태였습니다.");
+        setSuccess(`업로드한 책은 이미 모두 정산 완료 상태였습니다.${purchaseNotice}`);
       } else {
-        setSuccess("엑셀 일괄 정산 처리를 마쳤습니다.");
+        setSuccess(`엑셀 일괄 정산 처리를 마쳤습니다.${purchaseNotice}`);
       }
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "엑셀 처리 중 오류가 발생했습니다.");
@@ -1174,6 +1194,8 @@ function AdminDashboardPage() {
               <br />
               `Option`이 없는 책은 비워둘 수 있고, 같은 제목의 여러 옵션은 `상,하`처럼 쉼표로 구분할 수 있습니다.
               <br />
+              `SellerName`이 `매입`인 행은 정산 대상에서 제외하고 별도로 카운트합니다.
+              <br />
               추가 식별 컬럼은 예외 상황에서만 내부적으로 지원합니다.
             </p>
           </div>
@@ -1208,7 +1230,7 @@ function AdminDashboardPage() {
 
         {bulkSettlementReport ? (
           <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-4">
+            <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
               <div className="rounded-xl border border-slate-200 bg-white p-3">
                 <p className="text-xs font-bold uppercase tracking-wide text-slate-400">정산 완료</p>
                 <p className="mt-1 text-xl font-black text-brand">
@@ -1233,12 +1255,21 @@ function AdminDashboardPage() {
                   {bulkSettlementReport.invalidCount + bulkSettlementReport.duplicateCount}
                 </p>
               </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-3">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">매입 제외</p>
+                <p className="mt-1 text-xl font-black text-slate-700">
+                  {bulkSettlementReport.purchaseCount}건
+                </p>
+              </div>
             </div>
 
             <p className="mt-3 text-xs font-semibold text-slate-500">
               총 {bulkSettlementReport.totalRowCount}행 처리
               {bulkSettlementReport.blankRowCount > 0
                 ? ` · 빈 행 ${bulkSettlementReport.blankRowCount}개 제외`
+                : ""}
+              {bulkSettlementReport.purchaseCount > 0
+                ? ` · 매입 ${bulkSettlementReport.purchaseCount}건 제외`
                 : ""}
             </p>
 
