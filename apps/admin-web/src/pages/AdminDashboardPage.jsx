@@ -10,6 +10,7 @@ const PAGE_SIZE = 20;
 const SHIPMENT_INDEX_PAGE_SIZE = 1000;
 const SHIPMENT_BOOK_QUERY_CHUNK_SIZE = 40;
 const BOOK_ID_QUERY_CHUNK_SIZE = 100;
+const BOOK_FETCH_PAGE_SIZE = 1000;
 const BULK_SETTLEMENT_ISSUE_PREVIEW_LIMIT = 12;
 const BULK_SETTLEMENT_TEMPLATE_FILE_NAME = "subook-bulk-settlement-template.xlsx";
 
@@ -349,7 +350,7 @@ function parseBulkSettlementRows(rows) {
       invalidIssues.push({
         rowNumber,
         type: "invalid",
-        message: "기본 업로드 형식은 SellerName + Title + Option입니다.",
+        message: "기본 업로드 형식은 SellerName + Title이며 Option은 비워둘 수 있습니다.",
         descriptor: buildBulkSettlementDescriptor(parsedRow),
       });
       return;
@@ -358,15 +359,14 @@ function parseBulkSettlementRows(rows) {
     const hasShipmentHint =
       shipmentId !== null ||
       Boolean(parsedRow.sellerPhone) ||
-      (Boolean(parsedRow.sellerName) && Boolean(parsedRow.pickupDate)) ||
-      (Boolean(parsedRow.sellerName) && optionValues.some(Boolean));
+      Boolean(parsedRow.sellerName);
 
     if (bookId === null && !hasShipmentHint) {
       invalidIssues.push({
         rowNumber,
         type: "invalid",
         message:
-          "기본 업로드 형식은 SellerName + Title + Option입니다. 예외 상황에서만 추가 식별 컬럼을 사용해 주세요.",
+          "기본 업로드 형식은 SellerName + Title이며 Option은 선택입니다. 예외 상황에서만 추가 식별 컬럼을 사용해 주세요.",
         descriptor: buildBulkSettlementDescriptor(parsedRow),
       });
       return;
@@ -420,7 +420,11 @@ function matchesBulkSettlementRow(book, row) {
     return false;
   }
 
-  if (row.option && book.optionKey !== row.option) {
+  if (row.option === null) {
+    if (book.optionKey !== null) {
+      return false;
+    }
+  } else if (book.optionKey !== row.option) {
     return false;
   }
 
@@ -699,18 +703,31 @@ function AdminDashboardPage() {
       [...candidateShipmentIds],
       SHIPMENT_BOOK_QUERY_CHUNK_SIZE,
     )) {
-      const { data, error: booksError } = await supabase
-        .from("books")
-        .select("id,shipment_id,title,option,status")
-        .in("shipment_id", shipmentIdChunk);
+      let from = 0;
 
-      if (booksError) {
-        throw new Error("정산 대상 책 목록을 불러오지 못했습니다.");
+      while (true) {
+        const to = from + BOOK_FETCH_PAGE_SIZE - 1;
+        const { data, error: booksError } = await supabase
+          .from("books")
+          .select("id,shipment_id,title,option,status")
+          .in("shipment_id", shipmentIdChunk)
+          .order("id", { ascending: true })
+          .range(from, to);
+
+        if (booksError) {
+          throw new Error("정산 대상 책 목록을 불러오지 못했습니다.");
+        }
+
+        (data ?? []).forEach((book) => {
+          candidateBookMap.set(book.id, book);
+        });
+
+        if (!data || data.length < BOOK_FETCH_PAGE_SIZE) {
+          break;
+        }
+
+        from += BOOK_FETCH_PAGE_SIZE;
       }
-
-      (data ?? []).forEach((book) => {
-        candidateBookMap.set(book.id, book);
-      });
     }
 
     const directBookIds = [
@@ -795,7 +812,7 @@ function AdminDashboardPage() {
         {
           SellerName: "김민수",
           Title: "영어 기출",
-          Option: "1권",
+          Option: "",
         },
       ];
 
@@ -1149,9 +1166,9 @@ function AdminDashboardPage() {
               엑셀 한 장으로 여러 판매자의 책을 한 번에 정산 완료 처리할 수 있습니다.
             </p>
             <p className="mt-2 text-xs font-semibold text-slate-500">
-              공식 업로드 컬럼: `SellerName`, `Title`, `Option`
+              공식 업로드 컬럼: `SellerName`, `Title`, `Option(선택)`
               <br />
-              한 행에 한 책이 기본이며, 같은 제목의 여러 옵션은 `상,하`처럼 쉼표로 구분할 수 있습니다.
+              `Option`이 없는 책은 비워둘 수 있고, 같은 제목의 여러 옵션은 `상,하`처럼 쉼표로 구분할 수 있습니다.
               <br />
               추가 식별 컬럼은 예외 상황에서만 내부적으로 지원합니다.
             </p>
