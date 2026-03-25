@@ -11,7 +11,6 @@ const SHIPMENT_INDEX_PAGE_SIZE = 1000;
 const SHIPMENT_BOOK_QUERY_CHUNK_SIZE = 40;
 const BOOK_ID_QUERY_CHUNK_SIZE = 100;
 const BOOK_FETCH_PAGE_SIZE = 1000;
-const BULK_SETTLEMENT_ISSUE_PREVIEW_LIMIT = 12;
 const BULK_SETTLEMENT_TEMPLATE_FILE_NAME = "subook-bulk-settlement-template.xlsx";
 
 const initialForm = {
@@ -94,7 +93,15 @@ function splitBulkSettlementOptions(value) {
 
 function normalizeOptionalText(value) {
   const text = toNullableText(value);
-  return text ? text.toLowerCase() : null;
+  if (!text) {
+    return null;
+  }
+
+  return text
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[\u00d7\u2715]/g, "x")
+    .replace(/\s+/g, "");
 }
 
 function normalizePhone(value) {
@@ -873,9 +880,7 @@ function AdminDashboardPage() {
           alreadySettledCount: 0,
           ambiguousCount: 0,
           notFoundCount: 0,
-          issuePreview: invalidIssues
-            .slice(0, BULK_SETTLEMENT_ISSUE_PREVIEW_LIMIT)
-            .map(formatBulkSettlementIssue),
+          issuePreview: invalidIssues.map(formatBulkSettlementIssue),
         });
         setError("처리 가능한 행이 없습니다. 템플릿 형식을 확인해 주세요.");
         return;
@@ -998,7 +1003,6 @@ function AdminDashboardPage() {
         ...notFoundIssues,
       ]
         .sort((a, b) => a.rowNumber - b.rowNumber)
-        .slice(0, BULK_SETTLEMENT_ISSUE_PREVIEW_LIMIT)
         .map(formatBulkSettlementIssue);
 
       setBulkSettlementReport({
@@ -1241,9 +1245,9 @@ function AdminDashboardPage() {
             {bulkSettlementReport.issuePreview.length > 0 ? (
               <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
                 <p className="text-sm font-bold text-amber-800">확인 필요한 행</p>
-                <ul className="mt-2 space-y-1 text-xs font-semibold text-amber-900">
-                  {bulkSettlementReport.issuePreview.map((message) => (
-                    <li key={message}>{message}</li>
+                <ul className="mt-2 max-h-80 space-y-1 overflow-y-auto pr-1 text-xs font-semibold text-amber-900">
+                  {bulkSettlementReport.issuePreview.map((message, index) => (
+                    <li key={`${index}-${message}`}>{message}</li>
                   ))}
                 </ul>
               </div>
