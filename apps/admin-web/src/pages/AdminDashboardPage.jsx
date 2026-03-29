@@ -13,6 +13,15 @@ const BOOK_ID_QUERY_CHUNK_SIZE = 100;
 const BOOK_FETCH_PAGE_SIZE = 1000;
 const BULK_SETTLEMENT_TEMPLATE_FILE_NAME = "subook-bulk-settlement-template.xlsx";
 const BULK_SETTLEMENT_PURCHASE_SELLER_KEY = "매입";
+const INVENTORY_AUDIT_FILE_NAME_PREFIX = "subook-inventory-audit";
+const INVENTORY_AUDIT_SHEET_NAME = "inventory_audit";
+const INVENTORY_AUDIT_EXPORT_HEADERS = [
+  "수거신청자",
+  "상품명",
+  "판매가",
+  "옵션",
+  "정산여부",
+];
 
 const initialForm = {
   sellerName: "",
@@ -454,6 +463,67 @@ function formatBulkSettlementIssue(issue) {
   return `${issue.rowNumber}행: ${issue.message}${descriptor}`;
 }
 
+function getInventoryAuditStatusLabel(status) {
+  return status === "settled" ? "정산완료" : "미정산";
+}
+
+function buildInventoryAuditGroupKey(book) {
+  const hasOption = Boolean(toNullableText(book.option));
+
+  return JSON.stringify([
+    book.shipment_id ?? "",
+    normalizeOptionalText(book.title) ?? "",
+    book.price ?? "",
+    book.status ?? "",
+    hasOption ? "option-group" : `book-${book.id}`,
+  ]);
+}
+
+function formatInventoryAuditOptionText(optionValues) {
+  return optionValues
+    .map((value) => toNullableText(value))
+    .filter((value) => value !== null)
+    .join(",");
+}
+
+function compareInventoryAuditRows(a, b) {
+  const sellerCompare = a.sellerName.localeCompare(b.sellerName, "ko-KR");
+  if (sellerCompare !== 0) {
+    return sellerCompare;
+  }
+
+  if (a.shipmentId !== b.shipmentId) {
+    return a.shipmentId - b.shipmentId;
+  }
+
+  const titleCompare = a.title.localeCompare(b.title, "ko-KR");
+  if (titleCompare !== 0) {
+    return titleCompare;
+  }
+
+  const priceA = typeof a.price === "number" ? a.price : -1;
+  const priceB = typeof b.price === "number" ? b.price : -1;
+  if (priceA !== priceB) {
+    return priceA - priceB;
+  }
+
+  const statusCompare = a.settlementStatus.localeCompare(b.settlementStatus, "ko-KR");
+  if (statusCompare !== 0) {
+    return statusCompare;
+  }
+
+  return a.firstBookId - b.firstBookId;
+}
+
+function getInventoryAuditFileName() {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+
+  return `${INVENTORY_AUDIT_FILE_NAME_PREFIX}-${year}-${month}-${day}.xlsx`;
+}
+
 function AdminDashboardPage() {
   const navigate = useNavigate();
   const sellerPortalUrl = getSellerLookupOrigin();
@@ -465,6 +535,7 @@ function AdminDashboardPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isBulkSettling, setIsBulkSettling] = useState(false);
+  const [isInventoryExporting, setIsInventoryExporting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [bulkSettlementReport, setBulkSettlementReport] = useState(null);
@@ -658,7 +729,7 @@ function AdminDashboardPage() {
         .range(from, to);
 
       if (shipmentError) {
-        throw new Error("정산 대상 수거 목록을 불러오지 못했습니다.");
+        throw new Error("수거 목록을 불러오지 못했습니다.");
       }
 
       if (!data || data.length === 0) {
@@ -682,6 +753,38 @@ function AdminDashboardPage() {
     }
 
     return shipmentIndex;
+  };
+
+  const fetchAllInventoryBooks = async () => {
+    const books = [];
+    let from = 0;
+
+    while (true) {
+      const to = from + BOOK_FETCH_PAGE_SIZE - 1;
+      const { data, error: booksError } = await supabase
+        .from("books")
+        .select("id,shipment_id,title,option,status,price")
+        .order("id", { ascending: true })
+        .range(from, to);
+
+      if (booksError) {
+        throw new Error("재고 전수조사 대상 책 목록을 불러오지 못했습니다.");
+      }
+
+      if (!data || data.length === 0) {
+        break;
+      }
+
+      books.push(...data);
+
+      if (data.length < BOOK_FETCH_PAGE_SIZE) {
+        break;
+      }
+
+      from += BOOK_FETCH_PAGE_SIZE;
+    }
+
+    return books;
   };
 
   const fetchCandidateBooks = async (parsedRows) => {
@@ -840,6 +943,96 @@ function AdminDashboardPage() {
       xlsx.writeFile(workbook, BULK_SETTLEMENT_TEMPLATE_FILE_NAME);
     } catch (_error) {
       setError("엑셀 템플릿을 생성하지 못했습니다.");
+    }
+  };
+
+  const handleDownloadInventoryAudit = async () => {
+    if (!isSupabaseConfigured) {
+      setError("Supabase 환경 변수가 설정되지 않았습니다.");
+      return;
+    }
+
+    setError("");
+    setSuccess("");
+    setIsInventoryExporting(true);
+
+    try {
+      const [xlsx, shipmentIndex, books] = await Promise.all([
+        import("xlsx"),
+        fetchShipmentIndex(),
+        fetchAllInventoryBooks(),
+      ]);
+      const shipmentMap = new Map(shipmentIndex.map((shipment) => [shipment.id, shipment]));
+      const groupedRows = new Map();
+
+      books.forEach((book) => {
+        const shipment = shipmentMap.get(book.shipment_id);
+        if (!shipment) {
+          return;
+        }
+
+        const groupKey = buildInventoryAuditGroupKey(book);
+        const existingRow = groupedRows.get(groupKey);
+
+        if (existingRow) {
+          existingRow.options.push(book.option);
+          return;
+        }
+
+        groupedRows.set(groupKey, {
+          shipmentId: shipment.id,
+          sellerName: collapseWhitespace(shipment.seller_name),
+          title: collapseWhitespace(book.title),
+          price: book.price,
+          options: [book.option],
+          settlementStatus: getInventoryAuditStatusLabel(book.status),
+          firstBookId: book.id,
+        });
+      });
+
+      const exportRows = [...groupedRows.values()]
+        .sort(compareInventoryAuditRows)
+        .map((row) => ({
+          [INVENTORY_AUDIT_EXPORT_HEADERS[0]]: row.sellerName,
+          [INVENTORY_AUDIT_EXPORT_HEADERS[1]]: row.title,
+          [INVENTORY_AUDIT_EXPORT_HEADERS[2]]: row.price ?? "",
+          [INVENTORY_AUDIT_EXPORT_HEADERS[3]]: formatInventoryAuditOptionText(row.options),
+          [INVENTORY_AUDIT_EXPORT_HEADERS[4]]: row.settlementStatus,
+        }));
+
+      if (exportRows.length === 0) {
+        setError("다운로드할 책 데이터가 없습니다.");
+        return;
+      }
+
+      const workbook = xlsx.utils.book_new();
+      const worksheet = xlsx.utils.json_to_sheet(exportRows, {
+        header: INVENTORY_AUDIT_EXPORT_HEADERS,
+      });
+
+      worksheet["!cols"] = [
+        { wch: 18 },
+        { wch: 36 },
+        { wch: 12 },
+        { wch: 28 },
+        { wch: 12 },
+      ];
+
+      if (worksheet["!ref"]) {
+        worksheet["!autofilter"] = { ref: worksheet["!ref"] };
+      }
+
+      xlsx.utils.book_append_sheet(workbook, worksheet, INVENTORY_AUDIT_SHEET_NAME);
+      xlsx.writeFile(workbook, getInventoryAuditFileName());
+      setSuccess(`${exportRows.length}행 재고 전수조사 엑셀을 다운로드했습니다.`);
+    } catch (downloadError) {
+      setError(
+        downloadError instanceof Error
+          ? downloadError.message
+          : "재고 전수조사 엑셀을 생성하지 못했습니다.",
+      );
+    } finally {
+      setIsInventoryExporting(false);
     }
   };
 
@@ -1185,6 +1378,29 @@ function AdminDashboardPage() {
       <section className="card animate-rise mb-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
+            <h2 className="section-title">재고 전수조사 엑셀</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              현재 DB 기준으로 수거신청자, 상품명, 판매가, 옵션, 정산여부를 엑셀로 내려받습니다.
+            </p>
+            <p className="mt-2 text-xs font-semibold text-slate-500">
+              같은 수거 건 안에서 동일한 상품명, 판매가, 정산상태의 옵션은 `상,하`처럼 쉼표로 묶어 한 줄로 정리합니다.
+            </p>
+          </div>
+
+          <button
+            className="btn-primary !w-auto !px-4 !py-2.5 text-sm"
+            disabled={isInventoryExporting || isBulkSettling}
+            onClick={handleDownloadInventoryAudit}
+            type="button"
+          >
+            {isInventoryExporting ? "엑셀 생성 중..." : "엑셀 다운로드"}
+          </button>
+        </div>
+      </section>
+
+      <section className="card animate-rise mb-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
             <h2 className="section-title">일괄 정산 완료</h2>
             <p className="mt-1 text-sm text-slate-500">
               엑셀 한 장으로 여러 판매자의 책을 한 번에 정산 완료 처리할 수 있습니다.
@@ -1203,7 +1419,7 @@ function AdminDashboardPage() {
           <div className="flex flex-wrap gap-2">
             <button
               className="btn-secondary !w-auto !px-4 !py-2.5 text-sm"
-              disabled={isBulkSettling}
+              disabled={isBulkSettling || isInventoryExporting}
               onClick={handleDownloadSettlementTemplate}
               type="button"
             >
@@ -1211,7 +1427,7 @@ function AdminDashboardPage() {
             </button>
             <button
               className="btn-primary !w-auto !px-4 !py-2.5 text-sm"
-              disabled={isBulkSettling}
+              disabled={isBulkSettling || isInventoryExporting}
               onClick={handleOpenBulkSettlementPicker}
               type="button"
             >
