@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import AdminSectionTabs from "../components/AdminSectionTabs";
 import { getSellerLookupOrigin } from "../lib/portalLinks";
-import { isSupabaseConfigured, supabase } from "@shared-supabase/supabaseClient";
+import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { formatDate } from "@shared-domain/format";
 import StatusBadge from "@shared-domain/StatusBadge";
 
@@ -1300,7 +1300,7 @@ function AdminDashboardPage() {
 
       {!isSupabaseConfigured ? (
         <p className="notice-error mb-4">
-          `.env` 파일에 `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`를 설정해 주세요.
+          `.env` 파일에 `VITE_SUPABASE_ADMIN_URL`, `VITE_SUPABASE_ADMIN_ANON_KEY`를 설정해 주세요.
         </p>
       ) : null}
 

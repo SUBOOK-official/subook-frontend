@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import AdminSectionTabs from "../components/AdminSectionTabs";
 import { formatCurrency, formatDate } from "@shared-domain/format";
 import { bookStatusLabel } from "@shared-domain/status";
-import { isSupabaseConfigured, supabase } from "@shared-supabase/supabaseClient";
+import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import StatusBadge from "@shared-domain/StatusBadge";
 
 const initialBookForm = {

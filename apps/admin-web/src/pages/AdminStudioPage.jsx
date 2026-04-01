@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import AdminSectionTabs from "../components/AdminSectionTabs";
 import { useAdminStudio } from "../contexts/AdminStudioContext";
 import { getSellerLookupOrigin } from "../lib/portalLinks";
-import { isSupabaseConfigured, supabase } from "@shared-supabase/supabaseClient";
+import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 
 function formatEstimatedTime(ms) {
   if (!Number.isFinite(ms) || ms <= 0) {
@@ -211,7 +211,7 @@ function AdminStudioPage() {
 
       {!isSupabaseConfigured ? (
         <p className="notice-error mb-4">
-          `.env` 파일에 `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`를 설정해 주세요.
+          `.env` 파일에 `VITE_SUPABASE_ADMIN_URL`, `VITE_SUPABASE_ADMIN_ANON_KEY`를 설정해 주세요.
         </p>
       ) : null}
 

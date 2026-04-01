@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { isSupabaseConfigured, supabase } from "@shared-supabase/supabaseClient";
+import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 
 const STUDIO_MAX_IMAGE_SIDE = 1600;
 const STUDIO_MAX_BASE64_LENGTH = 3_000_000;

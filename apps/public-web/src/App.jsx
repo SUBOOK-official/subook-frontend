@@ -3,6 +3,7 @@ import PublicForgotPasswordPage from "./pages/PublicForgotPasswordPage";
 import PublicGuestOrderLookupPage from "./pages/PublicGuestOrderLookupPage";
 import PublicHomePage from "./pages/PublicHomePage";
 import PublicLoginPage from "./pages/PublicLoginPage";
+import PublicResetPasswordPage from "./pages/PublicResetPasswordPage";
 import PublicSignupPage from "./pages/PublicSignupPage";
 import PublicSignupSuccessPage from "./pages/PublicSignupSuccessPage";
 import PublicStorePage from "./pages/PublicStorePage";
@@ -10,6 +11,7 @@ import PublicStorePage from "./pages/PublicStorePage";
 function App() {
   return (
     <Routes>
+      <Route element={<PublicResetPasswordPage />} path="/auth/reset-password" />
       <Route element={<PublicForgotPasswordPage />} path="/forgot-password" />
       <Route element={<PublicGuestOrderLookupPage />} path="/guest-order-lookup" />
       <Route element={<PublicHomePage />} path="/" />

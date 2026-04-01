@@ -1,4 +1,4 @@
-import { isSupabaseConfigured, supabase } from "@shared-supabase/supabaseClient";
+import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 
 export async function getAdminAccessState() {
   if (!isSupabaseConfigured || !supabase) {

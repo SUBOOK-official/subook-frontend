@@ -2,7 +2,7 @@
 import StatusBadge from "@shared-domain/StatusBadge";
 import { formatCurrency, formatDate } from "@shared-domain/format";
 import { getSettlementInfo } from "@shared-domain/settlement";
-import { isSupabaseConfigured, supabase } from "@shared-supabase/supabaseClient";
+import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import subookLogoUrl from "../assets/수북 로고.png";
 
 const BOOKS_BATCH_SIZE = 20;
@@ -503,7 +503,7 @@ function SellerLookupPage() {
 
       {!isSupabaseConfigured ? (
         <p className="notice-error mb-4">
-          `.env` 파일에 `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`를 설정해 주세요.
+          `.env` 파일에 `VITE_SUPABASE_ADMIN_URL`, `VITE_SUPABASE_ADMIN_ANON_KEY`를 설정해 주세요.
         </p>
       ) : null}
 
