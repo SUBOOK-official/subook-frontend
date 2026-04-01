@@ -1,50 +1,18 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import arrowLeftImage from "../assets/arrow-left.svg";
 import arrowRightImage from "../assets/arrow-right.svg";
 import heartOutlineImage from "../assets/heart-outline.svg";
 import searchIconImage from "../assets/search-icon.svg";
 import searchActionImage from "../assets/search-action.svg";
-import categoryAImage from "../assets/category-a.png";
-import categoryBImage from "../assets/category-b.png";
-import categoryCImage from "../assets/category-c.png";
-import categoryDImage from "../assets/category-d.png";
 import heroBooksBannerImage from "../assets/hero-books-banner.png";
 import heroFaqBubbleImage from "../assets/hero-faq-bubble.svg";
 import heroFaqMascotImage from "../assets/hero-faq-mascot.png";
 import PublicFooter from "../components/PublicFooter";
+import PublicPageFrame from "../components/PublicPageFrame";
 
 const HERO_ROTATION_MS = 5000;
-const DESKTOP_FRAME_WIDTH = 1920;
-const DESKTOP_LOCK_MIN_WIDTH = 1280;
 const HERO_SLIDE_COUNT = 2;
-
-const categoryCards = [
-  {
-    id: "category-a",
-    asset: categoryAImage,
-    alt: "BEST 카테고리 카드",
-    style: "neutral",
-  },
-  {
-    id: "category-b",
-    asset: categoryBImage,
-    alt: "BEST 카테고리 카드",
-    style: "full",
-  },
-  {
-    id: "category-c",
-    asset: categoryCImage,
-    alt: "BEST 카테고리 카드",
-    style: "teal",
-  },
-  {
-    id: "category-d",
-    asset: categoryDImage,
-    alt: "BEST 카테고리 카드",
-    style: "blue",
-  },
-];
 
 const productLabels = [
   { label: "과학", tone: "subject" },
@@ -63,23 +31,6 @@ const productCards = Array.from({ length: 10 }, (_, index) => ({
 
 function LabelPill({ label, tone }) {
   return <span className={`public-pill public-pill--${tone}`}>{label}</span>;
-}
-
-function CategoryCard({ asset, alt, style }) {
-  const cardClassName =
-    style === "full"
-      ? "public-category-card public-category-card--full"
-      : `public-category-card public-category-card--${style}`;
-
-  return (
-    <article className={cardClassName}>
-      <img
-        alt={alt}
-        className={style === "full" ? "public-category-card__full-image" : "public-category-card__image"}
-        src={asset}
-      />
-    </article>
-  );
 }
 
 function ProductCard({ product }) {
@@ -165,10 +116,6 @@ function PublicHomePage() {
   const [heroClock, setHeroClock] = useState(() => Math.floor(Date.now() / HERO_ROTATION_MS));
   const [heroOffset, setHeroOffset] = useState(0);
   const [selectedMenu, setSelectedMenu] = useState(null);
-  const [desktopScale, setDesktopScale] = useState(1);
-  const [desktopFrameHeight, setDesktopFrameHeight] = useState(0);
-  const [isDesktopLocked, setIsDesktopLocked] = useState(false);
-  const desktopFrameRef = useRef(null);
 
   useEffect(() => {
     const syncHeroClock = () => {
@@ -183,49 +130,6 @@ function PublicHomePage() {
       window.clearInterval(intervalId);
     };
   }, []);
-
-  useEffect(() => {
-    const syncDesktopFrame = () => {
-      const shouldLockDesktop = window.innerWidth >= DESKTOP_LOCK_MIN_WIDTH;
-      setIsDesktopLocked(shouldLockDesktop);
-
-      if (!shouldLockDesktop) {
-        setDesktopScale(1);
-        return;
-      }
-
-      setDesktopScale(Math.min(1, window.innerWidth / DESKTOP_FRAME_WIDTH));
-    };
-
-    syncDesktopFrame();
-    window.addEventListener("resize", syncDesktopFrame);
-
-    return () => {
-      window.removeEventListener("resize", syncDesktopFrame);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!isDesktopLocked || !desktopFrameRef.current || typeof ResizeObserver === "undefined") {
-      return undefined;
-    }
-
-    const syncDesktopHeight = () => {
-      setDesktopFrameHeight(desktopFrameRef.current.offsetHeight);
-    };
-
-    syncDesktopHeight();
-
-    const resizeObserver = new ResizeObserver(() => {
-      syncDesktopHeight();
-    });
-
-    resizeObserver.observe(desktopFrameRef.current);
-
-    return () => {
-      resizeObserver.disconnect();
-    };
-  }, [isDesktopLocked]);
 
   const activeHeroIndex = ((heroClock + heroOffset) % HERO_SLIDE_COUNT + HERO_SLIDE_COUNT) % HERO_SLIDE_COUNT;
 
@@ -253,9 +157,9 @@ function PublicHomePage() {
             <button className="public-nav-link" type="button">
               마이페이지
             </button>
-            <button className="public-nav-link public-nav-button" type="button">
-              로그아웃
-            </button>
+            <Link className="public-nav-link public-nav-button" to="/login">
+              로그인/회원가입
+            </Link>
           </nav>
         </header>
 
@@ -339,18 +243,6 @@ function PublicHomePage() {
             </div>
           </div>
         </section>
-
-        <section className="public-shell public-category-section" aria-labelledby="public-best-category">
-          <h2 className="public-section-title public-category-section__title" id="public-best-category">
-            👑 BEST 카테고리
-          </h2>
-
-          <div className="public-category-list">
-            {categoryCards.map((card) => (
-              <CategoryCard key={card.id} {...card} />
-            ))}
-          </div>
-        </section>
       </div>
 
       <section className="public-products" aria-labelledby="public-best-books">
@@ -373,23 +265,7 @@ function PublicHomePage() {
     </>
   );
 
-  if (isDesktopLocked) {
-    return (
-      <main className="public-home public-home--locked">
-        <div className="public-home__stage" style={{ height: `${desktopFrameHeight * desktopScale}px` }}>
-          <div
-            className="public-home__frame"
-            ref={desktopFrameRef}
-            style={{ transform: `translateX(-50%) scale(${desktopScale})` }}
-          >
-            {pageContent}
-          </div>
-        </div>
-      </main>
-    );
-  }
-
-  return <main className="public-home">{pageContent}</main>;
+  return <PublicPageFrame>{pageContent}</PublicPageFrame>;
 }
 
 export default PublicHomePage;

@@ -4,12 +4,11 @@ import bridgeEarthScienceCover from "../assets/bridge-earth-science-cover.svg";
 import searchIconImage from "../assets/search-icon.svg";
 import searchActionImage from "../assets/search-action.svg";
 import PublicFooter from "../components/PublicFooter";
+import PublicPageFrame from "../components/PublicPageFrame";
 import storeTop2Image from "../assets/store-top-2.png";
 import storeTop3Image from "../assets/store-top-3.png";
 import storeTop4Image from "../assets/store-top-4.png";
 
-const DESKTOP_FRAME_WIDTH = 1920;
-const DESKTOP_LOCK_MIN_WIDTH = 1280;
 const ITEMS_PER_PAGE = 15;
 
 const subjectTabs = ["전체", "국어", "수학", "영어", "과학", "사회", "한국사", "기타"];
@@ -465,9 +464,6 @@ function StoreCard({ product, rank, isFavorite, onToggleFavorite, viewMode = "gr
 }
 
 function PublicStorePage() {
-  const [desktopScale, setDesktopScale] = useState(1);
-  const [desktopFrameHeight, setDesktopFrameHeight] = useState(0);
-  const [isDesktopLocked, setIsDesktopLocked] = useState(false);
   const [selectedMenu, setSelectedMenu] = useState("store");
   const [selectedSubject, setSelectedSubject] = useState("전체");
   const [selectedFilters, setSelectedFilters] = useState(initialFilters);
@@ -477,51 +473,7 @@ function PublicStorePage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [searchKeyword, setSearchKeyword] = useState("");
   const [favoriteIds, setFavoriteIds] = useState(["math-climax-2026"]);
-  const desktopFrameRef = useRef(null);
   const sortMenuRef = useRef(null);
-
-  useEffect(() => {
-    const syncDesktopFrame = () => {
-      const shouldLockDesktop = window.innerWidth >= DESKTOP_LOCK_MIN_WIDTH;
-      setIsDesktopLocked(shouldLockDesktop);
-
-      if (!shouldLockDesktop) {
-        setDesktopScale(1);
-        return;
-      }
-
-      setDesktopScale(Math.min(1, window.innerWidth / DESKTOP_FRAME_WIDTH));
-    };
-
-    syncDesktopFrame();
-    window.addEventListener("resize", syncDesktopFrame);
-
-    return () => {
-      window.removeEventListener("resize", syncDesktopFrame);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!isDesktopLocked || !desktopFrameRef.current || typeof ResizeObserver === "undefined") {
-      return undefined;
-    }
-
-    const syncDesktopHeight = () => {
-      setDesktopFrameHeight(desktopFrameRef.current.offsetHeight);
-    };
-
-    syncDesktopHeight();
-
-    const resizeObserver = new ResizeObserver(() => {
-      syncDesktopHeight();
-    });
-
-    resizeObserver.observe(desktopFrameRef.current);
-
-    return () => {
-      resizeObserver.disconnect();
-    };
-  }, [isDesktopLocked]);
 
   useEffect(() => {
     if (!isSortMenuOpen) {
@@ -650,9 +602,9 @@ function PublicStorePage() {
             <button className="public-nav-link" type="button">
               마이페이지
             </button>
-            <button className="public-nav-link public-nav-button" type="button">
-              로그아웃
-            </button>
+            <Link className="public-nav-link public-nav-button" to="/login">
+              로그인/회원가입
+            </Link>
           </nav>
         </header>
 
@@ -916,23 +868,7 @@ function PublicStorePage() {
     </div>
   );
 
-  if (isDesktopLocked) {
-    return (
-      <main className="public-home public-home--locked">
-        <div className="public-home__stage" style={{ height: `${desktopFrameHeight * desktopScale}px` }}>
-          <div
-            className="public-home__frame"
-            ref={desktopFrameRef}
-            style={{ transform: `translateX(-50%) scale(${desktopScale})` }}
-          >
-            {pageContent}
-          </div>
-        </div>
-      </main>
-    );
-  }
-
-  return <main className="public-home">{pageContent}</main>;
+  return <PublicPageFrame>{pageContent}</PublicPageFrame>;
 }
 
 export default PublicStorePage;
