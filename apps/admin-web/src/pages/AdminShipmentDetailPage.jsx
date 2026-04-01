@@ -68,7 +68,7 @@ function formatBookLabel(book) {
 }
 
 function getBookSortPriority(status) {
-  return status === "settled" ? 0 : 1;
+  return status === "on_sale" ? 0 : 1;
 }
 
 function compareBooksForDisplay(a, b) {
@@ -87,6 +87,131 @@ function compareBooksForDisplay(a, b) {
   return (a.id ?? 0) - (b.id ?? 0);
 }
 
+function normalizeComparablePrice(price) {
+  if (price === null || price === undefined || price === "") {
+    return null;
+  }
+
+  const numeric = Number(price);
+  return Number.isNaN(numeric) ? null : numeric;
+}
+
+function BookPriceEditor({
+  draftValue,
+  isDirty,
+  isInvalid,
+  isSaving,
+  isDisabled,
+  onChange,
+  onSave,
+  onReset,
+  compact = false,
+}) {
+  const inputClass = compact
+    ? "input-base !mt-0 !min-w-[120px] !py-2 text-sm"
+    : "input-base !mt-0 !py-2 text-sm";
+  const actionClass = compact
+    ? "btn-secondary !w-auto !whitespace-nowrap !px-3 !py-2 text-xs"
+    : "btn-secondary !w-auto !whitespace-nowrap !px-3 !py-2 text-xs";
+
+  return (
+    <div className={compact ? "space-y-2" : "mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3"}>
+      {!compact ? <p className="label">판매가 수정</p> : null}
+      <div className={`flex flex-wrap items-center gap-2 ${compact ? "" : "mt-1"}`}>
+        <input
+          className={inputClass}
+          disabled={isDisabled}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder="예: 12000"
+          type="number"
+          value={draftValue}
+        />
+        <button
+          className={actionClass}
+          disabled={isDisabled || isSaving || !isDirty || isInvalid}
+          onClick={onSave}
+          type="button"
+        >
+          {isSaving ? "저장 중..." : "판매가 저장"}
+        </button>
+        {isDirty ? (
+          <button
+            className="inline-flex items-center justify-center rounded-lg px-3 py-2 text-xs font-bold text-slate-500 transition hover:bg-slate-200 hover:text-slate-700"
+            disabled={isDisabled || isSaving}
+            onClick={onReset}
+            type="button"
+          >
+            취소
+          </button>
+        ) : (
+          <span className="text-xs font-semibold text-slate-400">저장됨</span>
+        )}
+      </div>
+      {isInvalid ? (
+        <p className="text-xs font-semibold text-rose-700">0 이상의 숫자로 입력해 주세요.</p>
+      ) : null}
+    </div>
+  );
+}
+
+function BookStatusEditor({
+  draftValue,
+  isDirty,
+  isSaving,
+  isDisabled,
+  onChange,
+  onSave,
+  onReset,
+  compact = false,
+}) {
+  const selectClass = compact ? "input-base !mt-0 !min-w-[140px] !py-2 text-sm" : "input-base";
+
+  return (
+    <div className={compact ? "space-y-2" : "mt-3"}>
+      {!compact ? <span className="label">상태 변경</span> : null}
+      <div className={`flex flex-wrap items-center gap-2 ${compact ? "" : "mt-1"}`}>
+        <select
+          className={selectClass}
+          disabled={isDisabled}
+          onChange={(event) => onChange(event.target.value)}
+          value={draftValue}
+        >
+          {adminBookStatusOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        <button
+          className="btn-secondary !w-auto !whitespace-nowrap !px-3 !py-2 text-xs"
+          disabled={isDisabled || isSaving || !isDirty}
+          onClick={onSave}
+          type="button"
+        >
+          {isSaving ? "저장 중..." : "상태 저장"}
+        </button>
+        {isDirty ? (
+          <button
+            className="inline-flex items-center justify-center rounded-lg px-3 py-2 text-xs font-bold text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+            disabled={isDisabled || isSaving}
+            onClick={onReset}
+            type="button"
+          >
+            취소
+          </button>
+        ) : (
+          <span className="text-xs font-semibold text-slate-400">변경 없음</span>
+        )}
+      </div>
+      {isDirty && draftValue === "settled" ? (
+        <p className="text-xs font-semibold text-amber-700">
+          저장 시 이 책은 정산완료로 반영됩니다.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function AdminShipmentDetailPage() {
   const { shipmentId } = useParams();
   const navigate = useNavigate();
@@ -100,13 +225,14 @@ function AdminShipmentDetailPage() {
   const [notice, setNotice] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
   const [isBulkUploading, setIsBulkUploading] = useState(false);
-  const [updatingBookId, setUpdatingBookId] = useState(null);
+  const [updatingBookStatusId, setUpdatingBookStatusId] = useState(null);
   const [updatingBookPriceId, setUpdatingBookPriceId] = useState(null);
   const [deletingBookId, setDeletingBookId] = useState(null);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [bookSearchQuery, setBookSearchQuery] = useState("");
   const [bookListPage, setBookListPage] = useState(1);
   const [bookPriceDrafts, setBookPriceDrafts] = useState({});
+  const [bookStatusDrafts, setBookStatusDrafts] = useState({});
 
   const parsedShipmentId = useMemo(() => Number(shipmentId), [shipmentId]);
   const isScheduled = shipment?.status === "scheduled";
@@ -159,6 +285,7 @@ function AdminShipmentDetailPage() {
 
     setBooks(data ?? []);
     setBookPriceDrafts({});
+    setBookStatusDrafts({});
     return true;
   };
 
@@ -201,6 +328,7 @@ function AdminShipmentDetailPage() {
     setShipment(shipmentResult.data);
     setBooks(booksResult.data ?? []);
     setBookPriceDrafts({});
+    setBookStatusDrafts({});
     setIsLoading(false);
   };
 
@@ -377,32 +505,71 @@ function AdminShipmentDetailPage() {
     }
   };
 
-  const handleBookStatusChange = async (bookId, nextStatus) => {
+  const getStatusDraftValue = (book) => {
+    if (Object.prototype.hasOwnProperty.call(bookStatusDrafts, book.id)) {
+      return bookStatusDrafts[book.id];
+    }
+
+    return book.status;
+  };
+
+  const resetBookStatusDraft = (bookId) => {
+    setBookStatusDrafts((prev) => {
+      const next = { ...prev };
+      delete next[bookId];
+      return next;
+    });
+  };
+
+  const handleStatusDraftChange = (bookId, value) => {
+    setBookStatusDrafts((prev) => ({ ...prev, [bookId]: value }));
+  };
+
+  const hasBookStatusChange = (book) => getStatusDraftValue(book) !== book.status;
+
+  const handleSaveBookStatus = async (book) => {
     if (!isSupabaseConfigured) {
       return;
     }
 
+    const nextStatus = getStatusDraftValue(book);
+    if (nextStatus === book.status) {
+      resetBookStatusDraft(book.id);
+      return;
+    }
+
+    if (nextStatus === "settled") {
+      const confirmed = window.confirm(
+        `이 책을 정산완료로 저장하시겠습니까?\n${formatBookLabel(book)}`,
+      );
+      if (!confirmed) {
+        return;
+      }
+    }
+
     setError("");
     setNotice("");
-    setUpdatingBookId(bookId);
+    setUpdatingBookStatusId(book.id);
 
     const { error: updateError } = await supabase
       .from("books")
       .update({ status: nextStatus })
-      .eq("id", bookId);
+      .eq("id", book.id);
 
     if (updateError) {
-      setError("책 상태 업데이트에 실패했습니다.");
-      setUpdatingBookId(null);
+      setError("책 상태 저장에 실패했습니다.");
+      setUpdatingBookStatusId(null);
       return;
     }
 
     setBooks((prev) =>
-      prev.map((book) =>
-        book.id === bookId ? { ...book, status: nextStatus } : book,
+      prev.map((item) =>
+        item.id === book.id ? { ...item, status: nextStatus } : item,
       ),
     );
-    setUpdatingBookId(null);
+    resetBookStatusDraft(book.id);
+    setNotice(nextStatus === "settled" ? "책 상태를 정산완료로 저장했습니다." : "책 상태를 저장했습니다.");
+    setUpdatingBookStatusId(null);
   };
 
   const getPriceDraftValue = (book) => {
@@ -417,8 +584,30 @@ function AdminShipmentDetailPage() {
     setBookPriceDrafts((prev) => ({ ...prev, [bookId]: value }));
   };
 
+  const resetBookPriceDraft = (bookId) => {
+    setBookPriceDrafts((prev) => {
+      const next = { ...prev };
+      delete next[bookId];
+      return next;
+    });
+  };
+
+  const hasBookPriceChange = (book) => {
+    const nextPrice = parsePrice(getPriceDraftValue(book));
+    if (Number.isNaN(nextPrice)) {
+      return true;
+    }
+
+    return nextPrice !== normalizeComparablePrice(book.price);
+  };
+
   const handleSaveBookPrice = async (book) => {
     if (!isSupabaseConfigured) {
+      return;
+    }
+
+    if (!hasBookPriceChange(book)) {
+      resetBookPriceDraft(book.id);
       return;
     }
 
@@ -447,11 +636,7 @@ function AdminShipmentDetailPage() {
     setBooks((prev) =>
       prev.map((item) => (item.id === book.id ? { ...item, price: parsedPrice } : item)),
     );
-    setBookPriceDrafts((prev) => {
-      const next = { ...prev };
-      delete next[book.id];
-      return next;
-    });
+    resetBookPriceDraft(book.id);
     setNotice("판매가를 수정했습니다.");
     setUpdatingBookPriceId(null);
   };
@@ -480,11 +665,8 @@ function AdminShipmentDetailPage() {
     }
 
     setBooks((prev) => prev.filter((item) => item.id !== book.id));
-    setBookPriceDrafts((prev) => {
-      const next = { ...prev };
-      delete next[book.id];
-      return next;
-    });
+    resetBookPriceDraft(book.id);
+    resetBookStatusDraft(book.id);
     setNotice("책을 삭제했습니다.");
     setDeletingBookId(null);
   };
@@ -682,39 +864,16 @@ function AdminShipmentDetailPage() {
         </div>
 
         <section className="space-y-3">
-          <h2 className="section-title">책 목록</h2>
-          {books.length === 0 ? (
-            <div className="card text-sm font-semibold text-slate-500">
-              아직 등록된 책이 없습니다.
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 className="section-title">책 목록</h2>
+              {books.length > 0 ? (
+                <p className="mt-1 text-xs font-semibold text-slate-500">
+                  검색 결과 {filteredBooks.length}권 · 페이지 {bookListPage}/{totalBookPages}
+                </p>
+              ) : null}
             </div>
-          ) : null}
-
-          {books.length > 0 ? (
-            <div className="card !p-3">
-              <input
-                className="input-base !mt-0 !py-2.5 text-sm"
-                onChange={(event) => setBookSearchQuery(event.target.value)}
-                placeholder="등록된 책 검색 (제목/옵션)"
-                type="text"
-                value={bookSearchQuery}
-              />
-              <p className="mt-2 text-xs font-semibold text-slate-500">
-                검색 결과 {filteredBooks.length}권 · 페이지 {bookListPage}/{totalBookPages}
-              </p>
-            </div>
-          ) : null}
-
-          {books.length > 0 && filteredBooks.length === 0 ? (
-            <div className="card text-sm font-semibold text-slate-500">
-              검색 조건에 맞는 책이 없습니다.
-            </div>
-          ) : null}
-
-          {filteredBooks.length > 0 ? (
-            <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2">
-              <p className="text-xs font-semibold text-slate-500">
-                페이지당 {BOOKS_PAGE_SIZE}권
-              </p>
+            {filteredBooks.length > 0 ? (
               <div className="flex items-center gap-2">
                 <button
                   className="btn-secondary !w-auto !px-3 !py-1.5 text-xs"
@@ -733,87 +892,205 @@ function AdminShipmentDetailPage() {
                   다음
                 </button>
               </div>
+            ) : null}
+          </div>
+
+          {books.length === 0 ? (
+            <div className="card text-sm font-semibold text-slate-500">
+              아직 등록된 책이 없습니다.
             </div>
           ) : null}
 
-          <div className="grid gap-3 lg:grid-cols-2">
-            {pagedBooks.map((book) => {
-              return (
-                <article className="card animate-rise" key={book.id}>
-                  <div className="flex items-start justify-between gap-2">
-                    <h3 className="text-base font-extrabold text-slate-900">
-                      {formatBookLabel(book)}
-                    </h3>
-                    <StatusBadge status={book.status} />
-                  </div>
+          {books.length > 0 ? (
+            <div className="card !p-3">
+              <input
+                className="input-base !mt-0 !py-2.5 text-sm"
+                onChange={(event) => setBookSearchQuery(event.target.value)}
+                placeholder="등록된 책 검색 (제목/옵션)"
+                type="text"
+                value={bookSearchQuery}
+              />
+              <p className="mt-2 text-xs font-semibold text-slate-500">페이지당 {BOOKS_PAGE_SIZE}권</p>
+            </div>
+          ) : null}
 
-                  <p className="mt-2 text-sm font-semibold text-slate-600">
-                    판매가: <span className="text-brand">{formatCurrency(book.price)}</span>
-                  </p>
+          {books.length > 0 && filteredBooks.length === 0 ? (
+            <div className="card text-sm font-semibold text-slate-500">
+              검색 조건에 맞는 책이 없습니다.
+            </div>
+          ) : null}
 
-                  <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
-                    <p className="label">판매가 수정</p>
-                    <div className="mt-1 flex items-center gap-2">
-                      <input
-                        className="input-base !mt-0 !py-2 text-sm"
-                        disabled={deletingBookId === book.id || isBulkUploading}
-                        onChange={(event) => handlePriceDraftChange(book.id, event.target.value)}
-                        placeholder="예: 12000"
-                        type="number"
-                        value={getPriceDraftValue(book)}
+          {filteredBooks.length > 0 ? (
+            <>
+              <div className="grid gap-3 lg:hidden">
+                {pagedBooks.map((book) => {
+                  const priceDraftValue = getPriceDraftValue(book);
+                  const statusDraftValue = getStatusDraftValue(book);
+                  const isPriceDirty = hasBookPriceChange(book);
+                  const isPriceInvalid = Number.isNaN(parsePrice(priceDraftValue));
+                  const isStatusDirty = hasBookStatusChange(book);
+                  const isRowBusy =
+                    deletingBookId === book.id ||
+                    isBulkUploading ||
+                    updatingBookPriceId === book.id ||
+                    updatingBookStatusId === book.id;
+
+                  return (
+                    <article className="card animate-rise" key={book.id}>
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <h3 className="text-base font-extrabold text-slate-900">{book.title}</h3>
+                          {toNullableText(book.option) ? (
+                            <p className="mt-1 text-xs font-semibold text-slate-500">
+                              옵션 {book.option}
+                            </p>
+                          ) : null}
+                        </div>
+                        <StatusBadge status={book.status} />
+                      </div>
+
+                      <p className="mt-2 text-sm font-semibold text-slate-600">
+                        현재 판매가: <span className="text-brand">{formatCurrency(book.price)}</span>
+                      </p>
+
+                      <BookPriceEditor
+                        compact={false}
+                        draftValue={priceDraftValue}
+                        isDirty={isPriceDirty}
+                        isDisabled={isRowBusy}
+                        isInvalid={isPriceInvalid}
+                        isSaving={updatingBookPriceId === book.id}
+                        onChange={(value) => handlePriceDraftChange(book.id, value)}
+                        onReset={() => resetBookPriceDraft(book.id)}
+                        onSave={() => handleSaveBookPrice(book)}
                       />
+
+                      <BookStatusEditor
+                        compact={false}
+                        draftValue={statusDraftValue}
+                        isDirty={isStatusDirty}
+                        isDisabled={isRowBusy}
+                        isSaving={updatingBookStatusId === book.id}
+                        onChange={(value) => handleStatusDraftChange(book.id, value)}
+                        onReset={() => resetBookStatusDraft(book.id)}
+                        onSave={() => handleSaveBookStatus(book)}
+                      />
+
                       <button
-                        className="btn-secondary !w-auto !whitespace-nowrap !px-3 !py-2 text-xs"
-                        disabled={
-                          updatingBookPriceId === book.id ||
-                          deletingBookId === book.id ||
-                          isBulkUploading
-                        }
-                        onClick={() => handleSaveBookPrice(book)}
+                        className="mt-3 inline-flex rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700"
+                        disabled={isRowBusy}
+                        onClick={() => handleDeleteBook(book)}
                         type="button"
                       >
-                        {updatingBookPriceId === book.id ? "저장 중..." : "판매가 저장"}
+                        {deletingBookId === book.id ? "삭제 중..." : "책 삭제"}
                       </button>
-                    </div>
-                  </div>
+                    </article>
+                  );
+                })}
+              </div>
 
-                  <label className="mt-3 block">
-                    <span className="label">상태 변경</span>
-                    <select
-                      className="input-base"
-                      disabled={
-                        updatingBookId === book.id ||
-                        deletingBookId === book.id ||
-                        isBulkUploading
-                      }
-                      onChange={(event) => handleBookStatusChange(book.id, event.target.value)}
-                      value={book.status}
-                    >
-                      {adminBookStatusOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+              <div className="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-soft lg:block">
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-slate-200 text-sm">
+                    <thead className="bg-slate-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
+                          책 정보
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
+                          현재 상태
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
+                          현재 판매가
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
+                          판매가 수정
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
+                          상태 변경
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
+                          관리
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {pagedBooks.map((book) => {
+                        const priceDraftValue = getPriceDraftValue(book);
+                        const statusDraftValue = getStatusDraftValue(book);
+                        const isPriceDirty = hasBookPriceChange(book);
+                        const isPriceInvalid = Number.isNaN(parsePrice(priceDraftValue));
+                        const isStatusDirty = hasBookStatusChange(book);
+                        const isRowBusy =
+                          deletingBookId === book.id ||
+                          isBulkUploading ||
+                          updatingBookPriceId === book.id ||
+                          updatingBookStatusId === book.id;
 
-                  <button
-                    className="mt-3 inline-flex rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700"
-                    disabled={
-                      deletingBookId === book.id ||
-                      updatingBookPriceId === book.id ||
-                      updatingBookId === book.id ||
-                      isBulkUploading
-                    }
-                    onClick={() => handleDeleteBook(book)}
-                    type="button"
-                  >
-                    {deletingBookId === book.id ? "삭제 중..." : "책 삭제"}
-                  </button>
-                </article>
-              );
-            })}
-          </div>
+                        return (
+                          <tr className="align-top transition hover:bg-slate-50" key={book.id}>
+                            <td className="px-4 py-4">
+                              <p className="font-bold text-slate-900">{book.title}</p>
+                              {toNullableText(book.option) ? (
+                                <p className="mt-1 text-xs font-semibold text-slate-500">
+                                  옵션 {book.option}
+                                </p>
+                              ) : (
+                                <p className="mt-1 text-xs font-semibold text-slate-400">
+                                  옵션 없음
+                                </p>
+                              )}
+                            </td>
+                            <td className="px-4 py-4">
+                              <StatusBadge status={book.status} />
+                            </td>
+                            <td className="px-4 py-4 font-semibold text-slate-700">
+                              {formatCurrency(book.price)}
+                            </td>
+                            <td className="px-4 py-4">
+                              <BookPriceEditor
+                                compact
+                                draftValue={priceDraftValue}
+                                isDirty={isPriceDirty}
+                                isDisabled={isRowBusy}
+                                isInvalid={isPriceInvalid}
+                                isSaving={updatingBookPriceId === book.id}
+                                onChange={(value) => handlePriceDraftChange(book.id, value)}
+                                onReset={() => resetBookPriceDraft(book.id)}
+                                onSave={() => handleSaveBookPrice(book)}
+                              />
+                            </td>
+                            <td className="px-4 py-4">
+                              <BookStatusEditor
+                                compact
+                                draftValue={statusDraftValue}
+                                isDirty={isStatusDirty}
+                                isDisabled={isRowBusy}
+                                isSaving={updatingBookStatusId === book.id}
+                                onChange={(value) => handleStatusDraftChange(book.id, value)}
+                                onReset={() => resetBookStatusDraft(book.id)}
+                                onSave={() => handleSaveBookStatus(book)}
+                              />
+                            </td>
+                            <td className="px-4 py-4">
+                              <button
+                                className="inline-flex rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700"
+                                disabled={isRowBusy}
+                                onClick={() => handleDeleteBook(book)}
+                                type="button"
+                              >
+                                {deletingBookId === book.id ? "삭제 중..." : "책 삭제"}
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          ) : null}
         </section>
       </div>
     </main>

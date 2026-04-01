@@ -528,6 +528,7 @@ function AdminDashboardPage() {
   const navigate = useNavigate();
   const sellerPortalUrl = getSellerLookupOrigin();
   const bulkSettlementInputRef = useRef(null);
+  const shipmentFetchRequestRef = useRef(0);
 
   const [form, setForm] = useState(initialForm);
   const [shipments, setShipments] = useState([]);
@@ -562,6 +563,8 @@ function AdminDashboardPage() {
       return;
     }
 
+    const requestId = shipmentFetchRequestRef.current + 1;
+    shipmentFetchRequestRef.current = requestId;
     const targetPage = page ?? currentPage;
     const search = searchKeyword ?? appliedSearch;
 
@@ -581,6 +584,10 @@ function AdminDashboardPage() {
       .order("created_at", { ascending: false })
       .range(from, to);
 
+    if (requestId !== shipmentFetchRequestRef.current) {
+      return;
+    }
+
     if (fetchError) {
       setError("수거 목록을 불러오지 못했습니다.");
       setIsLoading(false);
@@ -595,6 +602,13 @@ function AdminDashboardPage() {
   useEffect(() => {
     fetchShipments({ page: currentPage, searchKeyword: appliedSearch });
   }, [currentPage, appliedSearch]);
+
+  useEffect(
+    () => () => {
+      shipmentFetchRequestRef.current += 1;
+    },
+    [],
+  );
 
   useEffect(() => {
     if (deleteCandidateId === null) {
@@ -1519,7 +1533,7 @@ function AdminDashboardPage() {
           <div className="card text-sm font-semibold text-slate-500">조회 결과가 없습니다.</div>
         ) : null}
 
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-3 lg:hidden">
           {shipments.map((shipment) => {
             const isDeleteConfirmOpen = deleteCandidateId === shipment.id;
             const isDeletingThisShipment = deletingShipmentId === shipment.id;
@@ -1596,6 +1610,111 @@ function AdminDashboardPage() {
               </article>
             );
           })}
+        </div>
+
+        <div className="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-soft lg:block">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-200 text-sm">
+              <thead className="bg-slate-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
+                    판매자
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
+                    연락처
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
+                    수거 일자
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
+                    상태
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
+                    작업
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {shipments.map((shipment) => {
+                  const isDeleteConfirmOpen = deleteCandidateId === shipment.id;
+                  const isDeletingThisShipment = deletingShipmentId === shipment.id;
+                  const isDeletePending = deletingShipmentId !== null;
+
+                  return (
+                    <tr
+                      className={`align-top transition hover:bg-slate-50 ${
+                        isDeleteConfirmOpen ? "bg-rose-50/40" : ""
+                      }`}
+                      key={shipment.id}
+                    >
+                      <td className="px-4 py-4">
+                        <p className="font-bold text-slate-900">{shipment.seller_name}</p>
+                      </td>
+                      <td className="px-4 py-4 font-semibold text-slate-600">
+                        {shipment.seller_phone}
+                      </td>
+                      <td className="px-4 py-4 font-semibold text-slate-600">
+                        {formatDate(shipment.pickup_date)}
+                      </td>
+                      <td className="px-4 py-4">
+                        <StatusBadge type="shipment" status={shipment.status} />
+                      </td>
+                      <td className="min-w-[260px] px-4 py-4">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Link
+                            className="btn-secondary !w-auto !px-3 !py-2 text-xs"
+                            to={`/admin/shipments/${shipment.id}`}
+                          >
+                            상세 보기
+                          </Link>
+
+                          {!isDeleteConfirmOpen ? (
+                            <button
+                              className="inline-flex rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+                              disabled={isDeletePending || isBulkSettling}
+                              onClick={() => {
+                                setDeleteCandidateId(shipment.id);
+                                setError("");
+                                setSuccess("");
+                              }}
+                              type="button"
+                            >
+                              수거 삭제
+                            </button>
+                          ) : (
+                            <button
+                              className="btn-secondary !w-auto !px-3 !py-2 text-xs"
+                              disabled={isDeletePending || isBulkSettling}
+                              onClick={() => setDeleteCandidateId(null)}
+                              type="button"
+                            >
+                              삭제 취소
+                            </button>
+                          )}
+                        </div>
+
+                        {isDeleteConfirmOpen ? (
+                          <div className="mt-2 rounded-xl border border-rose-200 bg-rose-50 p-3">
+                            <p className="text-xs font-semibold text-rose-700">
+                              이 수거 내역을 삭제하면 연결된 책 목록도 함께 삭제됩니다.
+                            </p>
+                            <button
+                              className="mt-2 inline-flex rounded-lg bg-rose-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+                              disabled={isDeletePending || isBulkSettling}
+                              onClick={() => handleDeleteShipment(shipment)}
+                              type="button"
+                            >
+                              {isDeletingThisShipment ? "삭제 중..." : "영구 삭제 확인"}
+                            </button>
+                          </div>
+                        ) : null}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       </section>
 

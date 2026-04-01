@@ -1,6 +1,6 @@
 ﻿import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { checkIsAdminUser } from "../lib/adminAuth";
+import { getAdminAccessState } from "../lib/adminAuth";
 import { getSellerLookupOrigin } from "../lib/portalLinks";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/supabaseClient";
 
@@ -30,8 +30,13 @@ function AdminLoginPage() {
         return;
       }
 
-      const isAdmin = await checkIsAdminUser();
-      if (isAdmin) {
+      const accessState = await getAdminAccessState();
+      if (accessState.error) {
+        setError(accessState.error);
+        return;
+      }
+
+      if (accessState.isAdmin) {
         navigate("/admin", { replace: true });
         return;
       }
@@ -77,8 +82,14 @@ function AdminLoginPage() {
       return;
     }
 
-    const isAdmin = await checkIsAdminUser();
-    if (!isAdmin) {
+    const accessState = await getAdminAccessState();
+    if (accessState.error) {
+      setError(accessState.error);
+      setIsLoading(false);
+      return;
+    }
+
+    if (!accessState.isAdmin) {
       await supabase.auth.signOut();
       setError("관리자 권한이 없는 계정입니다.");
       setIsLoading(false);

@@ -1,12 +1,13 @@
-﻿import { useEffect, useState } from "react";
-import { Navigate } from "react-router-dom";
-import { checkIsAdminUser } from "../lib/adminAuth";
+import { useEffect, useState } from "react";
+import { Link, Navigate } from "react-router-dom";
+import { getAdminAccessState } from "../lib/adminAuth";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/supabaseClient";
 
 function AdminRoute({ children }) {
   const [isChecking, setIsChecking] = useState(true);
   const [hasSession, setHasSession] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [authError, setAuthError] = useState("");
 
   useEffect(() => {
     let isMounted = true;
@@ -19,23 +20,26 @@ function AdminRoute({ children }) {
       if (!session) {
         setHasSession(false);
         setIsAdmin(false);
+        setAuthError("");
         setIsChecking(false);
         return;
       }
 
-      const admin = await checkIsAdminUser();
+      const { isAdmin: admin, error: accessError } = await getAdminAccessState();
       if (!isMounted) {
         return;
       }
 
       setHasSession(true);
       setIsAdmin(admin);
+      setAuthError(accessError);
       setIsChecking(false);
     };
 
     if (!isSupabaseConfigured || !supabase) {
       setHasSession(false);
       setIsAdmin(false);
+      setAuthError("");
       setIsChecking(false);
       return () => {};
     }
@@ -78,8 +82,35 @@ function AdminRoute({ children }) {
     return <Navigate to="/admin/login" replace />;
   }
 
+  if (authError) {
+    return (
+      <main className="app-shell space-y-4">
+        <p className="notice-error">{authError}</p>
+        <button
+          className="btn-secondary"
+          onClick={() => window.location.reload()}
+          type="button"
+        >
+          다시 시도
+        </button>
+        <Link className="btn-secondary" to="/admin/login">
+          로그인 화면으로
+        </Link>
+      </main>
+    );
+  }
+
   if (!isAdmin) {
-    return <Navigate to="/admin/login" replace />;
+    return (
+      <main className="app-shell space-y-4">
+        <p className="notice-error">
+          관리자 권한이 없는 계정입니다. 관리자 계정으로 다시 로그인해 주세요.
+        </p>
+        <Link className="btn-secondary" to="/admin/login">
+          로그인 화면으로
+        </Link>
+      </main>
+    );
   }
 
   return children;

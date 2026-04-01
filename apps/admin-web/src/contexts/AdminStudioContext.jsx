@@ -96,6 +96,41 @@ function getStudioDownloadName(originalName, mimeType) {
   return `${cleanName}_studio_2k.${extension}`;
 }
 
+function supportsDirectoryDownloadApi() {
+  return (
+    typeof window !== "undefined" &&
+    window.isSecureContext &&
+    typeof window.showDirectoryPicker === "function"
+  );
+}
+
+async function dataUrlToBlob(dataUrl) {
+  const response = await fetch(dataUrl);
+  return response.blob();
+}
+
+function getUniqueStudioDownloadName(originalName, mimeType, usedNames) {
+  const initialName = getStudioDownloadName(originalName, mimeType);
+  if (!usedNames.has(initialName)) {
+    usedNames.add(initialName);
+    return initialName;
+  }
+
+  const extensionIndex = initialName.lastIndexOf(".");
+  const baseName = extensionIndex >= 0 ? initialName.slice(0, extensionIndex) : initialName;
+  const extension = extensionIndex >= 0 ? initialName.slice(extensionIndex) : "";
+  let duplicateIndex = 2;
+
+  while (true) {
+    const nextName = `${baseName}_${duplicateIndex}${extension}`;
+    if (!usedNames.has(nextName)) {
+      usedNames.add(nextName);
+      return nextName;
+    }
+    duplicateIndex += 1;
+  }
+}
+
 function createStudioJobs(files) {
   return files.map((file, index) => ({
     id: `${Date.now()}-${index}-${Math.random().toString(36).slice(2, 8)}`,
@@ -143,6 +178,7 @@ export function AdminStudioProvider({ children }) {
   const [isQueueRunning, setIsQueueRunning] = useState(false);
   const [runStats, setRunStats] = useState(null);
   const [clockNowMs, setClockNowMs] = useState(() => Date.now());
+  const supportsDirectoryDownload = supportsDirectoryDownloadApi();
 
   const jobsRef = useRef(jobs);
   const isProcessingRef = useRef(false);
@@ -593,11 +629,79 @@ export function AdminStudioProvider({ children }) {
     return true;
   }, []);
 
+  const saveGeneratedJobsToDirectory = useCallback(async (downloadable) => {
+    if (!supportsDirectoryDownloadApi()) {
+      return 0;
+    }
+
+    let directoryHandle;
+    try {
+      directoryHandle = await window.showDirectoryPicker({ mode: "readwrite" });
+    } catch (directoryError) {
+      if (directoryError instanceof DOMException && directoryError.name === "AbortError") {
+        return 0;
+      }
+      throw directoryError;
+    }
+
+    const usedNames = new Set();
+    const failedFiles = [];
+    let savedCount = 0;
+
+    for (const job of downloadable) {
+      try {
+        const fileName = getUniqueStudioDownloadName(job.fileName, job.generatedMimeType, usedNames);
+        const fileHandle = await directoryHandle.getFileHandle(fileName, { create: true });
+        const writable = await fileHandle.createWritable();
+        const blob = await dataUrlToBlob(job.generatedDataUrl);
+        await writable.write(blob);
+        await writable.close();
+        savedCount += 1;
+      } catch (_saveError) {
+        failedFiles.push(job.fileName);
+      }
+    }
+
+    if (failedFiles.length > 0) {
+      const previewText =
+        failedFiles.length > 2
+          ? `${failedFiles.slice(0, 2).join(", ")} 외 ${failedFiles.length - 2}건`
+          : failedFiles.join(", ");
+      setError(`일부 이미지를 저장하지 못했습니다. ${previewText}`);
+    } else {
+      setError("");
+    }
+
+    if (savedCount > 0) {
+      const folderName = directoryHandle?.name ? `"${directoryHandle.name}" 폴더` : "선택한 폴더";
+      setNotice(
+        `${savedCount}장을 ${folderName}에 저장했습니다.${
+          failedFiles.length > 0 ? ` 실패 ${failedFiles.length}장` : ""
+        }`,
+      );
+    }
+
+    return savedCount;
+  }, []);
+
   const downloadAllGenerated = useCallback(async () => {
     const downloadable = jobs.filter((job) => job.status === "done" && job.generatedDataUrl);
     if (downloadable.length === 0) {
       setError("다운로드할 생성 결과가 없습니다.");
       return 0;
+    }
+
+    if (supportsDirectoryDownload) {
+      try {
+        return await saveGeneratedJobsToDirectory(downloadable);
+      } catch (directoryError) {
+        const message =
+          directoryError instanceof Error
+            ? directoryError.message
+            : "폴더 저장에 실패했습니다. 브라우저 다운로드로 다시 시도해 주세요.";
+        setError(message);
+        return 0;
+      }
     }
 
     for (let index = 0; index < downloadable.length; index += 1) {
@@ -609,10 +713,10 @@ export function AdminStudioProvider({ children }) {
 
     setError("");
     setNotice(
-      `${downloadable.length}장을 일괄 다운로드했습니다. 브라우저의 다중 다운로드 허용 설정을 확인해 주세요.`,
+      `${downloadable.length}장을 일괄 다운로드했습니다. 브라우저에서 여러 다운로드를 허용해 주세요.`,
     );
     return downloadable.length;
-  }, [downloadJob, jobs]);
+  }, [downloadJob, jobs, saveGeneratedJobsToDirectory, supportsDirectoryDownload]);
 
   const value = useMemo(
     () => ({
@@ -623,6 +727,7 @@ export function AdminStudioProvider({ children }) {
       isGenerating,
       studioProgress,
       requestTimeoutMs: STUDIO_REQUEST_TIMEOUT_MS,
+      supportsDirectoryDownload,
       replaceFiles,
       appendFiles,
       clearJobs,
@@ -642,6 +747,7 @@ export function AdminStudioProvider({ children }) {
       isGenerating,
       jobs,
       notice,
+      supportsDirectoryDownload,
       appendFiles,
       studioProgress,
       replaceFiles,
