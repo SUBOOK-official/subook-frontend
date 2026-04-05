@@ -87,25 +87,11 @@ body {
   backdrop-filter: blur(16px);
 }
 
-.maintenance-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 8px 12px;
-  border-radius: 999px;
-  background: #1f2837;
-  color: #f8fafc;
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
 .maintenance-logo {
   display: block;
   width: auto;
   max-width: 168px;
   height: 40px;
-  margin-top: 28px;
   object-fit: contain;
 }
 
@@ -164,14 +150,6 @@ body {
   letter-spacing: -0.03em;
 }
 
-.maintenance-footnote {
-  margin: 16px 0 0;
-  color: #64748b;
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.6;
-}
-
 @keyframes rise {
   0% {
     opacity: 0;
@@ -196,7 +174,6 @@ body {
   .maintenance-logo {
     max-width: 144px;
     height: 34px;
-    margin-top: 24px;
   }
 
   .maintenance-description {
