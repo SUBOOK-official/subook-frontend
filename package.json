@@ -12,6 +12,11 @@
     "build:seller": "vite build --config apps/seller-lookup/vite.config.js",
     "build:public": "vite build --config apps/public-web/vite.config.js",
     "build:admin": "vite build --config apps/admin-web/vite.config.js",
+    "lint": "npm run lint:public",
+    "lint:public": "node ./node_modules/eslint/bin/eslint.js --max-warnings=0 \"apps/public-web/src/**/*.{js,jsx}\" \"packages/shared-domain/src/**/*.{js,jsx}\" \"packages/shared-supabase/src/**/*.{js,jsx}\"",
+    "deploy:public": "powershell -ExecutionPolicy Bypass -File ./scripts/deploy_public_web.ps1",
+    "deploy:public:preview": "powershell -ExecutionPolicy Bypass -File ./scripts/deploy_public_web.ps1 -Preview",
+    "test:public": "node --test apps/public-web/src/lib/publicMypageDemo.test.js apps/public-web/src/lib/publicStoreNavigation.test.js apps/public-web/src/lib/publicStoreSearch.test.js apps/public-web/src/lib/publicStoreSorting.test.js apps/public-web/src/lib/publicStoreMockData.test.js apps/public-web/src/lib/publicStoreCards.test.js apps/public-web/src/lib/publicHomeSubjectCounts.test.js apps/public-web/src/lib/publicHomeBestBooks.test.js apps/public-web/src/lib/publicHomeLatestBooks.test.js apps/public-web/src/lib/publicMemberGateUtils.test.js",
     "preview:seller": "vite preview --config apps/seller-lookup/vite.config.js",
     "preview:public": "vite preview --config apps/public-web/vite.config.js",
     "preview:admin": "vite preview --config apps/admin-web/vite.config.js"
@@ -26,8 +31,14 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@eslint/js": "^9.24.0",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
+    "eslint": "^9.24.0",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.19",
+    "globals": "^16.0.0",
     "postcss": "^8.5.1",
     "tailwindcss": "^3.4.17",
     "vite": "^5.4.11"

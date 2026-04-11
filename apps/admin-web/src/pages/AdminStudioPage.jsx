@@ -1,9 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import AdminSectionTabs from "../components/AdminSectionTabs";
+import AdminShell from "../components/AdminShell";
 import { useAdminStudio } from "../contexts/AdminStudioContext";
-import { getSellerLookupOrigin } from "../lib/portalLinks";
-import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
+import { isSupabaseConfigured } from "@shared-supabase/adminSupabaseClient";
 
 function formatEstimatedTime(ms) {
   if (!Number.isFinite(ms) || ms <= 0) {
@@ -39,12 +37,9 @@ function getDialogFocusableElements(container) {
 }
 
 function AdminStudioPage() {
-  const navigate = useNavigate();
   const studioInputRef = useRef(null);
   const selectModeDialogRef = useRef(null);
   const appendActionButtonRef = useRef(null);
-  const sellerPortalUrl = getSellerLookupOrigin();
-  const [isSigningOut, setIsSigningOut] = useState(false);
 
   const {
     jobs,
@@ -174,43 +169,39 @@ function AdminStudioPage() {
     };
   }, [isSelectModeModalOpen]);
 
-  const handleSignOut = async () => {
-    if (!isSupabaseConfigured) {
-      return;
-    }
-
-    setIsSigningOut(true);
-    await supabase.auth.signOut();
-    setIsSigningOut(false);
-    navigate("/admin/login", { replace: true });
-  };
-
   return (
-    <main className="app-shell-admin">
-      <header className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-sm font-bold uppercase tracking-wide text-brand">Admin</p>
-          <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-900">사진 스튜디오</h1>
-        </div>
-        <div className="flex items-center gap-2">
-          <a className="btn-secondary !px-3 !py-2 text-xs" href={sellerPortalUrl}>
-            판매자 화면
-          </a>
-          <button
-            className="btn-secondary !px-3 !py-2 text-xs"
-            disabled={isSigningOut}
-            onClick={handleSignOut}
-            type="button"
-          >
-            {isSigningOut ? "로그아웃 중..." : "로그아웃"}
-          </button>
-        </div>
-      </header>
-
-      <AdminSectionTabs />
-
+    <AdminShell
+      activeModule="studio"
+      description=""
+      summaryCards={[
+        {
+          label: "준비됨",
+          value: `${summary.ready}장`,
+          hint: "즉시 생성 가능한 대기 이미지",
+        },
+        {
+          label: "진행중",
+          value: `${summary.queued + summary.processing}장`,
+          tone: "brand",
+          hint: isGenerating ? "백그라운드에서 순차 처리 중" : "현재 실행 중인 작업 없음",
+        },
+        {
+          label: "완료",
+          value: `${summary.done}장`,
+          tone: "success",
+          hint: "생성 결과 다운로드 가능",
+        },
+        {
+          label: "실패",
+          value: `${summary.error}장`,
+          tone: "warning",
+          hint: "오류 메시지를 확인하고 재시도",
+        },
+      ]}
+      title="사진 스튜디오"
+    >
       {!isSupabaseConfigured ? (
-        <p className="notice-error mb-4">
+        <p className="notice-error">
           `.env` 파일에 `VITE_SUPABASE_ADMIN_URL`, `VITE_SUPABASE_ADMIN_ANON_KEY`를 설정해 주세요.
         </p>
       ) : null}
@@ -485,7 +476,7 @@ function AdminStudioPage() {
           </div>
         </div>
       ) : null}
-    </main>
+    </AdminShell>
   );
 }
 

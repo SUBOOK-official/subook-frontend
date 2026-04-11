@@ -1,169 +1,133 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import arrowLeftImage from "../assets/arrow-left.svg";
-import arrowRightImage from "../assets/arrow-right.svg";
-import heartOutlineImage from "../assets/heart-outline.svg";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import searchIconImage from "../assets/search-icon.svg";
 import searchActionImage from "../assets/search-action.svg";
-import heroBooksBannerImage from "../assets/hero-books-banner.png";
-import heroFaqBubbleImage from "../assets/hero-faq-bubble.svg";
-import heroFaqMascotImage from "../assets/hero-faq-mascot.png";
+import ContentContainer from "../components/ContentContainer";
 import PublicFooter from "../components/PublicFooter";
 import PublicPageFrame from "../components/PublicPageFrame";
+import BestBooksSection from "../components/home/BestBooksSection";
+import HeroBanner from "../components/home/HeroBanner";
+import LatestArrivalsSection from "../components/home/LatestArrivalsSection";
+import PickupCTA from "../components/home/PickupCTA";
+import SubjectGrid from "../components/home/SubjectGrid";
+import usePublicMemberGate from "../lib/publicMemberGate";
 
-const HERO_ROTATION_MS = 5000;
-const HERO_SLIDE_COUNT = 2;
+const PICKUP_REQUEST_PATH = "/pickup/new";
 
-const productLabels = [
-  { label: "과학", tone: "subject" },
-  { label: "모의고사", tone: "type" },
-  { label: "시대인재", tone: "brand" },
-  { label: "S(새책)", tone: "status" },
+const HOME_HERO_SLIDES = [
+  {
+    id: "store-discovery",
+    eyebrow: "SUBOOK",
+    titleLines: ["수능 교재,", "똑똑하게 거래하세요"],
+    descriptionLines: [
+      "대치동 학원 교재를 최대 80% 할인으로",
+      "전문 검수 완료된 교재만 판매합니다",
+    ],
+    ctaLabel: "교재 둘러보기",
+    ctaTextColor: "#1B3A5C",
+    gradient: "135deg, #1B3A5C 0%, #2563EB 50%, #3B82F6 100%",
+    href: "/store",
+  },
+  {
+    id: "sell-with-subook",
+    eyebrow: "SELL WITH SUBOOK",
+    titleLines: ["집에 잠자는 교재,", "돈이 됩니다"],
+    descriptionLines: [
+      "포장만 하면 수거부터 판매까지 전부 대행",
+      "검수 · 촬영 · 등록 · 정산 모두 수북이",
+    ],
+    ctaLabel: "수거 요청하기",
+    ctaTextColor: "#065F46",
+    gradient: "135deg, #065F46 0%, #059669 50%, #10B981 100%",
+    actionType: "pickup",
+  },
+  {
+    id: "new-arrival",
+    eyebrow: "NEW ARRIVAL",
+    titleLines: ["2026 시대인재", "신규 대량 입고!"],
+    descriptionLines: ["수학 · 국어 · 영어 인기 교재", "한정 수량, 지금 바로 확인하세요"],
+    ctaLabel: "지금 보러가기",
+    ctaTextColor: "#4C1D95",
+    gradient: "135deg, #4C1D95 0%, #7C3AED 50%, #8B5CF6 100%",
+    href: "/store?brand=시대인재",
+  },
 ];
 
-const productCards = Array.from({ length: 10 }, (_, index) => ({
-  id: `product-${index + 1}`,
-  title: "2026 시대인재 브릿지 모의고사 지구과학1",
-  discount: "80%",
-  salePrice: "4,000원",
-  originalPrice: "20,000원",
-}));
-
-function LabelPill({ label, tone }) {
-  return <span className={`public-pill public-pill--${tone}`}>{label}</span>;
-}
-
-function ProductCard({ product }) {
-  return (
-    <article className="public-product-card">
-      <div className="public-product-media">
-        <button aria-label="찜하기" className="public-heart-button" type="button">
-          <img alt="" src={heartOutlineImage} />
-        </button>
-      </div>
-
-      <div className="public-product-content">
-        <div className="public-pill-row">
-          {productLabels.map((item) => (
-            <LabelPill key={item.label} label={item.label} tone={item.tone} />
-          ))}
-        </div>
-
-        <h3 className="public-product-title">{product.title}</h3>
-
-        <div className="public-price-row">
-          <span className="public-price-row__discount">{product.discount}</span>
-          <span className="public-price-row__sale">{product.salePrice}</span>
-          <span className="public-price-row__original">{product.originalPrice}</span>
-        </div>
-      </div>
-
-      <div className="public-product-actions">
-        <button className="public-outline-button" type="button">
-          장바구니 담기
-        </button>
-        <button className="public-outline-button" type="button">
-          바로 구매하기
-        </button>
-      </div>
-    </article>
-  );
-}
-
-function BooksHeroSlide() {
-  return (
-    <div className="public-hero-slide__surface public-hero-slide__surface--books">
-      <img alt="" aria-hidden="true" className="public-hero-books__background" src={heroBooksBannerImage} />
-
-      <div className="public-hero-books__copy">
-        <p className="public-hero-books__headline">
-          대치동 현강 <span>희귀 모의고사</span>부터
-          <br />
-          <span>S급</span> 기출 · 내신 교재까지
-        </p>
-        <p className="public-hero-books__subhead">수북에서 합리적인 가격으로 만나보세요</p>
-        <p className="public-hero-books__caption">전문가 검수로 품질 걱정 없는 중고 교재 거래</p>
-      </div>
-    </div>
-  );
-}
-
-function FaqHeroSlide() {
-  return (
-    <div className="public-hero-slide__surface public-hero-slide__surface--faq">
-      <div className="public-hero-faq__glow public-hero-faq__glow--left" aria-hidden="true" />
-      <div className="public-hero-faq__glow public-hero-faq__glow--right" aria-hidden="true" />
-
-      <div className="public-hero-faq">
-        <img alt="" aria-hidden="true" className="public-hero-faq__mascot" src={heroFaqMascotImage} />
-
-        <div className="public-hero-faq__copy">
-          <div className="public-hero-faq__bubble-wrap">
-            <img alt="" aria-hidden="true" className="public-hero-faq__bubble" src={heroFaqBubbleImage} />
-            <p className="public-hero-faq__bubble-copy">수북, 정말 믿고 사도 되는걸까요?</p>
-          </div>
-
-          <p className="public-hero-faq__cta">
-            자주 묻는 질문 <span>FAQ</span> 바로가기 <strong>→</strong>
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function PublicHomePage() {
-  const [heroClock, setHeroClock] = useState(() => Math.floor(Date.now() / HERO_ROTATION_MS));
-  const [heroOffset, setHeroOffset] = useState(0);
+  const navigate = useNavigate();
+  const { requireMember, memberGateDialog } = usePublicMemberGate();
+  const [favoriteIds, setFavoriteIds] = useState([]);
   const [selectedMenu, setSelectedMenu] = useState(null);
 
-  useEffect(() => {
-    const syncHeroClock = () => {
-      setHeroClock(Math.floor(Date.now() / HERO_ROTATION_MS));
-    };
+  const handleGoToCart = () => {
+    if (!requireMember("cart", "/cart")) {
+      return;
+    }
 
-    syncHeroClock();
-
-    const intervalId = window.setInterval(syncHeroClock, 400);
-
-    return () => {
-      window.clearInterval(intervalId);
-    };
-  }, []);
-
-  const activeHeroIndex = ((heroClock + heroOffset) % HERO_SLIDE_COUNT + HERO_SLIDE_COUNT) % HERO_SLIDE_COUNT;
-
-  const handlePreviousHero = () => {
-    setHeroOffset((currentOffset) => currentOffset - 1);
+    navigate("/cart");
   };
 
-  const handleNextHero = () => {
-    setHeroOffset((currentOffset) => currentOffset + 1);
+  const handlePickupRequest = () => {
+    if (!requireMember("pickupRequest", PICKUP_REQUEST_PATH)) {
+      return;
+    }
+
+    setSelectedMenu("sell");
+    navigate(PICKUP_REQUEST_PATH);
+  };
+
+  const handleHeroAction = (slide) => {
+    if (slide.actionType === "pickup") {
+      handlePickupRequest();
+      return;
+    }
+
+    if (slide.href?.startsWith("/store")) {
+      setSelectedMenu("store");
+    }
+
+    if (slide.href) {
+      navigate(slide.href);
+    }
+  };
+
+  const handleToggleFavorite = (productId, event) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (!requireMember("favorite")) {
+      return;
+    }
+
+    setFavoriteIds((currentIds) =>
+      currentIds.includes(productId)
+        ? currentIds.filter((currentId) => currentId !== productId)
+        : [...currentIds, productId],
+    );
   };
 
   const pageContent = (
-    <>
-      <div className="public-top-area">
-        <header className="public-shell public-nav">
+    <div className="public-home-route">
+      <div className="public-top-area public-top-area--home">
+        <ContentContainer as="header" className="public-nav">
           <Link className="public-brand" to="/">
             SUBOOK®
           </Link>
 
           <nav aria-label="유틸리티 메뉴" className="public-nav-actions">
-            <button className="public-nav-link public-nav-link--cart" type="button">
+            <button className="public-nav-link public-nav-link--cart" onClick={handleGoToCart} type="button">
               <span>장바구니</span>
-              <span className="public-cart-badge">5</span>
             </button>
-            <button className="public-nav-link" type="button">
+            <Link className="public-nav-link" to="/mypage">
               마이페이지
-            </button>
+            </Link>
             <Link className="public-nav-link public-nav-button" to="/login">
               로그인/회원가입
             </Link>
           </nav>
-        </header>
+        </ContentContainer>
 
-        <div className="public-shell public-menu" role="tablist" aria-label="상단 메뉴">
+        <ContentContainer className="public-menu" role="tablist" aria-label="상단 메뉴">
           <Link
             aria-selected={selectedMenu === "store"}
             className={`public-menu-tab ${selectedMenu === "store" ? "public-menu-tab--active" : ""}`}
@@ -176,15 +140,15 @@ function PublicHomePage() {
           <button
             aria-selected={selectedMenu === "sell"}
             className={`public-menu-tab ${selectedMenu === "sell" ? "public-menu-tab--active" : ""}`}
-            onClick={() => setSelectedMenu("sell")}
+            onClick={handlePickupRequest}
             role="tab"
             type="button"
           >
             판매하기
           </button>
-        </div>
+        </ContentContainer>
 
-        <section className="public-shell public-search-section" aria-label="교재 검색">
+        <ContentContainer as="section" className="public-search-section" aria-label="교재 검색">
           <form className="public-search">
             <img alt="" className="public-search__icon" src={searchIconImage} />
             <input
@@ -197,72 +161,26 @@ function PublicHomePage() {
               <img alt="" src={searchActionImage} />
             </button>
           </form>
-        </section>
-
-        <section className="public-shell public-hero-section" aria-label="메인 배너">
-          <div className="public-hero" aria-live="polite">
-            <article
-              aria-hidden={activeHeroIndex !== 0}
-              className={`public-hero-slide ${activeHeroIndex === 0 ? "public-hero-slide--active" : ""}`}
-            >
-              <BooksHeroSlide />
-            </article>
-
-            <article
-              aria-hidden={activeHeroIndex !== 1}
-              className={`public-hero-slide ${activeHeroIndex === 1 ? "public-hero-slide--active" : ""}`}
-            >
-              <FaqHeroSlide />
-            </article>
-
-            <div className="public-hero__arrows">
-              <button
-                aria-label="이전 배너 보기"
-                className="public-arrow-button public-arrow-button--prev"
-                onClick={handlePreviousHero}
-                type="button"
-              >
-                <img alt="" src={arrowLeftImage} />
-              </button>
-              <button aria-label="다음 배너 보기" className="public-arrow-button" onClick={handleNextHero} type="button">
-                <img alt="" src={arrowRightImage} />
-              </button>
-            </div>
-
-            <div className="public-hero__dots" aria-label="배너 선택">
-              {[0, 1].map((index) => (
-                <button
-                  key={index}
-                  aria-label={`${index + 1}번 배너 보기`}
-                  aria-pressed={activeHeroIndex === index}
-                  className={`public-hero__dot ${activeHeroIndex === index ? "public-hero__dot--active" : ""}`}
-                  onClick={() => setHeroOffset(index - heroClock)}
-                  type="button"
-                />
-              ))}
-            </div>
-          </div>
-        </section>
+        </ContentContainer>
       </div>
 
-      <section className="public-products" aria-labelledby="public-best-books">
-        <div className="public-shell">
-          <div className="public-products__header">
-            <h2 className="public-section-title" id="public-best-books">
-              📚 BEST 교재
-            </h2>
-          </div>
-
-          <div className="public-product-grid">
-            {productCards.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
-        </div>
-      </section>
+      <HeroBanner onSlideAction={handleHeroAction} slides={HOME_HERO_SLIDES} />
+      <SubjectGrid />
+      <BestBooksSection
+        favoriteIds={favoriteIds}
+        onStoreEnter={() => setSelectedMenu("store")}
+        onToggleFavorite={handleToggleFavorite}
+      />
+      <LatestArrivalsSection
+        favoriteIds={favoriteIds}
+        onStoreEnter={() => setSelectedMenu("store")}
+        onToggleFavorite={handleToggleFavorite}
+      />
+      <PickupCTA onRequestPickup={handlePickupRequest} />
 
       <PublicFooter />
-    </>
+      {memberGateDialog}
+    </div>
   );
 
   return <PublicPageFrame>{pageContent}</PublicPageFrame>;

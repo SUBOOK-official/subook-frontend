@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import AdminSectionTabs from "../components/AdminSectionTabs";
+import AdminShell from "../components/AdminShell";
 import { getSellerLookupOrigin } from "../lib/portalLinks";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { formatDate } from "@shared-domain/format";
+import { shipmentStatusLabel } from "@shared-domain/status";
 import StatusBadge from "@shared-domain/StatusBadge";
 
 const PAGE_SIZE = 20;
@@ -29,11 +30,46 @@ const initialForm = {
   pickupDate: "",
 };
 
+const shipmentStatusFilters = [
+  { value: "scheduled", label: shipmentStatusLabel.scheduled },
+  { value: "inspecting", label: shipmentStatusLabel.inspecting },
+  { value: "inspected", label: shipmentStatusLabel.inspected },
+];
+
 function sanitizeSearchKeyword(value) {
   return String(value ?? "")
     .trim()
     .replace(/[,%()]/g, "")
     .replace(/\s+/g, " ");
+}
+
+function normalizeAdminShipmentRows(rows = []) {
+  return (rows ?? []).map((shipment) => ({
+    ...shipment,
+    book_count: shipment.book_count ?? 0,
+  }));
+}
+
+function applyAdminShipmentFilters(query, { search, statuses, fromDate, toDate }) {
+  let nextQuery = query;
+
+  if (search) {
+    nextQuery = nextQuery.or(`seller_name.ilike.%${search}%,seller_phone.ilike.%${search}`);
+  }
+
+  if (statuses.length > 0) {
+    nextQuery = nextQuery.in("status", statuses);
+  }
+
+  if (fromDate) {
+    nextQuery = nextQuery.gte("pickup_date", fromDate);
+  }
+
+  if (toDate) {
+    nextQuery = nextQuery.lte("pickup_date", toDate);
+  }
+
+  return nextQuery;
 }
 
 function buildPageItems(currentPage, totalPages) {
@@ -524,14 +560,16 @@ function getInventoryAuditFileName() {
   return `${INVENTORY_AUDIT_FILE_NAME_PREFIX}-${year}-${month}-${day}.xlsx`;
 }
 
-function AdminDashboardPage() {
+function AdminDashboardPage({ view = "overview" }) {
   const navigate = useNavigate();
   const sellerPortalUrl = getSellerLookupOrigin();
   const bulkSettlementInputRef = useRef(null);
   const shipmentFetchRequestRef = useRef(0);
+  const shipmentOverviewRequestRef = useRef(0);
 
   const [form, setForm] = useState(initialForm);
   const [shipments, setShipments] = useState([]);
+  const [shipmentOverview, setShipmentOverview] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
@@ -543,6 +581,12 @@ function AdminDashboardPage() {
 
   const [searchInput, setSearchInput] = useState("");
   const [appliedSearch, setAppliedSearch] = useState("");
+  const [selectedStatuses, setSelectedStatuses] = useState([]);
+  const [appliedStatuses, setAppliedStatuses] = useState([]);
+  const [pickupDateFromInput, setPickupDateFromInput] = useState("");
+  const [pickupDateToInput, setPickupDateToInput] = useState("");
+  const [appliedPickupDateFrom, setAppliedPickupDateFrom] = useState("");
+  const [appliedPickupDateTo, setAppliedPickupDateTo] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [deleteCandidateId, setDeleteCandidateId] = useState(null);
@@ -557,8 +601,253 @@ function AdminDashboardPage() {
     () => buildPageItems(currentPage, totalPages),
     [currentPage, totalPages],
   );
+  const shipmentOverviewSource = useMemo(() => {
+    if (shipmentOverview.length > 0 || totalCount === 0) {
+      return shipmentOverview;
+    }
 
-  const fetchShipments = async ({ page, searchKeyword } = {}) => {
+    return shipments;
+  }, [shipmentOverview, shipments, totalCount]);
+  const shipmentStatusSummary = useMemo(
+    () =>
+      shipmentOverviewSource.reduce(
+        (accumulator, shipment) => {
+          if (shipment.status === "scheduled") {
+            accumulator.scheduled += 1;
+          } else if (shipment.status === "inspecting") {
+            accumulator.inspecting += 1;
+          } else if (shipment.status === "inspected") {
+            accumulator.inspected += 1;
+          }
+
+          return accumulator;
+        },
+        { scheduled: 0, inspecting: 0, inspected: 0 },
+      ),
+    [shipmentOverviewSource],
+  );
+  const inspectionPriorityShipments = useMemo(
+    () =>
+      shipmentOverviewSource
+        .filter((shipment) => shipment.status === "scheduled" || shipment.status === "inspecting")
+        .slice(0, 3),
+    [shipmentOverviewSource],
+  );
+  const activePickupFilterSummary = useMemo(() => {
+    const parts = [];
+
+    if (appliedSearch) {
+      parts.push(`검색: ${appliedSearch}`);
+    }
+    if (appliedStatuses.length > 0) {
+      parts.push(
+        `상태: ${appliedStatuses.map((status) => shipmentStatusLabel[status] ?? status).join(", ")}`,
+      );
+    }
+    if (appliedPickupDateFrom || appliedPickupDateTo) {
+      const fromLabel = appliedPickupDateFrom || "전체";
+      const toLabel = appliedPickupDateTo || "전체";
+      parts.push(`수거일: ${fromLabel} ~ ${toLabel}`);
+    }
+
+    return parts.join(" · ") || "현재 목록 기준 운영 건수";
+  }, [appliedPickupDateFrom, appliedPickupDateTo, appliedSearch, appliedStatuses]);
+  const dashboardSummaryCards = useMemo(
+    () => [
+      {
+        label: "전체 수거건",
+        value: `${totalCount}건`,
+        hint: activePickupFilterSummary,
+      },
+      {
+        label: "검수 대기",
+        value: `${shipmentStatusSummary.scheduled}건`,
+        tone: "brand",
+        hint: "수거예정 상태의 작업",
+      },
+      {
+        label: "검수 진행",
+        value: `${shipmentStatusSummary.inspecting}건`,
+        tone: "warning",
+        hint: "상세 페이지에서 책 등록 및 검수 진행",
+      },
+      {
+        label: "검수 완료",
+        value: `${shipmentStatusSummary.inspected}건`,
+        tone: "success",
+        hint: "공개 스토어 준비가 끝난 수거 건",
+      },
+    ],
+    [
+      activePickupFilterSummary,
+      shipmentStatusSummary.inspecting,
+      shipmentStatusSummary.inspected,
+      shipmentStatusSummary.scheduled,
+      totalCount,
+    ],
+  );
+  const activeInspectionShipments = useMemo(
+    () =>
+      shipments.filter(
+        (shipment) => shipment.status === "scheduled" || shipment.status === "inspecting",
+      ),
+    [shipments],
+  );
+  const inspectedShipments = useMemo(
+    () => shipments.filter((shipment) => shipment.status === "inspected"),
+    [shipments],
+  );
+  const pageConfig = {
+    overview: {
+      activeModule: "overview",
+      title: "개요",
+      description: "",
+      summaryCards: dashboardSummaryCards,
+    },
+    pickups: {
+      activeModule: "pickups",
+      title: "수거",
+      description: "",
+      summaryCards: [],
+    },
+    inspection: {
+      activeModule: "inspection",
+      title: "검수",
+      description: "",
+      summaryCards: [
+        { label: "수거예정", value: `${shipmentStatusSummary.scheduled}건` },
+        { label: "검수중", value: `${shipmentStatusSummary.inspecting}건` },
+        { label: "검수완료", value: `${shipmentStatusSummary.inspected}건` },
+      ],
+    },
+    catalog: {
+      activeModule: "catalog",
+      title: "상품",
+      description: "",
+      summaryCards: [],
+    },
+    settlements: {
+      activeModule: "settlements",
+      title: "정산",
+      description: "",
+      summaryCards: [],
+    },
+  }[view] ?? {
+    activeModule: "overview",
+    title: "개요",
+    description: "",
+    summaryCards: dashboardSummaryCards,
+  };
+
+  const fetchShipmentOverview = async ({ searchKeyword, statuses, fromDate, toDate } = {}) => {
+    if (!isSupabaseConfigured) {
+      return;
+    }
+
+    const requestId = shipmentOverviewRequestRef.current + 1;
+    shipmentOverviewRequestRef.current = requestId;
+    const search = searchKeyword ?? appliedSearch;
+    const nextStatuses = statuses ?? appliedStatuses;
+    const nextFromDate = fromDate ?? appliedPickupDateFrom;
+    const nextToDate = toDate ?? appliedPickupDateTo;
+
+    setShipmentOverview([]);
+
+    const loadOverviewViaRpc = async () => {
+      const overviewRows = [];
+      let offset = 0;
+      let totalCountFromRpc = null;
+
+      while (totalCountFromRpc === null || offset < totalCountFromRpc) {
+        const { data, error: rpcError } = await supabase.rpc("list_admin_shipments", {
+          p_search: search || null,
+          p_statuses: nextStatuses.length > 0 ? nextStatuses : null,
+          p_from_date: nextFromDate || null,
+          p_to_date: nextToDate || null,
+          p_limit: SHIPMENT_INDEX_PAGE_SIZE,
+          p_offset: offset,
+        });
+
+        if (requestId !== shipmentOverviewRequestRef.current) {
+          return null;
+        }
+
+        if (rpcError) {
+          return null;
+        }
+
+        const normalizedRows = normalizeAdminShipmentRows(data);
+        overviewRows.push(...normalizedRows);
+        totalCountFromRpc = normalizedRows[0]?.total_count ?? overviewRows.length;
+
+        if (normalizedRows.length < SHIPMENT_INDEX_PAGE_SIZE) {
+          break;
+        }
+
+        offset += normalizedRows.length;
+      }
+
+      return overviewRows;
+    };
+
+    const overviewFromRpc = await loadOverviewViaRpc();
+    if (requestId !== shipmentOverviewRequestRef.current) {
+      return;
+    }
+
+    if (overviewFromRpc !== null) {
+      setShipmentOverview(overviewFromRpc);
+      return;
+    }
+
+    const overviewRows = [];
+    let offset = 0;
+    let totalOverviewCount = null;
+
+    while (totalOverviewCount === null || offset < totalOverviewCount) {
+      const rangeEnd = offset + SHIPMENT_INDEX_PAGE_SIZE - 1;
+      let fallbackQuery = supabase
+        .from("shipments")
+        .select("id, seller_name, seller_phone, pickup_date, status, created_at", { count: "exact" });
+
+      fallbackQuery = applyAdminShipmentFilters(fallbackQuery, {
+        search,
+        statuses: nextStatuses,
+        fromDate: nextFromDate,
+        toDate: nextToDate,
+      });
+
+      const { data, error: fallbackError, count } = await fallbackQuery
+        .order("pickup_date", { ascending: false })
+        .order("created_at", { ascending: false })
+        .range(offset, rangeEnd);
+
+      if (requestId !== shipmentOverviewRequestRef.current) {
+        return;
+      }
+
+      if (fallbackError) {
+        setShipmentOverview([]);
+        return;
+      }
+
+      const normalizedRows = normalizeAdminShipmentRows(data);
+      overviewRows.push(...normalizedRows);
+      totalOverviewCount = count ?? overviewRows.length;
+
+      if (normalizedRows.length < SHIPMENT_INDEX_PAGE_SIZE) {
+        break;
+      }
+
+      offset += normalizedRows.length;
+    }
+
+    if (requestId === shipmentOverviewRequestRef.current) {
+      setShipmentOverview(overviewRows);
+    }
+  };
+
+  const fetchShipments = async ({ page, searchKeyword, statuses, fromDate, toDate } = {}) => {
     if (!isSupabaseConfigured) {
       return;
     }
@@ -567,22 +856,47 @@ function AdminDashboardPage() {
     shipmentFetchRequestRef.current = requestId;
     const targetPage = page ?? currentPage;
     const search = searchKeyword ?? appliedSearch;
+    const nextStatuses = statuses ?? appliedStatuses;
+    const nextFromDate = fromDate ?? appliedPickupDateFrom;
+    const nextToDate = toDate ?? appliedPickupDateTo;
+    const offset = (targetPage - 1) * PAGE_SIZE;
 
     setIsLoading(true);
     setError("");
 
-    let query = supabase.from("shipments").select("*", { count: "exact" });
+    const { data: rpcData, error: rpcError } = await supabase.rpc("list_admin_shipments", {
+      p_search: search || null,
+      p_statuses: nextStatuses.length > 0 ? nextStatuses : null,
+      p_from_date: nextFromDate || null,
+      p_to_date: nextToDate || null,
+      p_limit: PAGE_SIZE,
+      p_offset: offset,
+    });
 
-    if (search) {
-      query = query.or(`seller_name.ilike.%${search}%,seller_phone.ilike.%${search}`);
+    if (requestId !== shipmentFetchRequestRef.current) {
+      return;
     }
 
-    const from = (targetPage - 1) * PAGE_SIZE;
-    const to = from + PAGE_SIZE - 1;
+    if (!rpcError && Array.isArray(rpcData)) {
+      setShipments(normalizeAdminShipmentRows(rpcData));
+      setTotalCount(rpcData[0]?.total_count ?? 0);
+      setIsLoading(false);
+      return;
+    }
+
+    let query = supabase.from("shipments").select("*", { count: "exact" });
+    query = applyAdminShipmentFilters(query, {
+      search,
+      statuses: nextStatuses,
+      fromDate: nextFromDate,
+      toDate: nextToDate,
+    });
+
+    const to = offset + PAGE_SIZE - 1;
 
     const { data, error: fetchError, count } = await query
       .order("created_at", { ascending: false })
-      .range(from, to);
+      .range(offset, to);
 
     if (requestId !== shipmentFetchRequestRef.current) {
       return;
@@ -594,18 +908,34 @@ function AdminDashboardPage() {
       return;
     }
 
-    setShipments(data ?? []);
+    setShipments(normalizeAdminShipmentRows(data));
     setTotalCount(count ?? 0);
     setIsLoading(false);
   };
 
   useEffect(() => {
-    fetchShipments({ page: currentPage, searchKeyword: appliedSearch });
-  }, [currentPage, appliedSearch]);
+    fetchShipments({
+      page: currentPage,
+      searchKeyword: appliedSearch,
+      statuses: appliedStatuses,
+      fromDate: appliedPickupDateFrom,
+      toDate: appliedPickupDateTo,
+    });
+  }, [appliedPickupDateFrom, appliedPickupDateTo, appliedSearch, appliedStatuses, currentPage]);
+
+  useEffect(() => {
+    void fetchShipmentOverview({
+      searchKeyword: appliedSearch,
+      statuses: appliedStatuses,
+      fromDate: appliedPickupDateFrom,
+      toDate: appliedPickupDateTo,
+    });
+  }, [appliedPickupDateFrom, appliedPickupDateTo, appliedSearch, appliedStatuses]);
 
   useEffect(
     () => () => {
       shipmentFetchRequestRef.current += 1;
+      shipmentOverviewRequestRef.current += 1;
     },
     [],
   );
@@ -660,28 +990,37 @@ function AdminDashboardPage() {
     setSuccess("새 수거 내역이 등록되었습니다.");
     setIsSubmitting(false);
 
+    await fetchShipmentOverview({
+      searchKeyword: appliedSearch,
+      statuses: appliedStatuses,
+      fromDate: appliedPickupDateFrom,
+      toDate: appliedPickupDateTo,
+    });
+
     if (currentPage !== 1) {
       setCurrentPage(1);
     } else {
-      await fetchShipments({ page: 1, searchKeyword: appliedSearch });
+      await fetchShipments({
+        page: 1,
+        searchKeyword: appliedSearch,
+        statuses: appliedStatuses,
+        fromDate: appliedPickupDateFrom,
+        toDate: appliedPickupDateTo,
+      });
     }
   };
 
-  const handleSearchSubmit = (event) => {
+  const handleSearchSubmit = async (event) => {
     event.preventDefault();
 
     const nextSearch = sanitizeSearchKeyword(searchInput);
+    const nextStatuses = [...selectedStatuses];
+    const nextFromDate = pickupDateFromInput;
+    const nextToDate = pickupDateToInput;
     setAppliedSearch(nextSearch);
-    setDeleteCandidateId(null);
-
-    if (currentPage !== 1) {
-      setCurrentPage(1);
-    }
-  };
-
-  const handleSearchReset = async () => {
-    setSearchInput("");
-    setAppliedSearch("");
+    setAppliedStatuses(nextStatuses);
+    setAppliedPickupDateFrom(nextFromDate);
+    setAppliedPickupDateTo(nextToDate);
     setDeleteCandidateId(null);
 
     if (currentPage !== 1) {
@@ -689,7 +1028,38 @@ function AdminDashboardPage() {
       return;
     }
 
-    await fetchShipments({ page: 1, searchKeyword: "" });
+    await fetchShipments({
+      page: 1,
+      searchKeyword: nextSearch,
+      statuses: nextStatuses,
+      fromDate: nextFromDate,
+      toDate: nextToDate,
+    });
+  };
+
+  const handleSearchReset = async () => {
+    setSearchInput("");
+    setAppliedSearch("");
+    setSelectedStatuses([]);
+    setAppliedStatuses([]);
+    setPickupDateFromInput("");
+    setPickupDateToInput("");
+    setAppliedPickupDateFrom("");
+    setAppliedPickupDateTo("");
+    setDeleteCandidateId(null);
+
+    if (currentPage !== 1) {
+      setCurrentPage(1);
+      return;
+    }
+
+    await fetchShipments({
+      page: 1,
+      searchKeyword: "",
+      statuses: [],
+      fromDate: "",
+      toDate: "",
+    });
   };
 
   const handleDeleteShipment = async (shipment) => {
@@ -722,12 +1092,25 @@ function AdminDashboardPage() {
     setSuccess(`${shipment.seller_name} 님 수거 내역을 삭제했습니다.`);
     setDeletingShipmentId(null);
 
+    await fetchShipmentOverview({
+      searchKeyword: appliedSearch,
+      statuses: appliedStatuses,
+      fromDate: appliedPickupDateFrom,
+      toDate: appliedPickupDateTo,
+    });
+
     if (nextPage !== currentPage) {
       setCurrentPage(nextPage);
       return;
     }
 
-    await fetchShipments({ page: nextPage, searchKeyword: appliedSearch });
+    await fetchShipments({
+      page: nextPage,
+      searchKeyword: appliedSearch,
+      statuses: appliedStatuses,
+      fromDate: appliedPickupDateFrom,
+      toDate: appliedPickupDateTo,
+    });
   };
 
   const fetchShipmentIndex = async () => {
@@ -1270,8 +1653,13 @@ function AdminDashboardPage() {
   };
 
   return (
-    <main className="app-shell-admin">
-      <header className="mb-6 flex flex-wrap items-start justify-between gap-3">
+    <AdminShell
+      activeModule={pageConfig.activeModule}
+      summaryCards={pageConfig.summaryCards}
+      description={pageConfig.description}
+      title={pageConfig.title}
+    >
+      <div className="hidden">
         <div>
           <p className="text-sm font-bold uppercase tracking-wide text-brand">Admin</p>
           <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-900">
@@ -1294,15 +1682,303 @@ function AdminDashboardPage() {
             {isSigningOut ? "로그아웃 중..." : "로그아웃"}
           </button>
         </div>
-      </header>
+      </div>
 
-      <AdminSectionTabs />
+      {null}
 
       {!isSupabaseConfigured ? (
         <p className="notice-error mb-4">
           `.env` 파일에 `VITE_SUPABASE_ADMIN_URL`, `VITE_SUPABASE_ADMIN_ANON_KEY`를 설정해 주세요.
         </p>
       ) : null}
+
+      {error ? <p className="notice-error">{error}</p> : null}
+      {success ? <p className="notice-success">{success}</p> : null}
+
+      {view === "overview" ? (
+        <>
+          <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <Link className="card" to="/admin/pickups">
+              <p className="text-sm font-bold text-slate-900">수거</p>
+            </Link>
+            <Link className="card" to="/admin/inspections">
+              <p className="text-sm font-bold text-slate-900">검수</p>
+            </Link>
+            <Link className="card" to="/admin/catalog">
+              <p className="text-sm font-bold text-slate-900">상품</p>
+            </Link>
+            <Link className="card" to="/admin/settlements">
+              <p className="text-sm font-bold text-slate-900">정산</p>
+            </Link>
+            <Link className="card" to="/admin/studio">
+              <p className="text-sm font-bold text-slate-900">스튜디오</p>
+            </Link>
+          </section>
+
+          <section className="card">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="section-title">지금 처리할 수거 건</h2>
+              <Link className="text-sm font-semibold text-brand" to="/admin/inspections">
+                전체 보기
+              </Link>
+            </div>
+            {inspectionPriorityShipments.length > 0 ? (
+              <div className="mt-4 space-y-3">
+                {inspectionPriorityShipments.map((shipment) => (
+                  <Link
+                    className="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3 transition hover:bg-slate-50"
+                    key={shipment.id}
+                    to={`/admin/shipments/${shipment.id}`}
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold text-slate-900">{shipment.seller_name}</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {shipment.seller_phone} · {formatDate(shipment.pickup_date)}
+                      </p>
+                    </div>
+                    <StatusBadge type="shipment" status={shipment.status} />
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-4 text-sm text-slate-500">표시할 수거 건이 없습니다.</p>
+            )}
+          </section>
+        </>
+      ) : null}
+
+      {view === "inspection" ? (
+        <>
+          <section className="card">
+            <h2 className="section-title">검수할 수거 건</h2>
+            {activeInspectionShipments.length > 0 ? (
+              <div className="mt-4 space-y-3">
+                {activeInspectionShipments.map((shipment) => (
+                  <Link
+                    className="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3 transition hover:bg-slate-50"
+                    key={shipment.id}
+                    to={`/admin/shipments/${shipment.id}`}
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold text-slate-900">{shipment.seller_name}</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {shipment.seller_phone} · {formatDate(shipment.pickup_date)}
+                      </p>
+                    </div>
+                    <StatusBadge type="shipment" status={shipment.status} />
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-4 text-sm text-slate-500">검수할 수거 건이 없습니다.</p>
+            )}
+          </section>
+
+          <section className="card">
+            <h2 className="section-title">검수 완료</h2>
+            {inspectedShipments.length > 0 ? (
+              <div className="mt-4 space-y-3">
+                {inspectedShipments.map((shipment) => (
+                  <Link
+                    className="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3 transition hover:bg-slate-50"
+                    key={shipment.id}
+                    to={`/admin/shipments/${shipment.id}`}
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold text-slate-900">{shipment.seller_name}</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {shipment.seller_phone} · {formatDate(shipment.pickup_date)}
+                      </p>
+                    </div>
+                    <StatusBadge type="shipment" status={shipment.status} />
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-4 text-sm text-slate-500">검수 완료 수거 건이 없습니다.</p>
+            )}
+          </section>
+        </>
+      ) : null}
+
+      {view === "catalog" ? (
+        <>
+          <section className="card">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="section-title">재고 엑셀</h2>
+              <button
+                className="btn-primary !w-auto !px-4 !py-2.5 text-sm"
+                disabled={isInventoryExporting || isBulkSettling}
+                onClick={handleDownloadInventoryAudit}
+                type="button"
+              >
+                {isInventoryExporting ? "생성 중..." : "다운로드"}
+              </button>
+            </div>
+          </section>
+
+          <section className="card">
+            <h2 className="section-title">공개 상품 편집</h2>
+            {inspectedShipments.length > 0 ? (
+              <div className="mt-4 space-y-3">
+                {inspectedShipments.map((shipment) => (
+                  <Link
+                    className="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3 transition hover:bg-slate-50"
+                    key={shipment.id}
+                    to={`/admin/shipments/${shipment.id}`}
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold text-slate-900">{shipment.seller_name}</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {shipment.seller_phone} · {formatDate(shipment.pickup_date)}
+                      </p>
+                    </div>
+                    <span className="text-xs font-semibold text-slate-500">열기</span>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-4 text-sm text-slate-500">편집할 수거 건이 없습니다.</p>
+            )}
+          </section>
+        </>
+      ) : null}
+
+      <div className={`admin-dashboard-view admin-dashboard-view-${view}`}>
+      <section className="admin-section-anchor admin-overview-view space-y-4" id="overview">
+        <div className="grid gap-4 xl:grid-cols-[1.25fr_0.95fr]">
+          <div className="overflow-hidden rounded-[32px] border border-slate-900 bg-slate-950 p-6 text-white shadow-soft">
+            <p className="text-xs font-black uppercase tracking-[0.22em] text-sky-200">
+              Operations Flow
+            </p>
+            <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">
+              수거부터 공개 판매까지, 운영 흐름을 한 화면으로
+            </h2>
+            <p className="mt-3 max-w-3xl text-sm font-semibold leading-relaxed text-slate-300">
+              기존에는 수거 등록 위주의 화면에 기능이 얹혀 있었다면, 이제는 앞으로 들어올 주문,
+              회원, CS 기능까지 고려한 운영 콘솔 형태로 정리했습니다. 현재 구현된 작업은 바로
+              실행하고, 아직 없는 모듈은 같은 정보 구조 안에서 준비 상태를 확인할 수 있습니다.
+            </p>
+            <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <a
+                className="rounded-[24px] border border-white/10 bg-white/5 p-4 transition hover:bg-white/10"
+                href="#pickup-operations"
+              >
+                <p className="text-sm font-black">수거 관리</p>
+                <p className="mt-2 text-xs font-semibold leading-relaxed text-slate-300">
+                  등록, 검색, 목록 운영
+                </p>
+              </a>
+              <a
+                className="rounded-[24px] border border-white/10 bg-white/5 p-4 transition hover:bg-white/10"
+                href="#inspection-workspace"
+              >
+                <p className="text-sm font-black">검수 · 가격</p>
+                <p className="mt-2 text-xs font-semibold leading-relaxed text-slate-300">
+                  상세 검수와 공개 스토어 준비
+                </p>
+              </a>
+              <a
+                className="rounded-[24px] border border-white/10 bg-white/5 p-4 transition hover:bg-white/10"
+                href="#catalog-workspace"
+              >
+                <p className="text-sm font-black">상품 관리</p>
+                <p className="mt-2 text-xs font-semibold leading-relaxed text-slate-300">
+                  재고 점검과 상품 운영 흐름
+                </p>
+              </a>
+              <Link
+                className="rounded-[24px] border border-sky-400/20 bg-sky-400/10 p-4 transition hover:bg-sky-400/15"
+                to="/admin/studio"
+              >
+                <p className="text-sm font-black">사진 스튜디오</p>
+                <p className="mt-2 text-xs font-semibold leading-relaxed text-sky-100">
+                  이미지 가공과 다운로드를 분리 운영
+                </p>
+              </Link>
+            </div>
+          </div>
+
+          <div className="grid gap-4">
+            <article className="card animate-rise">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+                    오늘 우선순위
+                  </p>
+                  <h3 className="mt-2 text-xl font-black tracking-tight text-slate-950">
+                    먼저 처리할 수거 건
+                  </h3>
+                </div>
+                <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-black text-sky-700">
+                  {inspectionPriorityShipments.length}건
+                </span>
+              </div>
+              {inspectionPriorityShipments.length > 0 ? (
+                <div className="mt-4 space-y-3">
+                  {inspectionPriorityShipments.map((shipment) => (
+                    <Link
+                      className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 transition hover:border-brand/40 hover:bg-white"
+                      key={shipment.id}
+                      to={`/admin/shipments/${shipment.id}`}
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-black text-slate-900">
+                          {shipment.seller_name}
+                        </p>
+                        <p className="mt-1 text-xs font-semibold text-slate-500">
+                          {shipment.seller_phone} · {formatDate(shipment.pickup_date)}
+                        </p>
+                      </div>
+                      <StatusBadge type="shipment" status={shipment.status} />
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-4 text-sm font-semibold text-slate-500">
+                  현재 페이지 기준으로 우선 처리할 수거 건이 없습니다.
+                </p>
+              )}
+            </article>
+
+            <article className="card animate-rise">
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+                앞으로 확장될 운영 모듈
+              </p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-sm font-black text-slate-900">주문 · 배송</p>
+                  <p className="mt-2 text-xs font-semibold leading-relaxed text-slate-500">
+                    주문 상태 필터, 송장 입력, 반품/교환 흐름이 여기에 붙게 됩니다.
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-sm font-black text-slate-900">회원 · CS</p>
+                  <p className="mt-2 text-xs font-semibold leading-relaxed text-slate-500">
+                    회원 통합 조회, FAQ, 공지, 문의 응대 모듈이 같은 콘솔 구조를 따라 확장됩니다.
+                  </p>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section className="admin-section-anchor admin-pickup-view space-y-4" id="pickup-operations">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+              Pickup Operations
+            </p>
+            <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-950">수거 관리</h2>
+            <p className="mt-2 text-sm font-semibold text-slate-500">
+              수거 등록, 판매자 검색, 목록 관리 기능을 하나의 작업 영역으로 정리했습니다.
+            </p>
+          </div>
+          <a className="btn-secondary !w-auto !px-4 !py-2.5 text-xs" href="#inspection-workspace">
+            검수 작업으로 이동
+          </a>
+        </div>
 
       <div className="mb-4 grid gap-4 lg:grid-cols-2">
         <section className="card animate-rise h-full">
@@ -1354,40 +2030,197 @@ function AdminDashboardPage() {
         </section>
 
         <section className="card animate-rise h-full">
-          <h2 className="section-title">판매자 검색</h2>
+          <h2 className="section-title">수거 목록 필터</h2>
           <p className="mt-1 text-sm text-slate-500">
-            이름 또는 전화번호 뒷자리로 조회할 수 있습니다.
+            판매자 검색, 상태, 수거일 범위를 조합해 목록을 빠르게 좁힐 수 있습니다.
           </p>
 
-          <form className="mt-3 flex gap-2" onSubmit={handleSearchSubmit}>
-            <input
-              className="input-base !mt-0 !min-w-0 !flex-1 !py-2.5"
-              onChange={(event) => setSearchInput(event.target.value)}
-              placeholder="예: 홍길동 / 5678"
-              type="text"
-              value={searchInput}
-            />
-            <button
-              className="btn-secondary !w-auto !shrink-0 !whitespace-nowrap !px-4 !py-2.5"
-              type="submit"
-            >
-              검색
-            </button>
-          </form>
+          <form className="mt-3 space-y-4" onSubmit={handleSearchSubmit}>
+            <label className="block">
+              <span className="label">판매자 검색</span>
+              <input
+                className="input-base !mt-0 !py-2.5"
+                onChange={(event) => setSearchInput(event.target.value)}
+                placeholder="예: 홍길동 / 5678"
+                type="text"
+                value={searchInput}
+              />
+            </label>
 
-          {appliedSearch ? (
-            <button
-              className="mt-2 text-sm font-bold text-brand underline"
-              onClick={handleSearchReset}
-              type="button"
-            >
-              검색 초기화
-            </button>
-          ) : null}
+            <div>
+              <span className="label">상태</span>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {shipmentStatusFilters.map((statusFilter) => {
+                  const isActive = selectedStatuses.includes(statusFilter.value);
+
+                  return (
+                    <button
+                      className={`rounded-full border px-3 py-2 text-xs font-bold transition ${
+                        isActive
+                          ? "border-brand bg-brand text-white"
+                          : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                      }`}
+                      key={statusFilter.value}
+                      onClick={() =>
+                        setSelectedStatuses((currentStatuses) =>
+                          currentStatuses.includes(statusFilter.value)
+                            ? currentStatuses.filter((status) => status !== statusFilter.value)
+                            : [...currentStatuses, statusFilter.value],
+                        )
+                      }
+                      type="button"
+                    >
+                      {statusFilter.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block">
+                <span className="label">수거 시작일</span>
+                <input
+                  className="input-base !mt-0 !py-2.5"
+                  onChange={(event) => setPickupDateFromInput(event.target.value)}
+                  type="date"
+                  value={pickupDateFromInput}
+                />
+              </label>
+
+              <label className="block">
+                <span className="label">수거 종료일</span>
+                <input
+                  className="input-base !mt-0 !py-2.5"
+                  onChange={(event) => setPickupDateToInput(event.target.value)}
+                  type="date"
+                  value={pickupDateToInput}
+                />
+              </label>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                className="btn-secondary !w-auto !shrink-0 !whitespace-nowrap !px-4 !py-2.5"
+                type="submit"
+              >
+                필터 적용
+              </button>
+              <button
+                className="btn-secondary !w-auto !shrink-0 !whitespace-nowrap !px-4 !py-2.5"
+                onClick={handleSearchReset}
+                type="button"
+              >
+                초기화
+              </button>
+            </div>
+          </form>
         </section>
       </div>
-      {error ? <p className="notice-error mb-4">{error}</p> : null}
-      {success ? <p className="notice-success mb-4">{success}</p> : null}
+      </section>
+
+      <section className="admin-section-anchor admin-inspection-view space-y-4" id="inspection-workspace">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+              Inspection Workspace
+            </p>
+            <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-950">
+              검수 · 가격 책정
+            </h2>
+            <p className="mt-2 text-sm font-semibold text-slate-500">
+              실제 검수와 가격 수정은 각 수거 상세에서 진행하고, 이 영역에서는 지금 어떤 상태의 작업이
+              밀려 있는지와 다음 작업 우선순위를 확인합니다.
+            </p>
+          </div>
+          <a className="btn-secondary !w-auto !px-4 !py-2.5 text-xs" href="#catalog-workspace">
+            상품 운영 보기
+          </a>
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+          <article className="card animate-rise">
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">
+                  수거예정
+                </p>
+                <p className="mt-2 text-2xl font-black text-slate-950">
+                  {shipmentStatusSummary.scheduled}건
+                </p>
+                <p className="mt-2 text-xs font-semibold text-slate-500">
+                  입고 후 검수 시작이 필요한 건
+                </p>
+              </div>
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-amber-700">
+                  검수중
+                </p>
+                <p className="mt-2 text-2xl font-black text-amber-950">
+                  {shipmentStatusSummary.inspecting}건
+                </p>
+                <p className="mt-2 text-xs font-semibold text-amber-700">
+                  책 등록과 가격 입력이 진행 중
+                </p>
+              </div>
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-700">
+                  검수완료
+                </p>
+                <p className="mt-2 text-2xl font-black text-emerald-950">
+                  {shipmentStatusSummary.inspected}건
+                </p>
+                <p className="mt-2 text-xs font-semibold text-emerald-700">
+                  공개 스토어 정보 입력 가능
+                </p>
+              </div>
+            </div>
+          </article>
+
+          <article className="card animate-rise">
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+              현재 검수 흐름
+            </p>
+            <div className="mt-4 space-y-3">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-sm font-black text-slate-900">1. 수거 상세 진입</p>
+                <p className="mt-2 text-xs font-semibold leading-relaxed text-slate-500">
+                  수거예정 또는 검수중 상태의 수거 건을 열어 책을 추가하고 판매가를 입력합니다.
+                </p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-sm font-black text-slate-900">2. 공개 메타데이터 입력</p>
+                <p className="mt-2 text-xs font-semibold leading-relaxed text-slate-500">
+                  과목, 브랜드, 유형, 검수 메모와 이미지를 입력하면 공개 스토어에 바로 연결됩니다.
+                </p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-sm font-black text-slate-900">3. 판매중/정산완료 관리</p>
+                <p className="mt-2 text-xs font-semibold leading-relaxed text-slate-500">
+                  판매 상태 변경과 정산 완료 처리는 상세 페이지와 정산 워크스페이스에서 이어집니다.
+                </p>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section className="admin-section-anchor admin-catalog-view space-y-4" id="catalog-workspace">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+              Catalog Workspace
+            </p>
+            <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-950">상품 관리</h2>
+            <p className="mt-2 text-sm font-semibold text-slate-500">
+              현재는 재고 전수조사와 공개 스토어 메타데이터 중심으로 운영하고 있고, 이후 교재 DB와
+              상품/재고 모듈을 이 영역으로 확장할 예정입니다.
+            </p>
+          </div>
+          <Link className="btn-secondary !w-auto !px-4 !py-2.5 text-xs" to="/admin/studio">
+            스튜디오 열기
+          </Link>
+        </div>
 
       <section className="card animate-rise mb-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1411,6 +2244,25 @@ function AdminDashboardPage() {
           </button>
         </div>
       </section>
+
+      </section>
+
+      <section className="admin-section-anchor admin-settlement-view space-y-4" id="settlement-workspace">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+              Settlement Workspace
+            </p>
+            <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-950">정산 관리</h2>
+            <p className="mt-2 text-sm font-semibold text-slate-500">
+              현재는 일괄 정산 완료 처리까지 구현되어 있고, 이후 자동 정산 스케줄러와 정산 리포트를
+              이 영역으로 확장할 예정입니다.
+            </p>
+          </div>
+          <a className="btn-secondary !w-auto !px-4 !py-2.5 text-xs" href="#order-roadmap">
+            다음 모듈 보기
+          </a>
+        </div>
 
       <section className="card animate-rise mb-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1521,7 +2373,9 @@ function AdminDashboardPage() {
         ) : null}
       </section>
 
-      <section className="space-y-3">
+      </section>
+
+      <section className="admin-pickup-list space-y-3">
         <div className="flex items-end justify-between">
           <h2 className="section-title">수거 목록</h2>
           <p className="text-xs font-semibold text-slate-500">총 {totalCount}건</p>
@@ -1555,6 +2409,9 @@ function AdminDashboardPage() {
                 </div>
                 <p className="mt-3 text-sm font-semibold text-slate-600">
                   수거 일자: <span className="text-brand">{formatDate(shipment.pickup_date)}</span>
+                </p>
+                <p className="mt-1 text-sm font-semibold text-slate-500">
+                  등록 교재: {shipment.book_count ?? 0}권
                 </p>
 
                 <div className="mt-3 border-t border-slate-200 pt-3">
@@ -1627,6 +2484,9 @@ function AdminDashboardPage() {
                     수거 일자
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
+                    교재수
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
                     상태
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
@@ -1655,6 +2515,9 @@ function AdminDashboardPage() {
                       </td>
                       <td className="px-4 py-4 font-semibold text-slate-600">
                         {formatDate(shipment.pickup_date)}
+                      </td>
+                      <td className="px-4 py-4 font-semibold text-slate-600">
+                        {shipment.book_count ?? 0}권
                       </td>
                       <td className="px-4 py-4">
                         <StatusBadge type="shipment" status={shipment.status} />
@@ -1718,8 +2581,52 @@ function AdminDashboardPage() {
         </div>
       </section>
 
+      <section className="admin-roadmap grid gap-4 xl:grid-cols-3">
+        <article className="card animate-rise admin-section-anchor" id="order-roadmap">
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+            Planned Module
+          </p>
+          <h2 className="mt-2 text-xl font-black tracking-tight text-slate-950">주문 · 배송</h2>
+          <p className="mt-3 text-sm font-semibold leading-relaxed text-slate-500">
+            FEATURE_SPEC 2.5 기준으로 주문 상태 필터, 송장 입력, 배송 추적, 반품/교환 처리가
+            이 영역으로 추가될 예정입니다.
+          </p>
+          <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs font-semibold leading-relaxed text-slate-500">
+            다음 구현 후보: `orders / order_items` 모델, 송장 업로드, 주문 상세 패널
+          </div>
+        </article>
+
+        <article className="card animate-rise admin-section-anchor" id="member-roadmap">
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+            Planned Module
+          </p>
+          <h2 className="mt-2 text-xl font-black tracking-tight text-slate-950">회원 관리</h2>
+          <p className="mt-3 text-sm font-semibold leading-relaxed text-slate-500">
+            회원 목록, 회원 상세, 판매/구매/정산 이력 통합 조회, 관리자 권한 분리가 이 영역으로
+            연결됩니다.
+          </p>
+          <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs font-semibold leading-relaxed text-slate-500">
+            다음 구현 후보: 회원 검색 UI, 회원 타임라인, RBAC 단계화
+          </div>
+        </article>
+
+        <article className="card animate-rise admin-section-anchor" id="cs-roadmap">
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+            Planned Module
+          </p>
+          <h2 className="mt-2 text-xl font-black tracking-tight text-slate-950">CS 관리</h2>
+          <p className="mt-3 text-sm font-semibold leading-relaxed text-slate-500">
+            문의 접수, FAQ, 공지사항, 알림 이력 관리가 한 묶음으로 들어오도록 운영 콘솔 구조를
+            미리 분리해 두었습니다.
+          </p>
+          <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs font-semibold leading-relaxed text-slate-500">
+            다음 구현 후보: 문의 티켓 테이블, FAQ CMS, 공지 작성기
+          </div>
+        </article>
+      </section>
+
       {totalPages > 1 ? (
-        <nav className="mt-5 flex items-center justify-center gap-1">
+        <nav className="admin-pickup-pagination mt-5 flex items-center justify-center gap-1">
           <button
             className="btn-secondary !w-auto !px-3 !py-2 text-xs"
             disabled={currentPage === 1}
@@ -1760,7 +2667,8 @@ function AdminDashboardPage() {
           </button>
         </nav>
       ) : null}
-    </main>
+      </div>
+    </AdminShell>
   );
 }
 

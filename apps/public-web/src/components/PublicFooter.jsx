@@ -1,3 +1,5 @@
+import ContentContainer from "./ContentContainer";
+
 function FooterMailIcon() {
   return (
     <svg aria-hidden="true" className="public-footer__icon-svg" viewBox="0 0 24 24">
@@ -65,7 +67,7 @@ function FooterMetaPair({ label, value }) {
 function PublicFooter() {
   return (
     <footer className="public-footer">
-      <div className="public-shell public-footer__inner">
+      <ContentContainer className="public-footer__inner">
         <div className="public-footer__content">
           <div className="public-footer__brand">SUBOOK®</div>
 
@@ -103,7 +105,7 @@ function PublicFooter() {
 
           <p className="public-footer__copyright">©SUBOOK All Right Reserved.</p>
         </div>
-      </div>
+      </ContentContainer>
     </footer>
   );
 }

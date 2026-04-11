@@ -1,52 +1,16 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/publicSupabaseClient";
+import { getPublicAccountAccessState } from "../lib/publicAuthAccess";
 
 const PublicAuthContext = createContext(null);
-
-function buildFallbackProfile(user) {
-  if (!user) {
-    return null;
-  }
-
-  const metadata = user.user_metadata ?? {};
-  const fallbackName =
-    typeof metadata.name === "string" && metadata.name.trim()
-      ? metadata.name.trim()
-      : user.email?.split("@")[0] ?? "";
-  const fallbackPhone =
-    typeof metadata.phone === "string" && metadata.phone.trim() ? metadata.phone.trim() : "";
-
-  return {
-    user_id: user.id,
-    email: user.email ?? "",
-    name: fallbackName,
-    phone: fallbackPhone,
-  };
-}
-
-async function loadMemberProfile(user) {
-  if (!supabase || !user) {
-    return null;
-  }
-
-  const { data, error } = await supabase
-    .from("member_profiles")
-    .select("user_id, email, name, phone")
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (error || !data) {
-    return buildFallbackProfile(user);
-  }
-
-  return data;
-}
 
 function PublicAuthProvider({ children }) {
   const [state, setState] = useState({
     session: null,
     user: null,
     profile: null,
+    accountRole: "guest",
+    hasSession: false,
     isLoading: true,
     isConfigured: isSupabaseConfigured && Boolean(supabase),
   });
@@ -64,13 +28,15 @@ function PublicAuthProvider({ children }) {
           session: null,
           user: null,
           profile: null,
+          accountRole: "guest",
+          hasSession: false,
           isLoading: false,
           isConfigured: isSupabaseConfigured && Boolean(supabase),
         });
         return;
       }
 
-      const profile = await loadMemberProfile(nextSession.user);
+      const accessState = await getPublicAccountAccessState(nextSession.user);
       if (!isMounted) {
         return;
       }
@@ -78,7 +44,9 @@ function PublicAuthProvider({ children }) {
       setState({
         session: nextSession,
         user: nextSession.user,
-        profile,
+        profile: accessState.accountRole === "member" ? accessState.profile : null,
+        accountRole: accessState.accountRole,
+        hasSession: true,
         isLoading: false,
         isConfigured: isSupabaseConfigured && Boolean(supabase),
       });
@@ -89,6 +57,8 @@ function PublicAuthProvider({ children }) {
         session: null,
         user: null,
         profile: null,
+        accountRole: "guest",
+        hasSession: false,
         isLoading: false,
         isConfigured: false,
       });
@@ -122,13 +92,15 @@ function PublicAuthProvider({ children }) {
       return null;
     }
 
-    const profile = await loadMemberProfile(state.user);
+    const accessState = await getPublicAccountAccessState(state.user);
     setState((currentState) => ({
       ...currentState,
-      profile,
+      profile: accessState.accountRole === "member" ? accessState.profile : null,
+      accountRole: accessState.accountRole,
+      hasSession: Boolean(currentState.session?.user),
     }));
 
-    return profile;
+    return accessState.profile;
   };
 
   const signOut = async () => {
@@ -143,6 +115,8 @@ function PublicAuthProvider({ children }) {
         session: null,
         user: null,
         profile: null,
+        accountRole: "guest",
+        hasSession: false,
         isLoading: false,
         isConfigured: true,
       });
@@ -151,9 +125,19 @@ function PublicAuthProvider({ children }) {
     return result;
   };
 
+  const isOAuthUser = state.user?.app_metadata?.provider !== "email" && Boolean(state.user?.app_metadata?.provider);
+  const isEmailVerified = Boolean(state.profile?.email_verified_at);
+
+  useEffect(() => {
+    if (isOAuthUser && state.accountRole === "member" && !isEmailVerified && supabase) {
+      supabase.rpc("complete_member_email_verification").catch(() => {});
+    }
+  }, [isOAuthUser, state.accountRole, isEmailVerified]);
+
   const value = {
     ...state,
-    isAuthenticated: Boolean(state.session?.user),
+    isAuthenticated: state.accountRole === "member" && (isOAuthUser || isEmailVerified),
+    isAdminAccount: state.accountRole === "admin",
     refreshProfile,
     signOut,
   };

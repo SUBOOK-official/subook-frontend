@@ -1,0 +1,377 @@
+.public-mypage-demo-banner {
+  padding: 14px 16px;
+  border: 1px solid rgba(59, 130, 246, 0.22);
+  border-radius: 12px;
+  background: rgba(59, 130, 246, 0.08);
+  color: var(--public-ds-text);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.public-mypage-summary-card__description {
+  color: var(--public-ds-text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.public-mypage-flow-list,
+.public-mypage-order-list,
+.public-mypage-settlement-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.public-mypage-flow-card,
+.public-mypage-order-card,
+.public-mypage-settlement-card {
+  padding: 16px;
+  border: 1px solid var(--public-ds-border);
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.public-mypage-flow-card__header,
+.public-mypage-order-card__header,
+.public-mypage-settlement-card__row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.public-mypage-flow-card__meta,
+.public-mypage-order-card__meta {
+  margin: 0 0 8px;
+  color: var(--public-ds-text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.public-mypage-flow-card__meta span,
+.public-mypage-order-card__meta span {
+  margin-left: 8px;
+}
+
+.public-mypage-flow-card__title {
+  margin: 0;
+  color: var(--public-ds-text);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.public-mypage-flow-card__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.public-mypage-inline-link {
+  min-height: 36px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--public-ds-accent);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.public-mypage-flow-card__status-row {
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.public-mypage-flow-card__status-row strong {
+  color: var(--public-ds-text);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.public-mypage-flow-card__status-label {
+  margin-right: 8px;
+  color: var(--public-ds-text-secondary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.public-mypage-flow-card__tracking,
+.public-mypage-order-card__total,
+.public-mypage-order-card__note,
+.public-mypage-settlement-card p {
+  margin: 12px 0 0;
+  color: var(--public-ds-text-secondary);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.public-mypage-order-card__note {
+  color: var(--public-ds-text-muted);
+}
+
+.public-mypage-progress-rail {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.public-mypage-progress-rail__step {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+}
+
+.public-mypage-progress-rail__line {
+  position: absolute;
+  top: 7px;
+  left: calc(50% + 8px);
+  width: calc(100% - 16px);
+  height: 2px;
+  background: var(--public-ds-divider);
+}
+
+.public-mypage-progress-rail__line.is-active {
+  background: var(--public-ds-accent);
+}
+
+.public-mypage-progress-rail__node {
+  position: relative;
+  z-index: 1;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--public-ds-divider);
+}
+
+.public-mypage-progress-rail__node.is-active {
+  background: var(--public-ds-accent);
+}
+
+.public-mypage-progress-rail__label {
+  color: var(--public-ds-text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.public-mypage-book-list,
+.public-mypage-order-card__items {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.public-mypage-book-row,
+.public-mypage-order-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--public-ds-background);
+}
+
+.public-mypage-book-row__copy strong,
+.public-mypage-order-item strong {
+  color: var(--public-ds-text);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.public-mypage-book-row__copy p {
+  margin: 6px 0 0;
+  color: var(--public-ds-text-secondary);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.public-mypage-order-card__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.public-mypage-order-card__tracking {
+  color: var(--public-ds-text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.public-mypage-order-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.public-mypage-filter-chip {
+  padding: 6px 14px;
+  border: 1px solid var(--public-ds-border);
+  border-radius: 20px;
+  background: #ffffff;
+  color: var(--public-ds-text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.public-mypage-filter-chip:hover {
+  border-color: var(--public-ds-accent);
+  color: var(--public-ds-accent);
+}
+
+.public-mypage-filter-chip--active {
+  border-color: var(--public-ds-primary);
+  background: var(--public-ds-primary);
+  color: #ffffff;
+}
+
+.public-mypage-order-empty-filter {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--public-ds-text-muted);
+  font-size: 14px;
+}
+
+.public-mypage-order-card__actions,
+.public-mypage-account-actions--split {
+  margin-top: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.public-mypage-chip {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.public-mypage-chip--neutral {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.public-mypage-chip--accent {
+  background: #dbeafe;
+  color: #2563eb;
+}
+
+.public-mypage-chip--info {
+  background: #e0e7ff;
+  color: #4f46e5;
+}
+
+.public-mypage-chip--warning {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.public-mypage-chip--success {
+  background: #d1fae5;
+  color: #059669;
+}
+
+.public-mypage-chip--danger {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.public-mypage-settlement-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.public-mypage-settlement-summary__item {
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--public-ds-background);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.public-mypage-settlement-summary__item span {
+  color: var(--public-ds-text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.public-mypage-settlement-summary__item strong,
+.public-mypage-settlement-card__amount {
+  color: var(--public-ds-text);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.public-mypage-pending-settlements {
+  margin-top: 20px;
+}
+
+.public-mypage-pending-settlements__title {
+  margin: 0 0 12px;
+  color: var(--public-ds-text);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.public-mypage-button--danger-outline {
+  border: 1px solid rgba(239, 68, 68, 0.24);
+  background: #ffffff;
+  color: var(--public-ds-danger);
+}
+
+.public-mypage-button--danger-outline:hover,
+.public-mypage-button--danger-outline:focus-visible {
+  border-color: rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.04);
+}
+
+@media (max-width: 767px) {
+  .public-mypage-flow-card__header,
+  .public-mypage-order-card__header,
+  .public-mypage-flow-card__status-row,
+  .public-mypage-book-row,
+  .public-mypage-order-item,
+  .public-mypage-settlement-card__row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .public-mypage-progress-rail {
+    gap: 4px;
+  }
+
+  .public-mypage-progress-rail__line {
+    left: calc(50% + 6px);
+    width: calc(100% - 12px);
+  }
+
+  .public-mypage-settlement-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .public-mypage-order-card__actions,
+  .public-mypage-account-actions--split {
+    flex-direction: column;
+  }
+}

@@ -4,7 +4,7 @@
 
 :root {
   --surface: #ffffff;
-  --surface-muted: #f8fafc;
+  --surface-muted: #f5f7fb;
   --text-main: #0f172a;
   --text-muted: #64748b;
 }
@@ -18,9 +18,7 @@ body {
   min-height: 100vh;
   color: var(--text-main);
   font-family: "Pretendard", "Noto Sans KR", "Apple SD Gothic Neo", sans-serif;
-  background:
-    radial-gradient(circle at 100% 0%, #e2e8f0 0%, transparent 35%),
-    linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+  background: #f5f7fa;
 }
 
 @layer components {
@@ -29,11 +27,11 @@ body {
   }
 
   .app-shell-admin {
-    @apply mx-auto min-h-screen w-full max-w-6xl px-4 pb-12 pt-6 sm:px-6 lg:px-8;
+    @apply mx-auto min-h-screen w-full max-w-[1440px] px-4 pb-12 pt-6 sm:px-6 lg:px-8;
   }
 
   .card {
-    @apply rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-200;
+    @apply rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200;
   }
 
   .section-title {
@@ -57,6 +55,10 @@ body {
     @apply inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50;
   }
 
+  .btn-danger {
+    @apply inline-flex items-center justify-center rounded-xl bg-rose-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
   .notice-error {
     @apply rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700;
   }
@@ -64,6 +66,49 @@ body {
   .notice-success {
     @apply rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700;
   }
+}
+
+.admin-section-anchor {
+  scroll-margin-top: 24px;
+}
+
+.admin-dashboard-view-overview .admin-overview-view,
+.admin-dashboard-view-overview .admin-pickup-view,
+.admin-dashboard-view-overview .admin-inspection-view,
+.admin-dashboard-view-overview .admin-catalog-view,
+.admin-dashboard-view-overview .admin-settlement-view,
+.admin-dashboard-view-overview .admin-pickup-list,
+.admin-dashboard-view-overview .admin-roadmap,
+.admin-dashboard-view-overview .admin-pickup-pagination,
+.admin-dashboard-view-inspection .admin-overview-view,
+.admin-dashboard-view-inspection .admin-pickup-view,
+.admin-dashboard-view-inspection .admin-inspection-view,
+.admin-dashboard-view-inspection .admin-catalog-view,
+.admin-dashboard-view-inspection .admin-settlement-view,
+.admin-dashboard-view-inspection .admin-pickup-list,
+.admin-dashboard-view-inspection .admin-roadmap,
+.admin-dashboard-view-inspection .admin-pickup-pagination,
+.admin-dashboard-view-catalog .admin-overview-view,
+.admin-dashboard-view-catalog .admin-pickup-view,
+.admin-dashboard-view-catalog .admin-inspection-view,
+.admin-dashboard-view-catalog .admin-catalog-view,
+.admin-dashboard-view-catalog .admin-settlement-view,
+.admin-dashboard-view-catalog .admin-pickup-list,
+.admin-dashboard-view-catalog .admin-roadmap,
+.admin-dashboard-view-catalog .admin-pickup-pagination,
+.admin-dashboard-view-settlements .admin-overview-view,
+.admin-dashboard-view-settlements .admin-pickup-view,
+.admin-dashboard-view-settlements .admin-inspection-view,
+.admin-dashboard-view-settlements .admin-catalog-view,
+.admin-dashboard-view-settlements .admin-pickup-list,
+.admin-dashboard-view-settlements .admin-roadmap,
+.admin-dashboard-view-settlements .admin-pickup-pagination,
+.admin-dashboard-view-pickups .admin-overview-view,
+.admin-dashboard-view-pickups .admin-inspection-view,
+.admin-dashboard-view-pickups .admin-catalog-view,
+.admin-dashboard-view-pickups .admin-settlement-view,
+.admin-dashboard-view-pickups .admin-roadmap {
+  display: none;
 }
 
 @keyframes rise {

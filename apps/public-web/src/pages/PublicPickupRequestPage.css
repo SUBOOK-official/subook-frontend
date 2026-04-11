@@ -1,0 +1,1181 @@
+/* ─── 수거 요청 페이지 ─── */
+
+.pickup-page {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top, rgba(59, 130, 246, 0.08), transparent 24%),
+    linear-gradient(180deg, #ffffff 0%, var(--public-ds-background) 100%);
+}
+
+.pickup-route {
+  padding: 24px 0 48px;
+}
+
+.pickup-shell {
+  width: min(720px, calc(100vw - 32px));
+  margin: 0 auto;
+}
+
+.pickup-back-btn {
+  min-height: 44px;
+  border: 0;
+  padding: 0;
+  margin-bottom: 12px;
+  background: transparent;
+  color: var(--public-ds-accent);
+  display: inline-flex;
+  align-items: center;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.5;
+  cursor: pointer;
+}
+
+/* ─── 카드 ─── */
+
+.pickup-card {
+  border: 1px solid var(--public-ds-border);
+  border-radius: 20px;
+  background: var(--public-ds-card);
+  box-shadow: var(--public-ds-shadow);
+  overflow: hidden;
+}
+
+.pickup-card__top {
+  padding: 24px 20px;
+  border-bottom: 1px solid var(--public-ds-divider);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.pickup-card__top-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pickup-card__eyebrow {
+  color: var(--public-ds-accent);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.pickup-card__page-title {
+  color: var(--public-ds-text);
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.3;
+  margin: 0;
+}
+
+.pickup-card__content {
+  padding: 24px 20px;
+}
+
+/* ─── 프로그레스 바 ─── */
+
+.pickup-progress {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.pickup-progress__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+  position: relative;
+}
+
+.pickup-progress__marker {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: #e5e7eb;
+  color: var(--public-ds-text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  transition: all 0.2s ease;
+}
+
+.pickup-progress__label {
+  color: var(--public-ds-text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+  transition: all 0.2s ease;
+}
+
+.pickup-progress__item.is-current .pickup-progress__marker {
+  background: var(--public-ds-accent);
+  color: #ffffff;
+}
+
+.pickup-progress__item.is-current .pickup-progress__label {
+  color: var(--public-ds-text);
+  font-weight: 600;
+}
+
+.pickup-progress__item.is-done .pickup-progress__marker {
+  background: var(--public-ds-success);
+  color: #ffffff;
+}
+
+.pickup-progress__item.is-done .pickup-progress__label {
+  color: var(--public-ds-success);
+  font-weight: 500;
+}
+
+/* ─── 스텝 공통 ─── */
+
+.pickup-step {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.pickup-step__header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pickup-step__title {
+  color: var(--public-ds-text);
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.pickup-step__subtitle {
+  color: var(--public-ds-text-secondary);
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* ─── 폼 공통 ─── */
+
+.pickup-field-label {
+  display: block;
+  color: #374151;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+  margin-bottom: 6px;
+}
+
+.pickup-field-hint {
+  color: var(--public-ds-text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+  margin-top: 4px;
+}
+
+.pickup-input {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--public-ds-border);
+  border-radius: 8px;
+  padding: 0 14px;
+  background: #ffffff;
+  color: var(--public-ds-text);
+  font-size: 15px;
+  line-height: 1.6;
+  outline: none;
+  transition: border-color 0.15s ease;
+  box-sizing: border-box;
+}
+
+.pickup-input:focus {
+  border-color: var(--public-ds-accent);
+}
+
+.pickup-input--sm {
+  min-height: 38px;
+  font-size: 14px;
+}
+
+.pickup-input--clickable {
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  color: var(--public-ds-text-secondary);
+}
+
+.pickup-select {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--public-ds-border);
+  border-radius: 8px;
+  padding: 0 14px;
+  background: #ffffff;
+  color: var(--public-ds-text);
+  font-size: 15px;
+  line-height: 1.6;
+  outline: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M6 8L1 3h10z' fill='%239CA3AF'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.pickup-select:focus {
+  border-color: var(--public-ds-accent);
+}
+
+.pickup-form-field {
+  display: flex;
+  flex-direction: column;
+}
+
+.pickup-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.pickup-checkbox-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--public-ds-text);
+  cursor: pointer;
+  padding: 14px 16px;
+  border: 1px solid var(--public-ds-border);
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.pickup-checkbox {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  flex-shrink: 0;
+  accent-color: var(--public-ds-accent);
+}
+
+.pickup-required {
+  color: var(--public-ds-danger);
+  font-weight: 600;
+}
+
+/* ─── 검색 ─── */
+
+.pickup-search {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pickup-search__field {
+  min-height: 48px;
+  border: 1px solid var(--public-ds-border);
+  border-radius: 8px;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  transition: border-color 0.15s ease;
+}
+
+.pickup-search__field:focus-within {
+  border-color: var(--public-ds-accent);
+}
+
+.pickup-search__icon {
+  font-size: 16px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.pickup-search__input {
+  width: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--public-ds-text);
+  font-size: 15px;
+  line-height: 1.6;
+  outline: none;
+}
+
+.pickup-search__input::placeholder {
+  color: var(--public-ds-text-muted);
+}
+
+.pickup-search__clear {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--public-ds-divider);
+  color: var(--public-ds-text-secondary);
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ─── 검색 결과 ─── */
+
+.pickup-search-results {
+  border: 1px solid var(--public-ds-border);
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.pickup-search-results__loading,
+.pickup-search-results__empty {
+  padding: 16px;
+  text-align: center;
+  color: var(--public-ds-text-secondary);
+  font-size: 14px;
+  margin: 0;
+}
+
+.pickup-search-result {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--public-ds-divider);
+}
+
+.pickup-search-result:last-child {
+  border-bottom: 0;
+}
+
+.pickup-search-result__info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pickup-search-result__title {
+  color: var(--public-ds-text);
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pickup-search-result__meta {
+  color: var(--public-ds-text-secondary);
+  font-size: 12px;
+}
+
+.pickup-search-result__add {
+  flex-shrink: 0;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--public-ds-accent);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--public-ds-accent);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pickup-search-result__add:hover {
+  background: var(--public-ds-accent);
+  color: #ffffff;
+}
+
+/* ─── 링크 버튼 ─── */
+
+.pickup-link-button {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--public-ds-accent);
+  font-size: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.pickup-link-button:hover {
+  text-decoration: underline;
+}
+
+.pickup-link-button--danger {
+  color: var(--public-ds-danger);
+}
+
+/* ─── 교재 목록 ─── */
+
+.pickup-item-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pickup-item-list__count {
+  color: var(--public-ds-text);
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.pickup-item-card {
+  border: 1px solid var(--public-ds-border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pickup-item-card__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pickup-item-card__number {
+  color: var(--public-ds-accent);
+  font-size: 14px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.pickup-item-card__title {
+  color: var(--public-ds-text);
+  font-size: 14px;
+  font-weight: 600;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pickup-item-card__badge {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: #dbeafe;
+  color: #2563eb;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.pickup-item-card__meta {
+  color: var(--public-ds-text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.pickup-item-card__memo {
+  margin-top: 2px;
+}
+
+.pickup-item-card__actions {
+  display: flex;
+  gap: 12px;
+  font-size: 13px;
+}
+
+/* ─── 빈 상태 ─── */
+
+.pickup-empty {
+  border: 1px solid var(--public-ds-divider);
+  border-radius: 16px;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.pickup-empty__icon {
+  font-size: 48px;
+  line-height: 1;
+}
+
+.pickup-empty__title {
+  color: var(--public-ds-text);
+  font-size: 17px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.pickup-empty__description {
+  color: var(--public-ds-text-secondary);
+  font-size: 14px;
+  margin: 0;
+}
+
+/* ─── 저장된 주소/계좌 목록 ─── */
+
+.pickup-saved-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pickup-saved-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 2px solid var(--public-ds-border);
+  border-radius: 12px;
+  background: #ffffff;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.pickup-saved-card.is-selected {
+  border-color: var(--public-ds-accent);
+  background: #eff6ff;
+}
+
+.pickup-saved-card__radio {
+  margin-top: 2px;
+  flex-shrink: 0;
+  accent-color: var(--public-ds-accent);
+}
+
+.pickup-saved-card__content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pickup-saved-card__top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pickup-saved-card__label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--public-ds-text);
+}
+
+.pickup-saved-card__default {
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #fef3c7;
+  color: #d97706;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.pickup-saved-card__name,
+.pickup-saved-card__addr {
+  font-size: 13px;
+  color: var(--public-ds-text-secondary);
+  line-height: 1.5;
+}
+
+.pickup-saved-card__new {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--public-ds-accent);
+}
+
+/* ─── 주소 입력 폼 ─── */
+
+.pickup-address-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--public-ds-divider);
+  border-radius: 12px;
+  background: var(--public-ds-background);
+}
+
+/* ─── 정보 박스 ─── */
+
+.pickup-info-box {
+  padding: 16px;
+  border-radius: 12px;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+}
+
+.pickup-info-box__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--public-ds-text);
+  margin: 0 0 8px;
+}
+
+.pickup-info-box__list {
+  margin: 0;
+  padding: 0 0 0 18px;
+  font-size: 13px;
+  color: var(--public-ds-text-secondary);
+  line-height: 1.8;
+}
+
+.pickup-info-box__tip {
+  font-size: 13px;
+  color: #0369a1;
+  margin: 8px 0 0;
+}
+
+/* ─── 정책 박스 ─── */
+
+.pickup-policy-box {
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid var(--public-ds-border);
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.pickup-policy-box__title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--public-ds-text);
+  margin: 0;
+}
+
+.pickup-policy-box__section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pickup-policy-box__heading {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--public-ds-text);
+  margin: 0;
+}
+
+.pickup-policy-box__list {
+  margin: 0;
+  padding: 0 0 0 18px;
+  font-size: 13px;
+  color: var(--public-ds-text-secondary);
+  line-height: 1.8;
+}
+
+/* ─── 확인 섹션 ─── */
+
+.pickup-confirm-section {
+  border: 1px solid var(--public-ds-border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.pickup-confirm-section__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--public-ds-background);
+  border-bottom: 1px solid var(--public-ds-divider);
+}
+
+.pickup-confirm-section__icon {
+  font-size: 16px;
+}
+
+.pickup-confirm-section__title {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--public-ds-text);
+}
+
+.pickup-confirm-items {
+  display: flex;
+  flex-direction: column;
+}
+
+.pickup-confirm-item {
+  display: flex;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--public-ds-divider);
+}
+
+.pickup-confirm-item:last-child {
+  border-bottom: 0;
+}
+
+.pickup-confirm-item__num {
+  flex-shrink: 0;
+  color: var(--public-ds-accent);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.pickup-confirm-item__info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pickup-confirm-item__title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--public-ds-text);
+}
+
+.pickup-confirm-item__meta {
+  font-size: 12px;
+  color: var(--public-ds-text-secondary);
+}
+
+.pickup-confirm-item__memo {
+  font-size: 12px;
+  color: var(--public-ds-text-muted);
+  font-style: italic;
+}
+
+.pickup-confirm-detail {
+  padding: 12px 16px;
+  font-size: 14px;
+  color: var(--public-ds-text);
+  line-height: 1.6;
+}
+
+.pickup-confirm-detail p {
+  margin: 0;
+}
+
+.pickup-confirm-detail__memo {
+  color: var(--public-ds-text-secondary);
+  font-size: 13px;
+}
+
+/* ─── 버튼 ─── */
+
+.pickup-btn {
+  min-height: 48px;
+  border: 0;
+  border-radius: 8px;
+  padding: 0 20px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pickup-btn--primary {
+  background: var(--public-ds-primary);
+  color: #ffffff;
+}
+
+.pickup-btn--primary:hover {
+  filter: brightness(1.1);
+}
+
+.pickup-btn--primary:disabled {
+  background: #f3f4f6;
+  color: var(--public-ds-text-muted);
+  cursor: not-allowed;
+  filter: none;
+}
+
+.pickup-btn--secondary {
+  background: #ffffff;
+  color: var(--public-ds-text);
+  border: 1px solid var(--public-ds-border);
+}
+
+.pickup-btn--secondary:hover {
+  background: var(--public-ds-background);
+}
+
+.pickup-btn--ghost {
+  background: transparent;
+  color: var(--public-ds-accent);
+  border: 1px dashed var(--public-ds-border);
+  width: 100%;
+}
+
+.pickup-btn--ghost:hover {
+  background: #eff6ff;
+  border-color: var(--public-ds-accent);
+}
+
+.pickup-btn--danger {
+  background: var(--public-ds-danger);
+  color: #ffffff;
+}
+
+.pickup-btn--danger:hover {
+  filter: brightness(1.1);
+}
+
+/* ─── 스텝 액션 ─── */
+
+.pickup-step-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--public-ds-divider);
+  margin-top: 4px;
+}
+
+/* ─── 로딩 ─── */
+
+.pickup-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 48px 20px;
+  text-align: center;
+  color: var(--public-ds-text-secondary);
+  font-size: 15px;
+}
+
+.pickup-loading__icon {
+  font-size: 40px;
+}
+
+/* ─── 성공 페이지 ─── */
+
+.pickup-success {
+  border: 1px solid var(--public-ds-border);
+  border-radius: 20px;
+  background: var(--public-ds-card);
+  box-shadow: var(--public-ds-shadow);
+  padding: 48px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  text-align: center;
+}
+
+.pickup-success__icon {
+  font-size: 56px;
+}
+
+.pickup-success__title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--public-ds-text);
+  margin: 0;
+}
+
+.pickup-success__info {
+  font-size: 15px;
+  color: var(--public-ds-text);
+  line-height: 1.6;
+}
+
+.pickup-success__info p {
+  margin: 0;
+}
+
+.pickup-success__guide {
+  padding: 16px 20px;
+  border-radius: 12px;
+  background: #f0f9ff;
+  font-size: 14px;
+  color: var(--public-ds-text-secondary);
+  line-height: 1.6;
+}
+
+.pickup-success__guide p {
+  margin: 0;
+}
+
+.pickup-success__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-width: 280px;
+}
+
+.pickup-success__actions .pickup-btn {
+  width: 100%;
+}
+
+/* ─── 오버레이 / 모달 ─── */
+
+.pickup-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0;
+}
+
+.pickup-modal {
+  width: 100%;
+  max-width: 480px;
+  max-height: 90vh;
+  background: #ffffff;
+  border-radius: 16px 16px 0 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: pickup-slide-up 0.25s ease;
+}
+
+.pickup-modal--sm {
+  margin: auto;
+  border-radius: 16px;
+  max-width: 360px;
+  width: calc(100% - 32px);
+  animation: pickup-fade-in 0.15s ease;
+}
+
+.pickup-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--public-ds-divider);
+}
+
+.pickup-modal__title {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--public-ds-text);
+  margin: 0;
+}
+
+.pickup-modal__close {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--public-ds-divider);
+  color: var(--public-ds-text-secondary);
+  font-size: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pickup-modal__body {
+  padding: 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.pickup-modal__body--center {
+  align-items: center;
+  text-align: center;
+  padding: 32px 24px 16px;
+}
+
+.pickup-modal__message {
+  font-size: 15px;
+  color: var(--public-ds-text);
+  line-height: 1.6;
+  margin: 0;
+}
+
+.pickup-modal__footer {
+  display: flex;
+  gap: 10px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--public-ds-divider);
+}
+
+.pickup-modal__footer .pickup-btn {
+  flex: 1;
+}
+
+/* ─── 토스트 ─── */
+
+.pickup-toast {
+  position: fixed;
+  top: max(env(safe-area-inset-top, 0px), 16px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 200;
+  max-width: 400px;
+  width: calc(100% - 32px);
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--public-ds-text);
+  animation: pickup-toast-in 0.25s ease;
+}
+
+.pickup-toast--success {
+  border-left: 3px solid var(--public-ds-success);
+}
+
+.pickup-toast--error {
+  border-left: 3px solid var(--public-ds-danger);
+}
+
+.pickup-toast--info {
+  border-left: 3px solid var(--public-ds-accent);
+}
+
+.pickup-toast__icon {
+  flex-shrink: 0;
+  font-size: 16px;
+}
+
+.pickup-toast__message {
+  flex: 1;
+}
+
+/* ─── 애니메이션 ─── */
+
+@keyframes pickup-slide-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+@keyframes pickup-fade-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes pickup-toast-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(-12px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* ─── 데스크톱 ─── */
+
+@media (min-width: 768px) {
+  .pickup-route {
+    padding: 32px 0 72px;
+  }
+
+  .pickup-card__top,
+  .pickup-card__content {
+    padding: 28px 32px;
+  }
+
+  .pickup-card__top {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .pickup-progress {
+    width: 360px;
+    flex-shrink: 0;
+  }
+
+  .pickup-overlay {
+    align-items: center;
+    padding: 24px;
+  }
+
+  .pickup-modal {
+    border-radius: 16px;
+    width: calc(100% - 48px);
+    animation: pickup-fade-in 0.2s ease;
+  }
+
+  .pickup-step-actions {
+    padding-top: 16px;
+  }
+}
+
+/* ─── 모바일 ─── */
+
+@media (max-width: 767px) {
+  .pickup-shell {
+    width: calc(100vw - 24px);
+  }
+
+  .pickup-card {
+    border-radius: 16px;
+  }
+
+  .pickup-card__page-title {
+    font-size: 20px;
+  }
+
+  .pickup-progress {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .pickup-progress__marker {
+    width: 28px;
+    height: 28px;
+    font-size: 12px;
+  }
+
+  .pickup-progress__label {
+    font-size: 11px;
+  }
+
+  .pickup-form-row {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .pickup-btn {
+    min-height: 48px;
+    font-size: 14px;
+  }
+
+  .pickup-success {
+    padding: 40px 16px;
+    border-radius: 16px;
+  }
+
+  .pickup-success__title {
+    font-size: 20px;
+  }
+}

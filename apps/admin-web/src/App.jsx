@@ -4,6 +4,10 @@ import AdminRoute from "./components/AdminRoute";
 import AdminDashboardPage from "./pages/AdminDashboardPage";
 import AdminLoginPage from "./pages/AdminLoginPage";
 import AdminShipmentDetailPage from "./pages/AdminShipmentDetailPage";
+import AdminPickupRequestsPage from "./pages/AdminPickupRequestsPage";
+import AdminOrdersPage from "./pages/AdminOrdersPage";
+import AdminSettlementsPage from "./pages/AdminSettlementsPage";
+import AdminMembersPage from "./pages/AdminMembersPage";
 import AdminStudioPage from "./pages/AdminStudioPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 
@@ -28,7 +32,7 @@ function AuthEmailRedirector() {
     const type = hashParams.get("type") || searchParams.get("type");
     const isRecoveryLike = type === "recovery" || type === "invite";
 
-    if (code || hasAccessToken || hasAuthError || isRecoveryLike) {
+    if (isRecoveryLike || (hasAuthError && isRecoveryLike) || ((code || hasAccessToken) && isRecoveryLike)) {
       navigate(
         {
           pathname: "/auth/reset-password",
@@ -53,10 +57,58 @@ function App() {
         <Route
           element={
             <AdminRoute>
-              <AdminDashboardPage />
+              <AdminDashboardPage view="overview" />
             </AdminRoute>
           }
           path="/admin"
+        />
+        <Route
+          element={
+            <AdminRoute>
+              <AdminPickupRequestsPage />
+            </AdminRoute>
+          }
+          path="/admin/pickups"
+        />
+        <Route
+          element={
+            <AdminRoute>
+              <AdminDashboardPage view="inspection" />
+            </AdminRoute>
+          }
+          path="/admin/inspections"
+        />
+        <Route
+          element={
+            <AdminRoute>
+              <AdminDashboardPage view="catalog" />
+            </AdminRoute>
+          }
+          path="/admin/catalog"
+        />
+        <Route
+          element={
+            <AdminRoute>
+              <AdminOrdersPage />
+            </AdminRoute>
+          }
+          path="/admin/orders"
+        />
+        <Route
+          element={
+            <AdminRoute>
+              <AdminSettlementsPage />
+            </AdminRoute>
+          }
+          path="/admin/settlements"
+        />
+        <Route
+          element={
+            <AdminRoute>
+              <AdminMembersPage />
+            </AdminRoute>
+          }
+          path="/admin/members"
         />
         <Route
           element={

@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { useState } from "react";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 
@@ -9,7 +10,7 @@ function PublicSessionStatus() {
     return null;
   }
 
-  const displayName = profile?.name?.trim() || profile?.email || "회원";
+  const displayName = profile?.nickname?.trim() || profile?.name?.trim() || profile?.email || "회원";
 
   const handleSignOut = async () => {
     setIsSigningOut(true);
@@ -19,17 +20,24 @@ function PublicSessionStatus() {
 
   return (
     <nav aria-label="로그인 상태 메뉴" className="public-nav-actions public-session-status">
-      <button className="public-nav-link public-nav-link--cart" type="button">
-        <span>장바구니</span>
-        <span className="public-cart-badge">5</span>
-      </button>
-      <button className="public-nav-link" type="button">
-        마이페이지
-      </button>
       <span className="public-nav-link public-nav-link--static public-session-status__name">
         {displayName}님
       </span>
-      <button className="public-nav-link public-nav-button public-session-status__button" disabled={isSigningOut} onClick={handleSignOut} type="button">
+      <Link className="public-nav-link public-nav-link--cart" to="/mypage">
+        <span>마이페이지</span>
+      </Link>
+      <Link className="public-nav-link public-nav-link--cart" to="/store">
+        <span>스토어</span>
+      </Link>
+      <Link className="public-nav-link public-nav-link--cart" to="/cart">
+        <span>장바구니</span>
+      </Link>
+      <button
+        className="public-nav-link public-nav-button public-session-status__button"
+        disabled={isSigningOut}
+        onClick={handleSignOut}
+        type="button"
+      >
         {isSigningOut ? "로그아웃 중..." : "로그아웃"}
       </button>
     </nav>

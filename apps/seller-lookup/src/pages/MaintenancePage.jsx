@@ -1,4 +1,4 @@
-import subookLogoUrl from "../assets/수북 로고.png";
+import subookLogoUrl from "../assets/subook-logo.png";
 
 const maintenanceEndDateText = "2026년 4월 7일";
 
