@@ -16,11 +16,44 @@ const sharedRoot = isStandaloneFrontendRepo
   : resolve(workspaceRoot, "frontend/packages");
 const envDir = existsSync(resolve(frontendRepoRoot, ".env")) ? frontendRepoRoot : workspaceRoot;
 
+function getManualChunk(id) {
+  const normalizedId = id.replaceAll("\\", "/");
+  if (!normalizedId.includes("/node_modules/")) {
+    return undefined;
+  }
+
+  if (
+    normalizedId.includes("/node_modules/react/") ||
+    normalizedId.includes("/node_modules/react-dom/") ||
+    normalizedId.includes("/node_modules/react-router/") ||
+    normalizedId.includes("/node_modules/react-router-dom/")
+  ) {
+    return "react-vendor";
+  }
+
+  if (normalizedId.includes("/node_modules/@supabase/")) {
+    return "supabase-vendor";
+  }
+
+  if (normalizedId.includes("/node_modules/lottie-web/")) {
+    return "lottie-vendor";
+  }
+
+  return "vendor";
+}
+
 export default defineConfig({
   root: appRoot,
   cacheDir: resolve(appRoot, ".vite"),
   envDir,
   plugins: [react()],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: getManualChunk,
+      },
+    },
+  },
   css: {
     postcss: {
       plugins: [tailwindcss({ config: resolve(appRoot, "tailwind.config.js") }), autoprefixer()],

@@ -1,15 +1,16 @@
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import AdminRoute from "./components/AdminRoute";
-import AdminDashboardPage from "./pages/AdminDashboardPage";
-import AdminLoginPage from "./pages/AdminLoginPage";
-import AdminShipmentDetailPage from "./pages/AdminShipmentDetailPage";
-import AdminPickupRequestsPage from "./pages/AdminPickupRequestsPage";
-import AdminOrdersPage from "./pages/AdminOrdersPage";
-import AdminSettlementsPage from "./pages/AdminSettlementsPage";
-import AdminMembersPage from "./pages/AdminMembersPage";
-import AdminStudioPage from "./pages/AdminStudioPage";
-import ResetPasswordPage from "./pages/ResetPasswordPage";
+
+const AdminDashboardPage = lazy(() => import("./pages/AdminDashboardPage"));
+const AdminLoginPage = lazy(() => import("./pages/AdminLoginPage"));
+const AdminMembersPage = lazy(() => import("./pages/AdminMembersPage"));
+const AdminOrdersPage = lazy(() => import("./pages/AdminOrdersPage"));
+const AdminPickupRequestsPage = lazy(() => import("./pages/AdminPickupRequestsPage"));
+const AdminSettlementsPage = lazy(() => import("./pages/AdminSettlementsPage"));
+const AdminShipmentDetailPage = lazy(() => import("./pages/AdminShipmentDetailPage"));
+const AdminStudioPage = lazy(() => import("./pages/AdminStudioPage"));
+const ResetPasswordPage = lazy(() => import("./pages/ResetPasswordPage"));
 
 function AuthEmailRedirector() {
   const location = useLocation();
@@ -47,88 +48,98 @@ function AuthEmailRedirector() {
   return null;
 }
 
+function PageLoadingFallback() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm font-semibold text-slate-500">
+      불러오는 중...
+    </div>
+  );
+}
+
 function App() {
   return (
     <>
       <AuthEmailRedirector />
-      <Routes>
-        <Route element={<Navigate replace to="/admin/login" />} path="/" />
-        <Route element={<AdminLoginPage />} path="/admin/login" />
-        <Route
-          element={
-            <AdminRoute>
-              <AdminDashboardPage view="overview" />
-            </AdminRoute>
-          }
-          path="/admin"
-        />
-        <Route
-          element={
-            <AdminRoute>
-              <AdminPickupRequestsPage />
-            </AdminRoute>
-          }
-          path="/admin/pickups"
-        />
-        <Route
-          element={
-            <AdminRoute>
-              <AdminDashboardPage view="inspection" />
-            </AdminRoute>
-          }
-          path="/admin/inspections"
-        />
-        <Route
-          element={
-            <AdminRoute>
-              <AdminDashboardPage view="catalog" />
-            </AdminRoute>
-          }
-          path="/admin/catalog"
-        />
-        <Route
-          element={
-            <AdminRoute>
-              <AdminOrdersPage />
-            </AdminRoute>
-          }
-          path="/admin/orders"
-        />
-        <Route
-          element={
-            <AdminRoute>
-              <AdminSettlementsPage />
-            </AdminRoute>
-          }
-          path="/admin/settlements"
-        />
-        <Route
-          element={
-            <AdminRoute>
-              <AdminMembersPage />
-            </AdminRoute>
-          }
-          path="/admin/members"
-        />
-        <Route
-          element={
-            <AdminRoute>
-              <AdminShipmentDetailPage />
-            </AdminRoute>
-          }
-          path="/admin/shipments/:shipmentId"
-        />
-        <Route
-          element={
-            <AdminRoute>
-              <AdminStudioPage />
-            </AdminRoute>
-          }
-          path="/admin/studio"
-        />
-        <Route element={<ResetPasswordPage />} path="/auth/reset-password" />
-        <Route element={<Navigate replace to="/admin/login" />} path="*" />
-      </Routes>
+      <Suspense fallback={<PageLoadingFallback />}>
+        <Routes>
+          <Route element={<Navigate replace to="/admin/login" />} path="/" />
+          <Route element={<AdminLoginPage />} path="/admin/login" />
+          <Route
+            element={
+              <AdminRoute>
+                <AdminDashboardPage view="overview" />
+              </AdminRoute>
+            }
+            path="/admin"
+          />
+          <Route
+            element={
+              <AdminRoute>
+                <AdminPickupRequestsPage />
+              </AdminRoute>
+            }
+            path="/admin/pickups"
+          />
+          <Route
+            element={
+              <AdminRoute>
+                <AdminDashboardPage view="inspection" />
+              </AdminRoute>
+            }
+            path="/admin/inspections"
+          />
+          <Route
+            element={
+              <AdminRoute>
+                <AdminDashboardPage view="catalog" />
+              </AdminRoute>
+            }
+            path="/admin/catalog"
+          />
+          <Route
+            element={
+              <AdminRoute>
+                <AdminOrdersPage />
+              </AdminRoute>
+            }
+            path="/admin/orders"
+          />
+          <Route
+            element={
+              <AdminRoute>
+                <AdminSettlementsPage />
+              </AdminRoute>
+            }
+            path="/admin/settlements"
+          />
+          <Route
+            element={
+              <AdminRoute>
+                <AdminMembersPage />
+              </AdminRoute>
+            }
+            path="/admin/members"
+          />
+          <Route
+            element={
+              <AdminRoute>
+                <AdminShipmentDetailPage />
+              </AdminRoute>
+            }
+            path="/admin/shipments/:shipmentId"
+          />
+          <Route
+            element={
+              <AdminRoute>
+                <AdminStudioPage />
+              </AdminRoute>
+            }
+            path="/admin/studio"
+          />
+          <Route element={<ResetPasswordPage />} path="/auth/reset-password" />
+          <Route element={<Navigate replace to="/admin/login" />} path="*" />
+        </Routes>
+      </Suspense>
     </>
   );
 }
