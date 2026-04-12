@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AdminShell from "../components/AdminShell";
 import { notifySettlementDone } from "../lib/adminNotification";
+import { exportRowsToXlsx } from "../lib/excelFile";
 import { formatCurrency, formatDate } from "@shared-domain/format";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 
@@ -280,30 +281,20 @@ function AdminSettlementsPage() {
       return;
     }
 
-    const xlsx = await import("xlsx");
-    const workbook = xlsx.utils.book_new();
-    const worksheet = xlsx.utils.json_to_sheet(buildExportRows(rows));
+    const exportRows = buildExportRows(rows);
+    const columnWidths = [12, 12, 20, 14, 16, 18, 32, 14, 12, 10, 12, 12, 12, 22, 12];
+    const columns = Object.keys(exportRows[0]).map((key, index) => ({
+      key,
+      header: key,
+      width: columnWidths[index],
+    }));
 
-    worksheet["!cols"] = [
-      { wch: 12 },
-      { wch: 12 },
-      { wch: 20 },
-      { wch: 14 },
-      { wch: 16 },
-      { wch: 18 },
-      { wch: 32 },
-      { wch: 14 },
-      { wch: 12 },
-      { wch: 10 },
-      { wch: 12 },
-      { wch: 12 },
-      { wch: 12 },
-      { wch: 22 },
-      { wch: 12 },
-    ];
-
-    xlsx.utils.book_append_sheet(workbook, worksheet, "settlements");
-    xlsx.writeFile(workbook, `subook-settlements-${new Date().toISOString().slice(0, 10)}.xlsx`);
+    await exportRowsToXlsx({
+      rows: exportRows,
+      columns,
+      fileName: `subook-settlements-${new Date().toISOString().slice(0, 10)}.xlsx`,
+      sheetName: "settlements",
+    });
   };
 
   return (

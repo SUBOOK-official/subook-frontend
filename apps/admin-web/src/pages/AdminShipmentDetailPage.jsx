@@ -1,6 +1,7 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import AdminShell from "../components/AdminShell";
+import { readSheetRowsAsObjects } from "../lib/excelFile";
 import { formatCurrency, formatDate } from "@shared-domain/format";
 import { bookConditionLabel, bookStatusLabel, shipmentStatusLabel } from "@shared-domain/status";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
@@ -836,18 +837,7 @@ function AdminShipmentDetailPage() {
     setNotice("");
 
     try {
-      const fileBuffer = await file.arrayBuffer();
-      const xlsx = await import("xlsx");
-      const workbook = xlsx.read(fileBuffer, { type: "array" });
-      const firstSheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[firstSheetName];
-
-      if (!worksheet) {
-        setError("엑셀 파일에서 시트를 찾지 못했습니다.");
-        return;
-      }
-
-      const rows = xlsx.utils.sheet_to_json(worksheet, { defval: "" });
+      const rows = await readSheetRowsAsObjects(file);
       if (rows.length === 0) {
         setError("엑셀 파일에 데이터가 없습니다.");
         return;
@@ -1332,7 +1322,7 @@ function AdminShipmentDetailPage() {
                 </p>
                 <input
                   ref={fileInputRef}
-                  accept=".xlsx,.xls"
+                  accept=".xlsx"
                   className="hidden"
                   onChange={handleExcelUpload}
                   type="file"

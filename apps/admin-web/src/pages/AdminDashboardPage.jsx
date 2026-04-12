@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import AdminShell from "../components/AdminShell";
+import { exportRowsToXlsx, readSheetRowsAsObjects } from "../lib/excelFile";
 import { getSellerLookupOrigin } from "../lib/portalLinks";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { formatDate } from "@shared-domain/format";
@@ -1320,7 +1321,6 @@ function AdminDashboardPage({ view = "overview" }) {
 
   const handleDownloadSettlementTemplate = async () => {
     try {
-      const xlsx = await import("xlsx");
       const templateRows = [
         {
           SellerName: "홍길동",
@@ -1334,10 +1334,16 @@ function AdminDashboardPage({ view = "overview" }) {
         },
       ];
 
-      const workbook = xlsx.utils.book_new();
-      const worksheet = xlsx.utils.json_to_sheet(templateRows);
-      xlsx.utils.book_append_sheet(workbook, worksheet, "bulk_settlement");
-      xlsx.writeFile(workbook, BULK_SETTLEMENT_TEMPLATE_FILE_NAME);
+      await exportRowsToXlsx({
+        rows: templateRows,
+        columns: [
+          { key: "SellerName", header: "SellerName", width: 18 },
+          { key: "Title", header: "Title", width: 28 },
+          { key: "Option", header: "Option", width: 18 },
+        ],
+        fileName: BULK_SETTLEMENT_TEMPLATE_FILE_NAME,
+        sheetName: "bulk_settlement",
+      });
     } catch (_error) {
       setError("엑셀 템플릿을 생성하지 못했습니다.");
     }
@@ -1354,8 +1360,7 @@ function AdminDashboardPage({ view = "overview" }) {
     setIsInventoryExporting(true);
 
     try {
-      const [xlsx, shipmentIndex, books] = await Promise.all([
-        import("xlsx"),
+      const [shipmentIndex, books] = await Promise.all([
         fetchShipmentIndex(),
         fetchAllInventoryBooks(),
       ]);
@@ -1402,25 +1407,23 @@ function AdminDashboardPage({ view = "overview" }) {
         return;
       }
 
-      const workbook = xlsx.utils.book_new();
-      const worksheet = xlsx.utils.json_to_sheet(exportRows, {
-        header: INVENTORY_AUDIT_EXPORT_HEADERS,
+      await exportRowsToXlsx({
+        rows: exportRows,
+        columns: [
+          { key: INVENTORY_AUDIT_EXPORT_HEADERS[0], header: INVENTORY_AUDIT_EXPORT_HEADERS[0], width: 18 },
+          { key: INVENTORY_AUDIT_EXPORT_HEADERS[1], header: INVENTORY_AUDIT_EXPORT_HEADERS[1], width: 36 },
+          {
+            key: INVENTORY_AUDIT_EXPORT_HEADERS[2],
+            header: INVENTORY_AUDIT_EXPORT_HEADERS[2],
+            type: Number,
+            width: 12,
+          },
+          { key: INVENTORY_AUDIT_EXPORT_HEADERS[3], header: INVENTORY_AUDIT_EXPORT_HEADERS[3], width: 28 },
+          { key: INVENTORY_AUDIT_EXPORT_HEADERS[4], header: INVENTORY_AUDIT_EXPORT_HEADERS[4], width: 12 },
+        ],
+        fileName: getInventoryAuditFileName(),
+        sheetName: INVENTORY_AUDIT_SHEET_NAME,
       });
-
-      worksheet["!cols"] = [
-        { wch: 18 },
-        { wch: 36 },
-        { wch: 12 },
-        { wch: 28 },
-        { wch: 12 },
-      ];
-
-      if (worksheet["!ref"]) {
-        worksheet["!autofilter"] = { ref: worksheet["!ref"] };
-      }
-
-      xlsx.utils.book_append_sheet(workbook, worksheet, INVENTORY_AUDIT_SHEET_NAME);
-      xlsx.writeFile(workbook, getInventoryAuditFileName());
       setSuccess(`${exportRows.length}행 재고 전수조사 엑셀을 다운로드했습니다.`);
     } catch (downloadError) {
       setError(
@@ -1452,18 +1455,7 @@ function AdminDashboardPage({ view = "overview" }) {
     setIsBulkSettling(true);
 
     try {
-      const fileBuffer = await file.arrayBuffer();
-      const xlsx = await import("xlsx");
-      const workbook = xlsx.read(fileBuffer, { type: "array" });
-      const firstSheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[firstSheetName];
-
-      if (!worksheet) {
-        setError("엑셀 파일에서 시트를 찾지 못했습니다.");
-        return;
-      }
-
-      const rawRows = xlsx.utils.sheet_to_json(worksheet, { defval: "" });
+      const rawRows = await readSheetRowsAsObjects(file);
       if (rawRows.length === 0) {
         setError("엑셀 파일에 데이터가 없습니다.");
         return;
@@ -2304,7 +2296,7 @@ function AdminDashboardPage({ view = "overview" }) {
 
         <input
           ref={bulkSettlementInputRef}
-          accept=".xlsx,.xls"
+          accept=".xlsx"
           className="hidden"
           onChange={handleBulkSettlementUpload}
           type="file"
