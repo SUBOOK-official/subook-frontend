@@ -109,6 +109,7 @@ async function submitPickupRequest({
     p_settlement_bank_name: settlementAccount.bank_name,
     p_settlement_account_number: settlementAccount.account_number,
     p_settlement_account_holder: settlementAccount.account_holder,
+    p_settlement_account_id: settlementAccount.account_id ?? settlementAccount.id ?? null,
     p_items: itemsPayload,
   });
 

@@ -584,8 +584,10 @@ function StepSettlement({ account, setAccount, savedAccounts, policyAgreed, setP
     setSelectedSavedId(acc.id);
     setUseNewAccount(false);
     setAccount({
+      account_id: acc.id,
       bank_name: acc.bank_name,
-      account_number: acc.account_number,
+      account_number: acc.account_number_masked || acc.account_number,
+      account_number_last4: acc.account_last4 ?? acc.account_number_last4,
       account_holder: acc.account_holder,
     });
   };
@@ -593,12 +595,12 @@ function StepSettlement({ account, setAccount, savedAccounts, policyAgreed, setP
   const startNewAccount = () => {
     setSelectedSavedId(null);
     setUseNewAccount(true);
-    setAccount({ bank_name: "", account_number: "", account_holder: "" });
+    setAccount({ account_id: null, bank_name: "", account_number: "", account_number_last4: "", account_holder: "" });
   };
 
   const isValid =
     account.bank_name.trim() &&
-    account.account_number.trim() &&
+    (account.account_id || account.account_number.trim()) &&
     account.account_holder.trim() &&
     policyAgreed;
 
@@ -630,7 +632,7 @@ function StepSettlement({ account, setAccount, savedAccounts, policyAgreed, setP
                   {acc.is_default && <span className="pickup-saved-card__default">기본</span>}
                 </div>
                 <span className="pickup-saved-card__name">
-                  {acc.account_number} · {acc.account_holder}
+                  {acc.account_number_masked || acc.account_number} · {acc.account_holder}
                 </span>
               </div>
             </label>
@@ -655,7 +657,7 @@ function StepSettlement({ account, setAccount, savedAccounts, policyAgreed, setP
             <label className="pickup-field-label">은행 *</label>
             <select
               className="pickup-select"
-              onChange={(e) => setAccount((p) => ({ ...p, bank_name: e.target.value }))}
+              onChange={(e) => setAccount((p) => ({ ...p, account_id: null, bank_name: e.target.value }))}
               value={account.bank_name}
             >
               <option value="">은행 선택</option>
@@ -669,7 +671,7 @@ function StepSettlement({ account, setAccount, savedAccounts, policyAgreed, setP
                 className="pickup-input"
                 onChange={(e) => {
                   const cleaned = e.target.value.replace(/[^\d-]/g, "");
-                  setAccount((p) => ({ ...p, account_number: cleaned }));
+                  setAccount((p) => ({ ...p, account_id: null, account_number: cleaned, account_number_last4: "" }));
                 }}
                 placeholder="110-123-456789"
                 value={account.account_number}
@@ -679,7 +681,7 @@ function StepSettlement({ account, setAccount, savedAccounts, policyAgreed, setP
               <label className="pickup-field-label">예금주 *</label>
               <input
                 className="pickup-input"
-                onChange={(e) => setAccount((p) => ({ ...p, account_holder: e.target.value }))}
+                onChange={(e) => setAccount((p) => ({ ...p, account_id: null, account_holder: e.target.value }))}
                 placeholder="홍길동"
                 value={account.account_holder}
               />
@@ -880,7 +882,7 @@ function PublicPickupRequestPage() {
     recipient_name: "", recipient_phone: "", postal_code: "",
     address_line1: "", address_line2: "", memo: "",
   });
-  const [account, setAccount] = useState({ bank_name: "", account_number: "", account_holder: "" });
+  const [account, setAccount] = useState({ account_id: null, bank_name: "", account_number: "", account_number_last4: "", account_holder: "" });
   const [policyAgreed, setPolicyAgreed] = useState(false);
   const [savedAddresses, setSavedAddresses] = useState([]);
   const [savedAccounts, setSavedAccounts] = useState([]);

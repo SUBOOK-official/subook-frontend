@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import ContentContainer from "./ContentContainer";
 
 function FooterMailIcon() {
@@ -33,13 +34,18 @@ function FooterChatIcon() {
   );
 }
 
-const footerTopLinks = ["이용약관", "개인정보처리방침", "사업자정보확인", "1:1문의"];
+const footerTopLinks = [
+  { label: "이용약관", to: "/terms" },
+  { label: "개인정보처리방침", to: "/privacy" },
+  { label: "사업자정보확인", to: null },
+  { label: "1:1문의", href: "mailto:subook2025@gmail.com" },
+];
 
 const footerMetaLines = [
   [
     ["상호", "수북(SUBOOK)"],
     ["대표", "박영제"],
-    ["개인정보관리책임자", "이다솔"],
+    ["개인정보관리책임자", "진성욱"],
   ],
   [
     ["전화", "010-6271-5792"],
@@ -72,11 +78,21 @@ function PublicFooter() {
           <div className="public-footer__brand">SUBOOK®</div>
 
           <div className="public-footer__links">
-            {footerTopLinks.map((link) => (
-              <button className="public-footer__text-button" key={link} type="button">
-                {link}
-              </button>
-            ))}
+            {footerTopLinks.map((link) =>
+              link.to ? (
+                <Link className="public-footer__text-button" key={link.label} to={link.to}>
+                  {link.label}
+                </Link>
+              ) : link.href ? (
+                <a className="public-footer__text-button" href={link.href} key={link.label}>
+                  {link.label}
+                </a>
+              ) : (
+                <button className="public-footer__text-button" key={link.label} type="button">
+                  {link.label}
+                </button>
+              ),
+            )}
           </div>
 
           <div className="public-footer__meta">

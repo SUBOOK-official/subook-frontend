@@ -147,6 +147,13 @@ function PublicLoginPage() {
       return;
     }
 
+    if (accessState.accountRole === "withdrawal_pending" || accessState.accountRole === "withdrawn") {
+      await supabase.auth.signOut();
+      setPageError("회원탈퇴 처리 중인 계정입니다. 복구가 필요하면 고객센터로 문의해주세요.");
+      setIsSubmitting(false);
+      return;
+    }
+
     if (accessState.accountRole !== "member") {
       await supabase.auth.signOut();
       setPageError("회원 계정 정보를 확인하지 못했습니다. 잠시 후 다시 시도해주세요.");

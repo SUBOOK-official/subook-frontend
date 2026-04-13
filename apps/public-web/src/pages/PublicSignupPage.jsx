@@ -360,6 +360,7 @@ function PublicSignupPage() {
       name: formValues.name.trim(),
       requiresEmailConfirmation: true,
     };
+    const agreedAt = new Date().toISOString();
 
     const { data, error: signupError } = await supabase.auth.signUp({
       email: normalizedEmail,
@@ -370,6 +371,9 @@ function PublicSignupPage() {
           nickname: formValues.name.trim(),
           phone: formValues.phone.trim(),
           marketing_opt_in: agreements.marketing,
+          terms_agreed_at: agreedAt,
+          privacy_agreed_at: agreedAt,
+          marketing_agreed_at: agreements.marketing ? agreedAt : null,
         },
       },
     });

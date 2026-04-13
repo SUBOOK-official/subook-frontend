@@ -1,0 +1,105 @@
+.public-policy-page {
+  min-height: 100vh;
+  background: #f8fafc;
+  color: #111827;
+}
+
+.public-policy-route {
+  padding: 56px 0 72px;
+}
+
+.public-policy-shell {
+  max-width: 880px;
+}
+
+.public-policy-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.public-policy-tab {
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  color: #4b5563;
+  font-size: 14px;
+  font-weight: 800;
+  padding: 10px 14px;
+  text-decoration: none;
+}
+
+.public-policy-tab.is-active {
+  background: #111827;
+  border-color: #111827;
+  color: #ffffff;
+}
+
+.public-policy-document {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 36px;
+}
+
+.public-policy-eyebrow {
+  color: #0f766e;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0;
+  margin: 0 0 10px;
+  text-transform: uppercase;
+}
+
+.public-policy-document h1 {
+  font-size: 34px;
+  line-height: 1.2;
+  margin: 0;
+}
+
+.public-policy-updated {
+  color: #6b7280;
+  font-size: 14px;
+  margin: 12px 0 0;
+}
+
+.public-policy-section-list {
+  display: grid;
+  gap: 28px;
+  margin-top: 36px;
+}
+
+.public-policy-section {
+  border-top: 1px solid #e5e7eb;
+  padding-top: 24px;
+}
+
+.public-policy-section h2 {
+  font-size: 20px;
+  margin: 0 0 12px;
+}
+
+.public-policy-section p {
+  color: #374151;
+  font-size: 15px;
+  line-height: 1.8;
+  margin: 0;
+}
+
+.public-policy-section p + p {
+  margin-top: 8px;
+}
+
+@media (max-width: 640px) {
+  .public-policy-route {
+    padding: 32px 0 48px;
+  }
+
+  .public-policy-document {
+    padding: 24px 18px;
+  }
+
+  .public-policy-document h1 {
+    font-size: 28px;
+  }
+}

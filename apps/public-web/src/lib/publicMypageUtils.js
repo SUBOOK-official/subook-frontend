@@ -19,6 +19,22 @@ export const TAB_ITEMS = [
   { key: "settings", label: "설정", icon: "⚙️" },
 ];
 
+export const SALES_STATUS_FILTERS = [
+  { value: "all", label: "전체" },
+  { value: "in_progress", label: "진행중" },
+  { value: "on_sale", label: "판매중" },
+  { value: "settled", label: "정산완료" },
+  { value: "rejected", label: "판매불가" },
+];
+
+export const PURCHASE_STATUS_FILTERS = [
+  { value: "all", label: "전체" },
+  { value: "in_progress", label: "진행중" },
+  { value: "delivered", label: "배송완료" },
+  { value: "confirmed", label: "구매확정" },
+  { value: "cancelled", label: "취소/환불" },
+];
+
 export const SHIPMENT_PROGRESS_STEPS = [
   { key: "requested", label: "신청" },
   { key: "scheduled", label: "접수" },
@@ -116,6 +132,297 @@ const orderStatusMap = {
   returned: { label: "반품", tone: "danger" },
 };
 
+function toNumber(value) {
+  const normalizedValue = Number(value);
+  return Number.isFinite(normalizedValue) ? normalizedValue : 0;
+}
+
+function getTimestamp(value) {
+  if (!value) {
+    return null;
+  }
+
+  const nextDate = new Date(value);
+  return Number.isNaN(nextDate.getTime()) ? null : nextDate.getTime();
+}
+
+function getShipmentFilterKey(status) {
+  switch (status) {
+    case "requested":
+    case "scheduled":
+    case "collecting":
+    case "received":
+    case "inspecting":
+      return "in_progress";
+    case "listed":
+      return "on_sale";
+    case "settled":
+      return "settled";
+    case "rejected":
+      return "rejected";
+    default:
+      return "in_progress";
+  }
+}
+
+function isRejectedShipmentItem(item) {
+  if (item?.rejectionReason) {
+    return true;
+  }
+
+  if (item?.tone === "danger") {
+    return true;
+  }
+
+  return /판매불가|폐기|취소/.test(String(item?.statusLabel ?? ""));
+}
+
+function isSettledShipmentItem(item) {
+  if (item?.tone === "neutral") {
+    return /정산완료|판매완료/.test(String(item?.statusLabel ?? ""));
+  }
+
+  return /정산완료|판매완료/.test(String(item?.statusLabel ?? ""));
+}
+
+function isOnSaleShipmentItem(item) {
+  if (item?.tone === "success") {
+    return true;
+  }
+
+  return /판매중/.test(String(item?.statusLabel ?? ""));
+}
+
+function countRecentEntries(entries, key) {
+  const now = Date.now();
+  const THIRTY_DAYS_IN_MS = 1000 * 60 * 60 * 24 * 30;
+
+  return entries.filter((entry) => {
+    const timestamp = getTimestamp(entry?.[key]);
+    return timestamp !== null && now - timestamp <= THIRTY_DAYS_IN_MS;
+  }).length;
+}
+
+export function filterShipmentsByStatus(shipments, filterValue = "all") {
+  if (filterValue === "all") {
+    return shipments;
+  }
+
+  return shipments.filter((shipment) => getShipmentFilterKey(shipment.status) === filterValue);
+}
+
+export function deriveShipmentMetrics(shipments = []) {
+  const initialMetrics = {
+    totalRequests: shipments.length,
+    inProgressRequestCount: 0,
+    totalBookCount: 0,
+    onSaleBookCount: 0,
+    settledBookCount: 0,
+    rejectedBookCount: 0,
+    onSaleValue: 0,
+    recentRequestCount: countRecentEntries(shipments, "createdAt"),
+    latestCreatedAt: null,
+    latestStatus: null,
+  };
+
+  return shipments.reduce((metrics, shipment) => {
+    const shipmentFilterKey = getShipmentFilterKey(shipment.status);
+    const items = Array.isArray(shipment.items) ? shipment.items : [];
+    const fallbackItemCount = items.length > 0 ? items.length : toNumber(shipment.bookCount);
+
+    if (shipmentFilterKey === "in_progress") {
+      metrics.inProgressRequestCount += 1;
+    }
+
+    metrics.totalBookCount += fallbackItemCount;
+
+    const shipmentTimestamp = getTimestamp(shipment.createdAt);
+    const latestTimestamp = getTimestamp(metrics.latestCreatedAt);
+    if (shipmentTimestamp !== null && (latestTimestamp === null || shipmentTimestamp > latestTimestamp)) {
+      metrics.latestCreatedAt = shipment.createdAt ?? null;
+      metrics.latestStatus = shipment.status ?? null;
+    }
+
+    if (!items.length) {
+      if (shipmentFilterKey === "on_sale") {
+        metrics.onSaleBookCount += fallbackItemCount;
+      } else if (shipmentFilterKey === "settled") {
+        metrics.settledBookCount += fallbackItemCount;
+      } else if (shipmentFilterKey === "rejected") {
+        metrics.rejectedBookCount += fallbackItemCount;
+      }
+
+      return metrics;
+    }
+
+    items.forEach((item) => {
+      const price = toNumber(item?.price);
+
+      if (isRejectedShipmentItem(item)) {
+        metrics.rejectedBookCount += 1;
+        return;
+      }
+
+      if (isSettledShipmentItem(item) || shipmentFilterKey === "settled") {
+        metrics.settledBookCount += 1;
+        return;
+      }
+
+      if (isOnSaleShipmentItem(item) || shipmentFilterKey === "on_sale") {
+        metrics.onSaleBookCount += 1;
+        metrics.onSaleValue += price;
+      }
+    });
+
+    return metrics;
+  }, initialMetrics);
+}
+
+export function filterOrdersByStatus(orders, filterValue = "all") {
+  if (filterValue === "all") {
+    return orders;
+  }
+
+  if (filterValue === "in_progress") {
+    return orders.filter((order) => ["pending", "paid", "shipping", "delivered"].includes(order.status));
+  }
+
+  if (filterValue === "cancelled") {
+    return orders.filter((order) => ["cancelled", "refunded", "returned"].includes(order.status));
+  }
+
+  return orders.filter((order) => order.status === filterValue);
+}
+
+export function derivePurchaseMetrics(orders = []) {
+  return orders.reduce(
+    (metrics, order) => {
+      metrics.totalOrderCount += 1;
+      metrics.totalSpend += toNumber(order.totalAmount);
+
+      if (["pending", "paid", "shipping", "delivered"].includes(order.status)) {
+        metrics.inProgressCount += 1;
+      }
+
+      if (order.status === "delivered") {
+        metrics.deliveredCount += 1;
+      }
+
+      if (order.status === "confirmed") {
+        metrics.confirmedCount += 1;
+      }
+
+      if (["cancelled", "refunded", "returned"].includes(order.status)) {
+        metrics.cancelledCount += 1;
+      }
+
+      return metrics;
+    },
+    {
+      totalOrderCount: 0,
+      inProgressCount: 0,
+      deliveredCount: 0,
+      confirmedCount: 0,
+      cancelledCount: 0,
+      totalSpend: 0,
+    },
+  );
+}
+
+export function deriveSettlementMetrics({
+  settlementSummary = null,
+  completedSettlements = [],
+  scheduledSettlements = [],
+} = {}) {
+  const summary = settlementSummary ?? {};
+
+  return {
+    currentMonthAmount: toNumber(summary.currentMonthAmount ?? summary.current_month_amount),
+    totalAmount: toNumber(summary.totalAmount ?? summary.total_amount),
+    expectedAmount: toNumber(summary.expectedAmount ?? summary.expected_amount),
+    completedCount:
+      completedSettlements.length || toNumber(summary.completedCount ?? summary.completed_count),
+    pendingCount:
+      scheduledSettlements.filter((settlement) => settlement.status === "pending").length ||
+      toNumber(summary.pendingCount ?? summary.pending_count),
+    approvedCount:
+      scheduledSettlements.filter((settlement) => settlement.status === "approved").length ||
+      toNumber(summary.approvedCount ?? summary.approved_count),
+    scheduledCount: scheduledSettlements.length,
+  };
+}
+
+export function buildMemberDashboardSummarySnapshot({
+  baseSummary = {},
+  completedSettlements = [],
+  orders = [],
+  profile = null,
+  scheduledSettlements = [],
+  settlementAccounts = [],
+  settlementSummary = null,
+  shipments = [],
+  shippingAddresses = [],
+} = {}) {
+  const shipmentMetrics = deriveShipmentMetrics(shipments);
+  const purchaseMetrics = derivePurchaseMetrics(orders);
+  const settlementMetrics = deriveSettlementMetrics({
+    settlementSummary,
+    completedSettlements,
+    scheduledSettlements,
+  });
+  const defaultShippingAddress = shippingAddresses.find((address) => address.is_default);
+  const defaultSettlementAccount = settlementAccounts.find((account) => account.is_default);
+  const displayName =
+    profile?.nickname?.trim() ||
+    profile?.name?.trim() ||
+    profile?.email?.split("@")[0] ||
+    baseSummary.display_name ||
+    "회원";
+  const hasSettlementData =
+    settlementSummary !== null || completedSettlements.length > 0 || scheduledSettlements.length > 0;
+
+  return {
+    ...baseSummary,
+    user_id: profile?.user_id ?? baseSummary.user_id ?? null,
+    email: profile?.email ?? baseSummary.email ?? "",
+    name: profile?.name ?? baseSummary.name ?? "",
+    nickname: profile?.nickname ?? baseSummary.nickname ?? profile?.name ?? "",
+    display_name: displayName,
+    phone: profile?.phone ?? baseSummary.phone ?? "",
+    marketing_opt_in: Boolean(profile?.marketing_opt_in ?? baseSummary.marketing_opt_in),
+    shipping_address_count: shippingAddresses.length,
+    default_shipping_address_id: defaultShippingAddress?.id ?? null,
+    settlement_account_count: settlementAccounts.length,
+    default_settlement_account_id: defaultSettlementAccount?.id ?? null,
+    shipment_count: shipments.length || toNumber(baseSummary.shipment_count),
+    recent_shipment_count: shipments.length
+      ? shipmentMetrics.recentRequestCount
+      : toNumber(baseSummary.recent_shipment_count),
+    total_book_count: Math.max(toNumber(baseSummary.total_book_count), shipmentMetrics.totalBookCount),
+    on_sale_book_count: Math.max(toNumber(baseSummary.on_sale_book_count), shipmentMetrics.onSaleBookCount),
+    settled_book_count: Math.max(toNumber(baseSummary.settled_book_count), shipmentMetrics.settledBookCount),
+    estimated_on_sale_value: Math.max(
+      toNumber(baseSummary.estimated_on_sale_value),
+      shipmentMetrics.onSaleValue,
+    ),
+    estimated_settled_value: hasSettlementData
+      ? settlementMetrics.expectedAmount
+      : toNumber(baseSummary.estimated_settled_value),
+    latest_shipment_created_at:
+      shipmentMetrics.latestCreatedAt ?? baseSummary.latest_shipment_created_at ?? null,
+    latest_shipment_pickup_date:
+      shipmentMetrics.latestCreatedAt ?? baseSummary.latest_shipment_pickup_date ?? null,
+    latest_shipment_status: shipmentMetrics.latestStatus ?? baseSummary.latest_shipment_status ?? null,
+    purchase_in_progress_count: purchaseMetrics.inProgressCount,
+    current_month_settlement_total: hasSettlementData
+      ? settlementMetrics.currentMonthAmount
+      : toNumber(baseSummary.current_month_settlement_total),
+    total_settlement_amount: hasSettlementData
+      ? settlementMetrics.totalAmount
+      : toNumber(baseSummary.total_settlement_amount),
+  };
+}
+
 export function getTabKeyFromHash(hash) {
   const normalizedHash = hash?.replace("#", "") ?? "";
   return TAB_ITEMS.some((item) => item.key === normalizedHash) ? normalizedHash : DEFAULT_TAB_KEY;
@@ -168,8 +475,18 @@ export function sanitizeAccountNumberInput(value) {
   return (value ?? "").replace(/[^\d-]/g, "").slice(0, 24);
 }
 
-export function maskAccountNumber(value) {
-  const digits = `${value ?? ""}`.replace(/\D/g, "");
+export function maskAccountNumber(value, last4 = "") {
+  const normalizedLast4 = `${last4 ?? ""}`.replace(/\D/g, "").slice(-4);
+  if (normalizedLast4) {
+    return `****${normalizedLast4}`;
+  }
+
+  const rawValue = `${value ?? ""}`;
+  if (rawValue.startsWith("****")) {
+    return rawValue;
+  }
+
+  const digits = rawValue.replace(/\D/g, "");
 
   if (!digits) {
     return "계좌번호 미등록";
@@ -240,33 +557,55 @@ export function buildAddressForm(address = {}, profileSnapshot = null) {
 }
 
 export function buildAccountForm(account = {}, profileSnapshot = null) {
-  return {
+  const nextForm = {
     ...initialAccountForm,
     account_holder: profileSnapshot?.name ?? "",
     ...account,
   };
+
+  if (account?.id) {
+    nextForm.account_number = "";
+  }
+
+  return nextForm;
 }
 
 // 수거 요청 DB row → SalesTab의 shipment 형태로 변환
 export function mapPickupRequestToShipment(pr) {
   const mappedStatus = pickupStatusToShipmentStatus[pr.status] ?? "requested";
+  const statusLabelMap = {
+    pending: { label: "신청완료", tone: "neutral" },
+    pickup_scheduled: { label: "수거접수", tone: "accent" },
+    picking_up: { label: "수거중", tone: "accent" },
+    arrived: { label: "입고", tone: "info" },
+    inspecting: { label: "검수중", tone: "warning" },
+    inspected: { label: "검수완료", tone: "success" },
+    completed: { label: "정산완료", tone: "neutral" },
+    cancelled: { label: "취소", tone: "danger" },
+  };
   const items = (pr.items ?? []).map((item) => ({
     id: item.id,
     title: item.title ?? "교재",
     gradeLabel: null,
     price: item.original_price ?? null,
     rejectionReason: pr.status === "cancelled" ? "수거 취소" : null,
-    statusLabel: pr.status === "cancelled" ? "취소" : "접수됨",
-    tone: pr.status === "cancelled" ? "danger" : "neutral",
+    statusLabel: statusLabelMap[pr.status]?.label ?? "접수됨",
+    tone: statusLabelMap[pr.status]?.tone ?? "neutral",
   }));
+  const itemCount = pr.item_count ?? items.length;
+  const summaryByStatus = {
+    completed: `교재 ${itemCount}권 · 정산완료`,
+    inspected: `교재 ${itemCount}권 · 검수완료`,
+    cancelled: `교재 ${itemCount}권 · 취소`,
+  };
 
   return {
     id: pr.id,
     reference: pr.request_number,
     createdAt: pr.created_at,
     status: mappedStatus,
-    summaryLabel: `교재 ${pr.item_count ?? items.length}권`,
-    bookCount: pr.item_count ?? items.length,
+    summaryLabel: summaryByStatus[pr.status] ?? `교재 ${itemCount}권`,
+    bookCount: itemCount,
     compact: false,
     trackingNumber: pr.tracking_number ?? null,
     trackingCompany: pr.tracking_carrier ?? "CJ대한통운",
@@ -278,10 +617,19 @@ export function mapPickupRequestToShipment(pr) {
 export function mapOrderToDisplayOrder(order) {
   const items = (order.items ?? []).map((item) => ({
     id: item.id,
+    productId: item.product_id ?? null,
     title: item.title ?? "교재",
     gradeLabel: item.condition_grade ?? item.option_label ?? "-",
     quantity: item.quantity ?? 1,
     price: item.total_price ?? item.unit_price ?? 0,
+    coverImageUrl: item.cover_image_url ?? null,
+    reviewId: item.review_id ?? null,
+    reviewRating: item.review_rating ?? null,
+    reviewCreatedAt: item.review_created_at ?? null,
+    canReview:
+      order.status === "confirmed" &&
+      !item.review_id &&
+      Boolean(item.product_id),
   }));
 
   const autoConfirmAt = order.auto_confirm_at ? new Date(order.auto_confirm_at) : null;
@@ -294,7 +642,7 @@ export function mapOrderToDisplayOrder(order) {
   const canConfirm = order.status === "delivered" && !order.confirmed_at;
   const canCancel = ["pending", "paid"].includes(order.status);
   const canReturn = order.status === "delivered" && !order.confirmed_at;
-  const canReview = order.status === "confirmed";
+  const canReview = items.some((item) => item.canReview);
 
   return {
     id: order.id,

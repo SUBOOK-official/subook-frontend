@@ -29,7 +29,13 @@ function buildFallbackProfile(user) {
 }
 
 function normalizeAccountRole(value) {
-  if (value === "admin" || value === "member" || value === "guest") {
+  if (
+    value === "admin" ||
+    value === "member" ||
+    value === "guest" ||
+    value === "withdrawal_pending" ||
+    value === "withdrawn"
+  ) {
     return value;
   }
 
@@ -49,6 +55,9 @@ function buildProfileFromAccessRow(row) {
     phone: row.phone ?? "",
     marketing_opt_in: Boolean(row.marketing_opt_in),
     email_verified_at: row.email_verified_at ?? null,
+    withdrawal_requested_at: row.withdrawal_requested_at ?? null,
+    withdrawal_scheduled_at: row.withdrawal_scheduled_at ?? null,
+    personal_data_erased_at: row.personal_data_erased_at ?? null,
   };
 }
 

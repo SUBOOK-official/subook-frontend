@@ -301,12 +301,55 @@
   display: grid;
   gap: 10px;
   margin-top: 20px;
+  grid-template-columns: minmax(0, 76px) 1fr 1fr;
 }
 
 @media (min-width: 480px) {
   .public-detail-price-card__actions {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 84px) 1fr 1fr;
   }
+}
+
+.public-detail-price-card__favorite {
+  min-height: 44px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.85);
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    background-color 0.18s ease,
+    color 0.18s ease,
+    opacity 0.18s ease;
+}
+
+.public-detail-price-card__favorite span[aria-hidden="true"] {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.public-detail-price-card__favorite:hover:not(:disabled),
+.public-detail-price-card__favorite:focus-visible {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.public-detail-price-card__favorite.is-active {
+  background: rgba(248, 113, 113, 0.16);
+  color: #fecaca;
+}
+
+.public-detail-price-card__favorite:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .public-detail-price-card__btn {
@@ -666,6 +709,232 @@
   font-size: 14px;
   font-weight: 600;
   color: var(--public-ds-text-secondary);
+}
+
+/* ------ 리뷰 -------------------------------------------------- */
+
+.public-detail-review-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.public-detail-review-panel__header,
+.public-detail-review-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.public-detail-review-panel__title {
+  margin: 8px 0 0;
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--public-ds-text);
+  line-height: 1.3;
+}
+
+.public-detail-review-panel__summary-chip {
+  border-radius: 999px;
+  background: var(--public-ds-divider);
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--public-ds-text-secondary);
+}
+
+.public-detail-review-loading,
+.public-detail-review-empty {
+  border-radius: 14px;
+  background: var(--public-ds-divider);
+  padding: 16px 18px;
+  color: var(--public-ds-text-secondary);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.public-detail-review-empty strong {
+  display: block;
+  color: var(--public-ds-text);
+  font-size: 15px;
+}
+
+.public-detail-review-empty p {
+  margin: 8px 0 0;
+}
+
+.public-detail-review-overview {
+  display: grid;
+  gap: 16px;
+}
+
+@media (min-width: 680px) {
+  .public-detail-review-overview {
+    grid-template-columns: minmax(180px, 0.75fr) minmax(0, 1.25fr);
+  }
+}
+
+.public-detail-review-score,
+.public-detail-review-distribution {
+  border-radius: 14px;
+  background: var(--public-ds-divider);
+  padding: 18px;
+}
+
+.public-detail-review-score {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.public-detail-review-score strong {
+  color: var(--public-ds-text);
+  font-size: 40px;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.public-detail-review-score p {
+  margin: 0;
+  color: var(--public-ds-text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.public-detail-review-distribution {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.public-detail-review-distribution__row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 22px;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--public-ds-text-secondary);
+}
+
+.public-detail-review-distribution__bar {
+  height: 8px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(148, 163, 184, 0.18);
+}
+
+.public-detail-review-distribution__fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #F59E0B 0%, #F97316 100%);
+}
+
+.public-detail-review-distribution__row strong {
+  color: var(--public-ds-text);
+  font-size: 13px;
+  text-align: right;
+}
+
+.public-detail-review-sort {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.public-detail-review-sort__button {
+  border: 1px solid var(--public-ds-border);
+  border-radius: 999px;
+  background: #ffffff;
+  padding: 7px 14px;
+  color: var(--public-ds-text-secondary);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.public-detail-review-sort__button.is-active {
+  border-color: var(--public-ds-accent);
+  background: rgba(37, 99, 235, 0.08);
+  color: var(--public-ds-accent);
+}
+
+.public-detail-review-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.public-detail-review-card {
+  border-radius: 14px;
+  border: 1px solid var(--public-ds-border);
+  background: #ffffff;
+  padding: 16px;
+}
+
+.public-detail-review-card__header strong {
+  color: var(--public-ds-text);
+  font-size: 14px;
+}
+
+.public-detail-review-card__header p {
+  margin: 4px 0 0;
+  color: var(--public-ds-text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.public-detail-review-card__rating {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  color: var(--public-ds-text-secondary);
+  font-size: 12px;
+}
+
+.public-detail-review-card__body {
+  margin: 12px 0 0;
+  color: var(--public-ds-text);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.public-detail-review-card__photos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.public-detail-review-card__photos a {
+  width: 88px;
+  height: 88px;
+  overflow: hidden;
+  border-radius: 12px;
+  border: 1px solid var(--public-ds-border);
+}
+
+.public-detail-review-card__photos img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.public-detail-review-stars {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: #F59E0B;
+}
+
+.public-detail-review-stars--lg {
+  font-size: 20px;
+}
+
+.public-detail-review-stars--md {
+  font-size: 15px;
 }
 
 /* ------ 로딩 스켈레톤 (#5) --------------------------------------- */

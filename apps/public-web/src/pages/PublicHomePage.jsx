@@ -11,6 +11,7 @@ import LatestArrivalsSection from "../components/home/LatestArrivalsSection";
 import PickupCTA from "../components/home/PickupCTA";
 import SubjectGrid from "../components/home/SubjectGrid";
 import usePublicMemberGate from "../lib/publicMemberGate";
+import { usePublicWishlist } from "../contexts/PublicWishlistContext";
 
 const PICKUP_REQUEST_PATH = "/pickup/new";
 
@@ -56,7 +57,7 @@ const HOME_HERO_SLIDES = [
 function PublicHomePage() {
   const navigate = useNavigate();
   const { requireMember, memberGateDialog } = usePublicMemberGate();
-  const [favoriteIds, setFavoriteIds] = useState([]);
+  const { favoriteIds, toggleFavorite } = usePublicWishlist();
   const [selectedMenu, setSelectedMenu] = useState(null);
 
   const handleGoToCart = () => {
@@ -91,19 +92,12 @@ function PublicHomePage() {
     }
   };
 
-  const handleToggleFavorite = (productId, event) => {
-    event.preventDefault();
-    event.stopPropagation();
-
+  const handleToggleFavorite = async (productId) => {
     if (!requireMember("favorite")) {
       return;
     }
 
-    setFavoriteIds((currentIds) =>
-      currentIds.includes(productId)
-        ? currentIds.filter((currentId) => currentId !== productId)
-        : [...currentIds, productId],
-    );
+    await toggleFavorite(productId);
   };
 
   const pageContent = (

@@ -5,9 +5,11 @@ import {
   mergePortalDemoState,
 } from "./publicMypageDemo";
 import {
+  buildMemberDashboardSummarySnapshot,
   mapOrderToDisplayOrder,
   mapPickupRequestToShipment,
 } from "./publicMypageUtils";
+import { mergeLocalReviewsIntoOrders } from "./publicReviews";
 
 const MEMBER_PORTAL_STORAGE_PREFIX = "subook.public.member-portal.v2";
 const SHIPPING_ADDRESSES_TABLE = "member_shipping_addresses";
@@ -188,6 +190,14 @@ function writeStoredPortalState(userId, nextState) {
   window.localStorage.setItem(getStorageKey(userId), JSON.stringify(payload));
 }
 
+function clearStoredPortalState(userId) {
+  if (typeof window === "undefined" || !userId) {
+    return;
+  }
+
+  window.localStorage.removeItem(getStorageKey(userId));
+}
+
 function sortDefaultFirst(items) {
   return [...items].sort((left, right) => {
     if (Boolean(left.is_default) !== Boolean(right.is_default)) {
@@ -218,11 +228,22 @@ function buildStoredAddress(address) {
 }
 
 function buildStoredAccount(account) {
+  const accountLast4 =
+    normalizeText(account.account_last4) ||
+    normalizeText(account.account_number_last4) ||
+    normalizeText(account.account_number).replace(/[^0-9]/g, "").slice(-4);
+  const maskedAccountNumber =
+    normalizeText(account.account_number_masked) ||
+    (accountLast4 ? `****${accountLast4}` : normalizeText(account.account_number));
+
   return {
     id: account.id ?? createLocalId("account"),
     user_id: account.user_id ?? null,
     bank_name: normalizeText(account.bank_name),
-    account_number: normalizeText(account.account_number),
+    account_number: maskedAccountNumber,
+    account_number_last4: accountLast4,
+    account_last4: accountLast4,
+    account_number_masked: maskedAccountNumber,
     account_holder: normalizeText(account.account_holder),
     is_default: Boolean(account.is_default),
     is_verified: Boolean(account.is_verified),
@@ -260,6 +281,48 @@ async function fetchCollectionRows(tableName, userId) {
     rows: Array.isArray(data) ? data : [],
     source: "supabase",
     error: null,
+  };
+}
+
+function mapSettlementAccountRow(row) {
+  return buildStoredAccount({
+    ...row,
+    account_last4: row?.account_last4 ?? row?.account_number_last4,
+    account_number_masked: row?.account_number_masked,
+  });
+}
+
+async function fetchSettlementAccountRows(userId) {
+  if (!isSupabaseConfigured || !supabase || !userId) {
+    return {
+      rows: [],
+      source: "local",
+      error: null,
+    };
+  }
+
+  const { data, error } = await supabase.rpc("list_member_settlement_accounts");
+
+  if (!error) {
+    return {
+      rows: Array.isArray(data) ? data.map(mapSettlementAccountRow) : [],
+      source: "supabase",
+      error: null,
+    };
+  }
+
+  if (!shouldUseLocalSchemaFallback(error)) {
+    return {
+      rows: [],
+      source: "fallback",
+      error,
+    };
+  }
+
+  const fallbackResult = await fetchCollectionRows(SETTLEMENT_ACCOUNTS_TABLE, userId);
+  return {
+    ...fallbackResult,
+    rows: fallbackResult.rows.map(mapSettlementAccountRow),
   };
 }
 
@@ -394,13 +457,13 @@ async function fetchSettlements() {
 
 function maskSettlementAccount(row) {
   const digits = String(row?.account_number ?? "").replace(/[^0-9]/g, "");
-  const last4 = row?.account_last4 || digits.slice(-4);
+  const last4 = row?.account_last4 || row?.account_number_last4 || digits.slice(-4);
 
   if (!last4) {
     return "계좌 미등록";
   }
 
-  return `${"*".repeat(Math.max(0, digits.length - 4))}${last4}`;
+  return row?.account_number_masked || `****${last4}`;
 }
 
 function mapSettlementSummary(summary) {
@@ -891,11 +954,12 @@ async function loadMemberPortalSnapshot({ user, profile, demoMode = false }) {
 
   if (demoMode) {
     const demoState = mergePortalDemoState(storedState, fallbackProfile);
+    const demoOrders = mergeLocalReviewsIntoOrders(demoState.orders);
 
     writeStoredPortalState(user.id, {
       profile: demoState.profile,
       shipments: demoState.shipments,
-      orders: demoState.orders,
+      orders: demoOrders,
       settlementSummary: demoState.settlementSummary,
       completedSettlements: demoState.completedSettlements,
       scheduledSettlements: demoState.scheduledSettlements,
@@ -909,7 +973,7 @@ async function loadMemberPortalSnapshot({ user, profile, demoMode = false }) {
       dashboardSummary: demoState.dashboardSummary,
       recentShipments: demoState.shipments,
       shipments: demoState.shipments,
-      orders: demoState.orders,
+      orders: demoOrders,
       settlementSummary: demoState.settlementSummary,
       completedSettlements: demoState.completedSettlements,
       scheduledSettlements: demoState.scheduledSettlements,
@@ -939,17 +1003,11 @@ async function loadMemberPortalSnapshot({ user, profile, demoMode = false }) {
     fetchDashboardSummary(fallbackProfile),
     fetchRecentShipments(),
     fetchCollectionRows(SHIPPING_ADDRESSES_TABLE, user.id),
-    fetchCollectionRows(SETTLEMENT_ACCOUNTS_TABLE, user.id),
+    fetchSettlementAccountRows(user.id),
     fetchPickupRequests(),
     fetchOrders(),
     fetchSettlements(),
   ]);
-
-  const dashboardSummary = dashboardResult.summary;
-  const nextProfile = {
-    ...fallbackProfile,
-    ...dashboardSummary,
-  };
 
   const shippingAddresses =
     shippingAddressesResult.source === "supabase"
@@ -974,7 +1032,7 @@ async function loadMemberPortalSnapshot({ user, profile, demoMode = false }) {
   const orders =
     ordersResult.source !== "local"
       ? ordersResult.orders.map(mapOrderToDisplayOrder)
-      : storedState.orders;
+      : mergeLocalReviewsIntoOrders(storedState.orders);
   const hasRemoteSettlements = settlementsResult.source === "supabase";
   const remoteSettlements = hasRemoteSettlements
     ? settlementsResult.rows.map(mapSettlementRow)
@@ -988,6 +1046,21 @@ async function loadMemberPortalSnapshot({ user, profile, demoMode = false }) {
   const scheduledSettlements = hasRemoteSettlements
     ? remoteSettlements.filter((settlement) => settlement.status !== "completed")
     : storedState.scheduledSettlements;
+  const dashboardSummary = buildMemberDashboardSummarySnapshot({
+    baseSummary: dashboardResult.summary,
+    completedSettlements,
+    orders,
+    profile: fallbackProfile,
+    scheduledSettlements,
+    settlementAccounts,
+    settlementSummary,
+    shipments,
+    shippingAddresses,
+  });
+  const nextProfile = {
+    ...fallbackProfile,
+    ...dashboardSummary,
+  };
 
   writeStoredPortalState(user.id, {
     profile: nextProfile,
@@ -1112,6 +1185,39 @@ async function cancelMemberOrder({ user, orderId, demoMode = false }) {
   return { error: null, source: "local" };
 }
 
+async function requestMemberWithdrawal({ user, demoMode = false }) {
+  if (!user) {
+    return {
+      error: new Error("로그인된 회원 정보를 찾지 못했습니다."),
+      source: "fallback",
+    };
+  }
+
+  if (demoMode) {
+    clearStoredPortalState(user.id);
+    return { error: null, source: "local" };
+  }
+
+  if (!isSupabaseConfigured || !supabase) {
+    clearStoredPortalState(user.id);
+    return { error: null, source: "local" };
+  }
+
+  const { error } = await supabase.rpc("request_member_withdrawal");
+
+  if (error) {
+    if (shouldUseLocalSchemaFallback(error)) {
+      clearStoredPortalState(user.id);
+      return { error: null, source: "local" };
+    }
+
+    return { error, source: "fallback" };
+  }
+
+  clearStoredPortalState(user.id);
+  return { error: null, source: "supabase" };
+}
+
 async function saveMemberShippingAddress({ user, values, shouldMakeDefault }) {
   return saveCollectionItem({
     user,
@@ -1153,20 +1259,67 @@ async function setDefaultMemberShippingAddress({ user, addressId }) {
 }
 
 async function saveMemberSettlementAccount({ user, values, shouldMakeDefault }) {
-  return saveCollectionItem({
-    user,
-    storageKey: "settlementAccounts",
-    tableName: SETTLEMENT_ACCOUNTS_TABLE,
-    shouldMakeDefault,
-    rpcName: "set_member_default_settlement_account",
-    buildStoredItem: buildStoredAccount,
-    values: {
-      id: values.id ?? null,
-      bank_name: normalizeText(values.bank_name),
-      account_number: normalizeText(values.account_number),
-      account_holder: normalizeText(values.account_holder),
-    },
+  if (!user) {
+    return {
+      error: new Error("로그인된 회원 정보를 찾지 못했습니다."),
+      source: "fallback",
+    };
+  }
+
+  const nextValues = {
+    id: values.id ?? null,
+    bank_name: normalizeText(values.bank_name),
+    account_number: normalizeText(values.account_number),
+    account_holder: normalizeText(values.account_holder),
+  };
+  const storedItem = buildStoredAccount({
+    ...nextValues,
+    user_id: user.id,
+    is_default: shouldMakeDefault,
   });
+
+  if (!nextValues.bank_name || !nextValues.account_holder || (!nextValues.id && !nextValues.account_number)) {
+    return {
+      error: new Error("정산 계좌 정보를 확인해 주세요."),
+      source: "validation",
+    };
+  }
+
+  if (!isSupabaseConfigured || !supabase) {
+    upsertLocalCollectionItem(user.id, "settlementAccounts", storedItem, shouldMakeDefault);
+    return {
+      error: null,
+      source: "local",
+    };
+  }
+
+  const { error } = await supabase.rpc("upsert_member_settlement_account", {
+    p_account_id: hasPersistedId(nextValues.id) ? nextValues.id : null,
+    p_bank_name: nextValues.bank_name,
+    p_account_number: nextValues.account_number || null,
+    p_account_holder: nextValues.account_holder,
+    p_is_default: Boolean(shouldMakeDefault),
+  });
+
+  if (!error) {
+    return {
+      error: null,
+      source: "supabase",
+    };
+  }
+
+  if (shouldUseLocalSchemaFallback(error)) {
+    upsertLocalCollectionItem(user.id, "settlementAccounts", storedItem, shouldMakeDefault);
+    return {
+      error: null,
+      source: "local",
+    };
+  }
+
+  return {
+    error,
+    source: "fallback",
+  };
 }
 
 async function deleteMemberSettlementAccount({ user, accountId }) {
@@ -1198,6 +1351,7 @@ export {
   deleteMemberShippingAddress,
   cancelMemberOrder,
   loadMemberPortalSnapshot,
+  requestMemberWithdrawal,
   saveMemberProfile,
   saveMemberSettlementAccount,
   saveMemberShippingAddress,

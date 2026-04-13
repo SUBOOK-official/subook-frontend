@@ -3,6 +3,7 @@ import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { formatCurrency } from "@shared-domain/format";
 import PublicAuthHeader from "../components/PublicAuthHeader";
 import ContentContainer from "../components/ContentContainer";
+import ProductCard, { ProductCardSkeleton } from "../components/ProductCard";
 import PublicFooter from "../components/PublicFooter";
 import {
   ConfirmDialog,
@@ -14,6 +15,7 @@ import {
 import PublicPageFrame from "../components/PublicPageFrame";
 import PublicToastMessage from "../components/PublicToastMessage";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
+import { usePublicWishlist } from "../contexts/PublicWishlistContext";
 import usePublicMemberGate from "../lib/publicMemberGate";
 import { DEMO_MEMBER_PROFILE, DEMO_MEMBER_USER } from "../lib/publicMypageDemo";
 import {
@@ -25,6 +27,7 @@ import {
   deleteMemberSettlementAccount,
   deleteMemberShippingAddress,
   loadMemberPortalSnapshot,
+  requestMemberWithdrawal,
   saveMemberProfile,
   saveMemberSettlementAccount,
   saveMemberShippingAddress,
@@ -34,12 +37,19 @@ import {
 import {
   BANK_OPTIONS,
   MAX_SAVED_ITEMS,
+  PURCHASE_STATUS_FILTERS,
+  SALES_STATUS_FILTERS,
   SHIPMENT_PROGRESS_STEPS,
   TAB_ITEMS,
   buildAccountForm,
   buildAddressForm,
   buildCjTrackingUrl,
   buildProfileForm,
+  derivePurchaseMetrics,
+  deriveSettlementMetrics,
+  deriveShipmentMetrics,
+  filterOrdersByStatus,
+  filterShipmentsByStatus,
   formatCompactDate,
   formatOrderReference,
   formatShipmentReference,
@@ -59,7 +69,12 @@ import {
   maskAccountNumber,
   sanitizeAccountNumberInput,
 } from "../lib/publicMypageUtils";
+import {
+  REVIEW_RATING_LABELS,
+  submitProductReview,
+} from "../lib/publicReviews";
 import { formatPhoneNumber, hasValidPhoneNumber } from "../lib/publicAuthFormUtils";
+import { fetchWishlistProducts } from "../lib/publicWishlist";
 import "./PublicMypagePage.css";
 
 const initialLoadedTabs = {
@@ -105,6 +120,18 @@ const initialConfirmState = {
   confirmTone: "danger",
 };
 
+const initialReviewComposerState = {
+  open: false,
+  orderId: null,
+  selectedItemId: null,
+};
+
+const initialReviewFormState = {
+  rating: 0,
+  content: "",
+  files: [],
+};
+
 function PublicMypagePage() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -120,6 +147,7 @@ function PublicMypagePage() {
     signOut,
     user,
   } = usePublicAuth();
+  const { favoriteIds, isWishlistLoading, toggleFavorite } = usePublicWishlist();
   const { requireMember, memberGateDialog } = usePublicMemberGate();
 
   const effectiveUser = user ?? (isDemoPreview ? DEMO_MEMBER_USER : null);
@@ -144,11 +172,19 @@ function PublicMypagePage() {
   const [accountErrors, setAccountErrors] = useState(initialAccountErrors);
   const [isAccountSheetOpen, setIsAccountSheetOpen] = useState(false);
   const [isSavingAccount, setIsSavingAccount] = useState(false);
+  const [isWithdrawing, setIsWithdrawing] = useState(false);
   const [busyAddressId, setBusyAddressId] = useState(null);
   const [busyAccountId, setBusyAccountId] = useState(null);
   const [busyOrderId, setBusyOrderId] = useState(null);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [confirmState, setConfirmState] = useState(initialConfirmState);
+  const [reviewComposerState, setReviewComposerState] = useState(initialReviewComposerState);
+  const [reviewForm, setReviewForm] = useState(initialReviewFormState);
+  const [reviewError, setReviewError] = useState("");
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [wishlistProducts, setWishlistProducts] = useState([]);
+  const [wishlistError, setWishlistError] = useState("");
+  const [isWishlistProductsLoading, setIsWishlistProductsLoading] = useState(false);
   const [expandedShipmentId, setExpandedShipmentId] = useState(null);
   const tabPanelRef = useRef(null);
   const addressDetailInputRef = useRef(null);
@@ -170,6 +206,26 @@ function PublicMypagePage() {
   const joinDateText = formatCompactDate(effectiveUser?.created_at ?? profileSnapshot?.created_at);
   const isPortalPending = tabPhases[activeTabKey] === "loading" && !portalState.profile;
   const currentNickname = (profileSnapshot?.nickname ?? profileSnapshot?.name ?? "").trim();
+  const reviewTargetOrder = useMemo(
+    () =>
+      portalState.orders.find((order) => String(order.id) === String(reviewComposerState.orderId)) ??
+      null,
+    [portalState.orders, reviewComposerState.orderId],
+  );
+  const selectedReviewItem = useMemo(() => {
+    if (!reviewTargetOrder?.items?.length) {
+      return null;
+    }
+
+    return (
+      reviewTargetOrder.items.find(
+        (item) => String(item.id) === String(reviewComposerState.selectedItemId),
+      ) ??
+      reviewTargetOrder.items.find((item) => item.canReview) ??
+      reviewTargetOrder.items[0] ??
+      null
+    );
+  }, [reviewComposerState.selectedItemId, reviewTargetOrder]);
 
   useEffect(() => {
     setActiveTabKey(getTabKeyFromHash(location.hash));
@@ -225,6 +281,55 @@ function PublicMypagePage() {
     loadedTabs,
     portalState.profile,
   ]);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    if (activeTabKey !== "settings") {
+      return undefined;
+    }
+
+    if (!effectiveUser) {
+      setWishlistProducts([]);
+      setWishlistError("");
+      setIsWishlistProductsLoading(false);
+      return undefined;
+    }
+
+    if (favoriteIds.length === 0) {
+      setWishlistProducts([]);
+      setWishlistError("");
+      setIsWishlistProductsLoading(false);
+      return undefined;
+    }
+
+    const loadWishlist = async () => {
+      setIsWishlistProductsLoading(true);
+
+      const result = await fetchWishlistProducts({
+        user: effectiveUser,
+        wishlistIds: favoriteIds,
+        limit: favoriteIds.length,
+        offset: 0,
+      });
+
+      if (isCancelled) {
+        return;
+      }
+
+      setWishlistProducts(result.products);
+      setWishlistError(
+        result.error ? "찜한 교재를 불러오지 못했어요. 잠시 후 다시 시도해 주세요." : "",
+      );
+      setIsWishlistProductsLoading(false);
+    };
+
+    void loadWishlist();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [activeTabKey, effectiveUser, favoriteIds]);
 
   useEffect(() => {
     if (!isProfileEditing) {
@@ -288,8 +393,24 @@ function PublicMypagePage() {
     };
   }, [currentNickname, effectiveUser, isProfileEditing, profileForm.nickname]);
 
+  useEffect(() => {
+    if (!reviewComposerState.open) {
+      return;
+    }
+
+    setReviewForm(initialReviewFormState);
+    setReviewError("");
+  }, [reviewComposerState.open, reviewComposerState.selectedItemId]);
+
   const closeConfirmDialog = () => {
     setConfirmState(initialConfirmState);
+  };
+
+  const closeReviewComposer = () => {
+    setReviewComposerState(initialReviewComposerState);
+    setReviewForm(initialReviewFormState);
+    setReviewError("");
+    setIsSubmittingReview(false);
   };
 
   const syncPortalState = async (nextToast = null) => {
@@ -512,7 +633,7 @@ function PublicMypagePage() {
       nextErrors.bank_name = "필수 항목입니다.";
     }
 
-    if (!accountForm.account_number.trim()) {
+    if (!accountForm.account_number.trim() && !accountForm.id) {
       nextErrors.account_number = "필수 항목입니다.";
     }
 
@@ -723,8 +844,33 @@ function PublicMypagePage() {
   };
 
   const handleConfirmAction = async () => {
-    if (!confirmState.itemId || !effectiveUser) {
+    if ((!confirmState.itemId && confirmState.type !== "withdrawal") || !effectiveUser) {
       closeConfirmDialog();
+      return;
+    }
+
+    if (confirmState.type === "withdrawal") {
+      setIsWithdrawing(true);
+      const result = await requestMemberWithdrawal({
+        user: effectiveUser,
+        demoMode: isDemoPreview,
+      });
+      setIsWithdrawing(false);
+
+      if (result.error) {
+        setToastState({
+          message: result.error.message || "회원탈퇴 신청에 실패했습니다.",
+          tone: "error",
+        });
+        closeConfirmDialog();
+        return;
+      }
+
+      closeConfirmDialog();
+      if (!isDemoPreview) {
+        await signOut();
+      }
+      navigate("/", { replace: true });
       return;
     }
 
@@ -886,14 +1032,104 @@ function PublicMypagePage() {
     window.open(trackingUrl, "_blank", "noopener,noreferrer");
   };
 
-  const handleReviewWrite = () => {
+  const handleReviewRatingChange = (rating) => {
+    setReviewForm((currentValue) => ({
+      ...currentValue,
+      rating,
+    }));
+    setReviewError("");
+  };
+
+  const handleReviewContentChange = (event) => {
+    const nextValue = event.target.value.slice(0, 200);
+    setReviewForm((currentValue) => ({
+      ...currentValue,
+      content: nextValue,
+    }));
+    setReviewError("");
+  };
+
+  const handleReviewFilesChange = (event) => {
+    const nextFiles = Array.from(event.target.files ?? []).slice(0, 3);
+    setReviewForm((currentValue) => ({
+      ...currentValue,
+      files: nextFiles,
+    }));
+    setReviewError("");
+  };
+
+  const handleRemoveReviewFile = (targetIndex) => {
+    setReviewForm((currentValue) => ({
+      ...currentValue,
+      files: currentValue.files.filter((_, index) => index !== targetIndex),
+    }));
+  };
+
+  const handleReviewWrite = (order) => {
     if (!requireMember("writeReview")) {
       return;
     }
 
-    setToastState({
-      message: "리뷰 작성 기능은 다음 단계에서 연결됩니다.",
-      tone: "info",
+    const reviewableItem =
+      order?.items?.find((item) => item.canReview) ??
+      order?.items?.[0] ??
+      null;
+
+    if (!order || !reviewableItem) {
+      setToastState({
+        message: "리뷰를 작성할 상품을 찾지 못했습니다.",
+        tone: "error",
+      });
+      return;
+    }
+
+    setReviewComposerState({
+      open: true,
+      orderId: order.id,
+      selectedItemId: reviewableItem.id,
+    });
+  };
+
+  const handleSelectReviewItem = (itemId) => {
+    setReviewComposerState((currentValue) => ({
+      ...currentValue,
+      selectedItemId: itemId,
+    }));
+  };
+
+  const handleSubmitReview = async () => {
+    if (!effectiveUser || !reviewTargetOrder || !selectedReviewItem) {
+      setReviewError("리뷰 대상 상품을 다시 선택해 주세요.");
+      return;
+    }
+
+    if (!selectedReviewItem.canReview) {
+      setReviewError("이미 리뷰를 작성했거나 작성할 수 없는 상품입니다.");
+      return;
+    }
+
+    setIsSubmittingReview(true);
+    const result = await submitProductReview({
+      user: effectiveUser,
+      profile: profileSnapshot,
+      order: reviewTargetOrder,
+      orderItem: selectedReviewItem,
+      rating: reviewForm.rating,
+      content: reviewForm.content,
+      files: reviewForm.files,
+      demoMode: isDemoPreview,
+    });
+    setIsSubmittingReview(false);
+
+    if (result.error) {
+      setReviewError(result.error.message || "리뷰를 등록하지 못했습니다.");
+      return;
+    }
+
+    closeReviewComposer();
+    await syncPortalState({
+      message: result.source === "supabase" ? "리뷰가 등록되었습니다." : "리뷰가 임시 저장되었습니다.",
+      tone: result.source === "supabase" ? "success" : "info",
     });
   };
 
@@ -913,9 +1149,14 @@ function PublicMypagePage() {
   };
 
   const handleWithdrawal = () => {
-    setToastState({
-      message: "회원탈퇴 기능은 고객센터 연동 후 제공됩니다.",
-      tone: "info",
+    setConfirmState({
+      open: true,
+      type: "withdrawal",
+      itemId: null,
+      title: "회원탈퇴를 신청하시겠습니까?",
+      body: "신청 후 30일 동안 계정이 유예 상태로 보관되고, 이후 개인정보가 파기됩니다. 유예 기간 중 복구가 필요하면 고객센터로 문의해 주세요.",
+      confirmLabel: "탈퇴 신청",
+      confirmTone: "danger",
     });
   };
 
@@ -998,6 +1239,29 @@ function PublicMypagePage() {
     }
 
     navigate("/", { replace: true });
+  };
+
+  const handleToggleWishlistProduct = async (productId) => {
+    const result = await toggleFavorite(productId);
+
+    if (result.error) {
+      setToastState({
+        message: result.error.message || "찜 상태를 변경하지 못했어요.",
+        tone: "error",
+      });
+      return;
+    }
+
+    if (!result.isFavorite) {
+      setWishlistProducts((currentValue) =>
+        currentValue.filter((product) => String(product.id) !== String(productId)),
+      );
+    }
+
+    setToastState({
+      message: result.isFavorite ? "찜 목록에 추가했어요." : "찜을 해제했어요.",
+      tone: result.isFavorite ? "success" : "info",
+    });
   };
 
   if (isLoading && !isDemoPreview) {
@@ -1127,8 +1391,12 @@ function PublicMypagePage() {
         isProfileEditing={isProfileEditing}
         isSavingProfile={isSavingProfile}
         isSigningOut={isSigningOut}
+        isWishlistLoading={isWishlistLoading}
+        isWishlistProductsLoading={isWishlistProductsLoading}
+        isWithdrawing={isWithdrawing}
         joinDateText={joinDateText}
         nicknameStatus={nicknameStatus}
+        onToggleWishlistProduct={handleToggleWishlistProduct}
         openAccountSheet={openAccountSheet}
         openAddressSheet={openAddressSheet}
         portalState={portalState}
@@ -1141,6 +1409,8 @@ function PublicMypagePage() {
         setProfileErrors={setProfileErrors}
         setProfileForm={setProfileForm}
         user={effectiveUser}
+        wishlistError={wishlistError}
+        wishlistProducts={wishlistProducts}
       />
     );
   })();
@@ -1258,6 +1528,24 @@ function PublicMypagePage() {
         isSavingAccount={isSavingAccount}
       />
 
+      <ReviewComposerSheet
+        form={reviewForm}
+        isSubmitting={isSubmittingReview}
+        onClose={closeReviewComposer}
+        onContentChange={handleReviewContentChange}
+        onFilesChange={handleReviewFilesChange}
+        onRatingChange={handleReviewRatingChange}
+        onRemoveFile={handleRemoveReviewFile}
+        onSelectItem={handleSelectReviewItem}
+        onSubmit={() => {
+          void handleSubmitReview();
+        }}
+        open={reviewComposerState.open}
+        order={reviewTargetOrder}
+        reviewError={reviewError}
+        selectedItem={selectedReviewItem}
+      />
+
       <ConfirmDialog
         body={confirmState.body}
         confirmLabel={confirmState.confirmLabel}
@@ -1274,7 +1562,229 @@ function PublicMypagePage() {
   );
 }
 
+function MypageOverviewGrid({ items }) {
+  return (
+    <div className="public-mypage-overview-grid">
+      {items.map((item) => (
+        <div className="public-mypage-overview-card" key={item.label}>
+          <span className="public-mypage-overview-card__label">{item.label}</span>
+          <strong className="public-mypage-overview-card__value">{item.value}</strong>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ReviewComposerSheet({
+  form,
+  isSubmitting,
+  onClose,
+  onContentChange,
+  onFilesChange,
+  onRatingChange,
+  onRemoveFile,
+  onSelectItem,
+  onSubmit,
+  open,
+  order,
+  reviewError,
+  selectedItem,
+}) {
+  const previewItems = useMemo(
+    () =>
+      (form.files ?? []).map((file) => ({
+        name: file.name,
+        url: URL.createObjectURL(file),
+      })),
+    [form.files],
+  );
+
+  useEffect(
+    () => () => {
+      previewItems.forEach((item) => {
+        URL.revokeObjectURL(item.url);
+      });
+    },
+    [previewItems],
+  );
+
+  const reviewableItems = useMemo(
+    () => order?.items?.filter((item) => item.canReview || item.reviewId) ?? [],
+    [order?.items],
+  );
+  const hasExistingReview = Boolean(selectedItem?.reviewId);
+  const ratingLabel = REVIEW_RATING_LABELS[form.rating] ?? "별점을 선택해 주세요";
+
+  return (
+    <ResponsiveSheet
+      actions={
+        hasExistingReview ? (
+          <button className="public-auth-button public-auth-button--secondary" onClick={onClose} type="button">
+            닫기
+          </button>
+        ) : (
+          <>
+            <button className="public-auth-button public-auth-button--secondary" onClick={onClose} type="button">
+              취소
+            </button>
+            <button className="public-auth-button public-auth-button--primary" disabled={isSubmitting} onClick={onSubmit} type="button">
+              {isSubmitting ? "등록 중..." : "등록하기"}
+            </button>
+          </>
+        )
+      }
+      eyebrow={order ? `주문 #${formatOrderReference(order.reference)}` : "리뷰"}
+      onClose={onClose}
+      open={open}
+      title="리뷰 작성"
+    >
+      {!order || !selectedItem ? (
+        <p className="public-mypage-confirm__body">리뷰 대상 상품을 찾지 못했습니다.</p>
+      ) : (
+        <div className="public-review-sheet">
+          {reviewableItems.length > 1 ? (
+            <div className="public-review-sheet__item-list">
+              {reviewableItems.map((item) => {
+                const isSelected = String(item.id) === String(selectedItem.id);
+                const isReviewed = Boolean(item.reviewId);
+
+                return (
+                  <button
+                    className={`public-review-sheet__item-button${isSelected ? " is-active" : ""}`}
+                    key={item.id}
+                    onClick={() => onSelectItem(item.id)}
+                    type="button"
+                  >
+                    <div>
+                      <strong>{item.title}</strong>
+                      <p>
+                        {item.gradeLabel} · {item.quantity}권
+                      </p>
+                    </div>
+                    <span className={`public-mypage-chip public-mypage-chip--${isReviewed ? "neutral" : "accent"}`}>
+                      {isReviewed ? "작성완료" : "작성가능"}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
+
+          <div className="public-review-sheet__target">
+            <div className="public-review-sheet__target-copy">
+              <span className="public-review-sheet__emoji" aria-hidden="true">
+                📚
+              </span>
+              <div>
+                <strong>{selectedItem.title}</strong>
+                <p>
+                  {selectedItem.gradeLabel} · {selectedItem.quantity}권
+                  {selectedItem.reviewCreatedAt ? ` · ${formatCompactDate(selectedItem.reviewCreatedAt)} 작성` : ""}
+                </p>
+              </div>
+            </div>
+            {hasExistingReview ? (
+              <span className="public-mypage-chip public-mypage-chip--neutral">
+                리뷰 완료{selectedItem.reviewRating ? ` · ${selectedItem.reviewRating}점` : ""}
+              </span>
+            ) : null}
+          </div>
+
+          {hasExistingReview ? (
+            <div className="public-review-sheet__completed">
+              <p className="public-review-sheet__completed-title">이 상품은 이미 리뷰를 작성했어요.</p>
+              <p className="public-review-sheet__completed-body">
+                다른 상품이 남아 있다면 위 목록에서 선택해서 이어서 작성할 수 있습니다.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="public-review-sheet__section">
+                <div className="public-review-sheet__section-header">
+                  <strong>별점</strong>
+                  <span>{ratingLabel}</span>
+                </div>
+                <div className="public-review-sheet__stars" role="radiogroup" aria-label="별점 선택">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      aria-checked={form.rating === star}
+                      className={`public-review-sheet__star${form.rating >= star ? " is-active" : ""}`}
+                      key={star}
+                      onClick={() => onRatingChange(star)}
+                      role="radio"
+                      type="button"
+                    >
+                      ★
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="public-review-sheet__section">
+                <div className="public-review-sheet__section-header">
+                  <strong>한줄 리뷰</strong>
+                  <span>{form.content.length}/200자</span>
+                </div>
+                <textarea
+                  className="public-review-sheet__textarea"
+                  onChange={onContentChange}
+                  placeholder="상태가 설명보다 좋았어요!"
+                  rows={4}
+                  value={form.content}
+                />
+              </div>
+
+              <div className="public-review-sheet__section">
+                <div className="public-review-sheet__section-header">
+                  <strong>사진 첨부</strong>
+                  <span>선택, 최대 3장</span>
+                </div>
+                <div className="public-review-sheet__photos">
+                  {previewItems.map((item, index) => (
+                    <div className="public-review-sheet__photo-card" key={`${item.url}-${index}`}>
+                      <img alt={`리뷰 첨부 사진 ${index + 1}`} src={item.url} />
+                      <button
+                        aria-label={`첨부 사진 ${index + 1} 삭제`}
+                        className="public-review-sheet__photo-remove"
+                        onClick={() => onRemoveFile(index)}
+                        type="button"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+
+                  {previewItems.length < 3 ? (
+                    <label className="public-review-sheet__photo-input">
+                      <span>+</span>
+                      <small>{previewItems.length}/3</small>
+                      <input accept="image/png,image/jpeg,image/webp" multiple onChange={onFilesChange} type="file" />
+                    </label>
+                  ) : null}
+                </div>
+              </div>
+            </>
+          )}
+
+          {reviewError ? (
+            <p className="public-auth-inline-message public-auth-inline-message--error">
+              {reviewError}
+            </p>
+          ) : null}
+        </div>
+      )}
+    </ResponsiveSheet>
+  );
+}
+
 function SalesTab({ expandedShipmentId, onRequestPickup, onToggleShipment, onTrackParcel, shipments }) {
+  const [statusFilter, setStatusFilter] = useState("all");
+  const salesMetrics = useMemo(() => deriveShipmentMetrics(shipments), [shipments]);
+  const filteredShipments = useMemo(
+    () => filterShipmentsByStatus(shipments, statusFilter),
+    [shipments, statusFilter],
+  );
+
   if (!shipments.length) {
     return (
       <MypageEmptyState
@@ -1296,8 +1806,33 @@ function SalesTab({ expandedShipmentId, onRequestPickup, onToggleShipment, onTra
           title="수거 요청 내역"
         />
 
+        <MypageOverviewGrid
+          items={[
+            { label: "전체 수거", value: `${salesMetrics.totalRequests}건` },
+            { label: "진행중 요청", value: `${salesMetrics.inProgressRequestCount}건` },
+            { label: "판매중 교재", value: `${salesMetrics.onSaleBookCount}권` },
+            { label: "정산완료 교재", value: `${salesMetrics.settledBookCount}권` },
+          ]}
+        />
+
+        <div className="public-mypage-order-filters">
+          {SALES_STATUS_FILTERS.map((filterItem) => (
+            <button
+              className={`public-mypage-filter-chip ${statusFilter === filterItem.value ? "public-mypage-filter-chip--active" : ""}`}
+              key={filterItem.value}
+              onClick={() => setStatusFilter(filterItem.value)}
+              type="button"
+            >
+              {filterItem.label}
+            </button>
+          ))}
+        </div>
+
+        {filteredShipments.length === 0 ? (
+          <p className="public-mypage-order-empty-filter">해당 상태의 판매 내역이 없습니다.</p>
+        ) : (
         <div className="public-mypage-flow-list">
-          {shipments.map((shipment) => {
+          {filteredShipments.map((shipment) => {
             const isExpanded = !shipment.compact || expandedShipmentId === shipment.id;
             const progressIndex = getShipmentProgressIndex(shipment.status);
 
@@ -1397,18 +1932,11 @@ function SalesTab({ expandedShipmentId, onRequestPickup, onToggleShipment, onTra
             );
           })}
         </div>
+        )}
       </section>
     </div>
   );
 }
-
-const PURCHASE_STATUS_FILTERS = [
-  { value: "all", label: "전체" },
-  { value: "in_progress", label: "진행중" },
-  { value: "delivered", label: "배송완료" },
-  { value: "confirmed", label: "구매확정" },
-  { value: "cancelled", label: "취소/환불" },
-];
 
 function PurchasesTab({
   busyOrderId,
@@ -1420,6 +1948,11 @@ function PurchasesTab({
   orders,
 }) {
   const [statusFilter, setStatusFilter] = useState("all");
+  const purchaseMetrics = useMemo(() => derivePurchaseMetrics(orders), [orders]);
+  const filteredOrders = useMemo(
+    () => filterOrdersByStatus(orders, statusFilter),
+    [orders, statusFilter],
+  );
 
   if (!orders.length) {
     return (
@@ -1433,14 +1966,6 @@ function PurchasesTab({
     );
   }
 
-  const filteredOrders = statusFilter === "all"
-    ? orders
-    : statusFilter === "in_progress"
-      ? orders.filter((o) => ["pending", "paid", "shipping"].includes(o.status))
-      : statusFilter === "cancelled"
-        ? orders.filter((o) => ["cancelled", "refunded"].includes(o.status))
-        : orders.filter((o) => o.status === statusFilter);
-
   return (
     <div className="public-mypage-stack">
       <section className="public-mypage-section">
@@ -1450,7 +1975,15 @@ function PurchasesTab({
           title="주문 내역"
         />
 
-        {/* 상태 필터 */}
+        <MypageOverviewGrid
+          items={[
+            { label: "진행중 주문", value: `${purchaseMetrics.inProgressCount}건` },
+            { label: "배송완료 대기", value: `${purchaseMetrics.deliveredCount}건` },
+            { label: "구매확정", value: `${purchaseMetrics.confirmedCount}건` },
+            { label: "총 결제금액", value: formatCurrency(purchaseMetrics.totalSpend) },
+          ]}
+        />
+
         <div className="public-mypage-order-filters">
           {PURCHASE_STATUS_FILTERS.map((f) => (
             <button
@@ -1491,9 +2024,20 @@ function PurchasesTab({
               <div className="public-mypage-order-card__items">
                 {order.items.map((item) => (
                   <div className="public-mypage-order-item" key={item.id}>
-                    <span>
-                      [📚] {item.title} ({item.gradeLabel}) × {item.quantity}
-                    </span>
+                    <div className="public-mypage-order-item__copy">
+                      <span>
+                        [📚] {item.title} ({item.gradeLabel}) × {item.quantity}
+                      </span>
+                      {item.reviewId ? (
+                        <small className="public-mypage-order-item__review-tag">
+                          리뷰 완료{item.reviewRating ? ` · ${item.reviewRating}점` : ""}
+                        </small>
+                      ) : item.canReview ? (
+                        <small className="public-mypage-order-item__review-tag public-mypage-order-item__review-tag--pending">
+                          리뷰 작성 가능
+                        </small>
+                      ) : null}
+                    </div>
                     <strong>{formatCurrency(item.price)}</strong>
                   </div>
                 ))}
@@ -1542,7 +2086,7 @@ function PurchasesTab({
                   </button>
                 ) : null}
                 {order.canReview ? (
-                  <button className="public-auth-button public-auth-button--secondary" onClick={onWriteReview} type="button">
+                  <button className="public-auth-button public-auth-button--secondary" onClick={() => onWriteReview(order)} type="button">
                     리뷰작성
                   </button>
                 ) : null}
@@ -1557,6 +2101,12 @@ function PurchasesTab({
 }
 
 function SettlementsTab({ completedSettlements, onRequestPickup, scheduledSettlements, settlementSummary }) {
+  const settlementMetrics = deriveSettlementMetrics({
+    settlementSummary,
+    completedSettlements,
+    scheduledSettlements,
+  });
+
   if (!completedSettlements.length && !scheduledSettlements.length) {
     return (
       <MypageEmptyState
@@ -1578,14 +2128,23 @@ function SettlementsTab({ completedSettlements, onRequestPickup, scheduledSettle
           title="정산 내역"
         />
 
+        <MypageOverviewGrid
+          items={[
+            { label: "정산 예정", value: formatCurrency(settlementMetrics.expectedAmount) },
+            { label: "이번 달 정산", value: formatCurrency(settlementMetrics.currentMonthAmount) },
+            { label: "누적 정산", value: formatCurrency(settlementMetrics.totalAmount) },
+            { label: "완료 건수", value: `${settlementMetrics.completedCount}건` },
+          ]}
+        />
+
         <div className="public-mypage-settlement-summary">
           <div className="public-mypage-settlement-summary__item">
             <span>이번 달 정산</span>
-            <strong>{formatCurrency(settlementSummary?.currentMonthAmount ?? 0)}</strong>
+            <strong>{formatCurrency(settlementMetrics.currentMonthAmount)}</strong>
           </div>
           <div className="public-mypage-settlement-summary__item">
             <span>총 누적 정산</span>
-            <strong>{formatCurrency(settlementSummary?.totalAmount ?? 0)}</strong>
+            <strong>{formatCurrency(settlementMetrics.totalAmount)}</strong>
           </div>
         </div>
 
@@ -1646,8 +2205,12 @@ function SettingsTab({
   isProfileEditing,
   isSavingProfile,
   isSigningOut,
+  isWishlistLoading,
+  isWishlistProductsLoading,
+  isWithdrawing,
   joinDateText,
   nicknameStatus,
+  onToggleWishlistProduct,
   openAccountSheet,
   openAddressSheet,
   portalState,
@@ -1660,6 +2223,8 @@ function SettingsTab({
   setProfileErrors,
   setProfileForm,
   user,
+  wishlistError,
+  wishlistProducts,
 }) {
   return (
     <div className="public-mypage-stack">
@@ -1823,7 +2388,7 @@ function SettingsTab({
                       {account.is_default ? <span className="public-mypage-badge">기본 계좌</span> : null}
                     </div>
                     <p className="public-mypage-item-card__meta">
-                      {maskAccountNumber(account.account_number)} · {account.account_holder}
+                      {maskAccountNumber(account.account_number, account.account_last4 ?? account.account_number_last4)} · {account.account_holder}
                     </p>
                   </div>
                   <div className="public-mypage-item-card__actions">
@@ -1858,6 +2423,52 @@ function SettingsTab({
         )}
       </section>
 
+      <section className="public-mypage-section">
+        <MypageSectionHeader
+          action={
+            <Link className="public-mypage-inline-button" to="/store">
+              스토어 보기
+            </Link>
+          }
+          description="찜해 둔 교재를 모아보고 품절 여부까지 한 번에 확인할 수 있어요."
+          icon="♡"
+          title="찜한 교재"
+        />
+
+        {wishlistError ? (
+          <p className="public-auth-inline-message public-auth-inline-message--error">
+            {wishlistError}
+          </p>
+        ) : null}
+
+        {isWishlistLoading || isWishlistProductsLoading ? (
+          <div className="public-mypage-wishlist-grid" role="status" aria-live="polite">
+            {Array.from({ length: 2 }, (_, index) => (
+              <ProductCardSkeleton key={`mypage-wishlist-skeleton-${index}`} />
+            ))}
+          </div>
+        ) : wishlistProducts.length ? (
+          <div className="public-mypage-wishlist-grid">
+            {wishlistProducts.map((product) => (
+              <ProductCard
+                isFavorite
+                key={product.id}
+                onToggleFavorite={onToggleWishlistProduct}
+                product={product}
+              />
+            ))}
+          </div>
+        ) : (
+          <MypageEmptyState
+            actionLabel="스토어 둘러보기"
+            actionTo="/store"
+            description="마음에 드는 교재를 찜해두면 설정 탭에서 다시 빠르게 확인할 수 있어요."
+            icon="♡"
+            title="아직 찜한 교재가 없어요"
+          />
+        )}
+      </section>
+
       <section className="public-mypage-section public-mypage-section--compact">
         <MypageSectionHeader
           description={isDemoPreview ? "데모에서는 로그아웃 대신 홈으로 돌아갑니다." : "로그아웃과 회원탈퇴 관련 작업을 여기서 관리합니다."}
@@ -1868,8 +2479,8 @@ function SettingsTab({
           <button className="public-auth-button public-auth-button--secondary" disabled={isSigningOut} onClick={handleSignOut} type="button">
             {isDemoPreview ? "데모 종료" : isSigningOut ? "로그아웃 중..." : "로그아웃"}
           </button>
-          <button className="public-auth-button public-mypage-button--danger-outline" onClick={handleWithdrawal} type="button">
-            회원탈퇴
+          <button className="public-auth-button public-mypage-button--danger-outline" disabled={isWithdrawing} onClick={handleWithdrawal} type="button">
+            {isWithdrawing ? "처리 중..." : "회원탈퇴"}
           </button>
         </div>
       </section>
@@ -2090,9 +2701,13 @@ function AccountSheet({
             계좌번호
           </label>
           <div className="public-auth-field-row__control">
-            <input className="public-auth-field-row__input" id="public-mypage-account-number" onChange={handleAccountChange("account_number")} placeholder="110-123-456789" type="text" value={accountForm.account_number} />
+            <input className="public-auth-field-row__input" id="public-mypage-account-number" onChange={handleAccountChange("account_number")} placeholder={accountForm.id ? "변경할 때만 입력" : "110-123-456789"} type="text" value={accountForm.account_number} />
           </div>
-          {accountErrors.account_number ? <p className="public-auth-inline-message public-auth-inline-message--error">{accountErrors.account_number}</p> : null}
+          {accountErrors.account_number ? (
+            <p className="public-auth-inline-message public-auth-inline-message--error">{accountErrors.account_number}</p>
+          ) : accountForm.id ? (
+            <p className="public-auth-inline-message public-auth-inline-message--info">기존 계좌번호는 저장 후에도 마지막 4자리만 표시됩니다.</p>
+          ) : null}
         </div>
         <div className={`public-auth-field-row ${accountErrors.account_holder ? "is-error" : ""}`}>
           <label className="public-auth-field-row__label" htmlFor="public-mypage-account-holder">

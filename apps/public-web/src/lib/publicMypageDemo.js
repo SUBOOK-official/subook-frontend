@@ -1,3 +1,5 @@
+import { buildMemberDashboardSummarySnapshot } from "./publicMypageUtils.js";
+
 const DEMO_CREATED_AT = "2024-03-01T09:00:00+09:00";
 
 export const DEMO_MEMBER_USER = {
@@ -33,46 +35,6 @@ function normalizeProfile(profile = {}) {
     user_id: profile.user_id ?? DEMO_MEMBER_PROFILE.user_id,
     email: profile.email ?? DEMO_MEMBER_PROFILE.email,
     created_at: profile.created_at ?? DEMO_MEMBER_PROFILE.created_at,
-  };
-}
-
-function getDisplayName(profile) {
-  return profile.nickname?.trim() || profile.name?.trim() || profile.email?.split("@")[0] || "회원";
-}
-
-function getInProgressOrderCount(orders = []) {
-  return orders.filter((order) => ["paid", "shipping", "delivered"].includes(order.status)).length;
-}
-
-function buildSummary(seed) {
-  const defaultShippingAddress = seed.shippingAddresses.find((address) => address.is_default);
-  const defaultSettlementAccount = seed.settlementAccounts.find((account) => account.is_default);
-
-  return {
-    user_id: seed.profile.user_id,
-    email: seed.profile.email,
-    name: seed.profile.name,
-    nickname: seed.profile.nickname,
-    display_name: getDisplayName(seed.profile),
-    phone: seed.profile.phone,
-    marketing_opt_in: Boolean(seed.profile.marketing_opt_in),
-    shipping_address_count: seed.shippingAddresses.length,
-    default_shipping_address_id: defaultShippingAddress?.id ?? null,
-    settlement_account_count: seed.settlementAccounts.length,
-    default_settlement_account_id: defaultSettlementAccount?.id ?? null,
-    shipment_count: seed.shipments.length,
-    recent_shipment_count: seed.shipments.length,
-    total_book_count: 8,
-    on_sale_book_count: 3,
-    settled_book_count: 2,
-    estimated_on_sale_value: 45000,
-    estimated_settled_value: seed.settlementSummary.expectedAmount,
-    latest_shipment_created_at: seed.shipments[0]?.createdAt ?? null,
-    latest_shipment_pickup_date: seed.shipments[0]?.createdAt ?? null,
-    latest_shipment_status: seed.shipments[0]?.status ?? null,
-    purchase_in_progress_count: getInProgressOrderCount(seed.orders),
-    current_month_settlement_total: seed.settlementSummary.currentMonthAmount,
-    total_settlement_amount: seed.settlementSummary.totalAmount,
   };
 }
 
@@ -156,6 +118,7 @@ export function createDemoPortalSeed(profileOverride = {}) {
         items: [
           {
             id: "order-demo-0315-book-1",
+            productId: "product-demo-math-nje",
             title: "시대인재 수학 N제",
             gradeLabel: "A+",
             quantity: 1,
@@ -163,6 +126,7 @@ export function createDemoPortalSeed(profileOverride = {}) {
           },
           {
             id: "order-demo-0315-book-2",
+            productId: "product-demo-korean-mock",
             title: "강남대성 국어 모의고사",
             gradeLabel: "S",
             quantity: 1,
@@ -186,6 +150,7 @@ export function createDemoPortalSeed(profileOverride = {}) {
         items: [
           {
             id: "order-demo-0310-book-1",
+            productId: "product-demo-science-past",
             title: "이투스 과학 기출",
             gradeLabel: "A",
             quantity: 1,
@@ -292,7 +257,22 @@ export function createDemoPortalSeed(profileOverride = {}) {
 
   return {
     ...seed,
-    dashboardSummary: buildSummary(seed),
+    dashboardSummary: buildMemberDashboardSummarySnapshot({
+      baseSummary: {
+        total_book_count: 8,
+        on_sale_book_count: 3,
+        settled_book_count: 2,
+        estimated_on_sale_value: 45000,
+      },
+      completedSettlements: seed.completedSettlements,
+      orders: seed.orders,
+      profile: seed.profile,
+      scheduledSettlements: seed.scheduledSettlements,
+      settlementAccounts: seed.settlementAccounts,
+      settlementSummary: seed.settlementSummary,
+      shipments: seed.shipments,
+      shippingAddresses: seed.shippingAddresses,
+    }),
   };
 }
 
@@ -328,23 +308,17 @@ export function mergePortalDemoState(storedState = {}, profileOverride = {}) {
   };
 
   mergedState.dashboardSummary = {
-    ...mergedState.dashboardSummary,
-    user_id: mergedState.profile.user_id,
-    email: mergedState.profile.email,
-    name: mergedState.profile.name,
-    nickname: mergedState.profile.nickname,
-    display_name: getDisplayName(mergedState.profile),
-    phone: mergedState.profile.phone,
-    shipping_address_count: mergedState.shippingAddresses.length,
-    default_shipping_address_id:
-      mergedState.shippingAddresses.find((address) => address.is_default)?.id ?? null,
-    settlement_account_count: mergedState.settlementAccounts.length,
-    default_settlement_account_id:
-      mergedState.settlementAccounts.find((account) => account.is_default)?.id ?? null,
-    purchase_in_progress_count: getInProgressOrderCount(mergedState.orders),
-    current_month_settlement_total: mergedState.settlementSummary.currentMonthAmount,
-    total_settlement_amount: mergedState.settlementSummary.totalAmount,
-    estimated_settled_value: mergedState.settlementSummary.expectedAmount,
+    ...buildMemberDashboardSummarySnapshot({
+      baseSummary: mergedState.dashboardSummary,
+      completedSettlements: mergedState.completedSettlements,
+      orders: mergedState.orders,
+      profile: mergedState.profile,
+      scheduledSettlements: mergedState.scheduledSettlements,
+      settlementAccounts: mergedState.settlementAccounts,
+      settlementSummary: mergedState.settlementSummary,
+      shipments: mergedState.shipments,
+      shippingAddresses: mergedState.shippingAddresses,
+    }),
   };
 
   return mergedState;

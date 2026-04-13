@@ -5,6 +5,7 @@ import ProductCard, { ProductCardSkeleton } from "../components/ProductCard";
 import PublicFooter from "../components/PublicFooter";
 import PublicPageFrame from "../components/PublicPageFrame";
 import searchIconImage from "../assets/search-icon.svg";
+import { usePublicWishlist } from "../contexts/PublicWishlistContext";
 import usePublicMemberGate from "../lib/publicMemberGate";
 import { getStoreDisplayProducts } from "../lib/publicStoreCards";
 import {
@@ -164,6 +165,7 @@ function PublicStorePage() {
   const location = useLocation();
   const navigate = useNavigate();
   const { requireMember, memberGateDialog } = usePublicMemberGate();
+  const { favoriteIds, toggleFavorite } = usePublicWishlist();
   const pageTopRef = useRef(null);
   const searchInputRef = useRef(null);
   const subjectButtonRefs = useRef({});
@@ -197,7 +199,6 @@ function PublicStorePage() {
   const [recentSearches, setRecentSearches] = useState([]);
   const [catalog, setCatalog] = useState([]);
   const [catalogSource, setCatalogSource] = useState("");
-  const [favoriteIds, setFavoriteIds] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubjectTransitioning, setIsSubjectTransitioning] = useState(false);
   const [isSortMenuOpen, setIsSortMenuOpen] = useState(false);
@@ -718,16 +719,12 @@ function PublicStorePage() {
     totalPages,
   ]);
 
-  const handleToggleFavorite = (productId) => {
+  const handleToggleFavorite = async (productId) => {
     if (!requireMember("favorite")) {
       return;
     }
 
-    setFavoriteIds((currentIds) =>
-      currentIds.includes(productId)
-        ? currentIds.filter((currentId) => currentId !== productId)
-        : [...currentIds, productId],
-    );
+    await toggleFavorite(productId);
   };
 
   const handleGoToCart = () => {

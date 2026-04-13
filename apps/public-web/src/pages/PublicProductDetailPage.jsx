@@ -6,8 +6,14 @@ import ContentContainer from "../components/ContentContainer";
 import ProductCard from "../components/ProductCard";
 import PublicFooter from "../components/PublicFooter";
 import PublicPageFrame from "../components/PublicPageFrame";
+import { usePublicWishlist } from "../contexts/PublicWishlistContext";
 import { addToCart } from "../lib/cart";
 import usePublicMemberGate from "../lib/publicMemberGate";
+import {
+  REVIEW_RATING_LABELS,
+  REVIEW_SORT_OPTIONS,
+  fetchProductReviews,
+} from "../lib/publicReviews";
 import {
   fetchStorefrontProductDetail,
   fetchStorefrontProducts,
@@ -160,10 +166,125 @@ function QuantityStepper({ value, maxQuantity, disabled, onDecrease, onIncrease 
   );
 }
 
+function ReviewStars({ rating, size = "md" }) {
+  const roundedRating = Math.max(0, Math.min(5, Number(rating) || 0));
+
+  return (
+    <div className={`public-detail-review-stars public-detail-review-stars--${size}`} aria-label={`별점 ${roundedRating}점`}>
+      {[1, 2, 3, 4, 5].map((star) => (
+        <span key={star}>{roundedRating >= star ? "★" : "☆"}</span>
+      ))}
+    </div>
+  );
+}
+
+function ProductReviewSection({
+  isLoading,
+  onSortChange,
+  reviews,
+  sort,
+  summary,
+}) {
+  const totalCount = summary?.totalCount ?? 0;
+  const averageRating = summary?.averageRating ?? 0;
+  const ratingCounts = summary?.ratingCounts ?? { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+
+  return (
+    <div className="public-detail-panel public-detail-review-panel">
+      <div className="public-detail-review-panel__header">
+        <div>
+          <p className="public-detail-panel__eyebrow">구매 리뷰</p>
+          <h2 className="public-detail-review-panel__title">실제 구매자의 평점을 확인해 보세요</h2>
+        </div>
+        <div className="public-detail-review-panel__summary-chip">
+          리뷰 {totalCount.toLocaleString("ko-KR")}개
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="public-detail-review-loading">리뷰를 불러오는 중입니다.</div>
+      ) : totalCount === 0 ? (
+        <div className="public-detail-review-empty">
+          <strong>아직 등록된 리뷰가 없어요.</strong>
+          <p>첫 구매자가 되어 이 교재의 상태와 만족도를 남겨보세요.</p>
+        </div>
+      ) : (
+        <>
+          <div className="public-detail-review-overview">
+            <div className="public-detail-review-score">
+              <strong>{averageRating.toFixed(1)}</strong>
+              <ReviewStars rating={Math.round(averageRating)} size="lg" />
+              <p>{REVIEW_RATING_LABELS[Math.round(averageRating)] ?? "구매자 평점"}</p>
+            </div>
+
+            <div className="public-detail-review-distribution" aria-label="별점 분포">
+              {[5, 4, 3, 2, 1].map((rating) => {
+                const count = ratingCounts[rating] ?? 0;
+                const width = totalCount > 0 ? `${(count / totalCount) * 100}%` : "0%";
+
+                return (
+                  <div className="public-detail-review-distribution__row" key={rating}>
+                    <span>{rating}점</span>
+                    <div className="public-detail-review-distribution__bar">
+                      <div className="public-detail-review-distribution__fill" style={{ width }} />
+                    </div>
+                    <strong>{count}</strong>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="public-detail-review-sort">
+            {REVIEW_SORT_OPTIONS.map((option) => (
+              <button
+                className={`public-detail-review-sort__button${sort === option.value ? " is-active" : ""}`}
+                key={option.value}
+                onClick={() => onSortChange(option.value)}
+                type="button"
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="public-detail-review-list">
+            {reviews.map((review) => (
+              <article className="public-detail-review-card" key={review.id}>
+                <div className="public-detail-review-card__header">
+                  <div>
+                    <strong>{review.authorName}</strong>
+                    <p>{review.createdAt ? formatDate(review.createdAt) : "-"}</p>
+                  </div>
+                  <div className="public-detail-review-card__rating">
+                    <ReviewStars rating={review.rating} />
+                    <span>{REVIEW_RATING_LABELS[review.rating] ?? `${review.rating}점`}</span>
+                  </div>
+                </div>
+                <p className="public-detail-review-card__body">{review.content}</p>
+                {review.photoUrls?.length ? (
+                  <div className="public-detail-review-card__photos">
+                    {review.photoUrls.map((photoUrl, index) => (
+                      <a href={photoUrl} key={`${photoUrl}-${index}`} rel="noreferrer" target="_blank">
+                        <img alt={`리뷰 사진 ${index + 1}`} src={photoUrl} />
+                      </a>
+                    ))}
+                  </div>
+                ) : null}
+              </article>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function PublicProductDetailPage() {
   const { productId } = useParams();
   const navigate = useNavigate();
   const { requireMember, memberGateDialog } = usePublicMemberGate();
+  const { favoriteIds, isFavoritePending, toggleFavorite } = usePublicWishlist();
   const [product, setProduct] = useState(null);
   const [relatedProducts, setRelatedProducts] = useState([]);
   const [detailSource, setDetailSource] = useState("");
@@ -173,6 +294,14 @@ function PublicProductDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [cartToast, setCartToast] = useState(null);
+  const [reviewSort, setReviewSort] = useState("latest");
+  const [reviewSummary, setReviewSummary] = useState({
+    averageRating: 0,
+    totalCount: 0,
+    ratingCounts: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 },
+  });
+  const [reviews, setReviews] = useState([]);
+  const [isReviewsLoading, setIsReviewsLoading] = useState(true);
 
   const showCartToast = useCallback((message, type = "info") => {
     setCartToast({ message, type });
@@ -253,6 +382,54 @@ function PublicProductDetailPage() {
     };
   }, [productId]);
 
+  useEffect(() => {
+    setReviewSort("latest");
+  }, [productId]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadReviews = async () => {
+      try {
+        setIsReviewsLoading(true);
+        const reviewResult = await fetchProductReviews({
+          productId,
+          sort: reviewSort,
+          limit: 20,
+          offset: 0,
+        });
+
+        if (!isActive) {
+          return;
+        }
+
+        setReviewSummary(reviewResult.summary);
+        setReviews(reviewResult.reviews);
+      } catch {
+        if (!isActive) {
+          return;
+        }
+
+        setReviewSummary({
+          averageRating: 0,
+          totalCount: 0,
+          ratingCounts: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 },
+        });
+        setReviews([]);
+      } finally {
+        if (isActive) {
+          setIsReviewsLoading(false);
+        }
+      }
+    };
+
+    void loadReviews();
+
+    return () => {
+      isActive = false;
+    };
+  }, [productId, reviewSort]);
+
   const selectedOption = useMemo(() => {
     if (!product?.options?.length) {
       return null;
@@ -316,6 +493,8 @@ function PublicProductDetailPage() {
   const priceValue = activeDisplay?.price ?? product?.price ?? null;
   const originalPriceValue = activeDisplay?.originalPrice ?? product?.originalPrice ?? null;
   const totalPriceValue = priceValue === null ? null : priceValue * quantity;
+  const isProductFavorite = product ? favoriteIds.includes(String(product.id)) : false;
+  const isProductFavoritePending = product ? isFavoritePending(product.id) : false;
 
   const handleAddToCart = async () => {
     if (!canPurchase) return;
@@ -357,6 +536,25 @@ function PublicProductDetailPage() {
     }];
 
     navigate("/order", { state: { items: orderPayload } });
+  };
+
+  const handleToggleFavorite = async (targetProductId) => {
+    if (!targetProductId) {
+      return;
+    }
+
+    if (!requireMember("favorite")) {
+      return;
+    }
+
+    const result = await toggleFavorite(targetProductId);
+
+    if (result.error) {
+      showCartToast("찜 상태를 변경하지 못했어요.", "error");
+      return;
+    }
+
+    showCartToast(result.isFavorite ? "찜 목록에 추가했어요." : "찜을 해제했어요.");
   };
 
   const pageContent = (
@@ -533,6 +731,19 @@ function PublicProductDetailPage() {
 
                   <div className="public-detail-price-card__actions">
                     <button
+                      aria-label={isProductFavorite ? "찜 취소" : "찜하기"}
+                      aria-pressed={isProductFavorite}
+                      className={`public-detail-price-card__favorite${isProductFavorite ? " is-active" : ""}`}
+                      disabled={isProductFavoritePending}
+                      onClick={() => {
+                        void handleToggleFavorite(product.id);
+                      }}
+                      type="button"
+                    >
+                      <span aria-hidden="true">{isProductFavorite ? "♥" : "♡"}</span>
+                      <span>찜</span>
+                    </button>
+                    <button
                       className="public-detail-price-card__btn public-detail-price-card__btn--cart"
                       disabled={!canPurchase}
                       onClick={handleAddToCart}
@@ -654,6 +865,14 @@ function PublicProductDetailPage() {
                 </div>
               ) : null}
 
+              <ProductReviewSection
+                isLoading={isReviewsLoading}
+                onSortChange={setReviewSort}
+                reviews={reviews}
+                sort={reviewSort}
+                summary={reviewSummary}
+              />
+
               <div className="public-detail-panel">
                 <div className="public-detail-related-header">
                   <div>
@@ -668,7 +887,12 @@ function PublicProductDetailPage() {
                 {relatedProducts.length ? (
                   <div className="public-detail-related-grid">
                     {relatedProducts.map((relatedProduct) => (
-                      <ProductCard product={relatedProduct} key={relatedProduct.id} />
+                      <ProductCard
+                        isFavorite={favoriteIds.includes(String(relatedProduct.id))}
+                        key={relatedProduct.id}
+                        onToggleFavorite={handleToggleFavorite}
+                        product={relatedProduct}
+                      />
                     ))}
                   </div>
                 ) : (
