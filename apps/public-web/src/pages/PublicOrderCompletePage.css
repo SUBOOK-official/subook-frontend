@@ -1,7 +1,7 @@
 /* ── Order Complete Page ── */
 .order-complete-page {
   min-height: 100vh;
-  background: var(--public-ds-bg, #fafafa);
+  background: var(--public-ds-bg);
 }
 
 .order-complete-content {
@@ -15,41 +15,54 @@
   max-width: 480px;
   width: 100%;
   text-align: center;
+  animation: oc-rise 400ms ease-out both;
+}
+
+@keyframes oc-rise {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .order-complete-card__icon {
-  width: 64px;
-  height: 64px;
+  width: 68px;
+  height: 68px;
   border-radius: 50%;
-  background: #10b981;
+  background: linear-gradient(135deg, #059669 0%, #10b981 100%);
   color: #fff;
-  font-size: 28px;
-  font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0 auto 20px;
+  margin: 0 auto 24px;
+  box-shadow: 0 8px 24px rgba(16, 185, 129, 0.25);
+  animation: oc-check 500ms 200ms ease-out both;
+}
+
+@keyframes oc-check {
+  0% { transform: scale(0); opacity: 0; }
+  60% { transform: scale(1.15); }
+  100% { transform: scale(1); opacity: 1; }
 }
 
 .order-complete-card__title {
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 700;
-  color: var(--public-ds-text, #111);
+  color: var(--public-ds-text);
   margin-bottom: 8px;
 }
 
 .order-complete-card__subtitle {
   font-size: 14px;
-  color: #6b7280;
-  margin-bottom: 28px;
+  color: var(--public-ds-text-secondary);
+  margin-bottom: 32px;
 }
 
 .order-complete-card__details {
   background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
+  border: 1px solid var(--public-ds-border);
+  border-radius: var(--public-ds-radius);
   padding: 16px 20px;
   margin-bottom: 16px;
+  text-align: left;
 }
 
 .order-complete-card__row {
@@ -57,7 +70,7 @@
   justify-content: space-between;
   font-size: 14px;
   color: #374151;
-  padding: 8px 0;
+  padding: 10px 0;
 }
 
 .order-complete-card__row + .order-complete-card__row {
@@ -66,35 +79,39 @@
 
 .order-complete-card__value {
   font-weight: 700;
-  color: var(--public-ds-text, #111);
+  color: var(--public-ds-text);
 }
 
 /* ── Bank Info ── */
 .order-complete-card__bank-info {
   background: #fffbeb;
   border: 1px solid #fcd34d;
-  border-radius: 12px;
-  padding: 16px 20px;
-  margin-bottom: 28px;
+  border-radius: var(--public-ds-radius);
+  padding: 20px;
+  margin-bottom: 32px;
+  text-align: left;
 }
 
 .order-complete-card__bank-title {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   color: #92400e;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
+  letter-spacing: 0.02em;
 }
 
 .order-complete-card__bank-account {
   font-size: 18px;
   font-weight: 700;
   color: #78350f;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
+  letter-spacing: 0.01em;
 }
 
 .order-complete-card__bank-notice {
   font-size: 12px;
   color: #b45309;
+  line-height: 1.5;
 }
 
 /* ── Actions ── */
@@ -107,27 +124,28 @@
 .order-complete-card__btn {
   display: block;
   padding: 14px;
-  border-radius: 10px;
+  border-radius: var(--public-ds-radius);
   font-size: 15px;
   font-weight: 700;
   text-decoration: none;
   text-align: center;
-  transition: opacity 0.15s;
+  transition: opacity 0.15s, transform 0.15s;
 }
 
 .order-complete-card__btn:hover {
   opacity: 0.9;
+  transform: translateY(-1px);
 }
 
 .order-complete-card__btn--primary {
-  background: var(--public-ds-primary, #1b3a5c);
+  background: var(--public-ds-primary);
   color: #fff;
 }
 
 .order-complete-card__btn--secondary {
   background: #fff;
-  color: var(--public-ds-primary, #1b3a5c);
-  border: 1px solid #d1d5db;
+  color: var(--public-ds-primary);
+  border: 1px solid var(--public-ds-border);
 }
 
 @media (min-width: 768px) {

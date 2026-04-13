@@ -36,7 +36,7 @@ function FooterChatIcon() {
 
 const footerTopLinks = [
   { label: "이용약관", to: "/terms" },
-  { label: "개인정보처리방침", to: "/privacy" },
+  { label: "개인정보처리방침", to: "/privacy", bold: true },
   { label: "사업자정보확인", to: null },
   { label: "1:1문의", href: "mailto:subook2025@gmail.com" },
 ];
@@ -53,8 +53,8 @@ const footerMetaLines = [
     ["주소", "서울 서대문구 연세로 50 제1공학관"],
   ],
   [
-    ["사업자등록번호", "00"],
-    ["통신판매업신고번호", "00"],
+    ["사업자등록번호", "등록 준비 중"],
+    ["통신판매업신고번호", "등록 준비 중"],
   ],
 ];
 
@@ -78,21 +78,23 @@ function PublicFooter() {
           <div className="public-footer__brand">SUBOOK®</div>
 
           <div className="public-footer__links">
-            {footerTopLinks.map((link) =>
-              link.to ? (
-                <Link className="public-footer__text-button" key={link.label} to={link.to}>
+            {footerTopLinks.map((link) => {
+              const className = `public-footer__text-button${link.bold ? " public-footer__text-button--bold" : ""}`;
+
+              return link.to ? (
+                <Link className={className} key={link.label} to={link.to}>
                   {link.label}
                 </Link>
               ) : link.href ? (
-                <a className="public-footer__text-button" href={link.href} key={link.label}>
+                <a className={className} href={link.href} key={link.label}>
                   {link.label}
                 </a>
               ) : (
-                <button className="public-footer__text-button" key={link.label} type="button">
+                <button className={className} key={link.label} type="button">
                   {link.label}
                 </button>
-              ),
-            )}
+              );
+            })}
           </div>
 
           <div className="public-footer__meta">
@@ -108,18 +110,18 @@ function PublicFooter() {
 
         <div className="public-footer__side">
           <div className="public-footer__socials">
-            <button aria-label="메일" className="public-footer__social" type="button">
+            <a aria-label="이메일 문의" className="public-footer__social" href="mailto:subook2025@gmail.com">
               <FooterMailIcon />
-            </button>
-            <button aria-label="인스타그램" className="public-footer__social" type="button">
+            </a>
+            <a aria-label="인스타그램" className="public-footer__social" href="https://instagram.com/subook_official" rel="noopener noreferrer" target="_blank">
               <FooterInstagramIcon />
-            </button>
-            <button aria-label="카카오톡" className="public-footer__social" type="button">
+            </a>
+            <a aria-label="카카오톡 채널" className="public-footer__social" href="https://pf.kakao.com/_subook" rel="noopener noreferrer" target="_blank">
               <FooterChatIcon />
-            </button>
+            </a>
           </div>
 
-          <p className="public-footer__copyright">©SUBOOK All Right Reserved.</p>
+          <p className="public-footer__copyright">© {new Date().getFullYear()} SUBOOK. All Rights Reserved.</p>
         </div>
       </ContentContainer>
     </footer>

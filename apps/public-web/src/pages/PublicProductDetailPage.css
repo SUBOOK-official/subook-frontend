@@ -415,7 +415,7 @@
   justify-content: space-between;
   gap: 16px;
   width: 100%;
-  border-radius: 12px;
+  border-radius: var(--public-ds-radius);
   border: 1px solid var(--public-ds-border);
   background: var(--public-ds-divider);
   padding: 12px 14px;
@@ -661,7 +661,7 @@
 .public-detail-inspection-link {
   display: block;
   overflow: hidden;
-  border-radius: 12px;
+  border-radius: var(--public-ds-radius);
   border: 1px solid var(--public-ds-border);
 }
 
@@ -911,7 +911,7 @@
   width: 88px;
   height: 88px;
   overflow: hidden;
-  border-radius: 12px;
+  border-radius: var(--public-ds-radius);
   border: 1px solid var(--public-ds-border);
 }
 

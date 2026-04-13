@@ -19,6 +19,21 @@
   --public-teal-start: rgb(1, 205, 171);
   --public-teal-end: rgb(7, 126, 132);
   --public-font: "LINE Seed Sans KR", "Pretendard", "Noto Sans KR", "Apple SD Gothic Neo", sans-serif;
+
+  /* Design System tokens — used by cart, order, auth, etc. */
+  --public-ds-primary: #1b3a5c;
+  --public-ds-accent: #3b82f6;
+  --public-ds-text: #111827;
+  --public-ds-text-secondary: #6b7280;
+  --public-ds-text-muted: #9ca3af;
+  --public-ds-background: #f8fafc;
+  --public-ds-bg: #fafafa;
+  --public-ds-card: #ffffff;
+  --public-ds-border: #e5e7eb;
+  --public-ds-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --public-ds-danger: #ef4444;
+  --public-ds-success: #059669;
+  --public-ds-radius: 10px;
 }
 
 * {
@@ -2387,6 +2402,17 @@ img {
   font-weight: 600;
   line-height: 1.4;
   text-decoration: none;
+  transition: opacity 180ms ease;
+}
+
+.public-footer__text-button:hover,
+.public-footer__text-button:focus-visible {
+  opacity: 0.75;
+  text-decoration: underline;
+}
+
+.public-footer__text-button--bold {
+  font-weight: 700;
 }
 
 .public-footer__meta {
@@ -2434,15 +2460,24 @@ img {
 }
 
 .public-footer__social {
-  width: 22px;
-  height: 22px;
+  width: 36px;
+  height: 36px;
   border: 0;
   padding: 0;
-  background: transparent;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.1);
   color: #ffffff;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  text-decoration: none;
+  transition: background 180ms ease, transform 180ms ease;
+}
+
+.public-footer__social:hover,
+.public-footer__social:focus-visible {
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateY(-2px);
 }
 
 .public-footer__icon-svg {

@@ -1,7 +1,7 @@
 .public-mypage-demo-banner {
   padding: 14px 16px;
   border: 1px solid rgba(59, 130, 246, 0.22);
-  border-radius: 12px;
+  border-radius: var(--public-ds-radius);
   background: rgba(59, 130, 246, 0.08);
   color: var(--public-ds-text);
   font-size: 14px;
@@ -32,7 +32,7 @@
 .public-mypage-overview-card {
   padding: 14px 16px;
   border: 1px solid var(--public-ds-border);
-  border-radius: 12px;
+  border-radius: var(--public-ds-radius);
   background: var(--public-ds-background);
   display: flex;
   flex-direction: column;
@@ -57,7 +57,7 @@
 .public-mypage-settlement-card {
   padding: 16px;
   border: 1px solid var(--public-ds-border);
-  border-radius: 12px;
+  border-radius: var(--public-ds-radius);
   background: #ffffff;
 }
 
@@ -347,7 +347,7 @@
 
 .public-mypage-settlement-summary__item {
   padding: 16px;
-  border-radius: 12px;
+  border-radius: var(--public-ds-radius);
   background: var(--public-ds-background);
   display: flex;
   flex-direction: column;
@@ -423,7 +423,7 @@
   gap: 12px;
   padding: 12px 14px;
   border: 1px solid var(--public-ds-border);
-  border-radius: 12px;
+  border-radius: var(--public-ds-radius);
   background: #ffffff;
   color: var(--public-ds-text);
   text-align: left;
@@ -532,7 +532,7 @@
   min-height: 110px;
   resize: vertical;
   border: 1px solid var(--public-ds-border);
-  border-radius: 12px;
+  border-radius: var(--public-ds-radius);
   padding: 14px 16px;
   background: #ffffff;
   color: var(--public-ds-text);

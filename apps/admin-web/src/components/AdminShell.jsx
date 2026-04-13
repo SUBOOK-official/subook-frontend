@@ -42,7 +42,7 @@ function AdminShell({ title, description = "", activeModule, actions = null, sum
 
               return (
                 <Link
-                  className={`flex items-center justify-between rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
+                  className={`flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
                     isActive
                       ? "bg-slate-950 text-white"
                       : "text-slate-700 hover:bg-slate-100"
@@ -50,6 +50,7 @@ function AdminShell({ title, description = "", activeModule, actions = null, sum
                   key={item.key}
                   to={item.to}
                 >
+                  <span aria-hidden="true" className="text-base leading-none">{item.icon}</span>
                   <span>{item.label}</span>
                 </Link>
               );
@@ -69,11 +70,11 @@ function AdminShell({ title, description = "", activeModule, actions = null, sum
 
               <div className="flex flex-wrap items-center gap-2">
                 {actions}
-                <a className="btn-secondary !w-auto !px-3 !py-2 text-xs" href={sellerPortalUrl}>
+                <a className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50" href={sellerPortalUrl}>
                   판매자 조회
                 </a>
                 <button
-                  className="btn-secondary !w-auto !px-3 !py-2 text-xs"
+                  className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
                   disabled={isSigningOut}
                   onClick={handleSignOut}
                   type="button"

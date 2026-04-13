@@ -24,10 +24,14 @@ function PublicOrderCompletePage() {
 
         <ContentContainer as="section" className="order-complete-content">
           <div className="order-complete-card">
-            <div className="order-complete-card__icon">&#10003;</div>
+            <div className="order-complete-card__icon" aria-hidden="true">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+                <path d="M5 13l4 4L19 7" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
             <h1 className="order-complete-card__title">주문이 완료되었습니다</h1>
             <p className="order-complete-card__subtitle">
-              입금 확인 후 순차적으로 발송됩니다.
+              입금 확인 후 순차적으로 발송됩니다
             </p>
 
             <div className="order-complete-card__details">
