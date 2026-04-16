@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { createPortal } from "react-dom";
 
 function PublicAgreementDialog({ documentItem, onClose, open }) {
   useEffect(() => {
@@ -27,7 +28,7 @@ function PublicAgreementDialog({ documentItem, onClose, open }) {
     return null;
   }
 
-  return (
+  return createPortal(
     <div className="public-sheet-backdrop" onClick={onClose}>
       <section
         aria-labelledby="public-agreement-dialog-title"
@@ -66,7 +67,8 @@ function PublicAgreementDialog({ documentItem, onClose, open }) {
           </button>
         </div>
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 
 function MypageEmptyState({ actionLabel, actionOnClick, actionTo, description, icon, title }) {
@@ -122,7 +123,7 @@ function ResponsiveSheet({ actions, children, eyebrow, onClose, open, title }) {
     startYRef.current = null;
   };
 
-  return (
+  return createPortal(
     <div className="public-sheet-backdrop" onClick={onClose}>
       <section
         aria-modal="true"
@@ -153,7 +154,8 @@ function ResponsiveSheet({ actions, children, eyebrow, onClose, open, title }) {
         <div className="public-sheet__body">{children}</div>
         {actions ? <div className="public-mypage-sheet__footer">{actions}</div> : null}
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 function PublicMemberGateDialog({ onClose, onLogin, onSignup, open }) {
   const [offsetY, setOffsetY] = useState(0);
@@ -67,7 +68,7 @@ function PublicMemberGateDialog({ onClose, onLogin, onSignup, open }) {
     startYRef.current = null;
   };
 
-  return (
+  return createPortal(
     <div className="public-sheet-backdrop" onClick={onClose}>
       <section
         aria-labelledby="public-member-gate-title"
@@ -113,7 +114,8 @@ function PublicMemberGateDialog({ onClose, onLogin, onSignup, open }) {
           나중에 할게요
         </button>
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
