@@ -100,22 +100,40 @@ function PublicHomePage() {
     await toggleFavorite(productId);
   };
 
+  const handleSearch = (event) => {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const query = formData.get("q")?.toString().trim();
+
+    if (query) {
+      setSelectedMenu("store");
+      navigate(`/store?q=${encodeURIComponent(query)}`);
+    }
+  };
+
   const pageContent = (
     <div className="public-home-route">
       <div className="public-top-area public-top-area--home">
-        <ContentContainer as="header" className="public-nav">
+        <ContentContainer as="header" className="public-nav public-nav--home-search">
           <Link className="public-brand" to="/">
             SUBOOK®
           </Link>
 
-          <nav aria-label="유틸리티 메뉴" className="public-nav-actions">
-            <button
-              className="public-nav-link public-nav-link--sell"
-              onClick={handlePickupRequest}
-              type="button"
-            >
-              판매하기
+          <form className="public-nav-search" onSubmit={handleSearch} role="search" aria-label="교재 검색">
+            <img alt="" className="public-nav-search__icon" src={searchIconImage} />
+            <input
+              aria-label="교재 검색"
+              className="public-nav-search__input"
+              name="q"
+              placeholder="교재명, 저자, ISBN으로 검색"
+              type="search"
+            />
+            <button aria-label="검색" className="public-nav-search__submit" type="submit">
+              <img alt="" src={searchActionImage} />
             </button>
+          </form>
+
+          <nav aria-label="유틸리티 메뉴" className="public-nav-actions">
             <button className="public-nav-link public-nav-link--cart" onClick={handleGoToCart} type="button">
               <span>장바구니</span>
             </button>
@@ -126,33 +144,6 @@ function PublicHomePage() {
               로그인/회원가입
             </Link>
           </nav>
-        </ContentContainer>
-
-        <ContentContainer className="public-menu" role="tablist" aria-label="상단 메뉴">
-          <Link
-            aria-selected={selectedMenu === "store"}
-            className={`public-menu-tab ${selectedMenu === "store" ? "public-menu-tab--active" : ""}`}
-            onClick={() => setSelectedMenu("store")}
-            role="tab"
-            to="/store"
-          >
-            스토어
-          </Link>
-        </ContentContainer>
-
-        <ContentContainer as="section" className="public-search-section" aria-label="교재 검색">
-          <form className="public-search">
-            <img alt="" className="public-search__icon" src={searchIconImage} />
-            <input
-              aria-label="교재 검색"
-              className="public-search__input"
-              placeholder="교재명, 저자, ISBN, 학교, 학원명을 입력해주세요."
-              type="search"
-            />
-            <button aria-label="검색 필터" className="public-search__action" type="button">
-              <img alt="" src={searchActionImage} />
-            </button>
-          </form>
         </ContentContainer>
       </div>
 

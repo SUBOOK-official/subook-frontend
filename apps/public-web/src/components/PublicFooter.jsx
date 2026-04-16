@@ -35,6 +35,7 @@ function FooterChatIcon() {
 }
 
 const footerTopLinks = [
+  { label: "교재 판매하기", to: "/pickup/new" },
   { label: "이용약관", to: "/terms" },
   { label: "개인정보처리방침", to: "/privacy", bold: true },
   { label: "사업자정보확인", to: null },

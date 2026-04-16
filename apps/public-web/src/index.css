@@ -207,12 +207,6 @@ img {
   opacity: 1;
 }
 
-.public-nav-link--sell {
-  color: var(--public-ds-primary);
-  font-weight: 600;
-  opacity: 0.85;
-}
-
 .public-nav-link--cart {
   display: inline-flex;
   align-items: center;
@@ -239,6 +233,79 @@ img {
   border: 1px solid var(--public-border);
   border-radius: 8px;
   background: #ffffff;
+}
+
+/* ── Inline search bar in nav header ── */
+
+.public-nav--home-search {
+  flex-wrap: wrap;
+}
+
+.public-nav-search {
+  flex: 1 1 280px;
+  max-width: 480px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 6px 16px;
+  border: 1px solid var(--public-ds-divider);
+  border-radius: 10px;
+  background: #ffffff;
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.public-nav-search:focus-within {
+  border-color: var(--public-ds-primary);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.public-nav-search__icon {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  opacity: 0.5;
+}
+
+.public-nav-search__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--public-ds-text-primary);
+  font-size: 14px;
+  line-height: normal;
+  outline: none;
+}
+
+.public-nav-search__input::placeholder {
+  color: var(--public-ds-text-tertiary);
+}
+
+.public-nav-search__submit {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0.5;
+  transition: opacity 180ms ease;
+}
+
+.public-nav-search__submit:hover {
+  opacity: 1;
+}
+
+.public-nav-search__submit img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
 }
 
 .public-menu {
@@ -928,6 +995,12 @@ img {
     flex-direction: column;
   }
 
+  .public-nav-search {
+    max-width: none;
+    width: 100%;
+    order: 3;
+  }
+
   .public-nav-actions {
     width: 100%;
     justify-content: space-between;
@@ -986,6 +1059,31 @@ img {
   .public-nav-actions {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .public-nav--home-search {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .public-nav--home-search .public-nav-actions {
+    flex-direction: row;
+    align-items: center;
+    width: auto;
+    gap: 16px;
+  }
+
+  .public-nav--home-search .public-nav-link,
+  .public-nav--home-search .public-nav-button {
+    width: auto;
+  }
+
+  .public-nav--home-search .public-nav-search {
+    order: 3;
+    flex-basis: 100%;
+    max-width: none;
   }
 
   .public-nav-link,
@@ -6561,7 +6659,7 @@ img {
   background:
     radial-gradient(circle at top, rgba(59, 130, 246, 0.08), transparent 28%),
     linear-gradient(180deg, #ffffff 0%, var(--public-ds-background) 100%);
-  padding-bottom: 28px;
+  padding-bottom: 12px;
 }
 
 .public-home-hero-banner {
