@@ -732,7 +732,7 @@ img {
 .public-product-media {
   position: relative;
   width: 342px;
-  aspect-ratio: 1;
+  aspect-ratio: 3 / 4;
   border-radius: 8px;
   background: var(--public-card);
 }
@@ -1252,7 +1252,7 @@ img {
 .public-store-card__media {
   position: relative;
   width: 100%;
-  aspect-ratio: 1;
+  aspect-ratio: 3 / 4;
   border-radius: 8px;
   overflow: hidden;
   background: var(--public-card);
