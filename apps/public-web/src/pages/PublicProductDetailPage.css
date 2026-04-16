@@ -59,7 +59,7 @@
 
 .public-detail-gallery__main {
   position: relative;
-  aspect-ratio: 4 / 5;
+  aspect-ratio: 1;
   background: var(--public-ds-divider);
 }
 
@@ -164,12 +164,6 @@
   gap: 16px;
 }
 
-@media (min-width: 640px) {
-  .public-detail-info-grid {
-    grid-template-columns: 1fr 1fr;
-  }
-}
-
 .public-detail-info-card__title {
   margin: 8px 0 0;
   font-size: 20px;
@@ -220,14 +214,14 @@
   color: var(--public-ds-text);
 }
 
-/* ------ 가격 카드 (어두운 배경) -------------------------------- */
+/* ------ 가격 카드 (라이트 테마) -------------------------------- */
 
 .public-detail-price-card {
   border-radius: 16px;
-  border: 0;
-  background: linear-gradient(135deg, #1B3A5C 0%, #0F172A 100%);
+  border: 1px solid var(--public-ds-border);
+  background: var(--public-ds-card);
   padding: 20px;
-  color: #fff;
+  box-shadow: var(--public-ds-shadow);
 }
 
 .public-detail-price-card__eyebrow {
@@ -235,15 +229,15 @@
   font-weight: 700;
   letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--public-ds-text-muted);
   margin: 0;
 }
 
 .public-detail-price-card__amount-row {
   display: flex;
   align-items: flex-end;
-  gap: 12px;
-  margin-top: 16px;
+  gap: 10px;
+  margin-top: 14px;
   flex-wrap: wrap;
 }
 
@@ -252,22 +246,23 @@
   font-weight: 900;
   letter-spacing: -0.02em;
   line-height: 1;
+  color: var(--public-ds-text);
 }
 
 .public-detail-price-card__discount-badge {
   border-radius: 999px;
-  background: rgba(16, 185, 129, 0.15);
+  background: rgba(239, 68, 68, 0.08);
   padding: 3px 10px;
   font-size: 13px;
   font-weight: 700;
-  color: #34D399;
+  color: var(--public-ds-danger);
 }
 
 .public-detail-price-card__original {
-  margin: 8px 0 0;
+  margin: 6px 0 0;
   font-size: 13px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--public-ds-text-muted);
   text-decoration: line-through;
 }
 
@@ -275,7 +270,7 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin-top: 20px;
+  margin-top: 16px;
   padding: 0;
   list-style: none;
 }
@@ -286,49 +281,40 @@
   justify-content: space-between;
   gap: 16px;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--public-ds-divider);
   padding: 10px 14px;
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.65);
+  color: var(--public-ds-text-secondary);
 }
 
 .public-detail-price-card__status-value {
   font-weight: 700;
-  color: #fff;
+  color: var(--public-ds-text);
 }
 
 .public-detail-price-card__actions {
   display: grid;
   gap: 10px;
   margin-top: 20px;
-  grid-template-columns: minmax(0, 76px) 1fr 1fr;
-}
-
-@media (min-width: 480px) {
-  .public-detail-price-card__actions {
-    grid-template-columns: minmax(0, 84px) 1fr 1fr;
-  }
+  grid-template-columns: auto 1fr 1fr;
 }
 
 .public-detail-price-card__favorite {
-  min-height: 44px;
+  min-width: 56px;
+  min-height: 48px;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.85);
+  border: 1px solid var(--public-ds-border);
+  background: var(--public-ds-card);
+  color: var(--public-ds-text-secondary);
   display: inline-flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  font-size: 12px;
+  gap: 2px;
+  font-size: 11px;
   font-weight: 700;
   cursor: pointer;
-  transition:
-    transform 0.18s ease,
-    background-color 0.18s ease,
-    color 0.18s ease,
-    opacity 0.18s ease;
+  transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
 }
 
 .public-detail-price-card__favorite span[aria-hidden="true"] {
@@ -338,13 +324,14 @@
 
 .public-detail-price-card__favorite:hover:not(:disabled),
 .public-detail-price-card__favorite:focus-visible {
-  transform: translateY(-1px);
-  background: rgba(255, 255, 255, 0.16);
+  border-color: #CBD5E1;
+  background: var(--public-ds-divider);
 }
 
 .public-detail-price-card__favorite.is-active {
-  background: rgba(248, 113, 113, 0.16);
-  color: #fecaca;
+  border-color: rgba(239, 68, 68, 0.3);
+  background: rgba(239, 68, 68, 0.04);
+  color: var(--public-ds-danger);
 }
 
 .public-detail-price-card__favorite:disabled {
@@ -353,12 +340,12 @@
 }
 
 .public-detail-price-card__btn {
-  min-height: 44px;
-  border-radius: 8px;
+  min-height: 48px;
+  border-radius: 10px;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
-  transition: filter 0.18s ease, opacity 0.18s ease;
+  transition: filter 0.18s ease, opacity 0.18s ease, transform 0.18s ease;
   line-height: 1;
 }
 
@@ -368,23 +355,25 @@
 }
 
 .public-detail-price-card__btn--cart {
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  border: 1px solid var(--public-ds-border);
+  background: var(--public-ds-card);
+  color: var(--public-ds-text);
 }
 
 .public-detail-price-card__btn--cart:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.18);
+  background: var(--public-ds-divider);
+  transform: translateY(-1px);
 }
 
 .public-detail-price-card__btn--buy {
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  background: #fff;
-  color: var(--public-ds-primary);
+  border: 0;
+  background: var(--public-ds-primary);
+  color: #fff;
 }
 
 .public-detail-price-card__btn--buy:hover:not(:disabled) {
-  filter: brightness(0.95);
+  filter: brightness(1.1);
+  transform: translateY(-1px);
 }
 
 /* ------ 옵션 선택 패널 ---------------------------------------- */
@@ -604,8 +593,8 @@
 
 .public-detail-total-row {
   border-radius: 10px;
-  border: 1px solid var(--public-ds-border);
-  background: var(--public-ds-divider);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  background: rgba(59, 130, 246, 0.03);
   padding: 10px 14px;
 }
 
@@ -667,7 +656,7 @@
 
 .public-detail-inspection-link img {
   width: 100%;
-  height: 144px;
+  height: 180px;
   object-fit: cover;
   display: block;
   transition: transform 0.2s ease;
@@ -959,7 +948,7 @@
 }
 
 .public-detail-skeleton__media {
-  aspect-ratio: 4 / 5;
+  aspect-ratio: 1;
   border-radius: 16px;
 }
 
