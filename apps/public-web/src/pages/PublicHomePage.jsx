@@ -19,7 +19,7 @@ const HOME_HERO_SLIDES = [
   {
     id: "store-discovery",
     eyebrow: "SUBOOK",
-    titleLines: ["수능 교재,", "똑똑하게 거래하세요"],
+    titleLines: ["수능 교재,", "똑똑하게 구매하세요"],
     descriptionLines: [
       "대치동 학원 교재를 최대 80% 할인으로",
       "전문 검수 완료된 교재만 판매합니다",
@@ -30,17 +30,17 @@ const HOME_HERO_SLIDES = [
     href: "/store",
   },
   {
-    id: "sell-with-subook",
-    eyebrow: "SELL WITH SUBOOK",
-    titleLines: ["집에 잠자는 교재,", "돈이 됩니다"],
+    id: "quality-guarantee",
+    eyebrow: "QUALITY FIRST",
+    titleLines: ["4단계 전문 검수,", "믿고 구매하세요"],
     descriptionLines: [
-      "포장만 하면 수거부터 판매까지 전부 대행",
-      "검수 · 촬영 · 등록 · 정산 모두 수북이",
+      "S · A+ · A 등급별 상태 투명 공개",
+      "기대와 다르면 100% 환불 보장",
     ],
-    ctaLabel: "수거 요청하기",
-    ctaTextColor: "#065F46",
-    gradient: "135deg, #065F46 0%, #059669 50%, #10B981 100%",
-    actionType: "pickup",
+    ctaLabel: "검수 기준 보기",
+    ctaTextColor: "#1E3A5F",
+    gradient: "135deg, #0F172A 0%, #1E3A5F 50%, #334155 100%",
+    href: "/store",
   },
   {
     id: "new-arrival",
@@ -109,6 +109,13 @@ function PublicHomePage() {
           </Link>
 
           <nav aria-label="유틸리티 메뉴" className="public-nav-actions">
+            <button
+              className="public-nav-link public-nav-link--sell"
+              onClick={handlePickupRequest}
+              type="button"
+            >
+              판매하기
+            </button>
             <button className="public-nav-link public-nav-link--cart" onClick={handleGoToCart} type="button">
               <span>장바구니</span>
             </button>
@@ -131,15 +138,6 @@ function PublicHomePage() {
           >
             스토어
           </Link>
-          <button
-            aria-selected={selectedMenu === "sell"}
-            className={`public-menu-tab ${selectedMenu === "sell" ? "public-menu-tab--active" : ""}`}
-            onClick={handlePickupRequest}
-            role="tab"
-            type="button"
-          >
-            판매하기
-          </button>
         </ContentContainer>
 
         <ContentContainer as="section" className="public-search-section" aria-label="교재 검색">

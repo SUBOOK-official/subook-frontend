@@ -207,6 +207,12 @@ img {
   opacity: 1;
 }
 
+.public-nav-link--sell {
+  color: var(--public-ds-primary);
+  font-weight: 600;
+  opacity: 0.85;
+}
+
 .public-nav-link--cart {
   display: inline-flex;
   align-items: center;
@@ -7405,113 +7411,70 @@ img {
 
 }
 
-.public-home-pickup-cta {
-  background: #ffffff;
-  padding: 32px 0;
+/* ── Slim sell banner (replaces old large PickupCTA) ── */
+
+.public-home-sell-banner {
+  padding: 16px 0 24px;
 }
 
-.public-home-pickup-cta__shell {
+.public-home-sell-banner__shell {
   /* inherits max-width / margin / padding from .public-content-container */
 }
 
-.public-home-pickup-cta__card {
-  background:
-    radial-gradient(circle at 12% 24%, rgba(255, 255, 255, 0.18), transparent 24%),
-    radial-gradient(circle at 86% 78%, rgba(255, 255, 255, 0.14), transparent 24%),
-    linear-gradient(135deg, #1b3a5c 0%, #2563eb 100%);
-  border-radius: 16px;
-  overflow: hidden;
-}
-
-.public-home-pickup-cta__content {
-  width: min(100%, 720px);
-  padding: 32px 24px;
-}
-
-.public-home-pickup-cta__title,
-.public-home-pickup-cta__description {
-  margin: 0;
-}
-
-.public-home-pickup-cta__title {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin-bottom: 12px;
-  color: #ffffff;
-  font-size: 22px;
-  font-weight: 700;
-  line-height: 1.4;
-  letter-spacing: -0.04em;
-}
-
-.public-home-pickup-cta__description {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin-bottom: 20px;
-  color: rgba(255, 255, 255, 0.85);
-  font-size: 14px;
-  line-height: 1.5;
-}
-
-.public-home-pickup-cta__benefits {
-  margin: 0 0 24px;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.public-home-pickup-cta__benefit {
-  color: #ffffff;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  line-height: 1.5;
-}
-
-.public-home-pickup-cta__check {
-  width: 18px;
-  height: 18px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.16);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 1;
-}
-
-.public-home-pickup-cta__button {
+.public-home-sell-banner__button {
   width: 100%;
-  min-height: 48px;
-  border: 0;
-  border-radius: 8px;
-  background: #ffffff;
-  color: #1b3a5c;
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 14px 16px;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  border: 1px solid var(--public-ds-divider);
+  border-radius: 12px;
+  background: var(--public-ds-card);
+  cursor: pointer;
+  transition:
+    background 180ms ease,
+    border-color 180ms ease;
+}
+
+.public-home-sell-banner__button:hover,
+.public-home-sell-banner__button:focus-visible {
+  background: var(--public-ds-background);
+  border-color: var(--public-ds-primary);
+}
+
+.public-home-sell-banner__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+}
+
+.public-home-sell-banner__label {
+  color: var(--public-ds-text-primary);
   font-size: 15px;
   font-weight: 600;
-  line-height: 1.5;
-  transition:
-    transform 160ms ease,
-    filter 160ms ease;
+  line-height: 1.4;
+  letter-spacing: -0.02em;
 }
 
-.public-home-pickup-cta__button:hover,
-.public-home-pickup-cta__button:focus-visible {
-  filter: brightness(0.95);
+.public-home-sell-banner__sub {
+  color: var(--public-ds-text-tertiary);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.4;
 }
 
-.public-home-pickup-cta__button:active {
-  transform: scale(0.98);
+.public-home-sell-banner__arrow {
+  flex-shrink: 0;
+  color: var(--public-ds-text-tertiary);
+  font-size: 18px;
+  transition: transform 180ms ease;
+}
+
+.public-home-sell-banner__button:hover .public-home-sell-banner__arrow {
+  transform: translateX(3px);
+  color: var(--public-ds-primary);
 }
 
 .public-pickup-page {
@@ -7747,35 +7710,20 @@ img {
 }
 
 @media (min-width: 768px) {
-  .public-home-pickup-cta {
-    padding: 48px 0;
+  .public-home-sell-banner {
+    padding: 24px 0 32px;
   }
 
-  .public-home-pickup-cta__card {
-    border-radius: 16px;
+  .public-home-sell-banner__button {
+    padding: 18px 28px;
   }
 
-  .public-home-pickup-cta__content {
-    padding: 48px;
+  .public-home-sell-banner__label {
+    font-size: 16px;
   }
 
-  .public-home-pickup-cta__title {
-    font-size: 24px;
-  }
-
-  .public-home-pickup-cta__description {
-    font-size: 15px;
-  }
-
-  .public-home-pickup-cta__benefits {
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 24px;
-  }
-
-  .public-home-pickup-cta__button {
-    width: auto;
-    padding: 14px 32px;
+  .public-home-sell-banner__sub {
+    font-size: 14px;
   }
 
   .public-pickup-route {
