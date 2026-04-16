@@ -1185,7 +1185,7 @@ function PublicStorePage() {
       <div className="public-top-area public-store-page__top" ref={pageTopRef}>
         <ContentContainer as="header" className="public-nav public-store-header">
           <Link className="public-brand" to="/">
-            SUBOOK
+            SUBOOK®
           </Link>
 
           {!isMobileViewport ? <div className="public-store-header__search">{renderSearchForm()}</div> : null}
@@ -1213,19 +1213,6 @@ function PublicStorePage() {
           </nav>
         </ContentContainer>
 
-        <ContentContainer className="public-menu" role="tablist" aria-label="상단 메뉴">
-          <Link aria-selected className="public-menu-tab public-menu-tab--active" role="tab" to="/store">
-            스토어          </Link>
-          <button
-            aria-selected={false}
-            className="public-menu-tab"
-            onClick={handlePickupRequest}
-            role="tab"
-            type="button"
-          >
-            판매하기
-          </button>
-        </ContentContainer>
 
         <ContentContainer as="section" className="public-store-discovery">
           <div className="public-store-discovery__header">

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
-import PublicAuthHeader from "../components/PublicAuthHeader";
+import PublicSiteHeader from "../components/PublicSiteHeader";
 import PublicFooter from "../components/PublicFooter";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import {
@@ -962,7 +962,7 @@ function PublicPickupRequestPage() {
   if (isLoading) {
     return (
       <div className="pickup-page">
-        <PublicAuthHeader />
+        <PublicSiteHeader />
         <main className="pickup-route">
           <div className="pickup-shell">
             <div className="pickup-loading">
@@ -992,7 +992,7 @@ function PublicPickupRequestPage() {
   if (submitResult) {
     return (
       <div className="pickup-page">
-        <PublicAuthHeader />
+        <PublicSiteHeader />
         <main className="pickup-route">
           <div className="pickup-shell">
             <PickupSuccess itemCount={items.length} result={submitResult} />
@@ -1005,7 +1005,7 @@ function PublicPickupRequestPage() {
 
   return (
     <div className="pickup-page">
-      <PublicAuthHeader />
+      <PublicSiteHeader />
 
       <main className="pickup-route">
         <div className="pickup-shell">

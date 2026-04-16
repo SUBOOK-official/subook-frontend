@@ -1,9 +1,8 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import searchIconImage from "../assets/search-icon.svg";
-import searchActionImage from "../assets/search-action.svg";
 import ContentContainer from "../components/ContentContainer";
 import PublicFooter from "../components/PublicFooter";
+import PublicSiteHeader from "../components/PublicSiteHeader";
 import PublicPageFrame from "../components/PublicPageFrame";
 import BestBooksSection from "../components/home/BestBooksSection";
 import HeroBanner from "../components/home/HeroBanner";
@@ -100,51 +99,10 @@ function PublicHomePage() {
     await toggleFavorite(productId);
   };
 
-  const handleSearch = (event) => {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    const query = formData.get("q")?.toString().trim();
-
-    if (query) {
-      setSelectedMenu("store");
-      navigate(`/store?q=${encodeURIComponent(query)}`);
-    }
-  };
-
   const pageContent = (
     <div className="public-home-route">
       <div className="public-top-area public-top-area--home">
-        <ContentContainer as="header" className="public-nav public-nav--home-search">
-          <Link className="public-brand" to="/">
-            SUBOOK®
-          </Link>
-
-          <form className="public-nav-search" onSubmit={handleSearch} role="search" aria-label="교재 검색">
-            <img alt="" className="public-nav-search__icon" src={searchIconImage} />
-            <input
-              aria-label="교재 검색"
-              className="public-nav-search__input"
-              name="q"
-              placeholder="교재명, 저자, ISBN으로 검색"
-              type="search"
-            />
-            <button aria-label="검색" className="public-nav-search__submit" type="submit">
-              <img alt="" src={searchActionImage} />
-            </button>
-          </form>
-
-          <nav aria-label="유틸리티 메뉴" className="public-nav-actions">
-            <button className="public-nav-link public-nav-link--cart" onClick={handleGoToCart} type="button">
-              <span>장바구니</span>
-            </button>
-            <Link className="public-nav-link" to="/mypage">
-              마이페이지
-            </Link>
-            <Link className="public-nav-link public-nav-button" to="/login">
-              로그인/회원가입
-            </Link>
-          </nav>
-        </ContentContainer>
+        <PublicSiteHeader onCartClick={handleGoToCart} />
       </div>
 
       <HeroBanner onSlideAction={handleHeroAction} slides={HOME_HERO_SLIDES} />

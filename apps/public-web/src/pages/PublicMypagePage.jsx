@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { formatCurrency } from "@shared-domain/format";
-import PublicAuthHeader from "../components/PublicAuthHeader";
+import PublicSiteHeader from "../components/PublicSiteHeader";
 import ContentContainer from "../components/ContentContainer";
 import ProductCard, { ProductCardSkeleton } from "../components/ProductCard";
 import PublicFooter from "../components/PublicFooter";
@@ -1269,7 +1269,7 @@ function PublicMypagePage() {
       <PublicPageFrame>
         <div className="public-auth-page public-mypage-page">
           <div className="public-auth-page__body">
-            <PublicAuthHeader />
+            <PublicSiteHeader />
             <main className="public-mypage-route">
               <ContentContainer className="public-mypage-shell">
                 <div className="public-mypage-skeleton public-mypage-skeleton--hero" />
@@ -1426,7 +1426,7 @@ function PublicMypagePage() {
       <PublicPageFrame>
         <div className="public-auth-page public-mypage-page">
           <div className="public-auth-page__body">
-            <PublicAuthHeader previewAccount={previewAccount} />
+            <PublicSiteHeader />
 
             <main className="public-mypage-route">
               <ContentContainer className="public-mypage-shell">

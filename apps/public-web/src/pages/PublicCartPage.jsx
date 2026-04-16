@@ -4,6 +4,7 @@ import { formatCurrency } from "@shared-domain/format";
 import ContentContainer from "../components/ContentContainer";
 import PublicFooter from "../components/PublicFooter";
 import PublicPageFrame from "../components/PublicPageFrame";
+import PublicSiteHeader from "../components/PublicSiteHeader";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import {
   FREE_SHIPPING_THRESHOLD,
@@ -245,13 +246,7 @@ function PublicCartPage() {
     <PublicPageFrame>
       <div className="cart-page">
         <div className="public-top-area">
-          <ContentContainer as="header" className="public-nav">
-            <Link className="public-brand" to="/">SUBOOK®</Link>
-            <nav aria-label="유틸리티 메뉴" className="public-nav-actions">
-              <Link className="public-nav-link" to="/store">스토어</Link>
-              <Link className="public-nav-link" to="/mypage">마이페이지</Link>
-            </nav>
-          </ContentContainer>
+          <PublicSiteHeader />
         </div>
 
         <ContentContainer as="section" className="cart-content">

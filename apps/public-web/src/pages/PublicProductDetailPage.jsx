@@ -6,6 +6,7 @@ import ContentContainer from "../components/ContentContainer";
 import ProductCard from "../components/ProductCard";
 import PublicFooter from "../components/PublicFooter";
 import PublicPageFrame from "../components/PublicPageFrame";
+import PublicSiteHeader from "../components/PublicSiteHeader";
 import { usePublicWishlist } from "../contexts/PublicWishlistContext";
 import { addToCart } from "../lib/cart";
 import usePublicMemberGate from "../lib/publicMemberGate";
@@ -560,23 +561,7 @@ function PublicProductDetailPage() {
   const pageContent = (
     <div className="public-store-page public-product-detail-page">
       <div className="public-top-area public-store-page__top">
-        <ContentContainer as="header" className="public-nav">
-          <Link className="public-brand" to="/">
-            SUBOOK®
-          </Link>
-
-          <nav aria-label="유틸리티 메뉴" className="public-nav-actions">
-            <Link className="public-nav-link" to="/store">
-              스토어
-            </Link>
-            <Link className="public-nav-link" to="/cart">
-              장바구니
-            </Link>
-            <Link className="public-nav-link public-nav-button" to="/login">
-              로그인/회원가입
-            </Link>
-          </nav>
-        </ContentContainer>
+        <PublicSiteHeader />
 
         <ContentContainer as="section" className="public-store-route" aria-label="상품 경로">
           <div className="public-store-route__crumbs">

@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import ContentContainer from "../components/ContentContainer";
-import PublicAuthHeader from "../components/PublicAuthHeader";
+import PublicSiteHeader from "../components/PublicSiteHeader";
 import PublicFooter from "../components/PublicFooter";
 import PublicPageFrame from "../components/PublicPageFrame";
 import "./PublicPolicyPage.css";
@@ -62,7 +62,7 @@ function PublicPolicyPage({ type = "privacy" }) {
   return (
     <PublicPageFrame>
       <div className="public-policy-page">
-        <PublicAuthHeader />
+        <PublicSiteHeader />
         <main className="public-policy-route">
           <ContentContainer className="public-policy-shell">
             <nav aria-label="정책 문서" className="public-policy-tabs">
