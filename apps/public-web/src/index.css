@@ -732,7 +732,7 @@ img {
 .public-product-media {
   position: relative;
   width: 342px;
-  aspect-ratio: 3 / 4;
+  aspect-ratio: 1;
   border-radius: 8px;
   background: var(--public-card);
 }
@@ -1252,7 +1252,7 @@ img {
 .public-store-card__media {
   position: relative;
   width: 100%;
-  aspect-ratio: 3 / 4;
+  aspect-ratio: 1;
   border-radius: 8px;
   overflow: hidden;
   background: var(--public-card);
@@ -5740,7 +5740,7 @@ img {
 
 .public-product-card__media {
   position: relative;
-  aspect-ratio: 3 / 4;
+  aspect-ratio: 1;
   border-radius: 8px;
   background: #f3f4f6;
   overflow: hidden;
@@ -6025,7 +6025,7 @@ img {
 }
 
 .public-store-skeleton--media {
-  aspect-ratio: 3 / 4;
+  aspect-ratio: 1;
 }
 
 .public-store-skeleton--tag {
@@ -6980,7 +6980,7 @@ img {
 
 .public-home-best-books__media {
   position: relative;
-  aspect-ratio: 3 / 4;
+  aspect-ratio: 1;
   border: 1px solid var(--public-ds-border);
   border-radius: 12px;
   overflow: hidden;
