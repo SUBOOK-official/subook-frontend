@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   getPublicAuthSessionPersistence,
@@ -20,6 +20,12 @@ function PublicLoginPage() {
   const nextPath = location.state?.from?.pathname
     ? `${location.state.from.pathname}${location.state.from.search ?? ""}${location.state.from.hash ?? ""}`
     : "/";
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate(nextPath, { replace: true });
+    }
+  }, [isAuthenticated, navigate, nextPath]);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -193,11 +199,7 @@ function PublicLoginPage() {
               </p>
             </div>
 
-            {isAuthenticated ? (
-              <div className="public-auth-alert public-auth-alert--info">
-                이미 로그인된 상태입니다. 다른 계정으로 확인하려면 먼저 로그아웃해주세요.
-              </div>
-            ) : hasSession && isAdminAccount ? (
+            {hasSession && isAdminAccount ? (
               <div className="public-auth-alert public-auth-alert--info public-auth-alert--action">
                 <span>관리자 세션이 연결되어 있습니다. 공개 사용자 페이지에는 회원 계정만 로그인할 수 있어요.</span>
                 <button className="public-auth-inline-button" onClick={handleClearSession} type="button">

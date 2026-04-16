@@ -59,6 +59,12 @@ function PublicSignupPage() {
   const navigate = useNavigate();
   const { hasSession, isAdminAccount, isAuthenticated, signOut } = usePublicAuth();
 
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate("/", { replace: true });
+    }
+  }, [isAuthenticated, navigate]);
+
   const [formValues, setFormValues] = useState({
     email: "",
     password: "",
@@ -479,11 +485,7 @@ function PublicSignupPage() {
               </p>
             </div>
 
-            {isAuthenticated ? (
-              <div className="public-auth-alert public-auth-alert--info">
-                이미 로그인된 상태입니다. 다른 계정으로 회원가입하려면 먼저 로그아웃해 주세요.
-              </div>
-            ) : hasSession && isAdminAccount ? (
+            {hasSession && isAdminAccount ? (
               <div className="public-auth-alert public-auth-alert--info public-auth-alert--action">
                 <span>운영자 세션이 연결되어 있습니다. 일반 회원가입은 회원 계정에서만 진행할 수 있습니다.</span>
                 <button className="public-auth-inline-button" onClick={handleClearSession} type="button">
