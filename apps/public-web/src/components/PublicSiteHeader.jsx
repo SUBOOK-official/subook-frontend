@@ -8,6 +8,7 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
   const navigate = useNavigate();
   const [portalNode, setPortalNode] = useState(null);
   const [headerHeight, setHeaderHeight] = useState(72);
+  const [frameScale, setFrameScale] = useState(1);
   const headerRef = useRef(null);
 
   useEffect(() => {
@@ -41,6 +42,45 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
       observer.disconnect();
     };
   }, [portalNode]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return undefined;
+    }
+
+    const syncFrameScale = () => {
+      const frameElement = document.querySelector(".public-home__frame");
+      if (!frameElement) {
+        setFrameScale(1);
+        return;
+      }
+
+      const styleValue = getComputedStyle(frameElement).getPropertyValue("--public-frame-scale").trim();
+      const parsedValue = Number.parseFloat(styleValue);
+      const nextScale = Number.isFinite(parsedValue) && parsedValue > 0 ? parsedValue : 1;
+      setFrameScale(nextScale);
+    };
+
+    syncFrameScale();
+    window.addEventListener("resize", syncFrameScale);
+
+    const observer = typeof MutationObserver !== "undefined"
+      ? new MutationObserver(syncFrameScale)
+      : null;
+    if (observer) {
+      observer.observe(document.body, {
+        attributes: true,
+        attributeFilter: ["style", "class"],
+        subtree: true,
+        childList: true,
+      });
+    }
+
+    return () => {
+      window.removeEventListener("resize", syncFrameScale);
+      observer?.disconnect();
+    };
+  }, []);
 
   const handleSearchSubmit = (event) => {
     event.preventDefault();
@@ -100,13 +140,17 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
     </div>
   );
 
+  // spacer 가 transform: scale 이 적용된 frame 내부에 있을 때, 시각적 높이가
+  // 축소되므로 1/scale 로 보정하여 viewport 기준 헤더 높이와 일치시킴.
+  const spacerHeight = frameScale > 0 ? headerHeight / frameScale : headerHeight;
+
   return (
     <>
       {portalNode ? createPortal(headerNode, portalNode) : null}
       <div
         aria-hidden="true"
         className="public-sticky-header__spacer"
-        style={{ height: headerHeight }}
+        style={{ height: spacerHeight }}
       />
     </>
   );
