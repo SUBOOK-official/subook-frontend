@@ -153,26 +153,21 @@ img {
   z-index: 1000;
   background: #ffffff;
   border-bottom: 1px solid var(--public-border);
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+}
+
+/* Fixed 헤더 안의 nav 는 컴팩트하게 — 64px 가이드라인 */
+.public-sticky-header > .public-nav {
+  min-height: 64px;
+}
+
+.public-sticky-header > .public-nav.public-site-header {
+  flex-wrap: nowrap;
 }
 
 .public-sticky-header__spacer {
-  height: 78px;
   width: 100%;
   flex-shrink: 0;
   pointer-events: none;
-}
-
-@media (max-width: 1129px) {
-  .public-sticky-header__spacer {
-    height: 168px;
-  }
-}
-
-@media (max-width: 600px) {
-  .public-sticky-header__spacer {
-    height: 152px;
-  }
 }
 
 /* ── Home: 메인 스토어 그리드 (4×7 + 페이지네이션) ── */

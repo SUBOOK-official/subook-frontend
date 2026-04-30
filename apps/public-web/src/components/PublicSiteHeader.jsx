@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link, useNavigate } from "react-router-dom";
 import ContentContainer from "./ContentContainer";
@@ -7,6 +7,8 @@ import searchIconImage from "../assets/search-icon.svg";
 function PublicSiteHeader({ onCartClick, searchSlot }) {
   const navigate = useNavigate();
   const [portalNode, setPortalNode] = useState(null);
+  const [headerHeight, setHeaderHeight] = useState(72);
+  const headerRef = useRef(null);
 
   useEffect(() => {
     if (typeof document === "undefined") {
@@ -16,6 +18,29 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
     setPortalNode(document.body);
     return undefined;
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof ResizeObserver === "undefined") {
+      return undefined;
+    }
+
+    const node = headerRef.current;
+    if (!node) {
+      return undefined;
+    }
+
+    const sync = () => {
+      setHeaderHeight(node.getBoundingClientRect().height);
+    };
+
+    sync();
+    const observer = new ResizeObserver(sync);
+    observer.observe(node);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [portalNode]);
 
   const handleSearchSubmit = (event) => {
     event.preventDefault();
@@ -37,7 +62,7 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
   };
 
   const headerNode = (
-    <div className="public-sticky-header">
+    <div className="public-sticky-header" ref={headerRef}>
       <ContentContainer as="header" className="public-nav public-site-header">
         <Link className="public-brand" to="/">
           SUBOOK®
@@ -78,7 +103,11 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
   return (
     <>
       {portalNode ? createPortal(headerNode, portalNode) : null}
-      <div className="public-sticky-header__spacer" aria-hidden="true" />
+      <div
+        aria-hidden="true"
+        className="public-sticky-header__spacer"
+        style={{ height: headerHeight }}
+      />
     </>
   );
 }
