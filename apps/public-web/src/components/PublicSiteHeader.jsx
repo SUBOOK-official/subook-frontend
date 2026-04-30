@@ -88,7 +88,7 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
     const query = formData.get("q")?.toString().trim();
 
     if (query) {
-      navigate(`/store?q=${encodeURIComponent(query)}`);
+      navigate(`/?q=${encodeURIComponent(query)}`);
     }
   };
 

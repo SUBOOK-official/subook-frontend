@@ -14,7 +14,7 @@ function PublicPageFrame({ children }) {
   const [isDesktopLocked, setIsDesktopLocked] = useState(false);
   const desktopFrameRef = useRef(null);
   const shouldReplaceUtilityNav =
-    isAuthenticated && (location.pathname === "/" || location.pathname === "/store");
+    isAuthenticated && location.pathname === "/";
   const mainClassName = [
     "public-home",
     isDesktopLocked ? "public-home--locked" : "",

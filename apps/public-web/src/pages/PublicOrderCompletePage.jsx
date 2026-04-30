@@ -60,7 +60,7 @@ function PublicOrderCompletePage() {
               <Link className="order-complete-card__btn order-complete-card__btn--primary" to="/mypage">
                 주문 내역 확인
               </Link>
-              <Link className="order-complete-card__btn order-complete-card__btn--secondary" to="/store">
+              <Link className="order-complete-card__btn order-complete-card__btn--secondary" to="/">
                 쇼핑 계속하기
               </Link>
             </div>

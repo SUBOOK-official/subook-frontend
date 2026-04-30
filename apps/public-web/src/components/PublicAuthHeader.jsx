@@ -40,9 +40,6 @@ function PublicAuthHeader({ previewAccount = null }) {
             <Link className="public-nav-link" to="/mypage?demo=1">
               마이페이지
             </Link>
-            <Link className="public-nav-link" to="/store">
-              스토어
-            </Link>
             <Link className="public-nav-link public-nav-button public-auth-header__cta" to="/">
               데모 종료
             </Link>
@@ -52,9 +49,6 @@ function PublicAuthHeader({ previewAccount = null }) {
             <span className="public-auth-header__welcome">{displayName}님</span>
             <Link className="public-nav-link" to="/mypage">
               마이페이지
-            </Link>
-            <Link className="public-nav-link" to="/store">
-              스토어
             </Link>
             <button
               className="public-nav-link public-nav-button public-auth-header__cta"

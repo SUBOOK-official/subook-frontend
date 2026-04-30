@@ -26,9 +26,6 @@ function PublicSessionStatus() {
       <Link className="public-nav-link public-nav-link--cart" to="/mypage">
         <span>마이페이지</span>
       </Link>
-      <Link className="public-nav-link public-nav-link--cart" to="/store">
-        <span>스토어</span>
-      </Link>
       <Link className="public-nav-link public-nav-link--cart" to="/cart">
         <span>장바구니</span>
       </Link>

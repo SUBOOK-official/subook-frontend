@@ -267,7 +267,7 @@ function PublicCartPage() {
               </div>
               <p className="cart-empty__text">장바구니가 비어있습니다</p>
               <p className="cart-empty__hint">마음에 드는 교재를 담아보세요</p>
-              <Link className="cart-empty__link" to="/store">스토어 둘러보기</Link>
+              <Link className="cart-empty__link" to="/">스토어 둘러보기</Link>
             </div>
           ) : (
             <div className="cart-layout">

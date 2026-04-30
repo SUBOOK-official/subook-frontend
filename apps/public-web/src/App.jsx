@@ -14,7 +14,6 @@ const PublicProductDetailPage = lazy(() => import("./pages/PublicProductDetailPa
 const PublicResetPasswordPage = lazy(() => import("./pages/PublicResetPasswordPage"));
 const PublicSignupPage = lazy(() => import("./pages/PublicSignupPage"));
 const PublicSignupSuccessPage = lazy(() => import("./pages/PublicSignupSuccessPage"));
-const PublicStorePage = lazy(() => import("./pages/PublicStorePage"));
 
 function PageLoadingFallback() {
   return (
@@ -41,7 +40,7 @@ function App() {
         <Route element={<PublicProductDetailPage />} path="/store/:productId" />
         <Route element={<PublicSignupPage />} path="/signup" />
         <Route element={<PublicSignupSuccessPage />} path="/signup-success" />
-        <Route element={<PublicStorePage />} path="/store" />
+        <Route element={<Navigate replace to="/" />} path="/store" />
         <Route element={<PublicPolicyPage type="terms" />} path="/terms" />
         <Route element={<Navigate replace to="/" />} path="*" />
       </Routes>

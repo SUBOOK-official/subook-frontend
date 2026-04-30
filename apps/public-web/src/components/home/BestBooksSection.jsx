@@ -61,7 +61,7 @@ function BestBooksSection({ favoriteIds, onStoreEnter, onToggleFavorite }) {
       favoriteIds={favoriteIds}
       hasFatalError={hasFatalError}
       isLoading={isLoading}
-      linkHref="/store?sort=popular"
+      linkHref="/?sort=popular"
       onLinkClick={onStoreEnter}
       onToggleFavorite={onToggleFavorite}
       products={products}

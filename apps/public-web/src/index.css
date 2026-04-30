@@ -162,38 +162,183 @@ img {
   pointer-events: none;
 }
 
-/* ── Home: 메인 스토어 그리드 (4×7 + 페이지네이션) ── */
+/* ── Home: 메인 스토어 그리드 (탭+필터+검색+4×7+페이지네이션) ── */
 .public-home-store-grid {
   padding: 24px 0 64px;
   background: #ffffff;
 }
 
-.public-home-store-grid__header {
+/* 과목 탭 */
+.public-home-store-grid__tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--public-border);
+  margin-bottom: 16px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.public-home-store-grid__tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.public-home-store-grid__tab {
+  flex: 0 0 auto;
+  background: transparent;
+  border: 0;
+  padding: 12px 18px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--public-text-muted, #64748b);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  white-space: nowrap;
+}
+
+.public-home-store-grid__tab:hover {
+  color: var(--public-text);
+}
+
+.public-home-store-grid__tab.is-active {
+  color: var(--public-primary, #1B3A5C);
+  border-bottom-color: var(--public-primary, #1B3A5C);
+  font-weight: 800;
+}
+
+/* 필터 chips 영역 */
+.public-home-store-grid__filters {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--public-bg-soft);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+
+.public-home-store-grid__filter-row {
+  display: grid;
+  grid-template-columns: 60px 1fr;
+  align-items: center;
+  gap: 12px;
+}
+
+.public-home-store-grid__filter-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--public-text);
+}
+
+.public-home-store-grid__filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.public-home-store-grid__chip {
+  padding: 5px 12px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--public-text-muted, #64748b);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.public-home-store-grid__chip:hover {
+  color: var(--public-text);
+}
+
+.public-home-store-grid__chip.is-active {
+  background: var(--public-primary, #1B3A5C);
+  color: #ffffff;
+}
+
+/* 툴바 */
+.public-home-store-grid__toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  margin-bottom: 16px;
   flex-wrap: wrap;
-  margin-bottom: 24px;
 }
 
-.public-home-store-grid__title-row {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
+.public-home-store-grid__toolbar-left {
+  position: relative;
+  flex: 1 1 280px;
+  min-width: 240px;
+  max-width: 420px;
 }
 
-.public-home-store-grid__title {
-  font-size: 22px;
-  font-weight: 800;
-  color: var(--public-text);
-  margin: 0;
+.public-home-store-grid__search-input {
+  width: 100%;
+  border: 1px solid var(--public-border);
+  border-radius: 8px;
+  padding: 10px 36px 10px 14px;
+  font-size: 14px;
+  background: #ffffff;
+}
+
+.public-home-store-grid__search-input:focus {
+  outline: 2px solid var(--public-primary, #1B3A5C);
+  outline-offset: -1px;
+}
+
+.public-home-store-grid__search-clear {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: 0;
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+  font-size: 16px;
+  color: var(--public-text-muted, #64748b);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.public-home-store-grid__toolbar-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
 }
 
 .public-home-store-grid__count {
   font-size: 14px;
   color: var(--public-text-muted, #64748b);
   font-weight: 600;
+}
+
+.public-home-store-grid__active-filters {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  font-size: 13px;
+}
+
+.public-home-store-grid__active-label {
+  color: var(--public-text);
+  font-weight: 700;
+}
+
+.public-home-store-grid__reset {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--public-primary, #1B3A5C);
+  cursor: pointer;
+  text-decoration: underline;
 }
 
 .public-home-store-grid__sort-wrap {

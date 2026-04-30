@@ -2050,7 +2050,7 @@ function PurchasesTab({
     return (
       <MypageEmptyState
         actionLabel="교재 둘러보기"
-        actionTo="/store"
+        actionTo="/"
         description="마음에 드는 교재를 구매해보세요!"
         icon="🛒"
         title="아직 구매 내역이 없어요"
@@ -2289,7 +2289,7 @@ function WishlistTab({ isLoading, onToggleFavorite, wishlistError, wishlistProdu
       <section className="public-mypage-section">
         <MypageSectionHeader
           action={
-            <Link className="public-mypage-inline-button" to="/store">
+            <Link className="public-mypage-inline-button" to="/">
               스토어 보기
             </Link>
           }
@@ -2324,7 +2324,7 @@ function WishlistTab({ isLoading, onToggleFavorite, wishlistError, wishlistProdu
         ) : (
           <MypageEmptyState
             actionLabel="스토어 둘러보기"
-            actionTo="/store"
+            actionTo="/"
             description="마음에 드는 교재를 찜해두면 마이페이지에서 다시 빠르게 확인할 수 있어요."
             icon="♥"
             title="아직 찜한 교재가 없어요"
@@ -2570,7 +2570,7 @@ function SettingsTab({
       <section className="public-mypage-section">
         <MypageSectionHeader
           action={
-            <Link className="public-mypage-inline-button" to="/store">
+            <Link className="public-mypage-inline-button" to="/">
               스토어 보기
             </Link>
           }
@@ -2605,7 +2605,7 @@ function SettingsTab({
         ) : (
           <MypageEmptyState
             actionLabel="스토어 둘러보기"
-            actionTo="/store"
+            actionTo="/"
             description="마음에 드는 교재를 찜해두면 설정 탭에서 다시 빠르게 확인할 수 있어요."
             icon="♡"
             title="아직 찜한 교재가 없어요"

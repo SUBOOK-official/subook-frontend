@@ -586,6 +586,104 @@ const MOCK_PRODUCT_FIXTURES = [
   },
 ];
 
+// 페이지네이션/필터 검증용 추가 mock 교재 (간소화된 단일 옵션 구조)
+const ADDITIONAL_MOCK_FIXTURE_INPUTS = [
+  // 수학 (시대인재 / 강남대성 / 대성마이맥 / 이투스)
+  { title: "2026 시대인재 수학 N제 미적분 시즌2", subject: "수학", brand: "시대인재", bookType: "N제", year: 2026, instructor: "현우진", grade: "S", price: 17500, original: 32000 },
+  { title: "2026 시대인재 수학 기출의 본질 확률과 통계", subject: "수학", brand: "시대인재", bookType: "기출", year: 2026, instructor: "정승제", grade: "A_PLUS", price: 13900, original: 28000 },
+  { title: "2026 강남대성 수학 모의고사 시즌2", subject: "수학", brand: "강남대성", bookType: "모의고사", year: 2026, instructor: "한석원", grade: "S", price: 16500, original: 29000 },
+  { title: "2025 대성마이맥 수학 N제 기하", subject: "수학", brand: "대성마이맥", bookType: "N제", year: 2025, instructor: "김범준", grade: "A_PLUS", price: 11900, original: 26000 },
+  { title: "2026 이투스 수학 EBS 수능특강 분석", subject: "수학", brand: "이투스", bookType: "EBS", year: 2026, instructor: "정상모", grade: "S", price: 14800, original: 25000 },
+  { title: "2025 EBS 수능완성 수학 미적분", subject: "수학", brand: "EBS", bookType: "EBS", year: 2025, instructor: "EBS", grade: "A", price: 7500, original: 16500 },
+  { title: "2024 시대인재 수학 자이스토리 미적분", subject: "수학", brand: "시대인재", bookType: "기출", year: 2024, instructor: "현우진", grade: "A_PLUS", price: 10900, original: 24000 },
+  // 국어 (시대인재 / 강남대성 / 이투스 / EBS)
+  { title: "2026 시대인재 국어 강기분 문학", subject: "국어", brand: "시대인재", bookType: "기출", year: 2026, instructor: "강민철", grade: "S", price: 15800, original: 28000 },
+  { title: "2026 시대인재 국어 화작/언매 N제", subject: "국어", brand: "시대인재", bookType: "N제", year: 2026, instructor: "강민철", grade: "A_PLUS", price: 12300, original: 25000 },
+  { title: "2026 강남대성 국어 모의고사 시즌1", subject: "국어", brand: "강남대성", bookType: "모의고사", year: 2026, instructor: "유대종", grade: "S", price: 14500, original: 26000 },
+  { title: "2025 이투스 국어 매3비 비문학", subject: "국어", brand: "이투스", bookType: "주간지", year: 2025, instructor: "박광일", grade: "A_PLUS", price: 9900, original: 19000 },
+  { title: "2025 EBS 수능특강 국어 독서", subject: "국어", brand: "EBS", bookType: "EBS", year: 2025, instructor: "EBS", grade: "A", price: 6900, original: 15000 },
+  { title: "2024 강남대성 국어 기출의 본질 문법", subject: "국어", brand: "강남대성", bookType: "기출", year: 2024, instructor: "유대종", grade: "A", price: 8200, original: 22000 },
+  // 영어 (시대인재 / 대성 / 이투스 / EBS)
+  { title: "2026 시대인재 영어 N제 빈칸추론", subject: "영어", brand: "시대인재", bookType: "N제", year: 2026, instructor: "션티", grade: "S", price: 16200, original: 30000 },
+  { title: "2026 시대인재 영어 모의고사 시즌1", subject: "영어", brand: "시대인재", bookType: "모의고사", year: 2026, instructor: "션티", grade: "A_PLUS", price: 13800, original: 27000 },
+  { title: "2026 대성마이맥 영어 듣기 모의고사", subject: "영어", brand: "대성마이맥", bookType: "모의고사", year: 2026, instructor: "조정식", grade: "S", price: 12500, original: 22000 },
+  { title: "2025 이투스 영어 어법어휘 천일문 핵심", subject: "영어", brand: "이투스", bookType: "기출", year: 2025, instructor: "조정식", grade: "A_PLUS", price: 10800, original: 23000 },
+  { title: "2025 EBS 수능특강 영어 독해연습", subject: "영어", brand: "EBS", bookType: "EBS", year: 2025, instructor: "EBS", grade: "A", price: 7200, original: 16000 },
+  { title: "2024 시대인재 영어 빈칸 80제", subject: "영어", brand: "시대인재", bookType: "N제", year: 2024, instructor: "션티", grade: "A", price: 9100, original: 22000 },
+  // 과학 (시대인재 / 대성 / 이투스)
+  { title: "2026 시대인재 물리학1 시그니처 N제", subject: "과학", brand: "시대인재", bookType: "N제", year: 2026, instructor: "방인혁", grade: "S", price: 17900, original: 31000 },
+  { title: "2026 시대인재 화학1 킬러 N제", subject: "과학", brand: "시대인재", bookType: "N제", year: 2026, instructor: "고석용", grade: "A_PLUS", price: 14600, original: 28000 },
+  { title: "2026 대성마이맥 지구과학1 모의고사", subject: "과학", brand: "대성마이맥", bookType: "모의고사", year: 2026, instructor: "오지훈", grade: "S", price: 15300, original: 27000 },
+  { title: "2025 이투스 생명과학1 자이스토리", subject: "과학", brand: "이투스", bookType: "기출", year: 2025, instructor: "백호", grade: "A_PLUS", price: 11700, original: 24000 },
+  { title: "2025 EBS 수능특강 화학2", subject: "과학", brand: "EBS", bookType: "EBS", year: 2025, instructor: "EBS", grade: "A", price: 7400, original: 17000 },
+  { title: "2024 시대인재 물리학1 모의고사 시즌3", subject: "과학", brand: "시대인재", bookType: "모의고사", year: 2024, instructor: "방인혁", grade: "A", price: 9800, original: 23000 },
+  // 사회 (대성 / 이투스 / EBS)
+  { title: "2026 강남대성 사회문화 시즌1", subject: "사회", brand: "강남대성", bookType: "모의고사", year: 2026, instructor: "이지영", grade: "S", price: 14200, original: 25000 },
+  { title: "2026 대성마이맥 생활과 윤리 N제", subject: "사회", brand: "대성마이맥", bookType: "N제", year: 2026, instructor: "최적", grade: "A_PLUS", price: 11400, original: 23000 },
+  { title: "2025 이투스 한국지리 기출의 본질", subject: "사회", brand: "이투스", bookType: "기출", year: 2025, instructor: "이기상", grade: "S", price: 12900, original: 24000 },
+  { title: "2025 EBS 수능특강 정치와 법", subject: "사회", brand: "EBS", bookType: "EBS", year: 2025, instructor: "EBS", grade: "A_PLUS", price: 8700, original: 18000 },
+  { title: "2024 강남대성 세계지리 모의고사", subject: "사회", brand: "강남대성", bookType: "모의고사", year: 2024, instructor: "권용기", grade: "A", price: 7900, original: 21000 },
+  // 한국사 (강남대성 / 이투스 / EBS)
+  { title: "2026 강남대성 한국사 모의고사", subject: "한국사", brand: "강남대성", bookType: "모의고사", year: 2026, instructor: "고종훈", grade: "S", price: 11500, original: 21000 },
+  { title: "2025 이투스 한국사 기출 압축", subject: "한국사", brand: "이투스", bookType: "기출", year: 2025, instructor: "고종훈", grade: "A_PLUS", price: 8900, original: 19000 },
+  { title: "2025 EBS 한국사 수능특강", subject: "한국사", brand: "EBS", bookType: "EBS", year: 2025, instructor: "EBS", grade: "A", price: 5900, original: 14000 },
+  { title: "2024 강남대성 한국사 자이스토리", subject: "한국사", brand: "강남대성", bookType: "기출", year: 2024, instructor: "최태성", grade: "A", price: 6800, original: 16000 },
+  // 내신/주간지/기타 다양화
+  { title: "2026 시대인재 내신 영어 고2 모의고사", subject: "영어", brand: "시대인재", bookType: "내신", year: 2026, instructor: "션티", grade: "S", price: 13800, original: 24000 },
+  { title: "2026 강남대성 내신 수학 고1 기말", subject: "수학", brand: "강남대성", bookType: "내신", year: 2026, instructor: "한석원", grade: "A_PLUS", price: 10900, original: 22000 },
+  { title: "2026 대성마이맥 주간지 국어 4월호", subject: "국어", brand: "대성마이맥", bookType: "주간지", year: 2026, instructor: "유대종", grade: "S", price: 8500, original: 16000 },
+  { title: "2026 이투스 주간지 영어 3월호", subject: "영어", brand: "이투스", bookType: "주간지", year: 2026, instructor: "조정식", grade: "A_PLUS", price: 7900, original: 15000 },
+  { title: "2025 시대인재 주간지 수학 12월호", subject: "수학", brand: "시대인재", bookType: "주간지", year: 2025, instructor: "현우진", grade: "A_PLUS", price: 7200, original: 14000 },
+  { title: "2025 EBS 만점마무리 모의고사 영어", subject: "영어", brand: "EBS", bookType: "모의고사", year: 2025, instructor: "EBS", grade: "S", price: 9200, original: 18000 },
+  { title: "2024 시대인재 화학1 자이스토리", subject: "과학", brand: "시대인재", bookType: "기출", year: 2024, instructor: "고석용", grade: "A", price: 8400, original: 20000 },
+  { title: "2024 대성마이맥 미적분 N제 시즌1", subject: "수학", brand: "대성마이맥", bookType: "N제", year: 2024, instructor: "김범준", grade: "A", price: 9100, original: 22000 },
+];
+
+function buildSimpleMockFixture(input, index) {
+  const id = `mock-book-${String(19 + index).padStart(2, "0")}`;
+  // 인기도/조회수/찜수: 인덱스 기반 sintheticquasi-distribution
+  const salesCount = Math.max(1, 50 - Math.floor(index / 2));
+  const viewCount = 800 - index * 12;
+  const favoriteCount = 180 - index * 3;
+  // 입고일 분산 (며칠 간격)
+  const baseDate = new Date("2026-04-25T09:00:00+09:00");
+  baseDate.setDate(baseDate.getDate() - index);
+  const createdAt = baseDate.toISOString();
+  const writing = input.grade === "S" ? 4 + (index % 3) : input.grade === "A_PLUS" ? 12 + (index % 6) : 22 + (index % 8);
+  const conditionLabel = input.grade === "S" ? "거의 새 책 같아요." : input.grade === "A_PLUS" ? "필기 약간 있고 사용감은 적어요." : "필기/체크가 있지만 학습에는 무리 없습니다.";
+
+  return {
+    id,
+    title: input.title,
+    subject: input.subject,
+    brand: input.brand,
+    bookType: input.bookType,
+    publishedYear: input.year,
+    instructorName: input.instructor,
+    salesCount,
+    viewCount,
+    favoriteCount,
+    createdAt,
+    options: [
+      {
+        suffix: input.grade === "S" ? "s" : input.grade === "A_PLUS" ? "aplus" : "a",
+        conditionGrade: input.grade,
+        price: input.price,
+        originalPrice: input.original,
+        availableCount: 1 + (index % 5),
+        writingPercentage: writing,
+        hasDamage: false,
+        inspectionNotes: conditionLabel,
+        inspectedAt: createdAt,
+      },
+    ],
+  };
+}
+
+ADDITIONAL_MOCK_FIXTURE_INPUTS.forEach((input, index) => {
+  MOCK_PRODUCT_FIXTURES.push(buildSimpleMockFixture(input, index));
+});
+
 function normalizeMockBoolean(value, fallback = false) {
   return typeof value === "boolean" ? value : fallback;
 }

@@ -23,7 +23,7 @@ const HOME_HERO_SLIDES = [
     ctaLabel: "교재 둘러보기",
     ctaTextColor: "#1B3A5C",
     gradient: "135deg, #1B3A5C 0%, #2563EB 50%, #3B82F6 100%",
-    href: "/store",
+    href: "/",
   },
   {
     id: "pickup-request",
@@ -46,7 +46,7 @@ const HOME_HERO_SLIDES = [
     ctaLabel: "지금 보러가기",
     ctaTextColor: "#4C1D95",
     gradient: "135deg, #4C1D95 0%, #7C3AED 50%, #8B5CF6 100%",
-    href: "/store?brand=시대인재",
+    href: "/?brand=시대인재",
   },
 ];
 

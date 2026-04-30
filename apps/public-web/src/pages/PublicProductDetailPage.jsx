@@ -391,7 +391,7 @@ function PublicProductDetailPage() {
       <div className="public-top-area public-store-page__top">
         <ContentContainer as="section" className="public-store-route" aria-label="상품 경로">
           <div className="public-store-route__crumbs">
-            <Link className="public-store-route__crumb-link" to="/store">
+            <Link className="public-store-route__crumb-link" to="/">
               스토어
             </Link>
             <span aria-hidden="true">›</span>
@@ -682,7 +682,7 @@ function PublicProductDetailPage() {
                     <p className="public-detail-panel__eyebrow">추천 교재</p>
                     <h2 className="public-detail-related-header__title">비슷한 교재 추천</h2>
                   </div>
-                  <Link className="public-outline-button" to="/store">
+                  <Link className="public-outline-button" to="/">
                     스토어 전체보기
                   </Link>
                 </div>
