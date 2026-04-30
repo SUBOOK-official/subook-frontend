@@ -153,15 +153,7 @@ img {
   z-index: 1000;
   background: #ffffff;
   border-bottom: 1px solid var(--public-border);
-}
-
-/* Fixed 헤더 안의 nav 는 컴팩트하게 — 64px 가이드라인 */
-.public-sticky-header > .public-nav {
-  min-height: 64px;
-}
-
-.public-sticky-header > .public-nav.public-site-header {
-  flex-wrap: nowrap;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
 }
 
 .public-sticky-header__spacer {

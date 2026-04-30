@@ -6,7 +6,6 @@ import BestBooksSection from "../components/home/BestBooksSection";
 import HeroBanner from "../components/home/HeroBanner";
 import HomeStoreGrid from "../components/home/HomeStoreGrid";
 import PickupCTA from "../components/home/PickupCTA";
-import SubjectGrid from "../components/home/SubjectGrid";
 import usePublicMemberGate from "../lib/publicMemberGate";
 import { usePublicWishlist } from "../contexts/PublicWishlistContext";
 
@@ -96,7 +95,6 @@ function PublicHomePage() {
       <PublicSiteHeader onCartClick={handleGoToCart} />
 
       <HeroBanner onSlideAction={handleHeroAction} slides={HOME_HERO_SLIDES} />
-      <SubjectGrid />
       <BestBooksSection
         favoriteIds={favoriteIds}
         onToggleFavorite={handleToggleFavorite}
