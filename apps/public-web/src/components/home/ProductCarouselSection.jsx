@@ -6,7 +6,7 @@ import ProductCard, { ProductCardSkeleton } from "../ProductCard";
 
 const MOBILE_BREAKPOINT_PX = 767;
 const MOBILE_SKELETON_CARD_COUNT = 4;
-const DESKTOP_SKELETON_CARD_COUNT = 8;
+const DESKTOP_SKELETON_CARD_COUNT = 12;
 
 function getRankTone(rank) {
   if (rank === 1) {

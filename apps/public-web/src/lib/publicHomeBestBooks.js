@@ -5,8 +5,8 @@ import {
   normalizeHomeBestBooks,
 } from "./publicHomeBestBooksUtils";
 
-const HOME_BEST_BOOKS_CACHE_KEY = "subook.public.home.best-books.v1";
-const HOME_BEST_BOOK_LIMIT = 8;
+const HOME_BEST_BOOKS_CACHE_KEY = "subook.public.home.best-books.v2";
+const HOME_BEST_BOOK_LIMIT = 12;
 
 function hasWindowStorage() {
   return typeof window !== "undefined" && window.localStorage;

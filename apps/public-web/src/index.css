@@ -7608,18 +7608,19 @@ img {
   }
 
   .public-home-best-books__rail {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 20px 16px;
-    overflow: visible;
-    scroll-snap-type: none;
-    margin: 0;
-    padding: 0;
+    /* 가로 스크롤 유지 — 한 줄 12개 노출, 옆으로 넘겨보기 */
+    display: flex;
+    gap: 16px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    margin: 0 -24px;
+    padding: 4px 24px 12px;
   }
 
   .public-home-best-books__card {
-    min-width: 0;
-    flex-basis: auto;
+    flex: 0 0 200px;
+    min-width: 200px;
+    scroll-snap-align: start;
   }
 }
 
@@ -7642,8 +7643,9 @@ img {
     min-height: 100px;
   }
 
-  .public-home-best-books__rail {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+  .public-home-best-books__card {
+    flex: 0 0 220px;
+    min-width: 220px;
   }
 }
 
