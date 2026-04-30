@@ -380,7 +380,12 @@ function StepAddress({ address, setAddress, savedAddresses, onPrev, onNext, show
   const startNewAddress = () => {
     setSelectedSavedId(null);
     setUseNewAddress(true);
-    setAddress({ recipient_name: "", recipient_phone: "", postal_code: "", address_line1: "", address_line2: "", memo: "" });
+    setAddress({
+      recipient_name: "", recipient_phone: "", postal_code: "",
+      address_line1: "", address_line2: "", memo: "",
+      email: "", entrance_password: "", desired_pickup_date: "",
+      expected_book_count: "", box_count: "",
+    });
   };
 
   const openDaumPostcode = async () => {
@@ -530,6 +535,75 @@ function StepAddress({ address, setAddress, savedAddresses, onPrev, onNext, show
           </div>
         </div>
       )}
+
+      {/* 이메일 / 공동현관 비밀번호 */}
+      <div className="pickup-form-row">
+        <div className="pickup-form-field">
+          <label className="pickup-field-label">이메일 주소</label>
+          <input
+            className="pickup-input"
+            onChange={(e) => setAddress((p) => ({ ...p, email: e.target.value }))}
+            placeholder="example@subook.kr"
+            type="email"
+            value={address.email}
+          />
+        </div>
+        <div className="pickup-form-field">
+          <label className="pickup-field-label">공동현관 비밀번호 (선택)</label>
+          <input
+            className="pickup-input"
+            onChange={(e) => setAddress((p) => ({ ...p, entrance_password: e.target.value }))}
+            placeholder="예: #1234*"
+            value={address.entrance_password}
+          />
+        </div>
+      </div>
+
+      {/* 희망 수거일 */}
+      <div className="pickup-form-field">
+        <label className="pickup-field-label">희망 수거일</label>
+        <input
+          className="pickup-input"
+          min={new Date().toISOString().split("T")[0]}
+          onChange={(e) => setAddress((p) => ({ ...p, desired_pickup_date: e.target.value }))}
+          type="date"
+          value={address.desired_pickup_date}
+        />
+      </div>
+
+      {/* 예상권수 / 박스개수 */}
+      <div className="pickup-form-row">
+        <div className="pickup-form-field">
+          <label className="pickup-field-label">예상 권수</label>
+          <input
+            className="pickup-input"
+            inputMode="numeric"
+            min="1"
+            onChange={(e) => {
+              const digits = e.target.value.replace(/\D/g, "").slice(0, 4);
+              setAddress((p) => ({ ...p, expected_book_count: digits }));
+            }}
+            placeholder="예: 25"
+            type="text"
+            value={address.expected_book_count}
+          />
+        </div>
+        <div className="pickup-form-field">
+          <label className="pickup-field-label">박스 개수</label>
+          <input
+            className="pickup-input"
+            inputMode="numeric"
+            min="1"
+            onChange={(e) => {
+              const digits = e.target.value.replace(/\D/g, "").slice(0, 3);
+              setAddress((p) => ({ ...p, box_count: digits }));
+            }}
+            placeholder="예: 2"
+            type="text"
+            value={address.box_count}
+          />
+        </div>
+      </div>
 
       {/* 수거 요청사항 */}
       <div className="pickup-form-field">
@@ -881,6 +955,8 @@ function PublicPickupRequestPage() {
   const [address, setAddress] = useState({
     recipient_name: "", recipient_phone: "", postal_code: "",
     address_line1: "", address_line2: "", memo: "",
+    email: "", entrance_password: "", desired_pickup_date: "",
+    expected_book_count: "", box_count: "",
   });
   const [account, setAccount] = useState({ account_id: null, bank_name: "", account_number: "", account_number_last4: "", account_holder: "" });
   const [policyAgreed, setPolicyAgreed] = useState(false);

@@ -1,12 +1,10 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import ContentContainer from "../components/ContentContainer";
+import { useNavigate } from "react-router-dom";
 import PublicFooter from "../components/PublicFooter";
 import PublicSiteHeader from "../components/PublicSiteHeader";
 import PublicPageFrame from "../components/PublicPageFrame";
 import BestBooksSection from "../components/home/BestBooksSection";
 import HeroBanner from "../components/home/HeroBanner";
-import LatestArrivalsSection from "../components/home/LatestArrivalsSection";
+import HomeStoreGrid from "../components/home/HomeStoreGrid";
 import PickupCTA from "../components/home/PickupCTA";
 import SubjectGrid from "../components/home/SubjectGrid";
 import usePublicMemberGate from "../lib/publicMemberGate";
@@ -29,17 +27,17 @@ const HOME_HERO_SLIDES = [
     href: "/store",
   },
   {
-    id: "quality-guarantee",
-    eyebrow: "QUALITY FIRST",
-    titleLines: ["4단계 전문 검수,", "믿고 구매하세요"],
+    id: "pickup-request",
+    eyebrow: "SELL YOUR BOOKS",
+    titleLines: ["집에 쌓인 교재를", "합리적인 정산금으로!"],
     descriptionLines: [
-      "S · A+ · A 등급별 상태 투명 공개",
-      "기대와 다르면 100% 환불 보장",
+      "수거부터 검수, 판매, 정산까지 한 번에",
+      "지금 바로 판매 신청하세요",
     ],
-    ctaLabel: "검수 기준 보기",
-    ctaTextColor: "#1E3A5F",
-    gradient: "135deg, #0F172A 0%, #1E3A5F 50%, #334155 100%",
-    href: "/store",
+    ctaLabel: "판매 신청하기",
+    ctaTextColor: "#9F1239",
+    gradient: "135deg, #BE123C 0%, #E11D48 50%, #F43F5E 100%",
+    actionType: "pickup",
   },
   {
     id: "new-arrival",
@@ -57,7 +55,6 @@ function PublicHomePage() {
   const navigate = useNavigate();
   const { requireMember, memberGateDialog } = usePublicMemberGate();
   const { favoriteIds, toggleFavorite } = usePublicWishlist();
-  const [selectedMenu, setSelectedMenu] = useState(null);
 
   const handleGoToCart = () => {
     if (!requireMember("cart", "/cart")) {
@@ -72,7 +69,6 @@ function PublicHomePage() {
       return;
     }
 
-    setSelectedMenu("sell");
     navigate(PICKUP_REQUEST_PATH);
   };
 
@@ -80,10 +76,6 @@ function PublicHomePage() {
     if (slide.actionType === "pickup") {
       handlePickupRequest();
       return;
-    }
-
-    if (slide.href?.startsWith("/store")) {
-      setSelectedMenu("store");
     }
 
     if (slide.href) {
@@ -109,14 +101,9 @@ function PublicHomePage() {
       <SubjectGrid />
       <BestBooksSection
         favoriteIds={favoriteIds}
-        onStoreEnter={() => setSelectedMenu("store")}
         onToggleFavorite={handleToggleFavorite}
       />
-      <LatestArrivalsSection
-        favoriteIds={favoriteIds}
-        onStoreEnter={() => setSelectedMenu("store")}
-        onToggleFavorite={handleToggleFavorite}
-      />
+      <HomeStoreGrid favoriteIds={favoriteIds} onToggleFavorite={handleToggleFavorite} />
       <PickupCTA onRequestPickup={handlePickupRequest} />
 
       <PublicFooter />

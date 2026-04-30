@@ -99,6 +99,9 @@ async function submitPickupRequest({
     is_manual_entry: Boolean(item.is_manual_entry),
   }));
 
+  const expectedBookCount = Number.parseInt(pickupAddress.expected_book_count, 10);
+  const boxCount = Number.parseInt(pickupAddress.box_count, 10);
+
   const { data, error } = await supabase.rpc("submit_pickup_request", {
     p_pickup_recipient_name: pickupAddress.recipient_name,
     p_pickup_recipient_phone: pickupAddress.recipient_phone,
@@ -111,6 +114,11 @@ async function submitPickupRequest({
     p_settlement_account_holder: settlementAccount.account_holder,
     p_settlement_account_id: settlementAccount.account_id ?? settlementAccount.id ?? null,
     p_items: itemsPayload,
+    p_pickup_email: pickupAddress.email || null,
+    p_pickup_entrance_password: pickupAddress.entrance_password || null,
+    p_desired_pickup_date: pickupAddress.desired_pickup_date || null,
+    p_expected_book_count: Number.isFinite(expectedBookCount) ? expectedBookCount : null,
+    p_box_count: Number.isFinite(boxCount) ? boxCount : null,
   });
 
   if (error) {

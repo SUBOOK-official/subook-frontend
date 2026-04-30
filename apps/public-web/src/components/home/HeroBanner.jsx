@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import ContentContainer from "../ContentContainer";
 
-const AUTO_ROTATION_MS = 5000;
+const AUTO_ROTATION_MS = 3000;
 const INTERACTION_PAUSE_MS = 10000;
 const SWIPE_THRESHOLD_PX = 50;
 

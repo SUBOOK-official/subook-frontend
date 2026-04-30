@@ -218,18 +218,18 @@
 
 .public-detail-price-card {
   border-radius: 16px;
-  border: 1px solid var(--public-ds-border);
+  border: 2px solid var(--public-primary, #1B3A5C);
   background: var(--public-ds-card);
-  padding: 20px;
-  box-shadow: var(--public-ds-shadow);
+  padding: 24px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
 }
 
 .public-detail-price-card__eyebrow {
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 800;
   letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: var(--public-ds-text-muted);
+  color: var(--public-primary, #1B3A5C);
   margin: 0;
 }
 
@@ -242,11 +242,11 @@
 }
 
 .public-detail-price-card__amount {
-  font-size: 28px;
+  font-size: 40px;
   font-weight: 900;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
   line-height: 1;
-  color: var(--public-ds-text);
+  color: #DC2626;
 }
 
 .public-detail-price-card__discount-badge {
@@ -688,6 +688,30 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   margin-top: 16px;
+}
+
+.public-detail-related-rail {
+  display: flex;
+  gap: 16px;
+  margin-top: 16px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  padding: 4px 4px 16px;
+}
+
+.public-detail-related-rail::-webkit-scrollbar {
+  height: 8px;
+}
+
+.public-detail-related-rail::-webkit-scrollbar-thumb {
+  background: rgba(15, 23, 42, 0.2);
+  border-radius: 4px;
+}
+
+.public-detail-related-rail__item {
+  flex: 0 0 220px;
+  scroll-snap-align: start;
 }
 
 .public-detail-related-empty {

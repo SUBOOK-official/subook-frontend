@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { formatCurrency } from "@shared-domain/format";
 import ContentContainer from "../components/ContentContainer";
 import PublicFooter from "../components/PublicFooter";

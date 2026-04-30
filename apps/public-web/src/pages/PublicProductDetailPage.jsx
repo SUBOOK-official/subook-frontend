@@ -11,11 +11,6 @@ import { usePublicWishlist } from "../contexts/PublicWishlistContext";
 import { addToCart } from "../lib/cart";
 import usePublicMemberGate from "../lib/publicMemberGate";
 import {
-  REVIEW_RATING_LABELS,
-  REVIEW_SORT_OPTIONS,
-  fetchProductReviews,
-} from "../lib/publicReviews";
-import {
   fetchStorefrontProductDetail,
   fetchStorefrontProducts,
   sortStorefrontProducts,
@@ -167,120 +162,6 @@ function QuantityStepper({ value, maxQuantity, disabled, onDecrease, onIncrease 
   );
 }
 
-function ReviewStars({ rating, size = "md" }) {
-  const roundedRating = Math.max(0, Math.min(5, Number(rating) || 0));
-
-  return (
-    <div className={`public-detail-review-stars public-detail-review-stars--${size}`} aria-label={`별점 ${roundedRating}점`}>
-      {[1, 2, 3, 4, 5].map((star) => (
-        <span key={star}>{roundedRating >= star ? "★" : "☆"}</span>
-      ))}
-    </div>
-  );
-}
-
-function ProductReviewSection({
-  isLoading,
-  onSortChange,
-  reviews,
-  sort,
-  summary,
-}) {
-  const totalCount = summary?.totalCount ?? 0;
-  const averageRating = summary?.averageRating ?? 0;
-  const ratingCounts = summary?.ratingCounts ?? { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
-
-  return (
-    <div className="public-detail-panel public-detail-review-panel">
-      <div className="public-detail-review-panel__header">
-        <div>
-          <p className="public-detail-panel__eyebrow">구매 리뷰</p>
-          <h2 className="public-detail-review-panel__title">실제 구매자의 평점을 확인해 보세요</h2>
-        </div>
-        <div className="public-detail-review-panel__summary-chip">
-          리뷰 {totalCount.toLocaleString("ko-KR")}개
-        </div>
-      </div>
-
-      {isLoading ? (
-        <div className="public-detail-review-loading">리뷰를 불러오는 중입니다.</div>
-      ) : totalCount === 0 ? (
-        <div className="public-detail-review-empty">
-          <strong>아직 등록된 리뷰가 없어요.</strong>
-          <p>첫 구매자가 되어 이 교재의 상태와 만족도를 남겨보세요.</p>
-        </div>
-      ) : (
-        <>
-          <div className="public-detail-review-overview">
-            <div className="public-detail-review-score">
-              <strong>{averageRating.toFixed(1)}</strong>
-              <ReviewStars rating={Math.round(averageRating)} size="lg" />
-              <p>{REVIEW_RATING_LABELS[Math.round(averageRating)] ?? "구매자 평점"}</p>
-            </div>
-
-            <div className="public-detail-review-distribution" aria-label="별점 분포">
-              {[5, 4, 3, 2, 1].map((rating) => {
-                const count = ratingCounts[rating] ?? 0;
-                const width = totalCount > 0 ? `${(count / totalCount) * 100}%` : "0%";
-
-                return (
-                  <div className="public-detail-review-distribution__row" key={rating}>
-                    <span>{rating}점</span>
-                    <div className="public-detail-review-distribution__bar">
-                      <div className="public-detail-review-distribution__fill" style={{ width }} />
-                    </div>
-                    <strong>{count}</strong>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="public-detail-review-sort">
-            {REVIEW_SORT_OPTIONS.map((option) => (
-              <button
-                className={`public-detail-review-sort__button${sort === option.value ? " is-active" : ""}`}
-                key={option.value}
-                onClick={() => onSortChange(option.value)}
-                type="button"
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="public-detail-review-list">
-            {reviews.map((review) => (
-              <article className="public-detail-review-card" key={review.id}>
-                <div className="public-detail-review-card__header">
-                  <div>
-                    <strong>{review.authorName}</strong>
-                    <p>{review.createdAt ? formatDate(review.createdAt) : "-"}</p>
-                  </div>
-                  <div className="public-detail-review-card__rating">
-                    <ReviewStars rating={review.rating} />
-                    <span>{REVIEW_RATING_LABELS[review.rating] ?? `${review.rating}점`}</span>
-                  </div>
-                </div>
-                <p className="public-detail-review-card__body">{review.content}</p>
-                {review.photoUrls?.length ? (
-                  <div className="public-detail-review-card__photos">
-                    {review.photoUrls.map((photoUrl, index) => (
-                      <a href={photoUrl} key={`${photoUrl}-${index}`} rel="noreferrer" target="_blank">
-                        <img alt={`리뷰 사진 ${index + 1}`} src={photoUrl} />
-                      </a>
-                    ))}
-                  </div>
-                ) : null}
-              </article>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
 function PublicProductDetailPage() {
   const { productId } = useParams();
   const navigate = useNavigate();
@@ -295,14 +176,6 @@ function PublicProductDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [cartToast, setCartToast] = useState(null);
-  const [reviewSort, setReviewSort] = useState("latest");
-  const [reviewSummary, setReviewSummary] = useState({
-    averageRating: 0,
-    totalCount: 0,
-    ratingCounts: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 },
-  });
-  const [reviews, setReviews] = useState([]);
-  const [isReviewsLoading, setIsReviewsLoading] = useState(true);
 
   const showCartToast = useCallback((message, type = "info") => {
     setCartToast({ message, type });
@@ -383,53 +256,6 @@ function PublicProductDetailPage() {
     };
   }, [productId]);
 
-  useEffect(() => {
-    setReviewSort("latest");
-  }, [productId]);
-
-  useEffect(() => {
-    let isActive = true;
-
-    const loadReviews = async () => {
-      try {
-        setIsReviewsLoading(true);
-        const reviewResult = await fetchProductReviews({
-          productId,
-          sort: reviewSort,
-          limit: 20,
-          offset: 0,
-        });
-
-        if (!isActive) {
-          return;
-        }
-
-        setReviewSummary(reviewResult.summary);
-        setReviews(reviewResult.reviews);
-      } catch {
-        if (!isActive) {
-          return;
-        }
-
-        setReviewSummary({
-          averageRating: 0,
-          totalCount: 0,
-          ratingCounts: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 },
-        });
-        setReviews([]);
-      } finally {
-        if (isActive) {
-          setIsReviewsLoading(false);
-        }
-      }
-    };
-
-    void loadReviews();
-
-    return () => {
-      isActive = false;
-    };
-  }, [productId, reviewSort]);
 
   const selectedOption = useMemo(() => {
     if (!product?.options?.length) {
@@ -850,19 +676,11 @@ function PublicProductDetailPage() {
                 </div>
               ) : null}
 
-              <ProductReviewSection
-                isLoading={isReviewsLoading}
-                onSortChange={setReviewSort}
-                reviews={reviews}
-                sort={reviewSort}
-                summary={reviewSummary}
-              />
-
               <div className="public-detail-panel">
                 <div className="public-detail-related-header">
                   <div>
                     <p className="public-detail-panel__eyebrow">추천 교재</p>
-                    <h2 className="public-detail-related-header__title">비슷한 교재를 더 둘러보세요</h2>
+                    <h2 className="public-detail-related-header__title">비슷한 교재 추천</h2>
                   </div>
                   <Link className="public-outline-button" to="/store">
                     스토어 전체보기
@@ -870,14 +688,15 @@ function PublicProductDetailPage() {
                 </div>
 
                 {relatedProducts.length ? (
-                  <div className="public-detail-related-grid">
+                  <div className="public-detail-related-rail" role="list">
                     {relatedProducts.map((relatedProduct) => (
-                      <ProductCard
-                        isFavorite={favoriteIds.includes(String(relatedProduct.id))}
-                        key={relatedProduct.id}
-                        onToggleFavorite={handleToggleFavorite}
-                        product={relatedProduct}
-                      />
+                      <div className="public-detail-related-rail__item" key={relatedProduct.id} role="listitem">
+                        <ProductCard
+                          isFavorite={favoriteIds.includes(String(relatedProduct.id))}
+                          onToggleFavorite={handleToggleFavorite}
+                          product={relatedProduct}
+                        />
+                      </div>
                     ))}
                   </div>
                 ) : (

@@ -82,6 +82,7 @@ const initialLoadedTabs = {
   purchases: false,
   settlements: false,
   settings: false,
+  wishlist: false,
 };
 
 const initialTabPhases = {
@@ -89,6 +90,7 @@ const initialTabPhases = {
   purchases: "idle",
   settlements: "idle",
   settings: "idle",
+  wishlist: "idle",
 };
 
 const initialPortalState = {
@@ -189,14 +191,6 @@ function PublicMypagePage() {
   const tabPanelRef = useRef(null);
   const addressDetailInputRef = useRef(null);
 
-  const previewAccount = isDemoPreview
-    ? {
-        name: effectiveProfile?.name,
-        nickname: effectiveProfile?.nickname,
-        displayName: createDisplayName(effectiveProfile),
-      }
-    : null;
-
   const profileSnapshot = portalState.profile ?? effectiveProfile;
   const summary = useMemo(
     () => portalState.dashboardSummary ?? createEmptyDashboardSummary(profileSnapshot),
@@ -285,7 +279,7 @@ function PublicMypagePage() {
   useEffect(() => {
     let isCancelled = false;
 
-    if (activeTabKey !== "settings") {
+    if (activeTabKey !== "wishlist" && activeTabKey !== "settings") {
       return undefined;
     }
 
@@ -1321,6 +1315,7 @@ function PublicMypagePage() {
           onRequestPickup={handlePickupRequest}
           onToggleShipment={setExpandedShipmentId}
           onTrackParcel={handleTrackParcel}
+          settlementSummary={portalState.settlementSummary}
           shipments={portalState.shipments}
         />
       );
@@ -1340,6 +1335,17 @@ function PublicMypagePage() {
           onTrackParcel={handleTrackParcel}
           onWriteReview={handleReviewWrite}
           orders={portalState.orders}
+        />
+      );
+    }
+
+    if (activeTabKey === "wishlist") {
+      return (
+        <WishlistTab
+          isLoading={isWishlistLoading || isWishlistProductsLoading}
+          onToggleFavorite={handleToggleWishlistProduct}
+          wishlistError={wishlistError}
+          wishlistProducts={wishlistProducts}
         />
       );
     }
@@ -1777,12 +1783,53 @@ function ReviewComposerSheet({
   );
 }
 
-function SalesTab({ expandedShipmentId, onRequestPickup, onToggleShipment, onTrackParcel, shipments }) {
+const SALES_ITEMS_PER_PAGE = 30;
+
+function SalesTab({
+  expandedShipmentId,
+  onRequestPickup,
+  onToggleShipment,
+  onTrackParcel,
+  settlementSummary,
+  shipments,
+}) {
   const [statusFilter, setStatusFilter] = useState("all");
+  const [searchKeyword, setSearchKeyword] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
   const salesMetrics = useMemo(() => deriveShipmentMetrics(shipments), [shipments]);
-  const filteredShipments = useMemo(
+  const totalSettledAmount = Number(
+    settlementSummary?.totalAmount ?? settlementSummary?.total_amount ?? 0,
+  );
+  const totalBookCount = salesMetrics.totalBookCount || shipments.reduce((sum, s) => sum + (s.bookCount ?? s.items?.length ?? 0), 0);
+  const filteredByStatus = useMemo(
     () => filterShipmentsByStatus(shipments, statusFilter),
     [shipments, statusFilter],
+  );
+  const filteredShipments = useMemo(() => {
+    const normalized = searchKeyword.trim().toLowerCase();
+    if (!normalized) {
+      return filteredByStatus;
+    }
+    return filteredByStatus.filter((shipment) => {
+      const headline = (shipment.summaryLabel ?? "").toLowerCase();
+      if (headline.includes(normalized)) {
+        return true;
+      }
+      return (shipment.items ?? []).some((item) =>
+        (item.title ?? "").toLowerCase().includes(normalized),
+      );
+    });
+  }, [filteredByStatus, searchKeyword]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [statusFilter, searchKeyword]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredShipments.length / SALES_ITEMS_PER_PAGE));
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedShipments = filteredShipments.slice(
+    (safePage - 1) * SALES_ITEMS_PER_PAGE,
+    safePage * SALES_ITEMS_PER_PAGE,
   );
 
   if (!shipments.length) {
@@ -1801,19 +1848,30 @@ function SalesTab({ expandedShipmentId, onRequestPickup, onToggleShipment, onTra
     <div className="public-mypage-stack">
       <section className="public-mypage-section">
         <MypageSectionHeader
-          description="수거 요청부터 검수와 판매 상태까지 한 화면에서 확인하세요."
+          description="등록한 판매 교재의 상태와 정산 현황을 한 번에 확인하세요."
           icon="📦"
-          title="수거 요청 내역"
+          title="판매 내역"
         />
 
         <MypageOverviewGrid
           items={[
-            { label: "전체 수거", value: `${salesMetrics.totalRequests}건` },
-            { label: "진행중 요청", value: `${salesMetrics.inProgressRequestCount}건` },
-            { label: "판매중 교재", value: `${salesMetrics.onSaleBookCount}권` },
-            { label: "정산완료 교재", value: `${salesMetrics.settledBookCount}권` },
+            { label: "전체", value: `${totalBookCount}권` },
+            { label: "판매중", value: `${salesMetrics.onSaleBookCount}권` },
+            { label: "정산완료", value: `${salesMetrics.settledBookCount}권` },
+            { label: "누적 정산금액", value: formatCurrency(totalSettledAmount) },
           ]}
         />
+
+        <div className="public-mypage-sales-search">
+          <input
+            aria-label="판매 교재 검색"
+            className="public-mypage-sales-search__input"
+            onChange={(event) => setSearchKeyword(event.target.value)}
+            placeholder="판매 교재명으로 검색"
+            type="search"
+            value={searchKeyword}
+          />
+        </div>
 
         <div className="public-mypage-order-filters">
           {SALES_STATUS_FILTERS.map((filterItem) => (
@@ -1832,7 +1890,7 @@ function SalesTab({ expandedShipmentId, onRequestPickup, onToggleShipment, onTra
           <p className="public-mypage-order-empty-filter">해당 상태의 판매 내역이 없습니다.</p>
         ) : (
         <div className="public-mypage-flow-list">
-          {filteredShipments.map((shipment) => {
+          {paginatedShipments.map((shipment) => {
             const isExpanded = !shipment.compact || expandedShipmentId === shipment.id;
             const progressIndex = getShipmentProgressIndex(shipment.status);
 
@@ -1933,6 +1991,40 @@ function SalesTab({ expandedShipmentId, onRequestPickup, onToggleShipment, onTra
           })}
         </div>
         )}
+
+        {totalPages > 1 ? (
+          <nav className="public-mypage-pagination" aria-label="판매 내역 페이지">
+            <button
+              aria-label="이전 페이지"
+              className="public-mypage-pagination__arrow"
+              disabled={safePage === 1}
+              onClick={() => setCurrentPage(Math.max(1, safePage - 1))}
+              type="button"
+            >
+              ‹
+            </button>
+            {Array.from({ length: totalPages }, (_, index) => index + 1).map((pageNumber) => (
+              <button
+                aria-current={pageNumber === safePage ? "page" : undefined}
+                className={`public-mypage-pagination__page ${pageNumber === safePage ? "is-active" : ""}`}
+                key={pageNumber}
+                onClick={() => setCurrentPage(pageNumber)}
+                type="button"
+              >
+                {pageNumber}
+              </button>
+            ))}
+            <button
+              aria-label="다음 페이지"
+              className="public-mypage-pagination__arrow"
+              disabled={safePage === totalPages}
+              onClick={() => setCurrentPage(Math.min(totalPages, safePage + 1))}
+              type="button"
+            >
+              ›
+            </button>
+          </nav>
+        ) : null}
       </section>
     </div>
   );
@@ -2186,6 +2278,58 @@ function SettlementsTab({ completedSettlements, onRequestPickup, scheduledSettle
             </div>
           </div>
         ) : null}
+      </section>
+    </div>
+  );
+}
+
+function WishlistTab({ isLoading, onToggleFavorite, wishlistError, wishlistProducts }) {
+  return (
+    <div className="public-mypage-stack">
+      <section className="public-mypage-section">
+        <MypageSectionHeader
+          action={
+            <Link className="public-mypage-inline-button" to="/store">
+              스토어 보기
+            </Link>
+          }
+          description="찜해 둔 교재를 모아보고 품절 여부까지 한 번에 확인할 수 있어요."
+          icon="♥"
+          title="찜한 교재"
+        />
+
+        {wishlistError ? (
+          <p className="public-auth-inline-message public-auth-inline-message--error">
+            {wishlistError}
+          </p>
+        ) : null}
+
+        {isLoading ? (
+          <div className="public-mypage-wishlist-grid" role="status" aria-live="polite">
+            {Array.from({ length: 4 }, (_, index) => (
+              <ProductCardSkeleton key={`mypage-wishlist-skeleton-${index}`} />
+            ))}
+          </div>
+        ) : wishlistProducts.length ? (
+          <div className="public-mypage-wishlist-grid">
+            {wishlistProducts.map((product) => (
+              <ProductCard
+                isFavorite
+                key={product.id}
+                onToggleFavorite={onToggleFavorite}
+                product={product}
+              />
+            ))}
+          </div>
+        ) : (
+          <MypageEmptyState
+            actionLabel="스토어 둘러보기"
+            actionTo="/store"
+            description="마음에 드는 교재를 찜해두면 마이페이지에서 다시 빠르게 확인할 수 있어요."
+            icon="♥"
+            title="아직 찜한 교재가 없어요"
+          />
+        )}
       </section>
     </div>
   );

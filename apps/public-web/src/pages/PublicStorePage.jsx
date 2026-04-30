@@ -735,14 +735,6 @@ function PublicStorePage() {
     navigate("/cart");
   };
 
-  const handlePickupRequest = () => {
-    if (!requireMember("pickupRequest")) {
-      return;
-    }
-
-    navigate("/mypage#sales");
-  };
-
   const handleSelectSubject = (subject) => {
     if (subject === selectedSubject) {
       return;

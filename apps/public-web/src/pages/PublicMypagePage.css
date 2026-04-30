@@ -261,6 +261,62 @@
   margin-bottom: 16px;
 }
 
+.public-mypage-sales-search {
+  margin: 16px 0 12px;
+}
+
+.public-mypage-sales-search__input {
+  width: 100%;
+  border: 1px solid var(--public-ds-border);
+  border-radius: 10px;
+  padding: 12px 16px;
+  font-size: 14px;
+  background: #ffffff;
+}
+
+.public-mypage-sales-search__input:focus {
+  outline: 2px solid var(--public-ds-primary);
+  outline-offset: -1px;
+  border-color: var(--public-ds-primary);
+}
+
+.public-mypage-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 32px;
+  flex-wrap: wrap;
+}
+
+.public-mypage-pagination__page,
+.public-mypage-pagination__arrow {
+  min-width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--public-ds-text-muted, #64748b);
+  cursor: pointer;
+  padding: 0 10px;
+}
+
+.public-mypage-pagination__page.is-active {
+  border-color: var(--public-ds-primary, #1B3A5C);
+  color: var(--public-ds-primary, #1B3A5C);
+  font-weight: 800;
+}
+
+.public-mypage-pagination__arrow:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
 .public-mypage-filter-chip {
   padding: 6px 14px;
   border: 1px solid var(--public-ds-border);

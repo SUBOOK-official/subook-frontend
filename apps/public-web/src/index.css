@@ -143,6 +143,200 @@ img {
   padding-bottom: 72px;
 }
 
+/* ── Sticky site header (모든 페이지 상단 고정) ── */
+.public-sticky-header {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  background: #ffffff;
+  border-bottom: 1px solid var(--public-border);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+}
+
+/* ── Home: 메인 스토어 그리드 (4×7 + 페이지네이션) ── */
+.public-home-store-grid {
+  padding: 24px 0 64px;
+  background: #ffffff;
+}
+
+.public-home-store-grid__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+
+.public-home-store-grid__title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.public-home-store-grid__title {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--public-text);
+  margin: 0;
+}
+
+.public-home-store-grid__count {
+  font-size: 14px;
+  color: var(--public-text-muted, #64748b);
+  font-weight: 600;
+}
+
+.public-home-store-grid__sort-wrap {
+  position: relative;
+}
+
+.public-home-store-grid__sort-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #ffffff;
+  border: 1px solid var(--public-border);
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--public-text);
+  cursor: pointer;
+  min-width: 140px;
+  justify-content: space-between;
+}
+
+.public-home-store-grid__sort-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  background: #ffffff;
+  border: 1px solid var(--public-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  min-width: 160px;
+  z-index: 30;
+  padding: 4px;
+}
+
+.public-home-store-grid__sort-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: transparent;
+  border: 0;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--public-text);
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.public-home-store-grid__sort-option:hover {
+  background: var(--public-bg-soft);
+}
+
+.public-home-store-grid__sort-option.is-active {
+  color: var(--public-primary);
+}
+
+.public-home-store-grid__list {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 24px 16px;
+}
+
+.public-home-store-grid__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 64px 16px;
+  background: var(--public-bg-soft);
+  border-radius: 12px;
+}
+
+.public-home-store-grid__empty-button {
+  background: var(--public-primary);
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.public-home-store-grid__pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 40px;
+}
+
+.public-home-store-grid__pagination-pages {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.public-home-store-grid__pagination-page,
+.public-home-store-grid__pagination-arrow {
+  min-width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--public-text-muted, #64748b);
+  cursor: pointer;
+  border-radius: 8px;
+  padding: 0 8px;
+}
+
+.public-home-store-grid__pagination-page.is-active {
+  color: var(--public-text);
+  font-weight: 800;
+}
+
+.public-home-store-grid__pagination-arrow:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.public-home-store-grid__pagination-ellipsis {
+  color: var(--public-text-muted, #64748b);
+  padding: 0 4px;
+}
+
+@media (max-width: 1024px) {
+  .public-home-store-grid__list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 767px) {
+  .public-home-store-grid {
+    padding: 16px 0 48px;
+  }
+
+  .public-home-store-grid__list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px 12px;
+  }
+
+  .public-home-store-grid__title {
+    font-size: 18px;
+  }
+}
+
 .public-products {
   padding: 64px 0 104px;
 }
@@ -6613,13 +6807,13 @@ img {
 .public-home-hero-banner {
   width: 100%;
   background: var(--public-ds-background);
-  padding: 0 24px 24px;
+  padding: 0 24px 16px;
   box-sizing: border-box;
 }
 
 .public-home-hero-banner__viewport {
   position: relative;
-  height: 280px;
+  height: 200px;
   max-width: 1152px;
   margin: 0 auto;
   overflow: hidden;

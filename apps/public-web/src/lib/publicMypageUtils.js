@@ -1,4 +1,4 @@
-export const DEFAULT_TAB_KEY = "sales";
+export const DEFAULT_TAB_KEY = "purchases";
 export const MAX_SAVED_ITEMS = 5;
 
 export const BANK_OPTIONS = [
@@ -13,8 +13,9 @@ export const BANK_OPTIONS = [
 ];
 
 export const TAB_ITEMS = [
-  { key: "sales", label: "판매현황", icon: "📦" },
-  { key: "purchases", label: "구매현황", icon: "📚" },
+  { key: "purchases", label: "구매내역", icon: "📚" },
+  { key: "sales", label: "판매내역", icon: "📦" },
+  { key: "wishlist", label: "찜한 교재", icon: "♥" },
   { key: "settlements", label: "정산내역", icon: "💰" },
   { key: "settings", label: "설정", icon: "⚙️" },
 ];
