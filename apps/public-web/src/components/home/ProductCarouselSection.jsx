@@ -187,23 +187,36 @@ function ProductCarouselSection({
             <p className="public-home-best-books__subtitle">{subtitle}</p>
           </div>
 
-          <Link className="public-home-best-books__link" onClick={onLinkClick} to={linkHref}>
-            전체보기 &gt;&gt;          </Link>
+          <div className="public-home-best-books__header-actions">
+            {showNavButtons ? (
+              <div className="public-home-best-books__nav-group" role="group" aria-label="가로 스크롤">
+                <button
+                  aria-label="이전 교재 보기"
+                  className="public-home-best-books__nav public-home-best-books__nav--prev"
+                  disabled={!canScrollPrev}
+                  onClick={() => handleScrollByDirection(-1)}
+                  type="button"
+                >
+                  <span aria-hidden="true">‹</span>
+                </button>
+                <button
+                  aria-label="다음 교재 보기"
+                  className="public-home-best-books__nav public-home-best-books__nav--next"
+                  disabled={!canScrollNext}
+                  onClick={() => handleScrollByDirection(1)}
+                  type="button"
+                >
+                  <span aria-hidden="true">›</span>
+                </button>
+              </div>
+            ) : null}
+
+            <Link className="public-home-best-books__link" onClick={onLinkClick} to={linkHref}>
+              전체보기 &gt;&gt;            </Link>
+          </div>
         </div>
 
         <div className="public-home-best-books__rail-wrap">
-          {showNavButtons ? (
-            <button
-              aria-label="이전 교재 보기"
-              className="public-home-best-books__nav public-home-best-books__nav--prev"
-              disabled={!canScrollPrev}
-              onClick={() => handleScrollByDirection(-1)}
-              type="button"
-            >
-              <span aria-hidden="true">‹</span>
-            </button>
-          ) : null}
-
           <div className="public-home-best-books__rail" ref={railRef} role="list">
             {isLoading && products.length === 0
               ? Array.from({ length: skeletonCount }, (_, index) => (
@@ -220,18 +233,6 @@ function ProductCarouselSection({
                   />
                 ))}
           </div>
-
-          {showNavButtons ? (
-            <button
-              aria-label="다음 교재 보기"
-              className="public-home-best-books__nav public-home-best-books__nav--next"
-              disabled={!canScrollNext}
-              onClick={() => handleScrollByDirection(1)}
-              type="button"
-            >
-              <span aria-hidden="true">›</span>
-            </button>
-          ) : null}
         </div>
       </ContentContainer>
     </section>
