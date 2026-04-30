@@ -1,9 +1,21 @@
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link, useNavigate } from "react-router-dom";
 import ContentContainer from "./ContentContainer";
 import searchIconImage from "../assets/search-icon.svg";
 
 function PublicSiteHeader({ onCartClick, searchSlot }) {
   const navigate = useNavigate();
+  const [portalNode, setPortalNode] = useState(null);
+
+  useEffect(() => {
+    if (typeof document === "undefined") {
+      return undefined;
+    }
+
+    setPortalNode(document.body);
+    return undefined;
+  }, []);
 
   const handleSearchSubmit = (event) => {
     event.preventDefault();
@@ -24,7 +36,7 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
     navigate("/cart");
   };
 
-  return (
+  const headerNode = (
     <div className="public-sticky-header">
       <ContentContainer as="header" className="public-nav public-site-header">
         <Link className="public-brand" to="/">
@@ -61,6 +73,13 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
         </nav>
       </ContentContainer>
     </div>
+  );
+
+  return (
+    <>
+      {portalNode ? createPortal(headerNode, portalNode) : null}
+      <div className="public-sticky-header__spacer" aria-hidden="true" />
+    </>
   );
 }
 
