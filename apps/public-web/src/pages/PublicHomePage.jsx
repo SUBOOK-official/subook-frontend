@@ -93,9 +93,7 @@ function PublicHomePage() {
 
   const pageContent = (
     <div className="public-home-route">
-      <div className="public-top-area public-top-area--home">
-        <PublicSiteHeader onCartClick={handleGoToCart} />
-      </div>
+      <PublicSiteHeader onCartClick={handleGoToCart} />
 
       <HeroBanner onSlideAction={handleHeroAction} slides={HOME_HERO_SLIDES} />
       <SubjectGrid />

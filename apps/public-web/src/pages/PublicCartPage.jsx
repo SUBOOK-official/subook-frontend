@@ -245,9 +245,7 @@ function PublicCartPage() {
   return (
     <PublicPageFrame>
       <div className="cart-page">
-        <div className="public-top-area">
-          <PublicSiteHeader />
-        </div>
+        <PublicSiteHeader />
 
         <ContentContainer as="section" className="cart-content">
           <h1 className="cart-page__title">장바구니</h1>

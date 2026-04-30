@@ -218,9 +218,7 @@ function PublicOrderPage() {
   return (
     <PublicPageFrame>
       <div className="order-page">
-        <div className="public-top-area">
-          <PublicSiteHeader />
-        </div>
+        <PublicSiteHeader />
 
         <ContentContainer as="section" className="order-content">
           <h1 className="order-page__title">주문/결제</h1>

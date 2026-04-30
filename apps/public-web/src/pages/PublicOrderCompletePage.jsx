@@ -13,9 +13,7 @@ function PublicOrderCompletePage() {
   return (
     <PublicPageFrame>
       <div className="order-complete-page">
-        <div className="public-top-area">
-          <PublicSiteHeader />
-        </div>
+        <PublicSiteHeader />
 
         <ContentContainer as="section" className="order-complete-content">
           <div className="order-complete-card">

@@ -386,9 +386,9 @@ function PublicProductDetailPage() {
 
   const pageContent = (
     <div className="public-store-page public-product-detail-page">
-      <div className="public-top-area public-store-page__top">
-        <PublicSiteHeader />
+      <PublicSiteHeader />
 
+      <div className="public-top-area public-store-page__top">
         <ContentContainer as="section" className="public-store-route" aria-label="상품 경로">
           <div className="public-store-route__crumbs">
             <Link className="public-store-route__crumb-link" to="/store">
