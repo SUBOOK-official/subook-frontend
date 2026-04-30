@@ -7205,6 +7205,10 @@ img {
   white-space: nowrap;
 }
 
+.public-home-best-books__rail-wrap {
+  position: relative;
+}
+
 .public-home-best-books__rail {
   display: flex;
   gap: 12px;
@@ -7218,6 +7222,61 @@ img {
 
 .public-home-best-books__rail::-webkit-scrollbar {
   display: none;
+}
+
+/* ── 가로 스크롤 좌/우 네비게이션 (데스크탑) ── */
+.public-home-best-books__nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 4;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  border: 1px solid var(--public-ds-border);
+  background: #ffffff;
+  color: var(--public-ds-text);
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.public-home-best-books__nav span[aria-hidden="true"] {
+  font-size: 28px;
+  line-height: 1;
+  margin-top: -2px;
+}
+
+.public-home-best-books__nav:hover:not(:disabled) {
+  background: var(--public-ds-divider);
+}
+
+.public-home-best-books__nav:active:not(:disabled) {
+  transform: translateY(-50%) scale(0.96);
+}
+
+.public-home-best-books__nav:disabled {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.public-home-best-books__nav--prev {
+  left: -22px;
+}
+
+.public-home-best-books__nav--next {
+  right: -22px;
+}
+
+@media (max-width: 767px) {
+  .public-home-best-books__nav {
+    display: none;
+  }
 }
 
 .public-home-best-books__card {

@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { isNewHomeArrivalBadgeVisible } from "../../lib/publicHomeLatestBooksUtils";
 import ContentContainer from "../ContentContainer";
@@ -7,6 +7,7 @@ import ProductCard, { ProductCardSkeleton } from "../ProductCard";
 const MOBILE_BREAKPOINT_PX = 767;
 const MOBILE_SKELETON_CARD_COUNT = 4;
 const DESKTOP_SKELETON_CARD_COUNT = 12;
+const SCROLL_EDGE_THRESHOLD_PX = 4;
 
 function getRankTone(rank) {
   if (rank === 1) {
@@ -85,6 +86,10 @@ function ProductCarouselSection({
   const [isMobileViewport, setIsMobileViewport] = useState(() =>
     typeof window !== "undefined" ? window.innerWidth <= MOBILE_BREAKPOINT_PX : false,
   );
+  const [canScrollPrev, setCanScrollPrev] = useState(false);
+  const [canScrollNext, setCanScrollNext] = useState(false);
+  const [hasOverflow, setHasOverflow] = useState(false);
+  const railRef = useRef(null);
 
   useEffect(() => {
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
@@ -107,6 +112,55 @@ function ProductCarouselSection({
     return () => mediaQuery.removeListener(syncViewport);
   }, []);
 
+  useEffect(() => {
+    const rail = railRef.current;
+    if (!rail) {
+      return undefined;
+    }
+
+    const syncEdges = () => {
+      const { scrollLeft, scrollWidth, clientWidth } = rail;
+      const overflow = scrollWidth - clientWidth > SCROLL_EDGE_THRESHOLD_PX;
+      setHasOverflow(overflow);
+      setCanScrollPrev(scrollLeft > SCROLL_EDGE_THRESHOLD_PX);
+      setCanScrollNext(overflow && scrollLeft + clientWidth < scrollWidth - SCROLL_EDGE_THRESHOLD_PX);
+    };
+
+    syncEdges();
+
+    rail.addEventListener("scroll", syncEdges, { passive: true });
+
+    let resizeObserver = null;
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(syncEdges);
+      resizeObserver.observe(rail);
+    } else if (typeof window !== "undefined") {
+      window.addEventListener("resize", syncEdges);
+    }
+
+    return () => {
+      rail.removeEventListener("scroll", syncEdges);
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      } else if (typeof window !== "undefined") {
+        window.removeEventListener("resize", syncEdges);
+      }
+    };
+  }, [products.length, isLoading]);
+
+  const handleScrollByDirection = (direction) => {
+    const rail = railRef.current;
+    if (!rail) {
+      return;
+    }
+
+    const firstCard = rail.querySelector(".public-home-best-books__card");
+    const cardWidth = firstCard ? firstCard.getBoundingClientRect().width : 220;
+    const visibleCards = Math.max(1, Math.floor(rail.clientWidth / (cardWidth + 16)));
+    const distance = (cardWidth + 16) * Math.max(1, visibleCards - 1) * direction;
+    rail.scrollBy({ left: distance, behavior: "smooth" });
+  };
+
   if (hasFatalError) {
     return null;
   }
@@ -116,6 +170,7 @@ function ProductCarouselSection({
   }
 
   const skeletonCount = isMobileViewport ? MOBILE_SKELETON_CARD_COUNT : DESKTOP_SKELETON_CARD_COUNT;
+  const showNavButtons = !isMobileViewport && hasOverflow;
 
   return (
     <section
@@ -136,21 +191,47 @@ function ProductCarouselSection({
             전체보기 &gt;&gt;          </Link>
         </div>
 
-        <div className="public-home-best-books__rail" role="list">
-          {isLoading && products.length === 0
-            ? Array.from({ length: skeletonCount }, (_, index) => (
-                <ProductCarouselSkeletonCard badgeType={badgeType} index={index} key={`${titleId}-skeleton-${index}`} />
-              ))
-            : products.map((product, index) => (
-                <ProductCarouselCard
-                  badgeType={badgeType}
-                  isFavorite={favoriteIds.includes(product.id)}
-                  key={product.id}
-                  onToggleFavorite={onToggleFavorite}
-                  product={product}
-                  rank={index + 1}
-                />
-              ))}
+        <div className="public-home-best-books__rail-wrap">
+          {showNavButtons ? (
+            <button
+              aria-label="이전 교재 보기"
+              className="public-home-best-books__nav public-home-best-books__nav--prev"
+              disabled={!canScrollPrev}
+              onClick={() => handleScrollByDirection(-1)}
+              type="button"
+            >
+              <span aria-hidden="true">‹</span>
+            </button>
+          ) : null}
+
+          <div className="public-home-best-books__rail" ref={railRef} role="list">
+            {isLoading && products.length === 0
+              ? Array.from({ length: skeletonCount }, (_, index) => (
+                  <ProductCarouselSkeletonCard badgeType={badgeType} index={index} key={`${titleId}-skeleton-${index}`} />
+                ))
+              : products.map((product, index) => (
+                  <ProductCarouselCard
+                    badgeType={badgeType}
+                    isFavorite={favoriteIds.includes(product.id)}
+                    key={product.id}
+                    onToggleFavorite={onToggleFavorite}
+                    product={product}
+                    rank={index + 1}
+                  />
+                ))}
+          </div>
+
+          {showNavButtons ? (
+            <button
+              aria-label="다음 교재 보기"
+              className="public-home-best-books__nav public-home-best-books__nav--next"
+              disabled={!canScrollNext}
+              onClick={() => handleScrollByDirection(1)}
+              type="button"
+            >
+              <span aria-hidden="true">›</span>
+            </button>
+          ) : null}
         </div>
       </ContentContainer>
     </section>
