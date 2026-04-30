@@ -6897,7 +6897,7 @@ img {
   width: min(100%, 600px);
   height: 100%;
   margin: 0 auto;
-  padding: 40px 0 72px;
+  padding: 16px 0 32px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -7576,15 +7576,15 @@ img {
 
 @media (min-width: 768px) {
   .public-home-hero-banner {
-    padding-bottom: 32px;
+    padding-bottom: 20px;
   }
 
   .public-home-hero-banner__viewport {
-    height: 340px;
+    height: 220px;
   }
 
   .public-home-hero-banner__content {
-    padding-top: 56px;
+    padding-top: 24px;
   }
 
   .public-home-hero-banner__title {
@@ -7633,7 +7633,7 @@ img {
 
 @media (min-width: 1024px) {
   .public-home-hero-banner__viewport {
-    height: 420px;
+    height: 260px;
   }
 
   .public-home-subject-card--all {
@@ -7662,8 +7662,8 @@ img {
   }
 
   .public-home-hero-banner__content {
-    padding-top: 36px;
-    padding-bottom: 56px;
+    padding-top: 20px;
+    padding-bottom: 28px;
   }
 
 }
