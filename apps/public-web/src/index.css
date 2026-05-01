@@ -206,55 +206,101 @@ img {
   font-weight: 800;
 }
 
-/* 필터 chips 영역 */
-.public-home-store-grid__filters {
+/* ── 사이드바 레이아웃 (PC 좌측 세로 필터 + 우측 메인) ── */
+.public-home-store-grid__layout {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 32px;
+  align-items: start;
+}
+
+@media (max-width: 1023px) {
+  .public-home-store-grid__layout {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+}
+
+.public-home-store-grid__sidebar {
+  position: sticky;
+  top: 96px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  background: var(--public-bg-soft);
-  border-radius: 10px;
-  padding: 14px 16px;
-  margin-bottom: 16px;
+  gap: 28px;
+  padding: 8px 0;
+  align-self: start;
 }
 
-.public-home-store-grid__filter-row {
-  display: grid;
-  grid-template-columns: 60px 1fr;
-  align-items: center;
-  gap: 12px;
+@media (max-width: 1023px) {
+  .public-home-store-grid__sidebar {
+    position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 16px 24px;
+    background: var(--public-bg-soft);
+    padding: 14px 16px;
+    border-radius: 10px;
+  }
 }
 
-.public-home-store-grid__filter-label {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--public-text);
-}
-
-.public-home-store-grid__filter-chips {
+.public-home-store-grid__sidebar-group {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  flex-direction: column;
+  gap: 10px;
 }
 
-.public-home-store-grid__chip {
-  padding: 5px 12px;
-  border: 1px solid transparent;
-  border-radius: 999px;
+.public-home-store-grid__sidebar-label {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--public-text);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.public-home-store-grid__sidebar-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+@media (max-width: 1023px) {
+  .public-home-store-grid__sidebar-list {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+}
+
+.public-home-store-grid__sidebar-option {
+  display: inline-flex;
+  align-items: center;
+  border: 0;
   background: transparent;
-  font-size: 13px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--public-text-muted, #64748b);
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  text-align: left;
+  transition: color 0.15s, background 0.15s;
+  white-space: nowrap;
 }
 
-.public-home-store-grid__chip:hover {
+.public-home-store-grid__sidebar-option:hover {
   color: var(--public-text);
 }
 
-.public-home-store-grid__chip.is-active {
+.public-home-store-grid__sidebar-option.is-active {
   background: var(--public-primary, #1B3A5C);
   color: #ffffff;
+}
+
+.public-home-store-grid__main {
+  min-width: 0;
 }
 
 /* 툴바 */

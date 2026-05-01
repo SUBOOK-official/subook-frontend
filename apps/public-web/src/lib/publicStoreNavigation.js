@@ -14,7 +14,7 @@ export const STORE_FILTER_GROUPS = [
     key: "types",
     label: "유형",
     queryKey: "type",
-    options: ["기출", "모의고사", "N제", "EBS", "주간지", "내신"],
+    options: ["개념", "기출", "모의고사", "N제", "EBS", "주간지", "내신"],
   },
   {
     key: "brands",
@@ -33,9 +33,9 @@ export const STORE_FILTER_GROUPS = [
     label: "상태",
     queryKey: "grade",
     options: [
-      { value: "S", label: "S급" },
-      { value: "A_PLUS", label: "A+급" },
-      { value: "A", label: "A급" },
+      { value: "S", label: "S(새책)" },
+      { value: "A_PLUS", label: "A+(극미한 사용감)" },
+      { value: "A", label: "A(약간 사용)" },
     ],
   },
 ];

@@ -229,65 +229,70 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
   return (
     <section className="public-home-store-grid" aria-label="전체 교재" ref={sectionTopRef}>
       <ContentContainer>
-        {/* 과목 탭 */}
-        <div className="public-home-store-grid__tabs" role="tablist" aria-label="과목">
-          {STORE_SUBJECTS.map((subject) => {
-            const isActive = selectedSubject === subject;
-            return (
-              <button
-                aria-selected={isActive}
-                className={`public-home-store-grid__tab ${isActive ? "is-active" : ""}`}
-                key={subject}
-                onClick={() => handleSelectSubject(subject)}
-                role="tab"
-                type="button"
-              >
-                {subject}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* 필터 chips */}
-        <div className="public-home-store-grid__filters" aria-label="상세 필터">
-          {STORE_FILTER_GROUPS.map((group) => {
-            const hasSelected = selectedFilters[group.key].length > 0;
-            return (
-              <div className="public-home-store-grid__filter-row" key={group.key}>
-                <span className="public-home-store-grid__filter-label">{group.label}</span>
-                <div className="public-home-store-grid__filter-chips">
-                  <button
-                    aria-pressed={!hasSelected}
-                    className={`public-home-store-grid__chip ${!hasSelected ? "is-active" : ""}`}
-                    onClick={() => handleClearGroup(group.key)}
-                    type="button"
-                  >
-                    전체
-                  </button>
-                  {group.options.map((option) => {
-                    const optionValue = typeof option === "string" ? option : option.value;
-                    const optionLabel = getFilterOptionLabel(option);
-                    const isActive = selectedFilters[group.key].includes(optionValue);
-                    return (
+        <div className="public-home-store-grid__layout">
+          {/* 좌측 세로 사이드바 (PC) — 모바일에선 그리드 위로 떨어짐 */}
+          <aside className="public-home-store-grid__sidebar" aria-label="필터">
+            {STORE_FILTER_GROUPS.map((group) => {
+              const hasSelected = selectedFilters[group.key].length > 0;
+              return (
+                <div className="public-home-store-grid__sidebar-group" key={group.key}>
+                  <h3 className="public-home-store-grid__sidebar-label">{group.label}</h3>
+                  <ul className="public-home-store-grid__sidebar-list" role="list">
+                    <li>
                       <button
-                        aria-pressed={isActive}
-                        className={`public-home-store-grid__chip ${isActive ? "is-active" : ""}`}
-                        key={optionValue}
-                        onClick={() => handleToggleFilter(group.key, optionValue)}
+                        aria-pressed={!hasSelected}
+                        className={`public-home-store-grid__sidebar-option ${!hasSelected ? "is-active" : ""}`}
+                        onClick={() => handleClearGroup(group.key)}
                         type="button"
                       >
-                        {optionLabel}
+                        전체
                       </button>
-                    );
-                  })}
+                    </li>
+                    {group.options.map((option) => {
+                      const optionValue = typeof option === "string" ? option : option.value;
+                      const optionLabel = getFilterOptionLabel(option);
+                      const isActive = selectedFilters[group.key].includes(optionValue);
+                      return (
+                        <li key={optionValue}>
+                          <button
+                            aria-pressed={isActive}
+                            className={`public-home-store-grid__sidebar-option ${isActive ? "is-active" : ""}`}
+                            onClick={() => handleToggleFilter(group.key, optionValue)}
+                            type="button"
+                          >
+                            {optionLabel}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </aside>
 
-        {/* 툴바: 검색 + 결과수 + 정렬 */}
-        <div className="public-home-store-grid__toolbar">
+          {/* 우측 메인 — 과목 탭 + 툴바 + 그리드 + 페이지네이션 */}
+          <div className="public-home-store-grid__main">
+            <div className="public-home-store-grid__tabs" role="tablist" aria-label="과목">
+              {STORE_SUBJECTS.map((subject) => {
+                const isActive = selectedSubject === subject;
+                return (
+                  <button
+                    aria-selected={isActive}
+                    className={`public-home-store-grid__tab ${isActive ? "is-active" : ""}`}
+                    key={subject}
+                    onClick={() => handleSelectSubject(subject)}
+                    role="tab"
+                    type="button"
+                  >
+                    {subject}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* 툴바: 검색 + 결과수 + 정렬 */}
+            <div className="public-home-store-grid__toolbar">
           <div className="public-home-store-grid__toolbar-left">
             <input
               aria-label="교재 검색"
@@ -445,6 +450,8 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
             </button>
           </nav>
         ) : null}
+          </div>
+        </div>
       </ContentContainer>
     </section>
   );
