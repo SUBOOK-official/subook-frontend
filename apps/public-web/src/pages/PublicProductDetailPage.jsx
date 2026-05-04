@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { formatCurrency, formatDate } from "@shared-domain/format";
-import StatusBadge from "@shared-domain/StatusBadge";
 import ContentContainer from "../components/ContentContainer";
 import ProductCard from "../components/ProductCard";
 import PublicFooter from "../components/PublicFooter";
@@ -18,6 +17,15 @@ import {
 import "./PublicProductDetailPage.css";
 
 const FALLBACK_MAX_QUANTITY = 9;
+const RELATED_RAIL_LIMIT = 12;
+const SCROLL_EDGE_THRESHOLD_PX = 4;
+
+const DETAIL_TABS = [
+  { key: "info", label: "정보" },
+  { key: "grade", label: "상태 등급 안내" },
+  { key: "shipping", label: "배송 안내" },
+  { key: "return", label: "교환 및 반품 안내" },
+];
 
 function getAvailabilitySnapshot(item) {
   if (!item) {
@@ -63,102 +71,307 @@ function getAvailabilitySnapshot(item) {
   };
 }
 
-function formatAvailabilityLabel(option) {
-  const snapshot = getAvailabilitySnapshot(option);
-  return snapshot.availabilityLabel;
-}
+function ProductChips({ subject, bookType, brand, conditionGradeLabel }) {
+  const items = [
+    subject ? { type: "subject", label: subject } : null,
+    bookType ? { type: "type", label: bookType } : null,
+    brand ? { type: "brand", label: brand } : null,
+    conditionGradeLabel ? { type: "grade", label: conditionGradeLabel } : null,
+  ].filter(Boolean);
 
-function ProductOptionSelector({ options, selectedOptionId, onSelect }) {
-  if (!options.length) {
-    return null;
-  }
+  if (items.length === 0) return null;
 
   return (
-    <div className="public-detail-panel">
-      <div className="public-detail-option-panel__header">
-        <p className="public-detail-panel__eyebrow">상태별 옵션</p>
-        <span className="public-detail-option-panel__hint">옵션을 선택하면 가격과 재고가 바뀝니다</span>
-      </div>
-      <div className="public-detail-option-panel__list">
-        {options.map((option) => {
-          const isSelected = option.id === selectedOptionId;
-          const priceLabel =
-            option.price === null ? "가격 미등록" : formatCurrency(option.price);
-          const availability = getAvailabilitySnapshot(option);
-          const isDisabled = availability.isSoldOut;
-
-          return (
-            <button
-              aria-disabled={isDisabled}
-              aria-pressed={isSelected}
-              className={`public-detail-option-btn${isSelected ? " is-active" : ""}`}
-              key={option.id ?? `${option.conditionGrade}-${option.option}-${priceLabel}`}
-              onClick={() => {
-                if (!isDisabled) {
-                  onSelect(option.id);
-                }
-              }}
-              type="button"
-              disabled={isDisabled}
-            >
-              <div className="public-detail-option-btn__main">
-                <p className="public-detail-option-btn__label">
-                  {option.conditionGradeLabel || option.option || "옵션"}
-                  {isSelected ? (
-                    <span className="public-detail-option-btn__selected-chip">선택됨</span>
-                  ) : null}
-                </p>
-                <p className="public-detail-option-btn__sub">
-                  {option.option || "상세 옵션 없음"}
-                </p>
-              </div>
-
-              <div className="public-detail-option-btn__price">
-                <p className="public-detail-option-btn__price-value">{priceLabel}</p>
-                <p className="public-detail-option-btn__price-avail">
-                  {formatAvailabilityLabel(option)}
-                </p>
-              </div>
-            </button>
-          );
-        })}
-      </div>
+    <div className="public-detail-chips">
+      {items.map((item) => (
+        <span className={`public-detail-chip public-detail-chip--${item.type}`} key={`${item.type}-${item.label}`}>
+          {item.label}
+        </span>
+      ))}
     </div>
   );
 }
 
-function QuantityStepper({ value, maxQuantity, disabled, onDecrease, onIncrease }) {
+function ProductPriceLine({ priceValue, originalPriceValue, discountRate }) {
+  if (priceValue === null) {
+    return (
+      <div className="public-detail-price-line">
+        <span className="public-detail-price-line__amount">가격 미입력</span>
+      </div>
+    );
+  }
+
+  const computedDiscount =
+    typeof discountRate === "number" && discountRate > 0
+      ? discountRate
+      : originalPriceValue && originalPriceValue > priceValue
+        ? Math.round(((originalPriceValue - priceValue) / originalPriceValue) * 100)
+        : null;
+
   return (
-    <div className="public-detail-panel public-detail-qty-panel">
-      <div>
-        <p className="public-detail-panel__eyebrow">수량</p>
-        <p className="public-detail-qty-panel__info-hint">
-          {disabled ? "품절" : `최대 ${maxQuantity}권까지 선택 가능`}
+    <div className="public-detail-price-line">
+      {computedDiscount ? (
+        <span className="public-detail-price-line__discount">{computedDiscount}%</span>
+      ) : null}
+      <span className="public-detail-price-line__amount">{formatCurrency(priceValue)}</span>
+      {originalPriceValue && originalPriceValue > priceValue ? (
+        <span className="public-detail-price-line__original">{formatCurrency(originalPriceValue)}</span>
+      ) : null}
+    </div>
+  );
+}
+
+function OptionDropdown({ options, selectedOptionId, onSelect, disabled }) {
+  if (!options.length) return null;
+
+  return (
+    <div className="public-detail-option-row">
+      <label className="public-detail-option-row__label" htmlFor="public-detail-option-select">
+        옵션
+      </label>
+      <select
+        className="public-detail-option-row__select"
+        disabled={disabled}
+        id="public-detail-option-select"
+        onChange={(event) => onSelect(event.target.value)}
+        value={selectedOptionId}
+      >
+        {options.map((option) => {
+          const availability = getAvailabilitySnapshot(option);
+          const priceLabel = option.price === null ? "가격 미정" : formatCurrency(option.price);
+          const baseLabel = option.conditionGradeLabel || option.option || "옵션";
+          const subLabel = option.option && option.conditionGradeLabel ? ` · ${option.option}` : "";
+          const stockLabel = availability.isSoldOut ? " · 품절" : "";
+          return (
+            <option key={option.id} value={option.id} disabled={availability.isSoldOut}>
+              {baseLabel}{subLabel} | {priceLabel}{stockLabel}
+            </option>
+          );
+        })}
+      </select>
+    </div>
+  );
+}
+
+function QuantityRow({ value, maxQuantity, disabled, onDecrease, onIncrease }) {
+  return (
+    <div className="public-detail-qty-row">
+      <button
+        aria-label="수량 줄이기"
+        className="public-detail-qty-row__btn"
+        disabled={disabled || value <= 1}
+        onClick={onDecrease}
+        type="button"
+      >
+        −
+      </button>
+      <span className="public-detail-qty-row__value" aria-live="polite">
+        {value}
+      </span>
+      <button
+        aria-label="수량 늘리기"
+        className="public-detail-qty-row__btn"
+        disabled={disabled || value >= maxQuantity}
+        onClick={onIncrease}
+        type="button"
+      >
+        +
+      </button>
+    </div>
+  );
+}
+
+function DetailTabPanel({ activeKey, product, activeDisplay }) {
+  if (activeKey === "grade") {
+    return (
+      <div className="public-detail-tab-content">
+        <h3 className="public-detail-tab-content__heading">상태 등급 안내</h3>
+        <ul className="public-detail-tab-content__list">
+          <li><strong>S(새책)</strong> · 사용감이 거의 없는 새 책 수준의 상태 (필기 5% 이하)</li>
+          <li><strong>A+(극미한 사용감)</strong> · 일부 페이지에 가벼운 필기/표시는 있으나 전반적으로 깨끗 (필기 6~20%)</li>
+          <li><strong>A(보통 사용감)</strong> · 학습용 필기/체크가 있으나 학습에 무리 없음 (필기 21~50%)</li>
+        </ul>
+        <p className="public-detail-tab-content__note">
+          모든 교재는 4단계 검수 (외관 · 내지 · 누락 · 훼손) 후 등급이 부여됩니다.
         </p>
       </div>
+    );
+  }
 
-      <div className="public-detail-qty-panel__controls">
-        <button
-          aria-label="수량 줄이기"
-          className="public-detail-qty-btn"
-          disabled={disabled || value <= 1}
-          onClick={onDecrease}
-          type="button"
-        >
-          -
-        </button>
-        <div className="public-detail-qty-display">{value}</div>
-        <button
-          aria-label="수량 늘리기"
-          className="public-detail-qty-btn"
-          disabled={disabled || value >= maxQuantity}
-          onClick={onIncrease}
-          type="button"
-        >
-          +
-        </button>
+  if (activeKey === "shipping") {
+    return (
+      <div className="public-detail-tab-content">
+        <h3 className="public-detail-tab-content__heading">배송 안내</h3>
+        <ul className="public-detail-tab-content__list">
+          <li>택배사: CJ대한통운</li>
+          <li>발송 기준: 결제 확인 후 영업일 기준 1~2일 이내 출고</li>
+          <li>배송비: 일반 3,500원 / 5만원 이상 구매 시 무료 배송</li>
+          <li>제주·도서산간 추가 배송비: 3,000원~</li>
+          <li>주말 및 공휴일 발송은 익영업일 처리됩니다.</li>
+        </ul>
       </div>
+    );
+  }
+
+  if (activeKey === "return") {
+    return (
+      <div className="public-detail-tab-content">
+        <h3 className="public-detail-tab-content__heading">교환 및 반품 안내</h3>
+        <ul className="public-detail-tab-content__list">
+          <li>수령 후 7일 이내 단순 변심으로 교환·반품 가능 (왕복 배송비 고객 부담)</li>
+          <li>교재의 상태가 검수 등급과 다르거나, 페이지 누락·심한 훼손이 발견된 경우 무료 교환·반품</li>
+          <li>마이페이지 &gt; 구매 내역에서 신청해 주세요.</li>
+          <li>주문 제작 / 사용 흔적이 더해진 교재는 교환·반품이 제한될 수 있습니다.</li>
+        </ul>
+      </div>
+    );
+  }
+
+  // 기본: 정보 탭
+  return (
+    <div className="public-detail-tab-content">
+      <h3 className="public-detail-tab-content__heading">교재 정보</h3>
+      <dl className="public-detail-info-dl">
+        <div><dt>과목</dt><dd>{product.subject || "미등록"}</dd></div>
+        <div><dt>브랜드</dt><dd>{product.brand || "미등록"}</dd></div>
+        <div><dt>유형</dt><dd>{product.bookType || "미등록"}</dd></div>
+        <div><dt>연도</dt><dd>{product.publishedYear || "미등록"}</dd></div>
+        <div><dt>강사명</dt><dd>{product.instructorName || "미등록"}</dd></div>
+        <div><dt>검수일</dt><dd>{product.inspectedAt ? formatDate(product.inspectedAt) : "미등록"}</dd></div>
+        <div>
+          <dt>필기 비율</dt>
+          <dd>
+            {activeDisplay?.writingPercentage === null || activeDisplay?.writingPercentage === undefined
+              ? "미등록"
+              : `${activeDisplay.writingPercentage}%`}
+          </dd>
+        </div>
+        <div>
+          <dt>훼손 여부</dt>
+          <dd>
+            {activeDisplay?.hasDamage === null || activeDisplay?.hasDamage === undefined
+              ? "미등록"
+              : activeDisplay.hasDamage ? "있음" : "없음"}
+          </dd>
+        </div>
+      </dl>
+      {activeDisplay?.inspectionNotes ? (
+        <div className="public-detail-info-notes">
+          <span className="public-detail-info-notes__label">검수 메모</span>
+          <p className="public-detail-info-notes__body">{activeDisplay.inspectionNotes}</p>
+        </div>
+      ) : null}
+      {product.inspectionImageUrls?.length ? (
+        <div className="public-detail-info-images">
+          <span className="public-detail-info-notes__label">검수 사진</span>
+          <div className="public-detail-info-images__grid">
+            {product.inspectionImageUrls.map((imageUrl, index) => (
+              <a
+                className="public-detail-info-images__item"
+                href={imageUrl}
+                key={`${imageUrl}-${index}`}
+                rel="noreferrer"
+                target="_blank"
+              >
+                <img alt={`${product.title} 검수 사진 ${index + 1}`} src={imageUrl} />
+              </a>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </div>
+  );
+}
+
+function RelatedProductsRail({ products, favoriteIds, onToggleFavorite }) {
+  const railRef = useRef(null);
+  const [canScrollPrev, setCanScrollPrev] = useState(false);
+  const [canScrollNext, setCanScrollNext] = useState(false);
+  const [hasOverflow, setHasOverflow] = useState(false);
+
+  useEffect(() => {
+    const rail = railRef.current;
+    if (!rail) return undefined;
+
+    const sync = () => {
+      const { scrollLeft, scrollWidth, clientWidth } = rail;
+      const overflow = scrollWidth - clientWidth > SCROLL_EDGE_THRESHOLD_PX;
+      setHasOverflow(overflow);
+      setCanScrollPrev(scrollLeft > SCROLL_EDGE_THRESHOLD_PX);
+      setCanScrollNext(overflow && scrollLeft + clientWidth < scrollWidth - SCROLL_EDGE_THRESHOLD_PX);
+    };
+
+    sync();
+    rail.addEventListener("scroll", sync, { passive: true });
+
+    let resizeObserver = null;
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(sync);
+      resizeObserver.observe(rail);
+    } else if (typeof window !== "undefined") {
+      window.addEventListener("resize", sync);
+    }
+
+    return () => {
+      rail.removeEventListener("scroll", sync);
+      if (resizeObserver) resizeObserver.disconnect();
+      else if (typeof window !== "undefined") window.removeEventListener("resize", sync);
+    };
+  }, [products.length]);
+
+  const handleScroll = (direction) => {
+    const rail = railRef.current;
+    if (!rail) return;
+    const firstCard = rail.querySelector(".public-detail-related-rail__item");
+    const cardWidth = firstCard ? firstCard.getBoundingClientRect().width : 220;
+    const visibleCards = Math.max(1, Math.floor(rail.clientWidth / (cardWidth + 16)));
+    rail.scrollBy({ left: (cardWidth + 16) * Math.max(1, visibleCards - 1) * direction, behavior: "smooth" });
+  };
+
+  return (
+    <section aria-label="비슷한 교재 추천" className="public-detail-related">
+      <div className="public-detail-related__header">
+        <h2 className="public-detail-related__title">비슷한 교재 추천</h2>
+        {hasOverflow ? (
+          <div className="public-detail-related__nav-group" role="group" aria-label="가로 스크롤">
+            <button
+              aria-label="이전 교재 보기"
+              className="public-detail-related__nav"
+              disabled={!canScrollPrev}
+              onClick={() => handleScroll(-1)}
+              type="button"
+            >
+              <span aria-hidden="true">‹</span>
+            </button>
+            <button
+              aria-label="다음 교재 보기"
+              className="public-detail-related__nav"
+              disabled={!canScrollNext}
+              onClick={() => handleScroll(1)}
+              type="button"
+            >
+              <span aria-hidden="true">›</span>
+            </button>
+          </div>
+        ) : null}
+      </div>
+
+      {products.length ? (
+        <div className="public-detail-related-rail" ref={railRef} role="list">
+          {products.map((relatedProduct) => (
+            <div className="public-detail-related-rail__item" key={relatedProduct.id} role="listitem">
+              <ProductCard
+                isFavorite={favoriteIds.includes(String(relatedProduct.id))}
+                onToggleFavorite={onToggleFavorite}
+                product={relatedProduct}
+              />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="public-detail-related-empty">비슷한 교재가 아직 없어요.</div>
+      )}
+    </section>
   );
 }
 
@@ -169,13 +382,13 @@ function PublicProductDetailPage() {
   const { favoriteIds, isFavoritePending, toggleFavorite } = usePublicWishlist();
   const [product, setProduct] = useState(null);
   const [relatedProducts, setRelatedProducts] = useState([]);
-  const [detailSource, setDetailSource] = useState("");
   const [selectedOptionId, setSelectedOptionId] = useState("");
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [cartToast, setCartToast] = useState(null);
+  const [activeTabKey, setActiveTabKey] = useState("info");
 
   const showCartToast = useCallback((message, type = "info") => {
     setCartToast({ message, type });
@@ -191,18 +404,13 @@ function PublicProductDetailPage() {
         setError("");
 
         const detailResult = await fetchStorefrontProductDetail(productId);
-        if (!isActive) {
-          return;
-        }
+        if (!isActive) return;
 
         setProduct(detailResult.product);
-        setRelatedProducts(detailResult.relatedProducts);
-        setDetailSource(detailResult.source ?? "");
         const availableOption =
           detailResult.options.find((option) => !getAvailabilitySnapshot(option).isSoldOut) ??
           detailResult.options[0] ??
           null;
-
         setSelectedOptionId(availableOption?.id ?? detailResult.product?.selectedOptionId ?? "");
         setSelectedImageIndex(0);
         setQuantity(1);
@@ -212,73 +420,81 @@ function PublicProductDetailPage() {
           return;
         }
 
-        if (detailResult.relatedProducts.length > 0) {
-          return;
-        }
-
-        const relatedResult = await fetchStorefrontProducts({
+        // 비슷한 교재 추천: 동일 과목 + 동일 유형(가능하면) + 동일 강사 우선
+        const broadResult = await fetchStorefrontProducts({
           subject: detailResult.product.subject,
-          brands: detailResult.product.brand ? [detailResult.product.brand] : [],
-          limit: 8,
+          limit: 80,
           sort: "popular",
         });
+        if (!isActive) return;
 
-        if (!isActive) {
-          return;
+        const candidates = (broadResult.products ?? broadResult.books ?? []).filter(
+          (item) => String(item.id) !== String(detailResult.product.id),
+        );
+
+        // 점수: 동일 강사(+30) + 동일 유형(+15) + 동일 브랜드(+5)
+        const scored = candidates.map((item) => {
+          let score = 0;
+          if (
+            detailResult.product.instructorName &&
+            item.instructorName === detailResult.product.instructorName
+          ) {
+            score += 30;
+          }
+          if (detailResult.product.bookType && item.bookType === detailResult.product.bookType) {
+            score += 15;
+          }
+          if (detailResult.product.brand && item.brand === detailResult.product.brand) {
+            score += 5;
+          }
+          return { item, score };
+        });
+
+        // 점수 높은 순 → 동일 점수면 인기순(원래 정렬 유지)
+        scored.sort((a, b) => b.score - a.score);
+        const ranked = scored.map((entry) => entry.item).slice(0, RELATED_RAIL_LIMIT);
+
+        // 후보 부족 시 broadResult 의 popular 정렬 그대로 채워 넣음
+        if (ranked.length < RELATED_RAIL_LIMIT) {
+          const sorted = sortStorefrontProducts(candidates, "popular");
+          for (const item of sorted) {
+            if (ranked.length >= RELATED_RAIL_LIMIT) break;
+            if (!ranked.some((existing) => String(existing.id) === String(item.id))) {
+              ranked.push(item);
+            }
+          }
         }
 
-        const fallbackRelatedProducts = sortStorefrontProducts(
-          relatedResult.products ?? relatedResult.books ?? [],
-          "popular",
-        )
-          .filter((item) => item.id !== detailResult.product.id)
-          .slice(0, 4);
-
-        setRelatedProducts(fallbackRelatedProducts);
+        setRelatedProducts(ranked);
       } catch {
         if (isActive) {
           setProduct(null);
           setRelatedProducts([]);
-          setDetailSource("");
           setError("교재 상세 정보를 불러오지 못했습니다.");
         }
       } finally {
-        if (isActive) {
-          setIsLoading(false);
-        }
+        if (isActive) setIsLoading(false);
       }
     };
 
     void loadDetail();
-
+    setActiveTabKey("info");
     return () => {
       isActive = false;
     };
   }, [productId]);
 
-
   const selectedOption = useMemo(() => {
-    if (!product?.options?.length) {
-      return null;
-    }
-
-    return (
-      product.options.find((option) => option.id === selectedOptionId) ??
-      product.options[0] ??
-      null
-    );
+    if (!product?.options?.length) return null;
+    return product.options.find((option) => option.id === selectedOptionId) ?? product.options[0] ?? null;
   }, [product, selectedOptionId]);
 
   useEffect(() => {
-    if (!product?.options?.length) {
-      return;
-    }
-
+    if (!product?.options?.length) return;
     if (!selectedOptionId) {
       setSelectedOptionId(product.options[0]?.id ?? "");
       return;
     }
-
     if (!product.options.some((option) => option.id === selectedOptionId)) {
       setSelectedOptionId(product.options[0]?.id ?? "");
     }
@@ -289,34 +505,25 @@ function PublicProductDetailPage() {
   const canPurchase = !activeAvailability.isSoldOut;
 
   useEffect(() => {
-    const maxQuantity = activeAvailability.maxQuantity;
-    setQuantity((currentQuantity) => Math.min(Math.max(1, currentQuantity), maxQuantity));
+    setQuantity((current) => Math.min(Math.max(1, current), activeAvailability.maxQuantity));
   }, [activeAvailability.maxQuantity]);
 
   const galleryImages = useMemo(() => {
-    if (!product) {
-      return [];
-    }
-
+    if (!product) return [];
     const nextImages = [
       product.coverImageUrl,
       ...(product.inspectionImageUrls ?? []),
       selectedOption?.coverImageUrl,
       ...(selectedOption?.inspectionImageUrls ?? []),
     ].filter(Boolean);
-
     return Array.from(new Set(nextImages));
   }, [product, selectedOption]);
 
   useEffect(() => {
-    if (selectedImageIndex >= galleryImages.length) {
-      setSelectedImageIndex(0);
-    }
+    if (selectedImageIndex >= galleryImages.length) setSelectedImageIndex(0);
   }, [galleryImages, selectedImageIndex]);
 
   const selectedImageUrl = galleryImages[selectedImageIndex] ?? activeDisplay?.coverImageUrl ?? "";
-  const imageSourceLabel =
-    selectedImageIndex === 0 ? "표지 이미지" : selectedOption ? "선택 옵션 이미지" : "검수 사진";
   const priceValue = activeDisplay?.price ?? product?.price ?? null;
   const originalPriceValue = activeDisplay?.originalPrice ?? product?.originalPrice ?? null;
   const totalPriceValue = priceValue === null ? null : priceValue * quantity;
@@ -326,31 +533,25 @@ function PublicProductDetailPage() {
   const handleAddToCart = async () => {
     if (!canPurchase) return;
     if (!requireMember("addToCart")) return;
-
     const bookId = selectedOption?.id ?? product?.id;
     if (!bookId) return;
-
     const { error: cartError } = await addToCart({
       bookId,
       productId: product?.productId ?? null,
       quantity,
     });
-
     if (cartError) {
       showCartToast("장바구니 담기에 실패했습니다.", "error");
       return;
     }
-
     showCartToast("장바구니에 담았습니다.");
   };
 
   const handleBuyNow = async () => {
     if (!canPurchase) return;
     if (!requireMember("buyNow")) return;
-
     const bookId = selectedOption?.id ?? product?.id;
     if (!bookId) return;
-
     const orderPayload = [{
       bookId,
       productId: product?.productId ?? null,
@@ -361,91 +562,65 @@ function PublicProductDetailPage() {
       coverImageUrl: activeDisplay?.coverImageUrl ?? product?.coverImageUrl ?? "",
       price: priceValue,
     }];
-
     navigate("/order", { state: { items: orderPayload } });
   };
 
   const handleToggleFavorite = async (targetProductId) => {
-    if (!targetProductId) {
-      return;
-    }
-
-    if (!requireMember("favorite")) {
-      return;
-    }
-
+    if (!targetProductId) return;
+    if (!requireMember("favorite")) return;
     const result = await toggleFavorite(targetProductId);
-
     if (result.error) {
       showCartToast("찜 상태를 변경하지 못했어요.", "error");
       return;
     }
-
     showCartToast(result.isFavorite ? "찜 목록에 추가했어요." : "찜을 해제했어요.");
   };
 
   const pageContent = (
-    <div className="public-store-page public-product-detail-page">
+    <div className="public-product-detail-page">
       <PublicSiteHeader />
 
-      <div className="public-top-area public-store-page__top">
-        <ContentContainer as="section" className="public-store-route" aria-label="상품 경로">
-          <div className="public-store-route__crumbs">
-            <Link className="public-store-route__crumb-link" to="/">
-              스토어
-            </Link>
-            <span aria-hidden="true">›</span>
-            <span className="is-muted">{product ? product.title : "교재 상세"}</span>
-          </div>
-        </ContentContainer>
-      </div>
+      <ContentContainer as="section" className="public-detail-route" aria-label="상품 경로">
+        <div className="public-detail-route__crumbs">
+          <Link className="public-detail-route__crumb-link" to="/">
+            홈
+          </Link>
+          <span aria-hidden="true">›</span>
+          <span className="is-muted">{product ? product.title : "교재 상세"}</span>
+        </div>
+      </ContentContainer>
 
       <ContentContainer as="section" className="public-detail-content">
         {isLoading ? (
           <div className="public-detail-skeleton" aria-label="교재 상세 정보를 불러오는 중입니다">
-            <div className="public-detail-skeleton__col">
-              <div className="public-detail-skeleton__media public-store-skeleton" />
-              <div className="public-detail-skeleton__block public-store-skeleton" />
-            </div>
-            <div className="public-detail-skeleton__col">
-              <div className="public-detail-skeleton__block public-store-skeleton" />
-              <div className="public-detail-skeleton__block public-store-skeleton" />
-              <div className="public-detail-skeleton__block--tall public-detail-skeleton__block public-store-skeleton" />
-            </div>
+            <div className="public-detail-skeleton__media public-store-skeleton" />
+            <div className="public-detail-skeleton__info public-store-skeleton" />
           </div>
         ) : error ? (
           <div className="public-detail-error" role="alert">
             {error}
           </div>
         ) : product ? (
-          <div className="public-detail-layout">
-            <div className="public-detail-col">
-              <div className="public-detail-gallery">
-                <div className="public-detail-gallery__main">
+          <>
+            <div className="public-detail-hero">
+              {/* 좌측 이미지 */}
+              <div className="public-detail-hero__media">
+                <div className="public-detail-hero__main-image">
                   {selectedImageUrl ? (
-                    <img
-                      alt={product.title}
-                      className="public-detail-gallery__img"
-                      src={selectedImageUrl}
-                    />
+                    <img alt={product.title} src={selectedImageUrl} />
                   ) : (
-                    <div className="public-detail-gallery__placeholder">
-                      <span className="public-detail-gallery__placeholder-eyebrow">SUBOOK</span>
-                      <p className="public-detail-gallery__placeholder-title">
-                        이미지가 아직 준비되지 않았어요
-                      </p>
+                    <div className="public-detail-hero__placeholder">
+                      <span>SUBOOK</span>
+                      <p>이미지 준비 중</p>
                     </div>
                   )}
-
-                  <div className="public-detail-gallery__source-tag">{imageSourceLabel}</div>
                 </div>
-
                 {galleryImages.length > 1 ? (
-                  <div className="public-detail-gallery__thumbs">
+                  <div className="public-detail-hero__thumbs">
                     {galleryImages.map((imageUrl, index) => (
                       <button
                         aria-label={`${index + 1}번 이미지 보기`}
-                        className={`public-detail-gallery__thumb${index === selectedImageIndex ? " is-active" : ""}`}
+                        className={`public-detail-hero__thumb${index === selectedImageIndex ? " is-active" : ""}`}
                         key={`${imageUrl}-${index}`}
                         onClick={() => setSelectedImageIndex(index)}
                         type="button"
@@ -457,256 +632,111 @@ function PublicProductDetailPage() {
                 ) : null}
               </div>
 
-              <div className="public-detail-info-grid">
-                <div className="public-detail-panel">
-                  <p className="public-detail-panel__eyebrow">교재 기본정보</p>
-                  <h1 className="public-detail-info-card__title">{product.title}</h1>
-                  <div className="public-detail-info-card__badge-row">
-                    <StatusBadge type="product" status={product.status} />
-                    {detailSource === "mock" ? (
-                      <span className="public-detail-info-card__badge public-detail-info-card__badge--mock">
-                        Mock 데이터
-                      </span>
-                    ) : null}
-                    {activeDisplay?.conditionGradeLabel ? (
-                      <span className="public-detail-info-card__badge">
-                        {activeDisplay.conditionGradeLabel}
-                      </span>
-                    ) : null}
-                    {product.optionSummaryLabel ? (
-                      <span className="public-detail-info-card__badge">
-                        {product.optionSummaryLabel}
-                      </span>
-                    ) : null}
-                  </div>
-                  <dl className="public-detail-info-card__dl">
-                    <div>
-                      <dt className="public-detail-info-card__dt">과목</dt>
-                      <dd className="public-detail-info-card__dd">{product.subject || "미등록"}</dd>
-                    </div>
-                    <div>
-                      <dt className="public-detail-info-card__dt">브랜드</dt>
-                      <dd className="public-detail-info-card__dd">{product.brand || "미등록"}</dd>
-                    </div>
-                    <div>
-                      <dt className="public-detail-info-card__dt">유형</dt>
-                      <dd className="public-detail-info-card__dd">{product.bookType || "미등록"}</dd>
-                    </div>
-                    <div>
-                      <dt className="public-detail-info-card__dt">연도</dt>
-                      <dd className="public-detail-info-card__dd">{product.publishedYear || "미등록"}</dd>
-                    </div>
-                    <div>
-                      <dt className="public-detail-info-card__dt">강사명</dt>
-                      <dd className="public-detail-info-card__dd">{product.instructorName || "미등록"}</dd>
-                    </div>
-                    <div>
-                      <dt className="public-detail-info-card__dt">검수일</dt>
-                      <dd className="public-detail-info-card__dd">
-                        {product.inspectedAt ? formatDate(product.inspectedAt) : "미등록"}
-                      </dd>
-                    </div>
-                  </dl>
-                </div>
+              {/* 우측 정보 */}
+              <div className="public-detail-hero__info">
+                <ProductChips
+                  brand={product.brand}
+                  bookType={product.bookType}
+                  conditionGradeLabel={activeDisplay?.conditionGradeLabel}
+                  subject={product.subject}
+                />
 
-                <div className="public-detail-price-card">
-                  <p className="public-detail-price-card__eyebrow">가격 정보</p>
-                  <div className="public-detail-price-card__amount-row">
-                    <span className="public-detail-price-card__amount">
-                      {priceValue === null ? "미입력" : formatCurrency(priceValue)}
-                    </span>
-                    {activeDisplay?.discountRate !== null ? (
-                      <span className="public-detail-price-card__discount-badge">
-                        {activeDisplay.discountRate}% 할인
-                      </span>
-                    ) : null}
-                  </div>
-                  {originalPriceValue !== null ? (
-                    <p className="public-detail-price-card__original">
-                      정가 {formatCurrency(originalPriceValue)}
-                    </p>
-                  ) : null}
+                <h1 className="public-detail-hero__title">{product.title}</h1>
 
-                  <ul className="public-detail-price-card__status-list">
-                    <li className="public-detail-price-card__status-row">
-                      <span>판매 상태</span>
-                      <span className="public-detail-price-card__status-value">{product.statusLabel}</span>
-                    </li>
-                    <li className="public-detail-price-card__status-row">
-                      <span>선택 옵션</span>
-                      <span className="public-detail-price-card__status-value">
-                        {activeDisplay?.conditionGradeLabel || activeDisplay?.option || "-"}
-                      </span>
-                    </li>
-                  </ul>
+                <ProductPriceLine
+                  discountRate={activeDisplay?.discountRate}
+                  originalPriceValue={originalPriceValue}
+                  priceValue={priceValue}
+                />
 
-                  <div className="public-detail-price-card__actions">
-                    <button
-                      aria-label={isProductFavorite ? "찜 취소" : "찜하기"}
-                      aria-pressed={isProductFavorite}
-                      className={`public-detail-price-card__favorite${isProductFavorite ? " is-active" : ""}`}
-                      disabled={isProductFavoritePending}
-                      onClick={() => {
-                        void handleToggleFavorite(product.id);
-                      }}
-                      type="button"
-                    >
-                      <span aria-hidden="true">{isProductFavorite ? "♥" : "♡"}</span>
-                      <span>찜</span>
-                    </button>
-                    <button
-                      className="public-detail-price-card__btn public-detail-price-card__btn--cart"
-                      disabled={!canPurchase}
-                      onClick={handleAddToCart}
-                      type="button"
-                    >
-                      {canPurchase ? "장바구니 담기" : "품절"}
-                    </button>
-                    <button
-                      className="public-detail-price-card__btn public-detail-price-card__btn--buy"
-                      disabled={!canPurchase}
-                      onClick={handleBuyNow}
-                      type="button"
-                    >
-                      {canPurchase ? "바로 구매하기" : "입고 알림 확인"}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="public-detail-col">
-              <ProductOptionSelector
-                onSelect={setSelectedOptionId}
-                options={product.options ?? []}
-                selectedOptionId={selectedOptionId}
-              />
-
-              <QuantityStepper
-                disabled={!canPurchase}
-                maxQuantity={activeAvailability.maxQuantity}
-                onDecrease={() => setQuantity((currentQuantity) => Math.max(1, currentQuantity - 1))}
-                onIncrease={() =>
-                  setQuantity((currentQuantity) => Math.min(activeAvailability.maxQuantity, currentQuantity + 1))
-                }
-                value={quantity}
-              />
-
-              <div className="public-detail-panel">
-                <p className="public-detail-panel__eyebrow">품질 정보</p>
-                <ul className="public-detail-quality-list">
-                  <li className="public-detail-quality-row">
-                    <span className="public-detail-quality-row__label">구매 가능 수량</span>
-                    <span className="public-detail-quality-row__value">
-                      {activeAvailability.availableCount === null
-                        ? "정보 없음"
-                        : activeAvailability.availableCount === 0
-                          ? "품절"
-                          : `${activeAvailability.availableCount}권`}
-                    </span>
-                  </li>
-                  <li className="public-detail-quality-row">
-                    <span className="public-detail-quality-row__label">필기 비율</span>
-                    <span className="public-detail-quality-row__value">
-                      {activeDisplay?.writingPercentage === null
-                        ? "미등록"
-                        : `${activeDisplay.writingPercentage}%`}
-                    </span>
-                  </li>
-                  <li className="public-detail-quality-row">
-                    <span className="public-detail-quality-row__label">훼손 여부</span>
-                    <span className="public-detail-quality-row__value">
-                      {activeDisplay?.hasDamage === null
-                        ? "미등록"
-                        : activeDisplay.hasDamage
-                          ? "있음"
-                          : "없음"}
-                    </span>
-                  </li>
-                </ul>
-                <div className="public-detail-quality-notes">
-                  <span className="public-detail-quality-notes__label">검수 메모</span>
-                  <p className="public-detail-quality-notes__body">
-                    {activeDisplay?.inspectionNotes || "검수 메모가 아직 없습니다."}
-                  </p>
-                </div>
-                <div className="public-detail-total-row">
-                  <div className="public-detail-total-row__header">
-                    <span className="public-detail-total-row__label">현재 선택</span>
-                    <span className="public-detail-total-row__value">
-                      {activeDisplay?.conditionGradeLabel || activeDisplay?.option || "옵션 미선택"}
-                    </span>
-                  </div>
-                  <p className="public-detail-total-row__summary">
-                    {totalPriceValue === null
-                      ? "가격 정보가 아직 없어요."
-                      : `선택 수량 ${quantity}권 기준 총 ${formatCurrency(totalPriceValue)}입니다.`}
-                  </p>
-                </div>
-              </div>
-
-              <div className="public-detail-panel">
-                <p className="public-detail-panel__eyebrow">교재 요약</p>
-                <p className="public-detail-summary-body">
-                  {[product.subject, product.brand, product.bookType, product.publishedYear, product.instructorName]
-                    .filter(Boolean)
-                    .join(" · ") || "교재 요약 정보가 아직 없습니다."}
-                </p>
-              </div>
-
-              {product.inspectionImageUrls?.length ? (
-                <div className="public-detail-panel">
-                  <p className="public-detail-panel__eyebrow">검수 사진</p>
-                  <div className="public-detail-inspection-grid">
-                    {product.inspectionImageUrls.map((imageUrl, index) => (
-                      <a
-                        className="public-detail-inspection-link"
-                        href={imageUrl}
-                        key={`${imageUrl}-${index}`}
-                        rel="noreferrer"
-                        target="_blank"
-                      >
-                        <img
-                          alt={`${product.title} 검수 사진 ${index + 1}`}
-                          src={imageUrl}
-                        />
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-
-              <div className="public-detail-panel">
-                <div className="public-detail-related-header">
+                <dl className="public-detail-hero__summary">
                   <div>
-                    <p className="public-detail-panel__eyebrow">추천 교재</p>
-                    <h2 className="public-detail-related-header__title">비슷한 교재 추천</h2>
+                    <dt>배송비</dt>
+                    <dd>{priceValue !== null && priceValue >= 50000 ? "무료" : "3,500원"}</dd>
                   </div>
-                  <Link className="public-outline-button" to="/">
-                    스토어 전체보기
-                  </Link>
-                </div>
+                  <div>
+                    <dt>총 상품 금액 ({quantity}개)</dt>
+                    <dd className="public-detail-hero__summary-total">
+                      {totalPriceValue === null ? "-" : formatCurrency(totalPriceValue)}
+                    </dd>
+                  </div>
+                </dl>
 
-                {relatedProducts.length ? (
-                  <div className="public-detail-related-rail" role="list">
-                    {relatedProducts.map((relatedProduct) => (
-                      <div className="public-detail-related-rail__item" key={relatedProduct.id} role="listitem">
-                        <ProductCard
-                          isFavorite={favoriteIds.includes(String(relatedProduct.id))}
-                          onToggleFavorite={handleToggleFavorite}
-                          product={relatedProduct}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="public-detail-related-empty">
-                    비슷한 교재가 아직 없어요.
-                  </div>
-                )}
+                <OptionDropdown
+                  disabled={!canPurchase}
+                  onSelect={setSelectedOptionId}
+                  options={product.options ?? []}
+                  selectedOptionId={selectedOptionId}
+                />
+
+                <QuantityRow
+                  disabled={!canPurchase}
+                  maxQuantity={activeAvailability.maxQuantity}
+                  onDecrease={() => setQuantity((current) => Math.max(1, current - 1))}
+                  onIncrease={() =>
+                    setQuantity((current) => Math.min(activeAvailability.maxQuantity, current + 1))
+                  }
+                  value={quantity}
+                />
+
+                <div className="public-detail-hero__actions">
+                  <button
+                    aria-label={isProductFavorite ? "찜 취소" : "찜하기"}
+                    aria-pressed={isProductFavorite}
+                    className={`public-detail-hero__favorite${isProductFavorite ? " is-active" : ""}`}
+                    disabled={isProductFavoritePending}
+                    onClick={() => {
+                      void handleToggleFavorite(product.id);
+                    }}
+                    type="button"
+                  >
+                    <span aria-hidden="true">{isProductFavorite ? "♥" : "♡"}</span>
+                  </button>
+                  <button
+                    className="public-detail-hero__btn public-detail-hero__btn--cart"
+                    disabled={!canPurchase}
+                    onClick={handleAddToCart}
+                    type="button"
+                  >
+                    {canPurchase ? "장바구니 담기" : "품절"}
+                  </button>
+                  <button
+                    className="public-detail-hero__btn public-detail-hero__btn--buy"
+                    disabled={!canPurchase}
+                    onClick={handleBuyNow}
+                    type="button"
+                  >
+                    {canPurchase ? "바로 구매하기" : "입고 알림 확인"}
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
+
+            {/* 탭 네비게이션 */}
+            <div className="public-detail-tabs" role="tablist" aria-label="상품 안내 탭">
+              {DETAIL_TABS.map((tab) => (
+                <button
+                  aria-selected={activeTabKey === tab.key}
+                  className={`public-detail-tabs__btn${activeTabKey === tab.key ? " is-active" : ""}`}
+                  key={tab.key}
+                  onClick={() => setActiveTabKey(tab.key)}
+                  role="tab"
+                  type="button"
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            <DetailTabPanel activeKey={activeTabKey} activeDisplay={activeDisplay} product={product} />
+
+            {/* 비슷한 교재 추천 (가로 스크롤) */}
+            <RelatedProductsRail
+              favoriteIds={favoriteIds}
+              onToggleFavorite={handleToggleFavorite}
+              products={relatedProducts}
+            />
+          </>
         ) : null}
       </ContentContainer>
 
@@ -717,20 +747,6 @@ function PublicProductDetailPage() {
         <div
           className={`public-detail-toast${cartToast.type === "error" ? " public-detail-toast--error" : ""}`}
           role="alert"
-          style={{
-            position: "fixed",
-            bottom: 24,
-            left: "50%",
-            transform: "translateX(-50%)",
-            padding: "12px 24px",
-            borderRadius: 10,
-            fontSize: 14,
-            fontWeight: 500,
-            color: "#fff",
-            background: cartToast.type === "error" ? "#ef4444" : "#1f2937",
-            boxShadow: "0 4px 16px rgba(0,0,0,0.15)",
-            zIndex: 1000,
-          }}
         >
           {cartToast.message}
         </div>
