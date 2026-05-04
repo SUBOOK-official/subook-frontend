@@ -539,10 +539,19 @@ function PublicProductDetailPage() {
       showCartToast("옵션이 선택되지 않았습니다.", "error");
       return;
     }
-    const { error: cartError } = await addToCart({
+    const { data: cartData, error: cartError } = await addToCart({
       bookId,
       productId: product?.productId ?? null,
       quantity,
+      productMeta: {
+        title: product?.title,
+        subject: product?.subject,
+        brand: product?.brand,
+        optionLabel: activeDisplay?.option ?? null,
+        conditionGrade: activeDisplay?.conditionGradeLabel ?? activeDisplay?.conditionGrade ?? null,
+        coverImageUrl: activeDisplay?.coverImageUrl ?? product?.coverImageUrl ?? null,
+        price: priceValue,
+      },
     });
     if (cartError) {
       const detailMessage =
@@ -552,7 +561,7 @@ function PublicProductDetailPage() {
       showCartToast(detailMessage, "error");
       return;
     }
-    showCartToast("장바구니에 담았습니다.");
+    showCartToast(cartData?.demo ? "데모 장바구니에 담았습니다." : "장바구니에 담았습니다.");
   };
 
   const handleBuyNow = async () => {
