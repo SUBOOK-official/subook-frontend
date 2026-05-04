@@ -533,15 +533,23 @@ function PublicProductDetailPage() {
   const handleAddToCart = async () => {
     if (!canPurchase) return;
     if (!requireMember("addToCart")) return;
-    const bookId = selectedOption?.id ?? product?.id;
-    if (!bookId) return;
+    // selectedOption.id 는 books.id 의 string 표현 — 우선 사용
+    const bookId = selectedOption?.id ?? null;
+    if (!bookId) {
+      showCartToast("옵션이 선택되지 않았습니다.", "error");
+      return;
+    }
     const { error: cartError } = await addToCart({
       bookId,
       productId: product?.productId ?? null,
       quantity,
     });
     if (cartError) {
-      showCartToast("장바구니 담기에 실패했습니다.", "error");
+      const detailMessage =
+        cartError?.message ||
+        cartError?.details ||
+        "장바구니 담기에 실패했습니다.";
+      showCartToast(detailMessage, "error");
       return;
     }
     showCartToast("장바구니에 담았습니다.");
