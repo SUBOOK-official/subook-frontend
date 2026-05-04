@@ -2,6 +2,7 @@ import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 
 const PublicCartPage = lazy(() => import("./pages/PublicCartPage"));
+const PublicFaqPage = lazy(() => import("./pages/PublicFaqPage"));
 const PublicForgotPasswordPage = lazy(() => import("./pages/PublicForgotPasswordPage"));
 const PublicHomePage = lazy(() => import("./pages/PublicHomePage"));
 const PublicLoginPage = lazy(() => import("./pages/PublicLoginPage"));
@@ -29,6 +30,7 @@ function App() {
       <Routes>
         <Route element={<PublicResetPasswordPage />} path="/auth/reset-password" />
         <Route element={<PublicCartPage />} path="/cart" />
+        <Route element={<PublicFaqPage />} path="/faq" />
         <Route element={<PublicForgotPasswordPage />} path="/forgot-password" />
         <Route element={<PublicHomePage />} path="/" />
         <Route element={<PublicLoginPage />} path="/login" />

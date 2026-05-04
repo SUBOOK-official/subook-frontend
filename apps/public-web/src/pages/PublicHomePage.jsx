@@ -39,14 +39,14 @@ const HOME_HERO_SLIDES = [
     actionType: "pickup",
   },
   {
-    id: "new-arrival",
-    eyebrow: "NEW ARRIVAL",
-    titleLines: ["2026 시대인재", "신규 대량 입고!"],
-    descriptionLines: ["수학 · 국어 · 영어 인기 교재", "한정 수량, 지금 바로 확인하세요"],
-    ctaLabel: "지금 보러가기",
-    ctaTextColor: "#4C1D95",
-    gradient: "135deg, #4C1D95 0%, #7C3AED 50%, #8B5CF6 100%",
-    href: "/?brand=시대인재",
+    id: "faq",
+    eyebrow: "FAQ",
+    titleLines: ["수북, 정말", "믿고 사도 되는걸까요?"],
+    descriptionLines: ["판매·수거·등급·정산까지", "자주 묻는 질문을 한 번에 확인해 보세요"],
+    ctaLabel: "자주 묻는 질문 보러가기",
+    ctaTextColor: "#0F766E",
+    gradient: "135deg, #0F766E 0%, #14B8A6 50%, #5EEAD4 100%",
+    href: "/faq",
   },
 ];
 
