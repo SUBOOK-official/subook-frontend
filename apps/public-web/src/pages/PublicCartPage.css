@@ -1,6 +1,10 @@
 /* ── Cart Page ── */
 .cart-page {
-  min-height: 100vh;
+  /* PublicPageFrame은 데스크톱(≥1280px)에서 1920px 가로 frame을 scale로 축소한다.
+     cart-page 내부의 100vh는 viewport 기준이라, frame이 축소되면
+     스케일된 stage 높이가 viewport보다 짧아져 푸터 아래 흰 여백이 생긴다.
+     scale의 역수로 보정해 stage가 정확히 viewport를 채우도록 한다. */
+  min-height: calc(100vh / var(--public-frame-scale, 1));
   background: var(--public-ds-bg);
   display: flex;
   flex-direction: column;
