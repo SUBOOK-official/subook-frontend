@@ -2,11 +2,14 @@
 .cart-page {
   min-height: 100vh;
   background: var(--public-ds-bg);
+  display: flex;
+  flex-direction: column;
 }
 
 .cart-content {
   padding-top: 24px;
   padding-bottom: 80px;
+  flex: 1 0 auto;
 }
 
 .cart-page__title {
