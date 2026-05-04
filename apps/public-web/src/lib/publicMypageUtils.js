@@ -160,6 +160,10 @@ const pickupStatusToShipmentStatus = {
 const orderStatusMap = {
   pending: { label: "입금대기", tone: "neutral" },
   paid: { label: "결제완료", tone: "accent" },
+  // preparing: 어드민이 결제 확인 후 "상품 준비 중"으로 전환하는 단계.
+  // 백엔드(orders.status enum)에 추가되기 전까지는 사용되지 않지만,
+  // 라벨/필터 매핑은 미리 갖춰둔다.
+  preparing: { label: "상품 준비 중", tone: "warning" },
   shipping: { label: "배송중", tone: "warning" },
   delivered: { label: "배송완료", tone: "success" },
   confirmed: { label: "구매확정", tone: "success" },
@@ -475,14 +479,18 @@ export function getTabKeyFromHash(hash) {
   return DEFAULT_TAB_KEY;
 }
 
-// 구매 내역 상단 통계 카드. 회의 결과 status 매핑이 결정되면 이 곳만 손대면 된다.
-// 현재는 의미상으로 가장 가까운 매핑을 임시 적용한다.
+// 구매 내역 상단 통계 카드. 도메인 status와 1:1 매핑.
+// - 결제 완료(paid): 사용자가 계좌이체/PG로 결제하고 입금 확인까지 완료된 상태
+// - 상품 준비 중(preparing): 어드민이 결제 확인 후 명시적으로 전환한 상태 — 백엔드 status 추가 필요
+// - 배송중(shipping): 운송장이 등록된 상태
+// - 구매 확정(confirmed): 배송 도착 후 7일 자동 또는 사용자 임의 확정
+// (delivered/pending/cancelled/refunded/returned 등은 별도 카드로 노출하지 않음)
 export const PURCHASE_SUMMARY_CARDS = [
-  { key: "all",         label: "전체",       statuses: null },
-  { key: "completed",   label: "구매 완료",   statuses: ["paid"] },
-  { key: "preparing",   label: "상품 준비 중", statuses: ["pending", "paid"] },
-  { key: "shipping",    label: "배송중",     statuses: ["shipping"] },
-  { key: "confirmed",   label: "구매 확정",   statuses: ["confirmed"] },
+  { key: "all",       label: "전체",       statuses: null },
+  { key: "paid",      label: "결제 완료",   statuses: ["paid"] },
+  { key: "preparing", label: "상품 준비 중", statuses: ["preparing"] },
+  { key: "shipping",  label: "배송중",     statuses: ["shipping"] },
+  { key: "confirmed", label: "구매 확정",   statuses: ["confirmed"] },
 ];
 
 export function countOrdersByStatuses(orders, statuses) {
