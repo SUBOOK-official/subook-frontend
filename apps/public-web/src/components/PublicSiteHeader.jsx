@@ -182,14 +182,6 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
               </button>
               {isAccountMenuOpen ? (
                 <div className="public-nav-account__menu" role="menu">
-                  <Link
-                    className="public-nav-account__item"
-                    onClick={() => setIsAccountMenuOpen(false)}
-                    role="menuitem"
-                    to="/mypage"
-                  >
-                    마이페이지
-                  </Link>
                   <button
                     className="public-nav-account__item public-nav-account__item--danger"
                     onClick={handleSignOut}
