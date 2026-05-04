@@ -13,17 +13,17 @@ const PICKUP_REQUEST_PATH = "/pickup/new";
 
 const HOME_HERO_SLIDES = [
   {
-    id: "store-discovery",
-    eyebrow: "SUBOOK",
-    titleLines: ["수능 교재,", "똑똑하게 구매하세요"],
+    id: "quality-trust",
+    eyebrow: "QUALITY FIRST",
+    titleLines: ["엄격한 4단계 검수,", "안심하고 구매하세요"],
     descriptionLines: [
-      "대치동 학원 교재를 최대 80% 할인으로",
-      "전문 검수 완료된 교재만 판매합니다",
+      "수북은 검수가 완료된 재고만 판매합니다",
+      "S · A+ 등급 기준이 궁금하다면 확인해 보세요",
     ],
-    ctaLabel: "교재 둘러보기",
+    ctaLabel: "검수 등급 안내 보기",
     ctaTextColor: "#1B3A5C",
     gradient: "135deg, #1B3A5C 0%, #2563EB 50%, #3B82F6 100%",
-    href: "/",
+    href: "/faq",
   },
   {
     id: "pickup-request",

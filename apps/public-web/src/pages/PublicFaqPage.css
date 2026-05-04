@@ -226,66 +226,6 @@
   word-break: keep-all;
 }
 
-/* ── 하단 CTA ────────────────────────────────────────────── */
-.public-faq-cta {
-  margin-top: 48px;
-  padding: 32px 24px;
-  border-radius: 16px;
-  background: linear-gradient(135deg, #ECFDF5 0%, #F0FDFA 100%);
-  text-align: center;
-}
-
-.public-faq-cta__text {
-  margin: 0 0 16px;
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--public-ds-text, #0f172a);
-}
-
-.public-faq-cta__buttons {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-
-.public-faq-cta__btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 44px;
-  padding: 0 20px;
-  border-radius: 10px;
-  font-size: 14px;
-  font-weight: 700;
-  text-decoration: none;
-  transition: opacity 0.15s, transform 0.15s;
-}
-
-.public-faq-cta__btn:active {
-  transform: scale(0.97);
-}
-
-.public-faq-cta__btn--primary {
-  background: var(--public-primary, #1B3A5C);
-  color: #ffffff;
-}
-
-.public-faq-cta__btn--primary:hover {
-  background: #0F2342;
-}
-
-.public-faq-cta__btn--secondary {
-  background: #ffffff;
-  color: var(--public-primary, #1B3A5C);
-  border: 1px solid var(--public-primary, #1B3A5C);
-}
-
-.public-faq-cta__btn--secondary:hover {
-  background: var(--public-bg-soft, #f8fafc);
-}
-
 /* ── 모바일 ─────────────────────────────────────────────── */
 @media (max-width: 600px) {
   .public-faq-hero__title {

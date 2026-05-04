@@ -219,18 +219,6 @@ function PublicFaqPage() {
             );
           })}
         </ul>
-
-        <div className="public-faq-cta">
-          <p className="public-faq-cta__text">원하는 답이 없으셨나요?</p>
-          <div className="public-faq-cta__buttons">
-            <Link className="public-faq-cta__btn public-faq-cta__btn--primary" to="/pickup/new">
-              판매 신청하기
-            </Link>
-            <Link className="public-faq-cta__btn public-faq-cta__btn--secondary" to="/">
-              교재 둘러보기
-            </Link>
-          </div>
-        </div>
       </ContentContainer>
 
       <PublicFooter />
