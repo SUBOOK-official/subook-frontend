@@ -143,6 +143,68 @@ img {
   padding-bottom: 72px;
 }
 
+/* ── 계정 드롭다운 (로그인된 사용자) ── */
+.public-nav-account {
+  position: relative;
+  display: inline-flex;
+}
+
+.public-nav-account__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.public-nav-account__caret {
+  font-size: 11px;
+  line-height: 1;
+  color: var(--public-text-muted, #64748b);
+  margin-top: -1px;
+}
+
+.public-nav-account__menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  background: #ffffff;
+  border: 1px solid var(--public-border);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.15);
+  padding: 4px;
+  min-width: 160px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.public-nav-account__item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--public-text);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.public-nav-account__item:hover {
+  background: var(--public-bg-soft);
+}
+
+.public-nav-account__item--danger {
+  color: #DC2626;
+}
+
+.public-nav-account__item--danger:hover {
+  background: #FEF2F2;
+}
+
 /* ── Fixed site header (모든 페이지 상단 고정 — Portal 로 body 에 직접 렌더) ── */
 .public-sticky-header {
   position: fixed;

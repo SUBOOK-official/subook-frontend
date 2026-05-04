@@ -3,9 +3,14 @@ import { createPortal } from "react-dom";
 import { Link, useNavigate } from "react-router-dom";
 import ContentContainer from "./ContentContainer";
 import searchIconImage from "../assets/search-icon.svg";
+import { usePublicAuth } from "../contexts/PublicAuthContext";
+import { createDisplayName } from "../lib/memberPortal";
 
 function PublicSiteHeader({ onCartClick, searchSlot }) {
   const navigate = useNavigate();
+  const { isAuthenticated, profile, user, signOut } = usePublicAuth();
+  const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
+  const accountMenuRef = useRef(null);
   const [portalNode, setPortalNode] = useState(null);
   const [headerHeight, setHeaderHeight] = useState(72);
   const [frameScale, setFrameScale] = useState(1);
@@ -101,6 +106,37 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
     navigate("/cart");
   };
 
+  // 계정 드롭다운 외부 클릭 닫기
+  useEffect(() => {
+    if (!isAccountMenuOpen) return undefined;
+
+    const handlePointerDown = (event) => {
+      if (accountMenuRef.current && !accountMenuRef.current.contains(event.target)) {
+        setIsAccountMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") setIsAccountMenuOpen(false);
+    };
+
+    window.addEventListener("mousedown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("mousedown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isAccountMenuOpen]);
+
+  const handleSignOut = async () => {
+    setIsAccountMenuOpen(false);
+    await signOut();
+    navigate("/", { replace: true });
+  };
+
+  const displayName = isAuthenticated
+    ? createDisplayName(profile ?? { email: user?.email ?? "" })
+    : "";
+
   const headerNode = (
     <div className="public-sticky-header" ref={headerRef}>
       <ContentContainer as="header" className="public-nav public-site-header">
@@ -132,9 +168,44 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
           <Link className="public-nav-link" to="/mypage">
             마이페이지
           </Link>
-          <Link className="public-nav-link public-nav-button" to="/login">
-            로그인/회원가입
-          </Link>
+          {isAuthenticated ? (
+            <div className="public-nav-account" ref={accountMenuRef}>
+              <button
+                aria-expanded={isAccountMenuOpen}
+                aria-haspopup="menu"
+                className="public-nav-link public-nav-button public-nav-account__trigger"
+                onClick={() => setIsAccountMenuOpen((open) => !open)}
+                type="button"
+              >
+                <span>{displayName}님</span>
+                <span aria-hidden="true" className="public-nav-account__caret">▾</span>
+              </button>
+              {isAccountMenuOpen ? (
+                <div className="public-nav-account__menu" role="menu">
+                  <Link
+                    className="public-nav-account__item"
+                    onClick={() => setIsAccountMenuOpen(false)}
+                    role="menuitem"
+                    to="/mypage"
+                  >
+                    마이페이지
+                  </Link>
+                  <button
+                    className="public-nav-account__item public-nav-account__item--danger"
+                    onClick={handleSignOut}
+                    role="menuitem"
+                    type="button"
+                  >
+                    로그아웃
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <Link className="public-nav-link public-nav-button" to="/login">
+              로그인/회원가입
+            </Link>
+          )}
         </nav>
       </ContentContainer>
     </div>
