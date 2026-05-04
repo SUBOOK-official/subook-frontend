@@ -168,6 +168,11 @@ img {
   background: #ffffff;
 }
 
+/* storefront 섹션은 사이드바 + 그리드를 위해 양옆 여백을 더 활용 */
+.public-home-store-grid > .public-content-container {
+  max-width: 1760px;
+}
+
 /* 과목 탭 */
 .public-home-store-grid__tabs {
   display: flex;
@@ -209,8 +214,8 @@ img {
 /* ── 사이드바 레이아웃 (PC 좌측 세로 필터 + 우측 메인) ── */
 .public-home-store-grid__layout {
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
-  gap: 32px;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 40px;
   align-items: start;
 }
 
