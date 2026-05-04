@@ -9,6 +9,7 @@ const PAGE_SIZE = 30;
 const ORDER_STATUS_OPTIONS = [
   { value: "pending", label: "입금대기" },
   { value: "paid", label: "결제완료" },
+  { value: "preparing", label: "상품 준비 중" },
   { value: "shipping", label: "배송중" },
   { value: "delivered", label: "배송완료" },
   { value: "confirmed", label: "구매확정" },
@@ -19,6 +20,7 @@ const ORDER_STATUS_OPTIONS = [
 const STATUS_BADGE_STYLE = {
   pending: "bg-yellow-100 text-yellow-800",
   paid: "bg-blue-100 text-blue-800",
+  preparing: "bg-purple-100 text-purple-800",
   shipping: "bg-indigo-100 text-indigo-800",
   delivered: "bg-green-100 text-green-800",
   confirmed: "bg-slate-200 text-slate-700",
@@ -34,12 +36,19 @@ const CARRIER_OPTIONS = [
   "로젠택배",
 ];
 
+// 워크플로우: pending → paid → preparing → shipping → delivered → confirmed
+// preparing은 어드민이 결제 확인 후 명시적으로 전환하는 단계.
+// 운송장 입력은 preparing에서만 가능하도록 UI를 강제(백엔드는 paid→shipping 직행도 호환).
 const NEXT_STATUS_ACTIONS = {
   pending: [
     { status: "paid", label: "입금확인", style: "btn-primary" },
     { status: "cancelled", label: "주문취소", style: "btn-danger" },
   ],
   paid: [
+    { status: "preparing", label: "상품 준비 중", style: "btn-primary" },
+    { status: "cancelled", label: "주문취소", style: "btn-danger" },
+  ],
+  preparing: [
     { status: "shipping", label: "송장입력", style: "btn-primary", requiresTracking: true },
     { status: "cancelled", label: "주문취소", style: "btn-danger" },
   ],

@@ -737,7 +737,8 @@ export function mapOrderToDisplayOrder(order) {
       : null;
 
   const canConfirm = order.status === "delivered" && !order.confirmed_at;
-  const canCancel = ["pending", "paid"].includes(order.status);
+  // 사용자는 배송 전 단계(입금대기/결제완료/상품 준비 중)에서 주문 취소 가능
+  const canCancel = ["pending", "paid", "preparing"].includes(order.status);
   const canReturn = order.status === "delivered" && !order.confirmed_at;
   const canReview = items.some((item) => item.canReview);
 
