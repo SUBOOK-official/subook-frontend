@@ -20,6 +20,41 @@ export const TAB_ITEMS = [
   { key: "settings", label: "설정", icon: "⚙️" },
 ];
 
+// 새 사이드바 메뉴 구성. 그룹별로 묶여 표시되며,
+// 키는 location.hash와 동기화되어 활성 메뉴 판단에 사용된다.
+// settings-* 키는 SettingsTab을 공유하되 section prop으로 분기된다.
+export const SIDEBAR_GROUPS = [
+  {
+    title: "쇼핑 정보",
+    items: [
+      { key: "purchases", label: "구매 내역" },
+      { key: "sales", label: "판매 내역" },
+      { key: "wishlist", label: "찜한 교재" },
+      { key: "coupons", label: "쿠폰" },
+    ],
+  },
+  {
+    title: "내 정보",
+    items: [
+      { key: "profile", label: "회원정보 수정" },
+      { key: "addresses", label: "주소록" },
+      { key: "settlement-account", label: "판매 정산 계좌 관리" },
+    ],
+  },
+];
+
+const SIDEBAR_KEYS = SIDEBAR_GROUPS.flatMap((group) => group.items.map((item) => item.key));
+
+export function findSidebarItem(key) {
+  for (const group of SIDEBAR_GROUPS) {
+    const found = group.items.find((item) => item.key === key);
+    if (found) {
+      return { ...found, group: group.title };
+    }
+  }
+  return null;
+}
+
 export const SALES_STATUS_FILTERS = [
   { value: "all", label: "전체" },
   { value: "in_progress", label: "진행중" },
@@ -426,7 +461,60 @@ export function buildMemberDashboardSummarySnapshot({
 
 export function getTabKeyFromHash(hash) {
   const normalizedHash = hash?.replace("#", "") ?? "";
-  return TAB_ITEMS.some((item) => item.key === normalizedHash) ? normalizedHash : DEFAULT_TAB_KEY;
+
+  // 사이드바 키 (purchases/sales/wishlist/coupons/profile/addresses/settlement-account) 우선
+  if (SIDEBAR_KEYS.includes(normalizedHash)) {
+    return normalizedHash;
+  }
+
+  // 레거시 호환: 이전 settings/settlements 해시는 기본 탭(구매내역)으로 보낸다
+  if (normalizedHash === "settings") {
+    return "profile";
+  }
+
+  return DEFAULT_TAB_KEY;
+}
+
+// 구매 내역 상단 통계 카드. 회의 결과 status 매핑이 결정되면 이 곳만 손대면 된다.
+// 현재는 의미상으로 가장 가까운 매핑을 임시 적용한다.
+export const PURCHASE_SUMMARY_CARDS = [
+  { key: "all",         label: "전체",       statuses: null },
+  { key: "completed",   label: "구매 완료",   statuses: ["paid"] },
+  { key: "preparing",   label: "상품 준비 중", statuses: ["pending", "paid"] },
+  { key: "shipping",    label: "배송중",     statuses: ["shipping"] },
+  { key: "confirmed",   label: "구매 확정",   statuses: ["confirmed"] },
+];
+
+export function countOrdersByStatuses(orders, statuses) {
+  if (!Array.isArray(orders)) return 0;
+  if (!statuses) return orders.length;
+  return orders.filter((order) => statuses.includes(order.status)).length;
+}
+
+// 같은 날짜(yyyy-mm-dd)에 만들어진 주문들을 한 그룹으로 묶는다.
+// 입력은 mapOrderToDisplayOrder 결과(order[]), 반환은 [{ dateKey, dateLabel, orders }, ...]
+// dateLabel은 "2026.05.09(일)" 형식, dateKey 내림차순 정렬.
+const KOREAN_WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
+
+export function groupOrdersByDate(orders = []) {
+  const buckets = new Map();
+  for (const order of orders) {
+    const created = order?.createdAt ? new Date(order.createdAt) : null;
+    if (!created || Number.isNaN(created.getTime())) continue;
+
+    const year = created.getFullYear();
+    const month = String(created.getMonth() + 1).padStart(2, "0");
+    const day = String(created.getDate()).padStart(2, "0");
+    const dateKey = `${year}-${month}-${day}`;
+    const dateLabel = `${year}.${month}.${day}(${KOREAN_WEEKDAYS[created.getDay()]})`;
+
+    if (!buckets.has(dateKey)) {
+      buckets.set(dateKey, { dateKey, dateLabel, orders: [] });
+    }
+    buckets.get(dateKey).orders.push(order);
+  }
+
+  return Array.from(buckets.values()).sort((a, b) => (a.dateKey < b.dateKey ? 1 : -1));
 }
 
 export function formatCompactDate(dateString) {

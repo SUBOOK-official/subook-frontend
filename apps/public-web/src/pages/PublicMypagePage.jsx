@@ -9,7 +9,6 @@ import {
   ConfirmDialog,
   MypageEmptyState,
   MypageSectionHeader,
-  MypageSummaryCard,
   ResponsiveSheet,
 } from "../components/PublicMypageUi.jsx";
 import PublicPageFrame from "../components/PublicPageFrame";
@@ -23,7 +22,6 @@ import {
   checkMemberNicknameAvailability,
   confirmMemberPurchase,
   createDisplayName,
-  createEmptyDashboardSummary,
   deleteMemberSettlementAccount,
   deleteMemberShippingAddress,
   loadMemberPortalSnapshot,
@@ -37,19 +35,19 @@ import {
 import {
   BANK_OPTIONS,
   MAX_SAVED_ITEMS,
-  PURCHASE_STATUS_FILTERS,
+  PURCHASE_SUMMARY_CARDS,
   SALES_STATUS_FILTERS,
   SHIPMENT_PROGRESS_STEPS,
-  TAB_ITEMS,
+  SIDEBAR_GROUPS,
   buildAccountForm,
   buildAddressForm,
   buildCjTrackingUrl,
   buildProfileForm,
-  derivePurchaseMetrics,
+  countOrdersByStatuses,
   deriveSettlementMetrics,
   deriveShipmentMetrics,
-  filterOrdersByStatus,
   filterShipmentsByStatus,
+  findSidebarItem,
   formatCompactDate,
   formatOrderReference,
   formatShipmentReference,
@@ -59,6 +57,7 @@ import {
   getShipmentStatusLabel,
   getShipmentStatusTone,
   getTabKeyFromHash,
+  groupOrdersByDate,
   initialAccountErrors,
   initialAccountForm,
   initialAddressErrors,
@@ -83,6 +82,7 @@ const initialLoadedTabs = {
   settlements: false,
   settings: false,
   wishlist: false,
+  coupons: false,
 };
 
 const initialTabPhases = {
@@ -91,7 +91,21 @@ const initialTabPhases = {
   settlements: "idle",
   settings: "idle",
   wishlist: "idle",
+  coupons: "idle",
 };
+
+// 사이드바 키(profile/addresses/settlement-account)를 데이터 로딩 키로 매핑.
+// SettingsTab을 공유하는 키들은 모두 settings 데이터 슬롯을 쓴다.
+function resolveDataKey(activeTabKey) {
+  if (
+    activeTabKey === "profile" ||
+    activeTabKey === "addresses" ||
+    activeTabKey === "settlement-account"
+  ) {
+    return "settings";
+  }
+  return activeTabKey;
+}
 
 const initialPortalState = {
   profile: null,
@@ -192,14 +206,12 @@ function PublicMypagePage() {
   const addressDetailInputRef = useRef(null);
 
   const profileSnapshot = portalState.profile ?? effectiveProfile;
-  const summary = useMemo(
-    () => portalState.dashboardSummary ?? createEmptyDashboardSummary(profileSnapshot),
-    [portalState.dashboardSummary, profileSnapshot],
-  );
   const displayName = createDisplayName(profileSnapshot);
   const joinDateText = formatCompactDate(effectiveUser?.created_at ?? profileSnapshot?.created_at);
-  const isPortalPending = tabPhases[activeTabKey] === "loading" && !portalState.profile;
+  const dataKey = resolveDataKey(activeTabKey);
+  const isPortalPending = tabPhases[dataKey] === "loading" && !portalState.profile;
   const currentNickname = (profileSnapshot?.nickname ?? profileSnapshot?.name ?? "").trim();
+  const activeSidebarItem = findSidebarItem(activeTabKey);
   const reviewTargetOrder = useMemo(
     () =>
       portalState.orders.find((order) => String(order.id) === String(reviewComposerState.orderId)) ??
@@ -226,7 +238,7 @@ function PublicMypagePage() {
   }, [location.hash]);
 
   useEffect(() => {
-    if (!effectiveUser || loadedTabs[activeTabKey]) {
+    if (!effectiveUser || loadedTabs[dataKey]) {
       return undefined;
     }
 
@@ -234,7 +246,7 @@ function PublicMypagePage() {
 
     setTabPhases((currentValue) => ({
       ...currentValue,
-      [activeTabKey]: "loading",
+      [dataKey]: "loading",
     }));
 
     const timerId = window.setTimeout(async () => {
@@ -252,11 +264,11 @@ function PublicMypagePage() {
       setProfileForm(buildProfileForm(snapshot.profile, effectiveUser));
       setLoadedTabs((currentValue) => ({
         ...currentValue,
-        [activeTabKey]: true,
+        [dataKey]: true,
       }));
       setTabPhases((currentValue) => ({
         ...currentValue,
-        [activeTabKey]: "ready",
+        [dataKey]: "ready",
       }));
       setExpandedShipmentId(
         snapshot.shipments.find((shipment) => !shipment.compact)?.id ?? snapshot.shipments[0]?.id ?? null,
@@ -268,7 +280,7 @@ function PublicMypagePage() {
       window.clearTimeout(timerId);
     };
   }, [
-    activeTabKey,
+    dataKey,
     effectiveProfile,
     effectiveUser,
     isDemoPreview,
@@ -279,7 +291,14 @@ function PublicMypagePage() {
   useEffect(() => {
     let isCancelled = false;
 
-    if (activeTabKey !== "wishlist" && activeTabKey !== "settings") {
+    const wishlistRelevantKeys = new Set([
+      "wishlist",
+      "settings",
+      "profile",
+      "addresses",
+      "settlement-account",
+    ]);
+    if (!wishlistRelevantKeys.has(activeTabKey)) {
       return undefined;
     }
 
@@ -1059,31 +1078,6 @@ function PublicMypagePage() {
     }));
   };
 
-  const handleReviewWrite = (order) => {
-    if (!requireMember("writeReview")) {
-      return;
-    }
-
-    const reviewableItem =
-      order?.items?.find((item) => item.canReview) ??
-      order?.items?.[0] ??
-      null;
-
-    if (!order || !reviewableItem) {
-      setToastState({
-        message: "리뷰를 작성할 상품을 찾지 못했습니다.",
-        tone: "error",
-      });
-      return;
-    }
-
-    setReviewComposerState({
-      open: true,
-      orderId: order.id,
-      selectedItemId: reviewableItem.id,
-    });
-  };
-
   const handleSelectReviewItem = (itemId) => {
     setReviewComposerState((currentValue) => ({
       ...currentValue,
@@ -1298,17 +1292,65 @@ function PublicMypagePage() {
     );
   }
 
+  const renderSettingsTab = (section) => (
+    <SettingsTab
+      accountErrors={accountErrors}
+      accountForm={accountForm}
+      addressDetailInputRef={addressDetailInputRef}
+      addressErrors={addressErrors}
+      addressForm={addressForm}
+      busyAccountId={busyAccountId}
+      busyAddressId={busyAddressId}
+      currentNickname={currentNickname}
+      handleAccountChange={handleAccountChange}
+      handleAddressChange={handleAddressChange}
+      handleOpenAddressSearch={handleOpenAddressSearch}
+      handleProfileChange={handleProfileChange}
+      handleSaveProfile={handleSaveProfile}
+      handleSetDefaultAccount={handleSetDefaultAccount}
+      handleSetDefaultAddress={handleSetDefaultAddress}
+      handleSignOut={handleSignOut}
+      handleWithdrawal={handleWithdrawal}
+      isDemoPreview={isDemoPreview}
+      isProfileEditing={isProfileEditing}
+      isSavingProfile={isSavingProfile}
+      isSigningOut={isSigningOut}
+      isWishlistLoading={isWishlistLoading}
+      isWishlistProductsLoading={isWishlistProductsLoading}
+      isWithdrawing={isWithdrawing}
+      joinDateText={joinDateText}
+      nicknameStatus={nicknameStatus}
+      onToggleWishlistProduct={handleToggleWishlistProduct}
+      openAccountSheet={openAccountSheet}
+      openAddressSheet={openAddressSheet}
+      portalState={portalState}
+      profileErrors={profileErrors}
+      profileForm={profileForm}
+      profileSnapshot={profileSnapshot}
+      requestDeleteAccount={requestDeleteAccount}
+      requestDeleteAddress={requestDeleteAddress}
+      section={section}
+      setIsProfileEditing={setIsProfileEditing}
+      setProfileErrors={setProfileErrors}
+      setProfileForm={setProfileForm}
+      user={effectiveUser}
+      wishlistError={wishlistError}
+      wishlistProducts={wishlistProducts}
+    />
+  );
+
+  const showLoadingSkeleton = (
+    <div className="public-mypage-stack">
+      <div className="public-mypage-skeleton public-mypage-skeleton--panel" />
+      <div className="public-mypage-skeleton public-mypage-skeleton--panel" />
+    </div>
+  );
+
   const activeTabContent = (() => {
     if (activeTabKey === "sales") {
       if (tabPhases.sales === "loading" && !loadedTabs.sales) {
-        return (
-          <div className="public-mypage-stack">
-            <div className="public-mypage-skeleton public-mypage-skeleton--panel" />
-            <div className="public-mypage-skeleton public-mypage-skeleton--panel" />
-          </div>
-        );
+        return showLoadingSkeleton;
       }
-
       return (
         <SalesTab
           expandedShipmentId={expandedShipmentId}
@@ -1325,15 +1367,13 @@ function PublicMypagePage() {
       if (tabPhases.purchases === "loading" && !loadedTabs.purchases) {
         return <div className="public-mypage-skeleton public-mypage-skeleton--panel" />;
       }
-
       return (
-        <PurchasesTab
+        <PurchasesView
           busyOrderId={busyOrderId}
           onCancelOrder={requestCancelOrder}
           onConfirmOrder={requestConfirmPurchase}
           onRequestReturn={handleReturnRequest}
           onTrackParcel={handleTrackParcel}
-          onWriteReview={handleReviewWrite}
           orders={portalState.orders}
         />
       );
@@ -1350,11 +1390,14 @@ function PublicMypagePage() {
       );
     }
 
+    if (activeTabKey === "coupons") {
+      return <CouponsView />;
+    }
+
     if (activeTabKey === "settlements") {
       if (tabPhases.settlements === "loading" && !loadedTabs.settlements) {
         return <div className="public-mypage-skeleton public-mypage-skeleton--panel" />;
       }
-
       return (
         <SettlementsTab
           completedSettlements={portalState.completedSettlements}
@@ -1366,59 +1409,14 @@ function PublicMypagePage() {
     }
 
     if (isPortalPending) {
-      return (
-        <div className="public-mypage-stack">
-          <div className="public-mypage-skeleton public-mypage-skeleton--panel" />
-          <div className="public-mypage-skeleton public-mypage-skeleton--panel" />
-        </div>
-      );
+      return showLoadingSkeleton;
     }
 
-    return (
-      <SettingsTab
-        accountErrors={accountErrors}
-        accountForm={accountForm}
-        addressDetailInputRef={addressDetailInputRef}
-        addressErrors={addressErrors}
-        addressForm={addressForm}
-        busyAccountId={busyAccountId}
-        busyAddressId={busyAddressId}
-        currentNickname={currentNickname}
-        handleAccountChange={handleAccountChange}
-        handleAddressChange={handleAddressChange}
-        handleOpenAddressSearch={handleOpenAddressSearch}
-        handleProfileChange={handleProfileChange}
-        handleSaveProfile={handleSaveProfile}
-        handleSetDefaultAccount={handleSetDefaultAccount}
-        handleSetDefaultAddress={handleSetDefaultAddress}
-        handleSignOut={handleSignOut}
-        handleWithdrawal={handleWithdrawal}
-        isDemoPreview={isDemoPreview}
-        isProfileEditing={isProfileEditing}
-        isSavingProfile={isSavingProfile}
-        isSigningOut={isSigningOut}
-        isWishlistLoading={isWishlistLoading}
-        isWishlistProductsLoading={isWishlistProductsLoading}
-        isWithdrawing={isWithdrawing}
-        joinDateText={joinDateText}
-        nicknameStatus={nicknameStatus}
-        onToggleWishlistProduct={handleToggleWishlistProduct}
-        openAccountSheet={openAccountSheet}
-        openAddressSheet={openAddressSheet}
-        portalState={portalState}
-        profileErrors={profileErrors}
-        profileForm={profileForm}
-        profileSnapshot={profileSnapshot}
-        requestDeleteAccount={requestDeleteAccount}
-        requestDeleteAddress={requestDeleteAddress}
-        setIsProfileEditing={setIsProfileEditing}
-        setProfileErrors={setProfileErrors}
-        setProfileForm={setProfileForm}
-        user={effectiveUser}
-        wishlistError={wishlistError}
-        wishlistProducts={wishlistProducts}
-      />
-    );
+    if (activeTabKey === "profile") return renderSettingsTab("profile");
+    if (activeTabKey === "addresses") return renderSettingsTab("addresses");
+    if (activeTabKey === "settlement-account") return renderSettingsTab("settlement-account");
+
+    return renderSettingsTab(null);
   })();
 
   return (
@@ -1448,61 +1446,50 @@ function PublicMypagePage() {
                   </div>
                 ) : null}
 
-                <section className="public-mypage-hero">
-                  <button
-                    className="public-mypage-hero__profile"
-                    onClick={() => moveToTab("settings", { openProfileEdit: true })}
-                    type="button"
-                  >
-                    <div>
-                      <p className="public-mypage-hero__eyebrow">👤 {displayName}님</p>
-                      <h1 className="public-mypage-hero__title">{profileSnapshot?.email || effectiveUser?.email || "-"}</h1>
-                    </div>
-                    <span className="public-mypage-hero__link">프로필 수정 →</span>
-                  </button>
+                <header className="public-mypage-breadcrumb">
+                  <h1 className="public-mypage-breadcrumb__title">
+                    <span className="public-mypage-breadcrumb__name">‘{displayName}’</span>
+                    님 마이페이지
+                  </h1>
+                  {activeSidebarItem ? (
+                    <>
+                      <span className="public-mypage-breadcrumb__sep" aria-hidden="true">›</span>
+                      <span className="public-mypage-breadcrumb__leaf">{activeSidebarItem.label}</span>
+                    </>
+                  ) : null}
+                </header>
 
-                  <div className="public-mypage-hero__summary">
-                    <MypageSummaryCard
-                      description="판매현황으로 이동"
-                      onClick={() => moveToTab("sales")}
-                      title="📦 판매중"
-                      value={`${summary.on_sale_book_count ?? 0}건`}
-                    />
-                    <MypageSummaryCard
-                      description="정산내역으로 이동"
-                      onClick={() => moveToTab("settlements")}
-                      title="💰 정산 예정"
-                      value={formatCurrency(summary.estimated_settled_value ?? 0)}
-                    />
-                    <MypageSummaryCard
-                      description="구매현황으로 이동"
-                      onClick={() => moveToTab("purchases")}
-                      title="📚 구매 진행"
-                      value={`${summary.purchase_in_progress_count ?? 0}건`}
-                    />
-                  </div>
-                </section>
-
-                <section className="public-mypage-tabs">
-                  <div className="public-mypage-tabs__list" role="tablist">
-                    {TAB_ITEMS.map((item) => (
-                      <button
-                        aria-selected={activeTabKey === item.key}
-                        className={`public-mypage-tabs__button ${activeTabKey === item.key ? "is-active" : ""}`}
-                        key={item.key}
-                        onClick={() => moveToTab(item.key)}
-                        role="tab"
-                        type="button"
-                      >
-                        {item.label}
-                      </button>
+                <div className="public-mypage-shell-grid">
+                  <aside className="public-mypage-sidebar" aria-label="마이페이지 메뉴">
+                    {SIDEBAR_GROUPS.map((group) => (
+                      <div className="public-mypage-sidebar__group" key={group.title}>
+                        <p className="public-mypage-sidebar__title">{group.title}</p>
+                        <ul className="public-mypage-sidebar__list">
+                          {group.items.map((item) => (
+                            <li key={item.key}>
+                              <button
+                                aria-current={activeTabKey === item.key ? "page" : undefined}
+                                className={`public-mypage-sidebar__link ${activeTabKey === item.key ? "is-active" : ""}`}
+                                onClick={() => moveToTab(item.key, { smoothScroll: false })}
+                                type="button"
+                              >
+                                {item.label}
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
                     ))}
-                  </div>
+                  </aside>
 
-                  <div className="public-mypage-tab-panel" key={activeTabKey} ref={tabPanelRef}>
+                  <section
+                    className="public-mypage-content"
+                    key={activeTabKey}
+                    ref={tabPanelRef}
+                  >
                     {activeTabContent}
-                  </div>
-                </section>
+                  </section>
+                </div>
               </ContentContainer>
             </main>
           </div>
@@ -2030,21 +2017,46 @@ function SalesTab({
   );
 }
 
-function PurchasesTab({
+function CouponsView() {
+  return (
+    <div className="public-mypage-stack">
+      <MypageEmptyState
+        description="쿠폰함 기능은 준비 중입니다. 오픈 시 안내드릴게요."
+        icon="🎟"
+        title="쿠폰함 준비 중"
+      />
+    </div>
+  );
+}
+
+// 새 구매 내역 화면. 상단 통계 카드 5개 + 날짜별로 묶인 주문 카드 리스트.
+// 한 주문(order) 안의 각 item을 별개의 카드로 보여주고, 액션은 배송 조회 / 재구매로 단순화.
+// 배송 전(canCancel) 상태에서는 "주문 취소"가 추가로 노출되고, 반품은 주문 상세 흐름으로 위임.
+function PurchasesView({
   busyOrderId,
   onCancelOrder,
   onConfirmOrder,
   onRequestReturn,
   onTrackParcel,
-  onWriteReview,
   orders,
 }) {
-  const [statusFilter, setStatusFilter] = useState("all");
-  const purchaseMetrics = useMemo(() => derivePurchaseMetrics(orders), [orders]);
-  const filteredOrders = useMemo(
-    () => filterOrdersByStatus(orders, statusFilter),
-    [orders, statusFilter],
-  );
+  const [activeFilter, setActiveFilter] = useState("all");
+  const navigate = useNavigate();
+
+  const filteredOrders = useMemo(() => {
+    if (activeFilter === "all") return orders;
+    const card = PURCHASE_SUMMARY_CARDS.find((c) => c.key === activeFilter);
+    if (!card?.statuses) return orders;
+    return orders.filter((order) => card.statuses.includes(order.status));
+  }, [orders, activeFilter]);
+
+  const groupedOrders = useMemo(() => groupOrdersByDate(filteredOrders), [filteredOrders]);
+
+  const handleReorder = (item) => {
+    if (item.productId) {
+      navigate(`/store/${item.productId}`);
+    }
+  };
 
   if (!orders.length) {
     return (
@@ -2060,134 +2072,118 @@ function PurchasesTab({
 
   return (
     <div className="public-mypage-stack">
-      <section className="public-mypage-section">
-        <MypageSectionHeader
-          description="최근 주문, 배송 상태, 구매확정까지 이어서 관리하세요."
-          icon="🛍"
-          title="주문 내역"
-        />
-
-        <MypageOverviewGrid
-          items={[
-            { label: "진행중 주문", value: `${purchaseMetrics.inProgressCount}건` },
-            { label: "배송완료 대기", value: `${purchaseMetrics.deliveredCount}건` },
-            { label: "구매확정", value: `${purchaseMetrics.confirmedCount}건` },
-            { label: "총 결제금액", value: formatCurrency(purchaseMetrics.totalSpend) },
-          ]}
-        />
-
-        <div className="public-mypage-order-filters">
-          {PURCHASE_STATUS_FILTERS.map((f) => (
+      <div className="public-mypage-stat-row" role="tablist" aria-label="구매 상태 필터">
+        {PURCHASE_SUMMARY_CARDS.map((card) => {
+          const count = countOrdersByStatuses(orders, card.statuses);
+          const isActive = activeFilter === card.key;
+          return (
             <button
-              className={`public-mypage-filter-chip ${statusFilter === f.value ? "public-mypage-filter-chip--active" : ""}`}
-              key={f.value}
-              onClick={() => setStatusFilter(f.value)}
+              aria-selected={isActive}
+              className={`public-mypage-stat-card ${isActive ? "is-active" : ""}`}
+              key={card.key}
+              onClick={() => setActiveFilter(card.key)}
+              role="tab"
               type="button"
             >
-              {f.label}
+              <span className="public-mypage-stat-card__label">{card.label}</span>
+              <span className="public-mypage-stat-card__value">{count}</span>
             </button>
-          ))}
-        </div>
+          );
+        })}
+      </div>
 
-        {filteredOrders.length === 0 ? (
-          <p className="public-mypage-order-empty-filter">해당 상태의 주문이 없습니다.</p>
-        ) : (
-        <div className="public-mypage-order-list">
-          {filteredOrders.map((order) => (
-            <article className="public-mypage-order-card" key={order.id}>
-              <div className="public-mypage-order-card__header">
-                <div>
-                  <p className="public-mypage-order-card__meta">
-                    주문 #{formatOrderReference(order.reference)} <span>{formatCompactDate(order.createdAt)}</span>
-                  </p>
-                  <div className="public-mypage-order-card__status">
-                    <span className={`public-mypage-chip public-mypage-chip--${getOrderStatusTone(order.status)}`}>
-                      {getOrderStatusLabel(order.status)}
-                    </span>
-                    {order.trackingNumber ? (
-                      <span className="public-mypage-order-card__tracking">
-                        {order.trackingCompany} {order.trackingNumber}
-                      </span>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
+      {groupedOrders.length === 0 ? (
+        <p className="public-mypage-order-empty-filter">해당 상태의 주문이 없습니다.</p>
+      ) : (
+        groupedOrders.map((group) => (
+          <section className="public-mypage-order-group" key={group.dateKey}>
+            <header className="public-mypage-order-group__head">
+              <h2 className="public-mypage-order-group__date">{group.dateLabel}</h2>
+              {group.orders[0] ? (
+                <button
+                  className="public-mypage-order-group__detail"
+                  onClick={() => onRequestReturn?.()}
+                  type="button"
+                >
+                  주문 상세
+                </button>
+              ) : null}
+            </header>
 
-              <div className="public-mypage-order-card__items">
-                {order.items.map((item) => (
-                  <div className="public-mypage-order-item" key={item.id}>
-                    <div className="public-mypage-order-item__copy">
-                      <span>
-                        [📚] {item.title} ({item.gradeLabel}) × {item.quantity}
+            <div className="public-mypage-order-cards">
+              {group.orders.flatMap((order) =>
+                order.items.map((item) => (
+                  <article className="public-mypage-purchase-card" key={`${order.id}-${item.id}`}>
+                    <div className="public-mypage-purchase-card__status-row">
+                      <span className={`public-mypage-chip public-mypage-chip--${getOrderStatusTone(order.status)}`}>
+                        {getOrderStatusLabel(order.status)}
                       </span>
-                      {item.reviewId ? (
-                        <small className="public-mypage-order-item__review-tag">
-                          리뷰 완료{item.reviewRating ? ` · ${item.reviewRating}점` : ""}
-                        </small>
-                      ) : item.canReview ? (
-                        <small className="public-mypage-order-item__review-tag public-mypage-order-item__review-tag--pending">
-                          리뷰 작성 가능
-                        </small>
+                    </div>
+
+                    <div className="public-mypage-purchase-card__body">
+                      <div className="public-mypage-purchase-card__thumb" aria-hidden="true">
+                        {item.coverImageUrl ? (
+                          <img alt="" src={item.coverImageUrl} />
+                        ) : null}
+                      </div>
+
+                      <div className="public-mypage-purchase-card__info">
+                        <h3 className="public-mypage-purchase-card__title">{item.title}</h3>
+                        <p className="public-mypage-purchase-card__meta">
+                          옵션: {item.gradeLabel || "없음"}
+                          <span className="public-mypage-purchase-card__divider">/</span>
+                          {item.quantity}
+                        </p>
+                        <p className="public-mypage-purchase-card__price">{formatCurrency(item.price)}</p>
+                      </div>
+                    </div>
+
+                    <div className="public-mypage-purchase-card__actions">
+                      <button
+                        className="public-mypage-purchase-card__btn"
+                        onClick={() =>
+                          order.trackingNumber ? onTrackParcel(order.trackingNumber) : null
+                        }
+                        type="button"
+                      >
+                        배송 조회
+                      </button>
+                      <button
+                        className="public-mypage-purchase-card__btn"
+                        disabled={!item.productId}
+                        onClick={() => handleReorder(item)}
+                        type="button"
+                      >
+                        재구매
+                      </button>
+                      {order.canCancel ? (
+                        <button
+                          className="public-mypage-purchase-card__btn public-mypage-purchase-card__btn--danger"
+                          disabled={busyOrderId === order.id}
+                          onClick={() => onCancelOrder(order)}
+                          type="button"
+                        >
+                          {busyOrderId === order.id ? "처리 중..." : "취소"}
+                        </button>
+                      ) : null}
+                      {order.canConfirm ? (
+                        <button
+                          className="public-mypage-purchase-card__btn public-mypage-purchase-card__btn--primary"
+                          disabled={busyOrderId === order.id}
+                          onClick={() => onConfirmOrder(order)}
+                          type="button"
+                        >
+                          {busyOrderId === order.id ? "처리 중..." : "구매확정"}
+                        </button>
                       ) : null}
                     </div>
-                    <strong>{formatCurrency(item.price)}</strong>
-                  </div>
-                ))}
-              </div>
-
-              <p className="public-mypage-order-card__total">
-                총 결제: {formatCurrency(order.totalAmount)}{" "}
-                {order.shippingFee ? `(배송비 ${formatCurrency(order.shippingFee)} 포함)` : ""}
-              </p>
-
-              {order.autoConfirmDaysRemaining ? (
-                <p className="public-mypage-order-card__note">
-                  {order.autoConfirmDaysRemaining}일 후 자동으로 구매가 확정됩니다
-                </p>
-              ) : null}
-
-              <div className="public-mypage-order-card__actions">
-                {order.trackingNumber ? (
-                  <button className="public-auth-button public-auth-button--secondary" onClick={() => onTrackParcel(order.trackingNumber)} type="button">
-                    배송추적
-                  </button>
-                ) : null}
-                {order.canConfirm ? (
-                  <button
-                    className="public-auth-button public-auth-button--primary"
-                    disabled={busyOrderId === order.id}
-                    onClick={() => onConfirmOrder(order)}
-                    type="button"
-                  >
-                    {busyOrderId === order.id ? "처리 중..." : "구매확정"}
-                  </button>
-                ) : null}
-                {order.canCancel ? (
-                  <button
-                    className="public-auth-button public-auth-button--danger"
-                    disabled={busyOrderId === order.id}
-                    onClick={() => onCancelOrder(order)}
-                    type="button"
-                  >
-                    {busyOrderId === order.id ? "처리 중..." : "주문취소"}
-                  </button>
-                ) : null}
-                {order.canReturn ? (
-                  <button className="public-auth-button public-auth-button--secondary" onClick={onRequestReturn} type="button">
-                    반품신청
-                  </button>
-                ) : null}
-                {order.canReview ? (
-                  <button className="public-auth-button public-auth-button--secondary" onClick={() => onWriteReview(order)} type="button">
-                    리뷰작성
-                  </button>
-                ) : null}
-              </div>
-            </article>
-          ))}
-        </div>
-        )}
-      </section>
+                  </article>
+                )),
+              )}
+            </div>
+          </section>
+        ))
+      )}
     </div>
   );
 }
@@ -2363,6 +2359,7 @@ function SettingsTab({
   profileSnapshot,
   requestDeleteAccount,
   requestDeleteAddress,
+  section,
   setIsProfileEditing,
   setProfileErrors,
   setProfileForm,
@@ -2370,8 +2367,16 @@ function SettingsTab({
   wishlistError,
   wishlistProducts,
 }) {
+  // 사이드바에서 들어왔을 때 해당 섹션만 노출. section이 비면(null) 기존처럼 전체 노출(레거시 호환).
+  const showProfile = !section || section === "profile";
+  const showAddresses = !section || section === "addresses";
+  const showSettlementAccount = !section || section === "settlement-account";
+  const showWishlist = !section; // 새 사이드바에서는 wishlist를 별도 메뉴로 빼냈음
+  const showAccount = !section || section === "profile";
+
   return (
     <div className="public-mypage-stack">
+      {showProfile ? (
       <section className="public-mypage-section">
         <MypageSectionHeader
           action={
@@ -2446,7 +2451,9 @@ function SettingsTab({
           </dl>
         )}
       </section>
+      ) : null}
 
+      {showAddresses ? (
       <section className="public-mypage-section">
         <MypageSectionHeader
           action={
@@ -2508,7 +2515,9 @@ function SettingsTab({
           <MypageEmptyState description="주문 전에 기본 배송지를 미리 등록해 두면 더 편하게 이용할 수 있어요." icon="📍" title="등록한 배송지가 없어요" />
         )}
       </section>
+      ) : null}
 
+      {showSettlementAccount ? (
       <section className="public-mypage-section">
         <MypageSectionHeader
           action={
@@ -2566,7 +2575,9 @@ function SettingsTab({
           <MypageEmptyState description="판매 정산을 받으려면 기본 계좌를 먼저 등록해 주세요." icon="💳" title="등록한 정산 계좌가 없어요" />
         )}
       </section>
+      ) : null}
 
+      {showWishlist ? (
       <section className="public-mypage-section">
         <MypageSectionHeader
           action={
@@ -2612,7 +2623,9 @@ function SettingsTab({
           />
         )}
       </section>
+      ) : null}
 
+      {showAccount ? (
       <section className="public-mypage-section public-mypage-section--compact">
         <MypageSectionHeader
           description={isDemoPreview ? "데모에서는 로그아웃 대신 홈으로 돌아갑니다." : "로그아웃과 회원탈퇴 관련 작업을 여기서 관리합니다."}
@@ -2628,6 +2641,7 @@ function SettingsTab({
           </button>
         </div>
       </section>
+      ) : null}
     </div>
   );
 }
