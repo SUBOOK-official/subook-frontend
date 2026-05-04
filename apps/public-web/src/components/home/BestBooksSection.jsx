@@ -5,7 +5,7 @@ import {
 } from "../../lib/publicHomeBestBooks";
 import ProductCarouselSection from "./ProductCarouselSection";
 
-function BestBooksSection({ favoriteIds, onStoreEnter, onToggleFavorite }) {
+function BestBooksSection({ favoriteIds, onToggleFavorite }) {
   const [products, setProducts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [hasFatalError, setHasFatalError] = useState(false);
@@ -61,8 +61,6 @@ function BestBooksSection({ favoriteIds, onStoreEnter, onToggleFavorite }) {
       favoriteIds={favoriteIds}
       hasFatalError={hasFatalError}
       isLoading={isLoading}
-      linkHref="/?sort=popular"
-      onLinkClick={onStoreEnter}
       onToggleFavorite={onToggleFavorite}
       products={products}
       subtitle="지금 가장 많이 팔리는 교재"

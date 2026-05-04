@@ -7139,6 +7139,14 @@ img {
   position: absolute;
   inset: 0;
   z-index: 2;
+  /* 컨트롤 컨테이너의 빈 영역이 CTA 클릭을 가로채지 않도록 */
+  pointer-events: none;
+}
+
+.public-home-hero-banner__controls .public-home-hero-banner__arrow,
+.public-home-hero-banner__controls .public-home-hero-banner__dot,
+.public-home-hero-banner__controls .public-home-hero-banner__playback {
+  pointer-events: auto;
 }
 
 .public-home-hero-banner__content {

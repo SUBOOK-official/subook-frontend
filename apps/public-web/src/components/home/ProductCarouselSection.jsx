@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
 import { isNewHomeArrivalBadgeVisible } from "../../lib/publicHomeLatestBooksUtils";
 import ContentContainer from "../ContentContainer";
 import ProductCard, { ProductCardSkeleton } from "../ProductCard";
@@ -75,8 +74,6 @@ function ProductCarouselSection({
   favoriteIds = [],
   hasFatalError = false,
   isLoading = false,
-  linkHref,
-  onLinkClick,
   onToggleFavorite,
   products = [],
   subtitle,
@@ -210,9 +207,6 @@ function ProductCarouselSection({
                 </button>
               </div>
             ) : null}
-
-            <Link className="public-home-best-books__link" onClick={onLinkClick} to={linkHref}>
-              전체보기 &gt;&gt;            </Link>
           </div>
         </div>
 
