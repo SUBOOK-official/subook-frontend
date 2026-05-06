@@ -1,0 +1,29 @@
+{
+  "installCommand": "cd frontend && npm install",
+  "buildCommand": "cd frontend && npm run build:admin",
+  "outputDirectory": "frontend/apps/admin-web/dist",
+  "rewrites": [
+    {
+      "source": "/admin/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/auth/reset-password",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/api/:path*",
+      "destination": "/api/:path*"
+    },
+    {
+      "source": "/:path*",
+      "destination": "/index.html"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/admin/auto-confirm-orders",
+      "schedule": "0 1 * * *"
+    }
+  ]
+}
