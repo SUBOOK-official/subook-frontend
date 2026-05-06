@@ -109,7 +109,14 @@ function AdminCouponsPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [busyId, setBusyId] = useState(null);
+  // 발급 모달 상태
+  const [issueTarget, setIssueTarget] = useState(null);
+  const [issueSearch, setIssueSearch] = useState("");
+  const [issueMembers, setIssueMembers] = useState([]);
+  const [isIssueLoading, setIsIssueLoading] = useState(false);
+  const [isIssuing, setIsIssuing] = useState(false);
   const requestIdRef = useRef(0);
+  const issueRequestIdRef = useRef(0);
 
   const showToast = useCallback((message, tone = "info") => {
     setToast({ message, tone });
@@ -199,6 +206,78 @@ function AdminCouponsPage() {
     showToast(isUpdate ? "쿠폰이 수정되었습니다." : "쿠폰이 생성되었습니다.", "success");
     closeForm();
     await loadCoupons();
+  };
+
+  // ── 발급 모달 ─────────────────────────────────────────────
+  const openIssue = (coupon) => {
+    setIssueTarget(coupon);
+    setIssueSearch("");
+    setIssueMembers([]);
+  };
+  const closeIssue = () => {
+    setIssueTarget(null);
+    setIssueSearch("");
+    setIssueMembers([]);
+  };
+
+  const loadIssueMembers = useCallback(async (term) => {
+    const currentRequestId = ++issueRequestIdRef.current;
+    setIsIssueLoading(true);
+    const params = { p_limit: 30 };
+    if (term && term.trim()) params.p_search = term.trim();
+    const { data, error } = await supabase.rpc("list_admin_members", params);
+    if (currentRequestId !== issueRequestIdRef.current) return;
+    if (error) {
+      showToast(error.message || "회원 목록을 불러오지 못했습니다.", "error");
+      setIssueMembers([]);
+    } else {
+      setIssueMembers(Array.isArray(data?.rows) ? data.rows : []);
+    }
+    setIsIssueLoading(false);
+  }, [showToast]);
+
+  useEffect(() => {
+    if (!issueTarget) return;
+    const timerId = window.setTimeout(() => {
+      void loadIssueMembers(issueSearch);
+    }, 250);
+    return () => window.clearTimeout(timerId);
+  }, [issueTarget, issueSearch, loadIssueMembers]);
+
+  const handleIssueToUser = async (member) => {
+    if (!issueTarget) return;
+    setIsIssuing(true);
+    const { error } = await supabase.rpc("admin_issue_coupon_to_user", {
+      p_coupon_id: issueTarget.id,
+      p_user_id: member.user_id,
+    });
+    setIsIssuing(false);
+    if (error) {
+      showToast(error.message || "발급에 실패했습니다.", "error");
+      return;
+    }
+    showToast(`${member.display_name || member.email}님에게 발급되었습니다.`, "success");
+    await loadCoupons();
+  };
+
+  const handleIssueToAll = async () => {
+    if (!issueTarget) return;
+    if (!window.confirm(`전체 활성 회원에게 "${issueTarget.title}" 쿠폰을 발급하시겠습니까?\n(취소 불가)`)) {
+      return;
+    }
+    setIsIssuing(true);
+    const { data, error } = await supabase.rpc("admin_issue_coupon_to_all", {
+      p_coupon_id: issueTarget.id,
+    });
+    setIsIssuing(false);
+    if (error) {
+      showToast(error.message || "전체 발급에 실패했습니다.", "error");
+      return;
+    }
+    const count = data?.inserted_count ?? 0;
+    showToast(`${count}명에게 발급되었습니다.`, "success");
+    await loadCoupons();
+    closeIssue();
   };
 
   const handleToggleActive = async (coupon) => {
@@ -317,6 +396,15 @@ function AdminCouponsPage() {
                       <StatusBadge active={coupon.is_active} />
                     </td>
                     <td className="px-4 py-3 text-right">
+                      <button
+                        type="button"
+                        disabled={!coupon.is_active}
+                        className="mr-2 text-xs font-bold text-indigo-600 hover:text-indigo-800 disabled:opacity-40"
+                        onClick={() => openIssue(coupon)}
+                        title={coupon.is_active ? undefined : "비활성 쿠폰은 발급할 수 없습니다"}
+                      >
+                        발급
+                      </button>
                       <button
                         type="button"
                         className="mr-2 text-xs font-bold text-slate-700 hover:text-slate-900"
@@ -538,6 +626,105 @@ function AdminCouponsPage() {
               </button>
             </footer>
           </form>
+        </div>
+      ) : null}
+
+      {issueTarget ? (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/50 p-4">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-6 shadow-xl">
+            <header className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-black text-slate-900">쿠폰 발급</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  <span className="font-bold">{issueTarget.title}</span>
+                  {issueTarget.issuance_type === "code" || issueTarget.issuance_type === "download"
+                    ? " · 한 회원당 1매만 발급됩니다 (이미 보유한 회원은 자동 제외)"
+                    : ""}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="text-slate-400 hover:text-slate-700"
+                onClick={closeIssue}
+                disabled={isIssuing}
+              >
+                ✕
+              </button>
+            </header>
+
+            <div className="mb-4 flex items-center justify-between gap-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm">
+              <div>
+                <p className="font-bold text-amber-900">전체 회원에게 발급</p>
+                <p className="mt-1 text-xs text-amber-800">
+                  관리자 계정을 제외한 모든 활성 회원에게 1매씩 발급합니다.
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={isIssuing}
+                onClick={handleIssueToAll}
+                className="rounded-md bg-amber-600 px-4 py-2 text-sm font-bold text-white hover:bg-amber-700 disabled:opacity-50"
+              >
+                전체 발급
+              </button>
+            </div>
+
+            <div className="mb-3">
+              <label className="text-xs font-bold text-slate-700">특정 회원에게 발급</label>
+              <input
+                type="search"
+                value={issueSearch}
+                onChange={(e) => setIssueSearch(e.target.value)}
+                placeholder="이름/이메일/전화번호로 검색"
+                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+              />
+            </div>
+
+            <div className="max-h-64 overflow-y-auto rounded-md border border-slate-200">
+              {isIssueLoading ? (
+                <div className="p-4 text-center text-sm text-slate-400">불러오는 중...</div>
+              ) : issueMembers.length === 0 ? (
+                <div className="p-4 text-center text-sm text-slate-400">
+                  {issueSearch ? "검색 결과가 없습니다." : "검색어를 입력하세요."}
+                </div>
+              ) : (
+                <ul className="divide-y divide-slate-100">
+                  {issueMembers.map((member) => (
+                    <li key={member.user_id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm hover:bg-slate-50">
+                      <div className="min-w-0 flex-1">
+                        <div className="font-bold text-slate-900">
+                          {member.display_name || member.name || member.email}
+                        </div>
+                        <div className="truncate text-xs text-slate-500">
+                          {member.email}
+                          {member.phone ? ` · ${member.phone}` : ""}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={isIssuing}
+                        onClick={() => handleIssueToUser(member)}
+                        className="rounded-md bg-slate-900 px-3 py-1 text-xs font-bold text-white hover:bg-slate-700 disabled:opacity-50"
+                      >
+                        발급
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <footer className="mt-4 flex justify-end">
+              <button
+                type="button"
+                disabled={isIssuing}
+                onClick={closeIssue}
+                className="rounded-md border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+              >
+                닫기
+              </button>
+            </footer>
+          </div>
         </div>
       ) : null}
 

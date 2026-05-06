@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { formatCurrency } from "@shared-domain/format";
 import PublicSiteHeader from "../components/PublicSiteHeader";
@@ -13,6 +13,7 @@ import {
 } from "../components/PublicMypageUi.jsx";
 import PublicPageFrame from "../components/PublicPageFrame";
 import PublicToastMessage from "../components/PublicToastMessage";
+import { supabase as publicSupabase } from "@shared-supabase/publicSupabaseClient";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { usePublicWishlist } from "../contexts/PublicWishlistContext";
 import usePublicMemberGate from "../lib/publicMemberGate";
@@ -2017,16 +2018,212 @@ function SalesTab({
   );
 }
 
+// 쿠폰함: 보유/사용/만료 탭 + 코드 입력 + 다운로드 가능 쿠폰 목록.
+// PR 3에서 주문 페이지의 쿠폰 적용 UI가 추가됨.
 function CouponsView() {
+  const [coupons, setCoupons] = useState([]);
+  const [downloadable, setDownloadable] = useState([]);
+  const [statusFilter, setStatusFilter] = useState("available");
+  const [codeInput, setCodeInput] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [busyId, setBusyId] = useState(null);
+  const [isClaiming, setIsClaiming] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  const showToast = useCallback((message, tone = "info") => {
+    setToast({ message, tone });
+    window.setTimeout(() => setToast(null), 3000);
+  }, []);
+
+  const loadAll = useCallback(async () => {
+    setIsLoading(true);
+    const [walletRes, downloadRes] = await Promise.all([
+      publicSupabase.rpc("get_member_coupons", { p_status_filter: "all" }),
+      publicSupabase.rpc("get_downloadable_coupons"),
+    ]);
+    if (!walletRes.error) setCoupons(Array.isArray(walletRes.data) ? walletRes.data : []);
+    if (!downloadRes.error) setDownloadable(Array.isArray(downloadRes.data) ? downloadRes.data : []);
+    setIsLoading(false);
+  }, []);
+
+  useEffect(() => {
+    void loadAll();
+  }, [loadAll]);
+
+  const filteredCoupons = useMemo(
+    () => coupons.filter((c) => c.effective_status === statusFilter),
+    [coupons, statusFilter],
+  );
+
+  const handleClaimCode = async (e) => {
+    e.preventDefault();
+    if (!codeInput.trim()) return;
+    setIsClaiming(true);
+    const { error } = await publicSupabase.rpc("claim_coupon_by_code", {
+      p_code: codeInput.trim(),
+    });
+    setIsClaiming(false);
+    if (error) {
+      showToast(error.message || "쿠폰 등록에 실패했습니다.", "error");
+      return;
+    }
+    showToast("쿠폰이 등록되었습니다.", "success");
+    setCodeInput("");
+    await loadAll();
+  };
+
+  const handleDownload = async (coupon) => {
+    setBusyId(coupon.id);
+    const { error } = await publicSupabase.rpc("claim_coupon_for_download", {
+      p_coupon_id: coupon.id,
+    });
+    setBusyId(null);
+    if (error) {
+      showToast(error.message || "쿠폰 받기에 실패했습니다.", "error");
+      return;
+    }
+    showToast("쿠폰이 발급되었습니다.", "success");
+    await loadAll();
+  };
+
+  const counts = useMemo(() => {
+    const result = { available: 0, used: 0, expired: 0 };
+    coupons.forEach((c) => {
+      if (c.effective_status in result) result[c.effective_status] += 1;
+    });
+    return result;
+  }, [coupons]);
+
   return (
     <div className="public-mypage-stack">
-      <MypageEmptyState
-        description="쿠폰함 기능은 준비 중입니다. 오픈 시 안내드릴게요."
-        icon="🎟"
-        title="쿠폰함 준비 중"
-      />
+      <section className="public-mypage-section">
+        <MypageSectionHeader
+          description="쿠폰 코드를 입력하거나 다운로드 가능한 쿠폰을 받아보세요."
+          icon="🎟"
+          title="쿠폰함"
+        />
+
+        <form onSubmit={handleClaimCode} className="public-mypage-coupon-code-form">
+          <input
+            className="public-mypage-coupon-code-input"
+            type="text"
+            placeholder="쿠폰 코드를 입력하세요"
+            value={codeInput}
+            onChange={(e) => setCodeInput(e.target.value)}
+            disabled={isClaiming}
+          />
+          <button
+            type="submit"
+            className="public-mypage-coupon-code-submit"
+            disabled={isClaiming || !codeInput.trim()}
+          >
+            {isClaiming ? "등록 중..." : "등록"}
+          </button>
+        </form>
+
+        {downloadable.length > 0 ? (
+          <div className="public-mypage-coupon-download-list">
+            <h3 className="public-mypage-coupon-download-title">받을 수 있는 쿠폰</h3>
+            <ul>
+              {downloadable.map((coupon) => (
+                <li key={coupon.id} className="public-mypage-coupon-download-item">
+                  <div>
+                    <strong>{coupon.title}</strong>
+                    <p>{describeCouponDiscount(coupon)}{coupon.min_order_amount > 0 ? ` · 최소 ${formatCurrency(coupon.min_order_amount)}` : ""}</p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={busyId === coupon.id}
+                    onClick={() => handleDownload(coupon)}
+                    className="public-mypage-coupon-download-button"
+                  >
+                    {busyId === coupon.id ? "받는 중..." : "받기"}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+      </section>
+
+      <section className="public-mypage-section">
+        <div className="public-mypage-coupon-tabs">
+          {[
+            { key: "available", label: "보유" },
+            { key: "used", label: "사용 완료" },
+            { key: "expired", label: "만료" },
+          ].map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              className={`public-mypage-coupon-tab ${statusFilter === tab.key ? "is-active" : ""}`}
+              onClick={() => setStatusFilter(tab.key)}
+            >
+              {tab.label} ({counts[tab.key] ?? 0})
+            </button>
+          ))}
+        </div>
+
+        {isLoading ? (
+          <div className="public-mypage-skeleton public-mypage-skeleton--panel" />
+        ) : filteredCoupons.length === 0 ? (
+          <MypageEmptyState
+            description={
+              statusFilter === "available"
+                ? "보유한 쿠폰이 없습니다. 코드 입력 또는 다운로드로 받아보세요."
+                : statusFilter === "used"
+                  ? "사용한 쿠폰이 없습니다."
+                  : "만료된 쿠폰이 없습니다."
+            }
+            icon="🎟"
+            title={statusFilter === "available" ? "보유 쿠폰 없음" : statusFilter === "used" ? "사용 이력 없음" : "만료 이력 없음"}
+          />
+        ) : (
+          <ul className="public-mypage-coupon-list">
+            {filteredCoupons.map((mc) => (
+              <li
+                key={mc.id}
+                className={`public-mypage-coupon-card public-mypage-coupon-card--${mc.effective_status}`}
+              >
+                <div className="public-mypage-coupon-card__amount">
+                  {describeCouponDiscount(mc)}
+                </div>
+                <div className="public-mypage-coupon-card__body">
+                  <strong className="public-mypage-coupon-card__title">{mc.title}</strong>
+                  {mc.min_order_amount > 0 ? (
+                    <p className="public-mypage-coupon-card__hint">
+                      {formatCurrency(mc.min_order_amount)} 이상 주문 시
+                    </p>
+                  ) : null}
+                  <p className="public-mypage-coupon-card__expiry">
+                    {mc.expires_at
+                      ? `${formatCompactDate(mc.expires_at)}까지`
+                      : "무기한"}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {toast ? (
+        <div className={`public-mypage-coupon-toast public-mypage-coupon-toast--${toast.tone}`}>
+          {toast.message}
+        </div>
+      ) : null}
     </div>
   );
+}
+
+function describeCouponDiscount(coupon) {
+  if (coupon.discount_type === "free_shipping") return "무료배송";
+  if (coupon.discount_type === "percentage") {
+    return `${coupon.discount_value}% 할인${
+      coupon.max_discount_amount ? ` (최대 ${formatCurrency(coupon.max_discount_amount)})` : ""
+    }`;
+  }
+  return `${formatCurrency(coupon.discount_value)} 할인`;
 }
 
 // 새 구매 내역 화면. 상단 통계 카드 5개 + 날짜별로 묶인 주문 카드 리스트.

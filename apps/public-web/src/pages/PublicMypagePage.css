@@ -711,6 +711,219 @@
   }
 }
 
+/* ── 쿠폰함 ─────────────────────────────────────────────────── */
+.public-mypage-coupon-code-form {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.public-mypage-coupon-code-input {
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid var(--public-ds-border);
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  letter-spacing: 0.05em;
+}
+
+.public-mypage-coupon-code-submit {
+  padding: 10px 20px;
+  background: var(--public-ds-primary, #1B3A5C);
+  color: #fff;
+  border: 0;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.public-mypage-coupon-code-submit:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.public-mypage-coupon-code-submit:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.public-mypage-coupon-download-list {
+  margin-top: 16px;
+  padding: 16px;
+  background: #f8fafc;
+  border-radius: 8px;
+}
+
+.public-mypage-coupon-download-title {
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--public-ds-text);
+}
+
+.public-mypage-coupon-download-list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.public-mypage-coupon-download-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid var(--public-ds-border);
+  border-radius: 8px;
+}
+
+.public-mypage-coupon-download-item strong {
+  display: block;
+  font-size: 14px;
+  color: var(--public-ds-text);
+}
+
+.public-mypage-coupon-download-item p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--public-ds-text-secondary);
+}
+
+.public-mypage-coupon-download-button {
+  padding: 8px 16px;
+  background: var(--public-ds-primary, #1B3A5C);
+  color: #fff;
+  border: 0;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.public-mypage-coupon-download-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.public-mypage-coupon-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.public-mypage-coupon-tab {
+  padding: 10px 16px;
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--public-ds-text-secondary);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.public-mypage-coupon-tab:hover {
+  color: var(--public-ds-text);
+}
+
+.public-mypage-coupon-tab.is-active {
+  color: var(--public-ds-text);
+  border-bottom-color: var(--public-ds-primary, #1B3A5C);
+}
+
+.public-mypage-coupon-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.public-mypage-coupon-card {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid var(--public-ds-border);
+  border-radius: 12px;
+  background: #fff;
+  transition: opacity 0.15s ease;
+}
+
+.public-mypage-coupon-card--used,
+.public-mypage-coupon-card--expired {
+  opacity: 0.5;
+}
+
+.public-mypage-coupon-card__amount {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--public-ds-primary, #1B3A5C);
+  text-align: center;
+  border-right: 1px dashed var(--public-ds-border);
+  padding-right: 16px;
+  word-break: keep-all;
+  line-height: 1.3;
+}
+
+.public-mypage-coupon-card--used .public-mypage-coupon-card__amount,
+.public-mypage-coupon-card--expired .public-mypage-coupon-card__amount {
+  color: var(--public-ds-text-secondary);
+}
+
+.public-mypage-coupon-card__body {
+  min-width: 0;
+}
+
+.public-mypage-coupon-card__title {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--public-ds-text);
+  margin-bottom: 4px;
+  word-break: keep-all;
+}
+
+.public-mypage-coupon-card__hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--public-ds-text-secondary);
+}
+
+.public-mypage-coupon-card__expiry {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--public-ds-text-muted, #94a3b8);
+}
+
+.public-mypage-coupon-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 12px 20px;
+  border-radius: 8px;
+  background: var(--public-ds-text, #0f172a);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  z-index: 1000;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+.public-mypage-coupon-toast--error { background: var(--public-ds-danger, #dc2626); }
+.public-mypage-coupon-toast--success { background: #16a34a; }
+
 /* ── 새 마이페이지 레이아웃 ────────────────────────────────────── */
 
 .public-mypage-breadcrumb {
