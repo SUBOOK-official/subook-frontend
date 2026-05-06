@@ -11,6 +11,7 @@ const AdminSettlementsPage = lazy(() => import("./pages/AdminSettlementsPage"));
 const AdminShipmentDetailPage = lazy(() => import("./pages/AdminShipmentDetailPage"));
 const AdminStudioPage = lazy(() => import("./pages/AdminStudioPage"));
 const AdminCouponsPage = lazy(() => import("./pages/AdminCouponsPage"));
+const AdminProductMastersPage = lazy(() => import("./pages/AdminProductMastersPage"));
 const ResetPasswordPage = lazy(() => import("./pages/ResetPasswordPage"));
 
 function AuthEmailRedirector() {
@@ -96,6 +97,14 @@ function App() {
               </AdminRoute>
             }
             path="/admin/catalog"
+          />
+          <Route
+            element={
+              <AdminRoute>
+                <AdminProductMastersPage />
+              </AdminRoute>
+            }
+            path="/admin/products"
           />
           <Route
             element={
