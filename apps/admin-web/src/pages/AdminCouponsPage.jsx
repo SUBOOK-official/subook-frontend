@@ -115,6 +115,11 @@ function AdminCouponsPage() {
   const [issueMembers, setIssueMembers] = useState([]);
   const [isIssueLoading, setIsIssueLoading] = useState(false);
   const [isIssuing, setIsIssuing] = useState(false);
+  // 발급 이력 모달 상태
+  const [historyTarget, setHistoryTarget] = useState(null);
+  const [historyStats, setHistoryStats] = useState(null);
+  const [historyRows, setHistoryRows] = useState([]);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
   const requestIdRef = useRef(0);
   const issueRequestIdRef = useRef(0);
 
@@ -280,6 +285,30 @@ function AdminCouponsPage() {
     closeIssue();
   };
 
+  // ── 발급 이력 모달 ─────────────────────────────────────────
+  const openHistory = async (coupon) => {
+    setHistoryTarget(coupon);
+    setHistoryStats(null);
+    setHistoryRows([]);
+    setIsHistoryLoading(true);
+    const [statsRes, listRes] = await Promise.all([
+      supabase.rpc("admin_get_coupon_stats", { p_coupon_id: coupon.id }),
+      supabase.rpc("admin_list_member_coupons", { p_coupon_id: coupon.id, p_limit: 200 }),
+    ]);
+    if (!statsRes.error) setHistoryStats(statsRes.data);
+    if (!listRes.error) setHistoryRows(Array.isArray(listRes.data) ? listRes.data : []);
+    if (statsRes.error || listRes.error) {
+      showToast(statsRes.error?.message || listRes.error?.message || "이력을 불러오지 못했습니다.", "error");
+    }
+    setIsHistoryLoading(false);
+  };
+
+  const closeHistory = () => {
+    setHistoryTarget(null);
+    setHistoryStats(null);
+    setHistoryRows([]);
+  };
+
   const handleToggleActive = async (coupon) => {
     setBusyId(coupon.id);
     const { error } = await supabase.rpc("admin_set_coupon_active", {
@@ -404,6 +433,13 @@ function AdminCouponsPage() {
                         title={coupon.is_active ? undefined : "비활성 쿠폰은 발급할 수 없습니다"}
                       >
                         발급
+                      </button>
+                      <button
+                        type="button"
+                        className="mr-2 text-xs font-bold text-emerald-700 hover:text-emerald-900"
+                        onClick={() => openHistory(coupon)}
+                      >
+                        이력
                       </button>
                       <button
                         type="button"
@@ -719,6 +755,119 @@ function AdminCouponsPage() {
                 type="button"
                 disabled={isIssuing}
                 onClick={closeIssue}
+                className="rounded-md border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+              >
+                닫기
+              </button>
+            </footer>
+          </div>
+        </div>
+      ) : null}
+
+      {historyTarget ? (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/50 p-4">
+          <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg bg-white p-6 shadow-xl">
+            <header className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-black text-slate-900">발급 이력</h2>
+                <p className="mt-1 text-sm text-slate-500">{historyTarget.title}</p>
+              </div>
+              <button
+                type="button"
+                className="text-slate-400 hover:text-slate-700"
+                onClick={closeHistory}
+              >
+                ✕
+              </button>
+            </header>
+
+            {/* 통계 */}
+            {historyStats ? (
+              <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
+                <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-center">
+                  <div className="text-xs text-slate-500">총 발급</div>
+                  <div className="mt-1 text-xl font-black text-slate-900">{historyStats.total_issued}</div>
+                </div>
+                <div className="rounded-md border border-slate-200 bg-emerald-50 p-3 text-center">
+                  <div className="text-xs text-emerald-700">사용</div>
+                  <div className="mt-1 text-xl font-black text-emerald-800">{historyStats.used_count}</div>
+                </div>
+                <div className="rounded-md border border-slate-200 bg-blue-50 p-3 text-center">
+                  <div className="text-xs text-blue-700">미사용</div>
+                  <div className="mt-1 text-xl font-black text-blue-800">{historyStats.available_count}</div>
+                </div>
+                <div className="rounded-md border border-slate-200 bg-rose-50 p-3 text-center">
+                  <div className="text-xs text-rose-700">만료</div>
+                  <div className="mt-1 text-xl font-black text-rose-800">{historyStats.expired_count}</div>
+                </div>
+                <div className="rounded-md border border-slate-200 bg-amber-50 p-3 text-center">
+                  <div className="text-xs text-amber-700">잔여 발급</div>
+                  <div className="mt-1 text-xl font-black text-amber-800">
+                    {historyStats.remaining_quota == null ? "무제한" : historyStats.remaining_quota}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {/* 발급 이력 목록 */}
+            <div className="overflow-hidden rounded-md border border-slate-200">
+              {isHistoryLoading ? (
+                <div className="p-8 text-center text-sm text-slate-400">불러오는 중...</div>
+              ) : historyRows.length === 0 ? (
+                <div className="p-8 text-center text-sm text-slate-400">아직 발급되지 않았습니다.</div>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500">
+                    <tr>
+                      <th className="px-3 py-2 text-left">회원</th>
+                      <th className="px-3 py-2 text-left">발급일</th>
+                      <th className="px-3 py-2 text-left">만료일</th>
+                      <th className="px-3 py-2 text-left">상태</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {historyRows.map((row) => (
+                      <tr key={row.id}>
+                        <td className="px-3 py-2">
+                          <div className="font-bold text-slate-900">
+                            {row.nickname || row.name || row.email}
+                          </div>
+                          <div className="text-xs text-slate-500">{row.email}</div>
+                        </td>
+                        <td className="px-3 py-2 text-xs text-slate-600">
+                          {row.issued_at ? new Date(row.issued_at).toLocaleString("ko-KR") : "-"}
+                        </td>
+                        <td className="px-3 py-2 text-xs text-slate-600">
+                          {row.expires_at ? new Date(row.expires_at).toLocaleString("ko-KR") : "무기한"}
+                        </td>
+                        <td className="px-3 py-2">
+                          <span
+                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-bold ${
+                              row.status === "used"
+                                ? "bg-emerald-100 text-emerald-800"
+                                : row.status === "expired"
+                                  ? "bg-rose-100 text-rose-700"
+                                  : "bg-blue-100 text-blue-800"
+                            }`}
+                          >
+                            {row.status === "used"
+                              ? "사용"
+                              : row.status === "expired"
+                                ? "만료"
+                                : "보유"}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            <footer className="mt-4 flex justify-end">
+              <button
+                type="button"
+                onClick={closeHistory}
                 className="rounded-md border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
               >
                 닫기

@@ -24,6 +24,10 @@
     {
       "path": "/api/admin/auto-confirm-orders",
       "schedule": "0 1 * * *"
+    },
+    {
+      "path": "/api/admin/expire-coupons",
+      "schedule": "0 17 * * *"
     }
   ]
 }
