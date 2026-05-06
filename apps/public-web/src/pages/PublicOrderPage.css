@@ -506,3 +506,211 @@
     padding-bottom: 220px;
   }
 }
+
+/* ── 쿠폰 적용 ─────────────────────────────────────────── */
+.order-sidebar__coupon-row {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.order-sidebar__coupon-button {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: #f8fafc;
+  border: 1px dashed var(--public-ds-border);
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--public-ds-text);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+  text-align: left;
+}
+
+.order-sidebar__coupon-button:hover:not(:disabled) {
+  background: #f1f5f9;
+  border-color: var(--public-ds-primary, #1B3A5C);
+}
+
+.order-sidebar__coupon-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.order-sidebar__coupon-change {
+  font-size: 11px;
+  color: var(--public-ds-primary, #1B3A5C);
+  font-weight: 700;
+}
+
+.order-sidebar__coupon-clear {
+  padding: 0 12px;
+  background: #fff;
+  border: 1px solid var(--public-ds-border);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--public-ds-text-secondary);
+  cursor: pointer;
+}
+
+.order-sidebar__coupon-clear:hover {
+  color: var(--public-ds-danger, #dc2626);
+  border-color: var(--public-ds-danger, #dc2626);
+}
+
+.order-sidebar__row--discount {
+  color: var(--public-ds-primary, #1B3A5C);
+  font-weight: 600;
+}
+
+.order-coupon-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.5);
+  padding: 16px;
+}
+
+.order-coupon-modal__panel {
+  width: 100%;
+  max-width: 480px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+}
+
+.order-coupon-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.order-coupon-modal__header h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.order-coupon-modal__close {
+  background: none;
+  border: 0;
+  font-size: 18px;
+  color: var(--public-ds-text-muted, #94a3b8);
+  cursor: pointer;
+}
+
+.order-coupon-modal__list {
+  flex: 1;
+  list-style: none;
+  margin: 0;
+  padding: 8px;
+  overflow-y: auto;
+}
+
+.order-coupon-modal__empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--public-ds-text-muted);
+}
+
+.order-coupon-modal__item {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid var(--public-ds-border);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.order-coupon-modal__item:hover {
+  border-color: var(--public-ds-primary, #1B3A5C);
+}
+
+.order-coupon-modal__item.is-selected {
+  border-color: var(--public-ds-primary, #1B3A5C);
+  background: #f5f9ff;
+}
+
+.order-coupon-modal__item-amount {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--public-ds-primary, #1B3A5C);
+  text-align: center;
+  border-right: 1px dashed var(--public-ds-border);
+  padding-right: 12px;
+}
+
+.order-coupon-modal__item-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.order-coupon-modal__item-body strong {
+  font-size: 13px;
+  color: var(--public-ds-text);
+  word-break: keep-all;
+}
+
+.order-coupon-modal__item-body span {
+  font-size: 12px;
+  color: var(--public-ds-text-secondary);
+}
+
+.order-coupon-modal__item-expiry {
+  color: var(--public-ds-text-muted, #94a3b8) !important;
+}
+
+.order-coupon-modal__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid #e5e7eb;
+  background: #f8fafc;
+}
+
+.order-coupon-modal__clear {
+  background: none;
+  border: 0;
+  padding: 8px 12px;
+  color: var(--public-ds-danger, #dc2626);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.order-coupon-modal__close-button {
+  margin-left: auto;
+  padding: 8px 16px;
+  background: var(--public-ds-text, #0f172a);
+  color: #fff;
+  border: 0;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}

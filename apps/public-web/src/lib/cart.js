@@ -235,6 +235,7 @@ async function createOrder({
   shippingAddressLine2,
   shippingMemo,
   paymentMethod = "bank_transfer",
+  memberCouponId = null,
 }) {
   if (!isSupabaseConfigured || !supabase) {
     return { data: null, error: new Error("서비스에 연결할 수 없습니다.") };
@@ -250,6 +251,7 @@ async function createOrder({
     p_shipping_address_line2: shippingAddressLine2 || null,
     p_shipping_memo: shippingMemo || null,
     p_payment_method: paymentMethod,
+    p_member_coupon_id: memberCouponId,
   });
 
   if (error) {

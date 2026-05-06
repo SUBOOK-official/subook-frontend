@@ -6,9 +6,29 @@ import PublicFooter from "../components/PublicFooter";
 import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
+import { supabase as publicSupabase } from "@shared-supabase/publicSupabaseClient";
 import { FREE_SHIPPING_THRESHOLD, calculateShippingFee, createOrder } from "../lib/cart";
 import { loadMemberPortalSnapshot } from "../lib/memberPortal";
 import "./PublicOrderPage.css";
+
+// 쿠폰 할인 미리 계산 (백엔드 create_order RPC와 동일 규칙).
+// 결제 요약 미리보기용. 실제 차감은 백엔드에서 다시 계산해 source of truth로 둔다.
+function previewCouponDiscount(coupon, subtotal, shippingFee) {
+  if (!coupon) return { subtotalDiscount: 0, shippingFeeAfter: shippingFee, label: "" };
+  if (coupon.discount_type === "free_shipping") {
+    return { subtotalDiscount: 0, shippingFeeAfter: 0, label: "무료배송" };
+  }
+  if (coupon.discount_type === "fixed") {
+    const d = Math.min(coupon.discount_value || 0, subtotal);
+    return { subtotalDiscount: d, shippingFeeAfter: shippingFee, label: `${formatCurrency(d)} 할인` };
+  }
+  if (coupon.discount_type === "percentage") {
+    let d = Math.floor((subtotal * (coupon.discount_value || 0)) / 100);
+    if (coupon.max_discount_amount != null) d = Math.min(d, coupon.max_discount_amount);
+    return { subtotalDiscount: d, shippingFeeAfter: shippingFee, label: `${formatCurrency(d)} 할인` };
+  }
+  return { subtotalDiscount: 0, shippingFeeAfter: shippingFee, label: "" };
+}
 
 const PAYMENT_METHODS = [
   { id: "bank_transfer", label: "계좌이체 (무통장입금)", available: true },
@@ -76,6 +96,10 @@ function PublicOrderPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toast, setToast] = useState(null);
   const [pgToast, setPgToast] = useState(false);
+  // 쿠폰
+  const [applicableCoupons, setApplicableCoupons] = useState([]);
+  const [selectedCouponId, setSelectedCouponId] = useState(null);
+  const [isCouponPickerOpen, setIsCouponPickerOpen] = useState(false);
 
   const showToast = useCallback((message, type = "info") => {
     setToast({ message, type });
@@ -125,6 +149,24 @@ function PublicOrderPage() {
 
     void loadData();
   }, [user, profile]);
+
+  // 적용 가능한 쿠폰 fetch (subtotal 기반)
+  useEffect(() => {
+    if (!user || !orderItems || orderItems.length === 0) return;
+    const subtotalForFetch = orderItems.reduce(
+      (sum, i) => sum + (i.price ?? 0) * i.quantity,
+      0,
+    );
+    const loadCoupons = async () => {
+      const { data, error } = await publicSupabase.rpc("get_applicable_coupons", {
+        p_subtotal: subtotalForFetch,
+      });
+      if (!error && Array.isArray(data)) {
+        setApplicableCoupons(data);
+      }
+    };
+    void loadCoupons();
+  }, [user, orderItems]);
 
   const handleSelectAddress = (addr) => {
     setSelectedAddressId(addr.id);
@@ -190,6 +232,7 @@ function PublicOrderPage() {
       shippingAddressLine2: shipping.addressLine2.trim() || null,
       shippingMemo: shipping.memo.trim() || null,
       paymentMethod,
+      memberCouponId: selectedCouponId,
     });
 
     setIsSubmitting(false);
@@ -212,8 +255,12 @@ function PublicOrderPage() {
   if (!orderItems || orderItems.length === 0) return null;
 
   const subtotal = orderItems.reduce((sum, i) => sum + (i.price ?? 0) * i.quantity, 0);
-  const shippingFee = calculateShippingFee(subtotal);
-  const totalAmount = subtotal + shippingFee;
+  const baseShippingFee = calculateShippingFee(subtotal);
+  const selectedCoupon = applicableCoupons.find((c) => c.id === selectedCouponId) ?? null;
+  const couponPreview = previewCouponDiscount(selectedCoupon, subtotal, baseShippingFee);
+  const shippingFee = couponPreview.shippingFeeAfter;
+  const couponDiscount = couponPreview.subtotalDiscount;
+  const totalAmount = Math.max(0, subtotal + shippingFee - couponDiscount);
 
   return (
     <PublicPageFrame>
@@ -377,6 +424,44 @@ function PublicOrderPage() {
                     {formatCurrency(FREE_SHIPPING_THRESHOLD)}원 이상 무료배송
                   </p>
                 )}
+
+                {/* 쿠폰 적용 */}
+                <div className="order-sidebar__coupon-row">
+                  <button
+                    type="button"
+                    className="order-sidebar__coupon-button"
+                    onClick={() => setIsCouponPickerOpen(true)}
+                    disabled={applicableCoupons.length === 0}
+                  >
+                    {selectedCoupon
+                      ? `🎟 ${selectedCoupon.title}`
+                      : applicableCoupons.length === 0
+                        ? "사용 가능한 쿠폰이 없습니다"
+                        : `쿠폰 적용 (${applicableCoupons.length}장 사용 가능)`}
+                    {selectedCoupon ? <span className="order-sidebar__coupon-change">변경</span> : null}
+                  </button>
+                  {selectedCoupon ? (
+                    <button
+                      type="button"
+                      className="order-sidebar__coupon-clear"
+                      onClick={() => setSelectedCouponId(null)}
+                    >
+                      해제
+                    </button>
+                  ) : null}
+                </div>
+
+                {selectedCoupon ? (
+                  <div className="order-sidebar__row order-sidebar__row--discount">
+                    <span>쿠폰 할인</span>
+                    <span>
+                      {selectedCoupon.discount_type === "free_shipping"
+                        ? "배송비 무료"
+                        : `-${formatCurrency(couponDiscount)}`}
+                    </span>
+                  </div>
+                ) : null}
+
                 <div className="order-sidebar__divider" />
                 <div className="order-sidebar__row order-sidebar__row--total">
                   <span>총 결제금액</span>
@@ -411,6 +496,91 @@ function PublicOrderPage() {
         {pgToast && (
           <div className="order-toast order-toast--pg" role="alert">
             추후 업데이트 예정입니다. 현재는 계좌이체만 가능합니다.
+          </div>
+        )}
+
+        {isCouponPickerOpen && (
+          <div className="order-coupon-modal" onClick={() => setIsCouponPickerOpen(false)}>
+            <div
+              className="order-coupon-modal__panel"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <header className="order-coupon-modal__header">
+                <h2>쿠폰 선택</h2>
+                <button
+                  type="button"
+                  className="order-coupon-modal__close"
+                  onClick={() => setIsCouponPickerOpen(false)}
+                >
+                  ✕
+                </button>
+              </header>
+
+              <ul className="order-coupon-modal__list">
+                {applicableCoupons.length === 0 ? (
+                  <li className="order-coupon-modal__empty">
+                    이 주문에 사용할 수 있는 쿠폰이 없습니다.
+                  </li>
+                ) : (
+                  applicableCoupons.map((c) => {
+                    const isSelected = c.id === selectedCouponId;
+                    return (
+                      <li key={c.id}>
+                        <button
+                          type="button"
+                          className={`order-coupon-modal__item${isSelected ? " is-selected" : ""}`}
+                          onClick={() => {
+                            setSelectedCouponId(c.id);
+                            setIsCouponPickerOpen(false);
+                          }}
+                        >
+                          <div className="order-coupon-modal__item-amount">
+                            {c.discount_type === "free_shipping"
+                              ? "무료배송"
+                              : c.discount_type === "percentage"
+                                ? `${c.discount_value}%${c.max_discount_amount ? ` (최대 ${formatCurrency(c.max_discount_amount)})` : ""}`
+                                : `${formatCurrency(c.discount_value)} 할인`}
+                          </div>
+                          <div className="order-coupon-modal__item-body">
+                            <strong>{c.title}</strong>
+                            {c.min_order_amount > 0 ? (
+                              <span>{formatCurrency(c.min_order_amount)} 이상 주문 시</span>
+                            ) : null}
+                            <span className="order-coupon-modal__item-expiry">
+                              {c.expires_at
+                                ? `${c.expires_at.replace("T", " ").slice(0, 16)}까지`
+                                : "무기한"}
+                            </span>
+                          </div>
+                        </button>
+                      </li>
+                    );
+                  })
+                )}
+              </ul>
+
+              <footer className="order-coupon-modal__footer">
+                {selectedCouponId ? (
+                  <button
+                    type="button"
+                    className="order-coupon-modal__clear"
+                    onClick={() => {
+                      setSelectedCouponId(null);
+                      setIsCouponPickerOpen(false);
+                    }}
+                  >
+                    쿠폰 사용 안 함
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className="order-coupon-modal__close-button"
+                  onClick={() => setIsCouponPickerOpen(false)}
+                >
+                  닫기
+                </button>
+              </footer>
+            </div>
           </div>
         )}
       </div>
