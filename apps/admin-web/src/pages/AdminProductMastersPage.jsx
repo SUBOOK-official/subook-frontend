@@ -703,6 +703,7 @@ function AdminProductMastersPage() {
                   <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500">
                     <tr>
                       <th className="px-3 py-2 text-left">셀러</th>
+                      <th className="px-3 py-2 text-left">옵션</th>
                       <th className="px-3 py-2 text-left">등급</th>
                       <th className="px-3 py-2 text-right">가격</th>
                       <th className="px-3 py-2 text-center">재고 상태</th>
@@ -718,7 +719,14 @@ function AdminProductMastersPage() {
                           <div className="text-xs text-slate-500">{book.seller_phone || ""}</div>
                         </td>
                         <td className="px-3 py-2 text-slate-700">
-                          {CONDITION_LABEL[book.condition_grade] ?? book.condition_grade ?? "-"}
+                          {book.option ? (
+                            <span className="font-mono text-xs">{book.option}</span>
+                          ) : (
+                            <span className="text-slate-400">-</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-slate-700">
+                          {CONDITION_LABEL[book.condition_grade] ?? book.condition_grade ?? "S"}
                         </td>
                         <td className="px-3 py-2 text-right font-bold text-slate-900">
                           {book.price != null ? formatCurrency(book.price) : "-"}
