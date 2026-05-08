@@ -432,9 +432,7 @@ function AdminProductMastersPage() {
                     </td>
                     <td className="px-3 py-3 text-center">
                       <span className="font-bold text-slate-900">{product.inventory_count ?? 0}</span>
-                      {product.total_book_count > (product.inventory_count ?? 0) ? (
-                        <span className="text-xs text-slate-400"> / {product.total_book_count}</span>
-                      ) : null}
+                      <span className="text-xs text-slate-400"> · 노출 {product.public_count ?? 0}</span>
                     </td>
                     <td className="px-3 py-3 text-center">
                       <span
