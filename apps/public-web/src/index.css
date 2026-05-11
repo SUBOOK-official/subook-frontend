@@ -294,20 +294,8 @@ img {
   display: flex;
   flex-direction: column;
   gap: 28px;
-  padding: 8px 4px;
+  padding: 8px 0;
   align-self: start;
-  max-height: calc(100vh - 120px);
-  overflow-y: auto;
-  scrollbar-width: thin;
-}
-
-.public-home-store-grid__sidebar::-webkit-scrollbar {
-  width: 4px;
-}
-
-.public-home-store-grid__sidebar::-webkit-scrollbar-thumb {
-  background: var(--public-border, #e5e7eb);
-  border-radius: 2px;
 }
 
 @media (max-width: 1023px) {
@@ -319,8 +307,6 @@ img {
     background: var(--public-bg-soft);
     padding: 14px 16px;
     border-radius: 10px;
-    max-height: none;
-    overflow-y: visible;
   }
 }
 

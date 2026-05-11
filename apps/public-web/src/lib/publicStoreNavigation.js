@@ -28,7 +28,7 @@ export const STORE_FILTER_GROUPS = [
       "EBS",
       "메가스터디",
       "이감",
-      "상상국어평가연구소",
+      { value: "상상국어평가연구소", label: "상상" },
       "기타",
     ],
   },
