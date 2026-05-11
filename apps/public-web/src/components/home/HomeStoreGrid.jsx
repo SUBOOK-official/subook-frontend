@@ -263,16 +263,6 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
     setCurrentPage(1);
   };
 
-  const handleSearchChange = (event) => {
-    setSearchKeyword(event.target.value);
-    setCurrentPage(1);
-  };
-
-  const handleClearSearch = () => {
-    setSearchKeyword("");
-    setCurrentPage(1);
-  };
-
   const handleChangePage = (nextPage) => {
     if (nextPage < 1 || nextPage > totalPages || nextPage === safeCurrentPage) return;
     setCurrentPage(nextPage);
@@ -346,29 +336,8 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
               })}
             </div>
 
-            {/* 툴바: 검색 + 결과수 + 정렬 */}
+            {/* 툴바: 결과수 + 정렬 */}
             <div className="public-home-store-grid__toolbar">
-          <div className="public-home-store-grid__toolbar-left">
-            <input
-              aria-label="교재 검색"
-              className="public-home-store-grid__search-input"
-              onChange={handleSearchChange}
-              placeholder="교재명, 강사명으로 검색"
-              type="search"
-              value={searchKeyword}
-            />
-            {searchKeyword ? (
-              <button
-                aria-label="검색어 지우기"
-                className="public-home-store-grid__search-clear"
-                onClick={handleClearSearch}
-                type="button"
-              >
-                ×
-              </button>
-            ) : null}
-          </div>
-
           <div className="public-home-store-grid__toolbar-right">
             <span className="public-home-store-grid__count">
               총 {visibleBooks.length.toLocaleString("ko-KR")}권
