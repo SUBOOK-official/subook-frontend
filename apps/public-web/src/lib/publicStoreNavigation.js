@@ -14,13 +14,23 @@ export const STORE_FILTER_GROUPS = [
     key: "types",
     label: "유형",
     queryKey: "type",
-    options: ["개념", "기출", "모의고사", "N제", "EBS", "주간지", "내신"],
+    options: ["개념", "기출", "모의고사", "N제", "EBS", "주간지", "내신", "워크북", "논술"],
   },
   {
     key: "brands",
     label: "브랜드",
     queryKey: "brand",
-    options: ["시대인재", "강남대성", "대성마이맥", "이투스", "EBS"],
+    options: [
+      "시대인재",
+      "강남대성",
+      "대성마이맥",
+      "이투스",
+      "EBS",
+      "메가스터디",
+      "이감",
+      "상상국어평가연구소",
+      "기타",
+    ],
   },
   {
     key: "years",
@@ -39,6 +49,9 @@ export const STORE_FILTER_GROUPS = [
     ],
   },
 ];
+
+// HomeStoreGrid 사이드바에 노출할 그룹 (연도/상태는 카드 자체에서 보이므로 제외)
+export const HOME_SIDEBAR_FILTER_GROUP_KEYS = ["types", "brands"];
 
 export const STORE_FILTER_GROUP_KEYS = STORE_FILTER_GROUPS.map((group) => group.key);
 

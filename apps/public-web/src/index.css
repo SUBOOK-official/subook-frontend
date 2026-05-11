@@ -294,8 +294,20 @@ img {
   display: flex;
   flex-direction: column;
   gap: 28px;
-  padding: 8px 0;
+  padding: 8px 4px;
   align-self: start;
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.public-home-store-grid__sidebar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.public-home-store-grid__sidebar::-webkit-scrollbar-thumb {
+  background: var(--public-border, #e5e7eb);
+  border-radius: 2px;
 }
 
 @media (max-width: 1023px) {
@@ -307,6 +319,8 @@ img {
     background: var(--public-bg-soft);
     padding: 14px 16px;
     border-radius: 10px;
+    max-height: none;
+    overflow-y: visible;
   }
 }
 
@@ -7080,7 +7094,7 @@ img {
 
 .public-home-hero-banner__viewport {
   position: relative;
-  height: 200px;
+  height: 170px;
   max-width: 1152px;
   margin: 0 auto;
   overflow: hidden;
@@ -7155,7 +7169,7 @@ img {
   width: min(100%, 600px);
   height: 100%;
   margin: 0 auto;
-  padding: 40px 0 72px;
+  padding: 28px 0 56px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -7898,11 +7912,11 @@ img {
   }
 
   .public-home-hero-banner__viewport {
-    height: 340px;
+    height: 270px;
   }
 
   .public-home-hero-banner__content {
-    padding-top: 56px;
+    padding-top: 40px;
   }
 
   .public-home-hero-banner__title {
@@ -7952,7 +7966,7 @@ img {
 
 @media (min-width: 1024px) {
   .public-home-hero-banner__viewport {
-    height: 420px;
+    height: 340px;
   }
 
   .public-home-subject-card--all {

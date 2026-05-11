@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import ContentContainer from "../ContentContainer";
 import ProductCard, { ProductCardSkeleton } from "../ProductCard";
 import {
+  HOME_SIDEBAR_FILTER_GROUP_KEYS,
   STORE_DEFAULT_SUBJECT,
   STORE_FILTER_GROUPS,
   STORE_SORT_OPTIONS,
@@ -15,6 +16,10 @@ import {
   serializeStorefrontQuery,
   toggleStoreFilterSelection,
 } from "../../lib/publicStoreNavigation";
+
+const HOME_SIDEBAR_FILTER_GROUPS = STORE_FILTER_GROUPS.filter((group) =>
+  HOME_SIDEBAR_FILTER_GROUP_KEYS.includes(group.key),
+);
 import {
   fetchStorefrontProducts,
   filterStorefrontProducts,
@@ -232,7 +237,7 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
         <div className="public-home-store-grid__layout">
           {/* 좌측 세로 사이드바 (PC) — 모바일에선 그리드 위로 떨어짐 */}
           <aside className="public-home-store-grid__sidebar" aria-label="필터">
-            {STORE_FILTER_GROUPS.map((group) => {
+            {HOME_SIDEBAR_FILTER_GROUPS.map((group) => {
               const hasSelected = selectedFilters[group.key].length > 0;
               return (
                 <div className="public-home-store-grid__sidebar-group" key={group.key}>
