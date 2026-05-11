@@ -67,6 +67,8 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
   const location = useLocation();
   const sortMenuRef = useRef(null);
   const sectionTopRef = useRef(null);
+  const sidebarRef = useRef(null);
+  const layoutRef = useRef(null);
 
   const initialQueryState = useMemo(
     () => parseStorefrontQuery(location.search),
@@ -136,6 +138,54 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
       );
     }
   }, [selectedSubject, selectedFilters, sortOption, searchKeyword, currentPage, location.search, navigate]);
+
+  // 사이드바 sticky (JS 구현)
+  // PublicPageFrame이 1920px 디자인을 transform: scale로 viewport에 맞추는 구조라
+  // CSS position: sticky가 transform parent를 containing block으로 잡아 viewport 기준 sticky가 깨짐.
+  // → window scroll에 맞춰 사이드바를 layout 안에서 translateY로 직접 따라가게 함.
+  useEffect(() => {
+    const STICKY_OFFSET = 96; // viewport top에서 박힐 위치(px)
+    const sidebarEl = sidebarRef.current;
+    const layoutEl = layoutRef.current;
+    if (!sidebarEl || !layoutEl) return undefined;
+
+    const isDesktopLayout = () => window.matchMedia("(min-width: 1024px)").matches;
+
+    const getFrameScale = () => {
+      const frameEl = sidebarEl.closest(".public-home__frame");
+      if (!frameEl) return 1;
+      const raw = getComputedStyle(frameEl).getPropertyValue("--public-frame-scale").trim();
+      const parsed = Number.parseFloat(raw);
+      return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+    };
+
+    const sync = () => {
+      if (!isDesktopLayout()) {
+        sidebarEl.style.transform = "";
+        return;
+      }
+      const layoutRect = layoutEl.getBoundingClientRect();
+      const sidebarHeight = sidebarEl.offsetHeight;
+      const layoutHeight = layoutEl.offsetHeight;
+      const scale = getFrameScale();
+
+      // viewport에서 사이드바 top: STICKY_OFFSET에 박히도록 local translateY 계산.
+      // viewport_y = layoutRect.top + localTranslateY * scale  →  STICKY_OFFSET
+      const desiredLocal = (STICKY_OFFSET - layoutRect.top) / scale;
+      const maxLocal = Math.max(0, layoutHeight - sidebarHeight);
+      const clamped = Math.min(Math.max(desiredLocal, 0), maxLocal);
+      sidebarEl.style.transform = `translateY(${clamped}px)`;
+    };
+
+    sync();
+    window.addEventListener("scroll", sync, { passive: true });
+    window.addEventListener("resize", sync);
+    return () => {
+      window.removeEventListener("scroll", sync);
+      window.removeEventListener("resize", sync);
+      sidebarEl.style.transform = "";
+    };
+  }, []);
 
   // 정렬 메뉴 외부 클릭 닫기
   useEffect(() => {
@@ -234,9 +284,9 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
   return (
     <section className="public-home-store-grid" aria-label="전체 교재" ref={sectionTopRef}>
       <ContentContainer>
-        <div className="public-home-store-grid__layout">
+        <div className="public-home-store-grid__layout" ref={layoutRef}>
           {/* 좌측 세로 사이드바 (PC) — 모바일에선 그리드 위로 떨어짐 */}
-          <aside className="public-home-store-grid__sidebar" aria-label="필터">
+          <aside className="public-home-store-grid__sidebar" aria-label="필터" ref={sidebarRef}>
             {HOME_SIDEBAR_FILTER_GROUPS.map((group) => {
               const hasSelected = selectedFilters[group.key].length > 0;
               return (

@@ -289,24 +289,24 @@ img {
 }
 
 .public-home-store-grid__sidebar {
-  position: sticky;
-  top: 96px;
   display: flex;
   flex-direction: column;
   gap: 28px;
   padding: 8px 0;
   align-self: start;
+  /* JS sticky: HomeStoreGrid가 window scroll에 맞춰 translateY를 동적으로 설정 */
+  will-change: transform;
 }
 
 @media (max-width: 1023px) {
   .public-home-store-grid__sidebar {
-    position: static;
     flex-direction: row;
     flex-wrap: wrap;
     gap: 16px 24px;
     background: var(--public-bg-soft);
     padding: 14px 16px;
     border-radius: 10px;
+    transform: none !important;
   }
 }
 
