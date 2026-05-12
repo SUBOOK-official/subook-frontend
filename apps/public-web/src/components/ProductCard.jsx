@@ -68,6 +68,13 @@ function ProductCard({
 
   useEffect(() => {
     setImageStatus(coverImageUrl ? "loading" : "fallback");
+    if (!coverImageUrl) return undefined;
+    // Supabase Storage 응답이 끊겨 onLoad/onError가 영영 안 불리고 무한 로딩에 박히는
+    // 케이스 방지 — 8초 안에 결과 없으면 placeholder로 fallback.
+    const timer = setTimeout(() => {
+      setImageStatus((current) => (current === "loading" ? "fallback" : current));
+    }, 8000);
+    return () => clearTimeout(timer);
   }, [coverImageUrl]);
 
   return (
@@ -85,6 +92,8 @@ function ProductCard({
           <img
             alt={title}
             className={`public-product-card__cover ${imageStatus === "loaded" ? "is-loaded" : ""}`}
+            decoding="async"
+            fetchpriority="low"
             loading="lazy"
             onError={() => setImageStatus("fallback")}
             onLoad={() => setImageStatus("loaded")}
