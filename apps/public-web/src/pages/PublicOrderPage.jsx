@@ -246,7 +246,8 @@ function PublicOrderPage() {
       state: {
         orderNumber: data.order_number,
         totalAmount: data.total_amount,
-        itemCount: data.item_count,
+        itemCount: orderItems.reduce((sum, i) => sum + (i.quantity ?? 1), 0),
+        recipientName: shipping.recipientName,
       },
       replace: true,
     });
@@ -398,9 +399,11 @@ function PublicOrderPage() {
                 {paymentMethod === "bank_transfer" && (
                   <div className="order-bank-info">
                     <p className="order-bank-info__title">입금 계좌 안내</p>
-                    <p className="order-bank-info__account">신한은행 110-XXX-XXXXXX (수북)</p>
+                    <p className="order-bank-info__account">카카오뱅크 3333-36-3268506</p>
+                    <p className="order-bank-info__holder">예금주: 박영제</p>
                     <p className="order-bank-info__notice">
-                      주문 후 24시간 이내 입금해주세요. 미입금 시 자동 취소됩니다.
+                      주문 후 24시간 이내 입금해주세요. 미입금 시 자동 취소됩니다.<br />
+                      <strong>입금자명: 본인 성함 + 주문번호 마지막 4자리</strong> (예: 홍길동1234) — 매칭이 빨라집니다.
                     </p>
                   </div>
                 )}
