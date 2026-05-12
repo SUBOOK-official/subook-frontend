@@ -236,11 +236,25 @@ export default async function handler(req, res) {
   }
 
   let supabase;
-  try {
-    supabase = await assertAdminUser(accessToken);
-  } catch (err) {
-    const status = err.statusCode || 500;
-    return res.status(status).json(makeErrorResponse({ error: err.message, code: err.message }));
+  const cronSecret = process.env.CRON_SECRET;
+
+  // ⚠️ 인증 분기:
+  //   1) Bearer가 CRON_SECRET과 일치하면 cron/internal 호출로 간주 → service_role client 발급
+  //   2) 그 외는 어드민 토큰으로 검증
+  if (cronSecret && accessToken === cronSecret) {
+    const url = process.env.SUPABASE_URL;
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!url || !serviceKey) {
+      return res.status(500).json(makeErrorResponse({ error: "Server misconfigured", code: "CONFIG_MISSING" }));
+    }
+    supabase = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  } else {
+    try {
+      supabase = await assertAdminUser(accessToken);
+    } catch (err) {
+      const status = err.statusCode || 500;
+      return res.status(status).json(makeErrorResponse({ error: err.message, code: err.message }));
+    }
   }
 
   // 요청 바디 파싱
