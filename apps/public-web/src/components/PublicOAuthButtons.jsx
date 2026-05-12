@@ -8,12 +8,6 @@ const oauthProviders = [
     styleKey: "kakao",
     brandIcon: "K",
   },
-  {
-    provider: "custom:naver",
-    label: "네이버로 시작하기",
-    styleKey: "naver",
-    brandIcon: "N",
-  },
 ];
 
 function buildOAuthFallbackMessage(providerLabel, error) {
