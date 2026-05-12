@@ -39,6 +39,7 @@ function App() {
         <Route element={<PublicOrderPage />} path="/order" />
         <Route element={<PublicPickupRequestPage />} path="/pickup/new" />
         <Route element={<PublicPolicyPage type="privacy" />} path="/privacy" />
+        <Route element={<PublicPolicyPage type="refund" />} path="/refund" />
         <Route element={<PublicProductDetailPage />} path="/store/:productId" />
         <Route element={<PublicSignupPage />} path="/signup" />
         <Route element={<PublicSignupSuccessPage />} path="/signup-success" />

@@ -2881,6 +2881,35 @@ img {
   align-items: flex-start;
   justify-content: space-between;
   gap: 48px;
+  flex-wrap: wrap;
+}
+
+.public-footer__beta {
+  flex-basis: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #78350f;
+  line-height: 1.5;
+}
+
+.public-footer__beta strong {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  background: #f59e0b;
+  color: #ffffff;
+  font-weight: 800;
+  font-size: 11px;
+  border-radius: 4px;
+  letter-spacing: 0.04em;
 }
 
 .public-footer__content {

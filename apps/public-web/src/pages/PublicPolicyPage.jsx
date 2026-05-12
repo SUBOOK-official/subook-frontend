@@ -53,11 +53,53 @@ const privacySections = [
   },
 ];
 
+const refundSections = [
+  {
+    title: "주문 취소 (배송 전)",
+    paragraphs: [
+      "구매자는 '입금대기 / 결제완료 / 상품 준비 중' 상태에서는 마이페이지에서 직접 주문을 취소할 수 있습니다.",
+      "미입금 상태로 24시간이 지나면 주문은 자동으로 취소되고, 사용된 쿠폰이 있다면 자동 복구됩니다.",
+      "이미 입금이 완료된 주문은 1~2영업일 이내에 입금하신 계좌로 환불됩니다.",
+    ],
+  },
+  {
+    title: "청약철회 (배송 후 단순 변심)",
+    paragraphs: [
+      "전자상거래법에 따라, 상품을 받으신 날로부터 7일 이내에 단순 변심에 의한 청약철회를 요청할 수 있습니다.",
+      "다만 중고 교재 특성상 사용·필기·훼손 흔적이 생긴 경우 청약철회가 제한될 수 있습니다 (소비자분쟁해결기준 준용).",
+      "단순 변심 환불 시 왕복 배송비(편도 3,500원 × 2)는 구매자가 부담합니다. 환불 금액에서 차감됩니다.",
+      "환불 신청은 1:1 문의(subook2025@gmail.com) 또는 카카오톡 채널로 주문번호와 함께 접수해 주세요.",
+    ],
+  },
+  {
+    title: "상품 하자 / 표기와 다른 상품",
+    paragraphs: [
+      "상품 등급(S/A+/A) 표기와 실제 상태가 명백히 다르거나, 파본·구성품 누락 등 하자가 있는 경우 100% 환불 또는 동일 상품 교환을 보장합니다.",
+      "이 경우 왕복 배송비는 수북에서 부담합니다.",
+      "수령일로부터 7일 이내에 문제 상태를 확인할 수 있는 사진과 함께 1:1 문의로 접수해 주세요.",
+    ],
+  },
+  {
+    title: "환불 처리 시기와 방법",
+    paragraphs: [
+      "환불 사유 확인 후 영업일 기준 3일 이내에 입금하신 계좌로 환불됩니다.",
+      "은행 영업일·공휴일·금융사 사정에 따라 1~2일 지연될 수 있습니다.",
+      "환불 진행 상황은 카카오톡 알림 또는 마이페이지의 주문 상세에서 확인할 수 있습니다.",
+    ],
+  },
+];
+
 function PublicPolicyPage({ type = "privacy" }) {
   const location = useLocation();
-  const pageType = location.pathname === "/terms" ? "terms" : type;
+  let pageType = type;
+  if (location.pathname === "/terms") pageType = "terms";
+  else if (location.pathname === "/refund") pageType = "refund";
+  else if (location.pathname === "/privacy") pageType = "privacy";
+
   const isTerms = pageType === "terms";
-  const sections = isTerms ? termsSections : privacySections;
+  const isRefund = pageType === "refund";
+  const sections = isTerms ? termsSections : isRefund ? refundSections : privacySections;
+  const title = isTerms ? "이용약관" : isRefund ? "환불 및 청약철회 정책" : "개인정보처리방침";
 
   return (
     <PublicPageFrame>
@@ -66,17 +108,20 @@ function PublicPolicyPage({ type = "privacy" }) {
         <main className="public-policy-route">
           <ContentContainer className="public-policy-shell">
             <nav aria-label="정책 문서" className="public-policy-tabs">
-              <Link className={`public-policy-tab ${!isTerms ? "is-active" : ""}`} to="/privacy">
+              <Link className={`public-policy-tab ${pageType === "privacy" ? "is-active" : ""}`} to="/privacy">
                 개인정보처리방침
               </Link>
               <Link className={`public-policy-tab ${isTerms ? "is-active" : ""}`} to="/terms">
                 이용약관
               </Link>
+              <Link className={`public-policy-tab ${isRefund ? "is-active" : ""}`} to="/refund">
+                환불정책
+              </Link>
             </nav>
 
             <article className="public-policy-document">
               <p className="public-policy-eyebrow">SUBOOK Policy</p>
-              <h1>{isTerms ? "이용약관" : "개인정보처리방침"}</h1>
+              <h1>{title}</h1>
               <p className="public-policy-updated">시행일: 2026년 4월 12일</p>
 
               <div className="public-policy-section-list">

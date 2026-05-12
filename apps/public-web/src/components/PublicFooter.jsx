@@ -36,9 +36,10 @@ function FooterChatIcon() {
 
 const footerTopLinks = [
   { label: "교재 판매하기", to: "/pickup/new" },
+  { label: "자주 묻는 질문", to: "/faq" },
   { label: "이용약관", to: "/terms" },
   { label: "개인정보처리방침", to: "/privacy", bold: true },
-  { label: "사업자정보확인", to: null },
+  { label: "환불정책", to: "/refund" },
   { label: "1:1문의", href: "mailto:subook2025@gmail.com" },
 ];
 
@@ -54,8 +55,8 @@ const footerMetaLines = [
     ["주소", "서울 서대문구 연세로 50 제1공학관"],
   ],
   [
-    ["사업자등록번호", "등록 준비 중"],
-    ["통신판매업신고번호", "등록 준비 중"],
+    ["사업자등록번호", "베타 운영 중 (정식 등록 후 공지)"],
+    ["통신판매업신고번호", "베타 운영 중 (정식 등록 후 공지)"],
   ],
 ];
 
@@ -75,6 +76,13 @@ function PublicFooter() {
   return (
     <footer className="public-footer">
       <ContentContainer className="public-footer__inner">
+        <div className="public-footer__beta" role="note">
+          <strong>BETA</strong>
+          <span>
+            수북은 사업자 등록 및 통신판매업 신고 절차를 진행 중인 베타 서비스입니다.
+            현재 결제는 계좌이체로만 안내되며, 정식 등록 완료 후 공지드리겠습니다.
+          </span>
+        </div>
         <div className="public-footer__content">
           <div className="public-footer__brand">SUBOOK®</div>
 
