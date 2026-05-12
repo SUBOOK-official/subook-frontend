@@ -5,11 +5,16 @@ import { createClient } from "@supabase/supabase-js";
  * 매일 오전 10시(KST) 실행 — auto_confirm_at <= now() 인 delivered 주문을 자동 확정
  */
 export default async function handler(req, res) {
-  // Cron 요청 검증 (Vercel Cron은 Authorization 헤더로 CRON_SECRET 전송)
+  // ⚠️ Cron 요청 검증 (fail-close): CRON_SECRET 미설정이면 항상 401.
+  // env 빠뜨려서 endpoint가 무인증 공개되는 사고 방지.
   const authHeader = req.headers.authorization;
   const cronSecret = process.env.CRON_SECRET;
 
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!cronSecret) {
+    console.error("CRON_SECRET env not configured");
+    return res.status(500).json({ error: "Server misconfigured" });
+  }
+  if (authHeader !== `Bearer ${cronSecret}`) {
     return res.status(401).json({ error: "Unauthorized" });
   }
 
@@ -18,8 +23,10 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_ADMIN_URL;
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ADMIN_KEY;
+  // ⚠️ service_role은 VITE_* fallback 금지. VITE_* prefix는 client 번들에 embed되므로
+  // 누군가 실수로 그 이름에 service_role을 등록하면 키가 공개됨.
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !supabaseServiceKey) {
     return res.status(500).json({ error: "Missing Supabase configuration" });

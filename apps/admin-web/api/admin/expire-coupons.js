@@ -9,11 +9,15 @@ import { createClient } from "@supabase/supabase-js";
  * 인덱스 효율과 통계 RPC 정확도를 높여줌.
  */
 export default async function handler(req, res) {
-  // Cron 요청 검증 (Vercel Cron은 Authorization 헤더로 CRON_SECRET 전송)
+  // ⚠️ fail-close: CRON_SECRET 미설정이면 항상 차단
   const authHeader = req.headers.authorization;
   const cronSecret = process.env.CRON_SECRET;
 
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!cronSecret) {
+    console.error("CRON_SECRET env not configured");
+    return res.status(500).json({ error: "Server misconfigured" });
+  }
+  if (authHeader !== `Bearer ${cronSecret}`) {
     return res.status(401).json({ error: "Unauthorized" });
   }
 
@@ -21,8 +25,9 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_ADMIN_URL;
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ADMIN_KEY;
+  // service_role은 VITE_* fallback 금지 (client 번들 embed 위험)
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !supabaseServiceKey) {
     return res.status(500).json({ error: "Missing Supabase configuration" });
