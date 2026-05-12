@@ -25,6 +25,7 @@ const adminBookConditionOptions = [
   { value: "S", label: bookConditionLabel.S },
   { value: "A_PLUS", label: bookConditionLabel.A_PLUS },
   { value: "A", label: bookConditionLabel.A },
+  { value: "DISCARD", label: bookConditionLabel.DISCARD },
 ];
 
 const adminBookTypeOptions = ["기출", "모의고사", "N제", "EBS", "주간지", "내신"];
@@ -167,6 +168,9 @@ function buildPublicStorePayload(draft) {
         : null;
   const productId = normalizeOptionalInteger(draft.product_id);
 
+  const conditionGrade = toNullableText(draft.condition_grade);
+  const isDiscarded = conditionGrade === "DISCARD";
+
   const payload = {
     subject: toNullableText(draft.subject),
     brand: toNullableText(draft.brand),
@@ -174,15 +178,20 @@ function buildPublicStorePayload(draft) {
     published_year: normalizeOptionalInteger(draft.published_year),
     instructor_name: toNullableText(draft.instructor_name),
     original_price: normalizeOptionalInteger(draft.original_price),
-    condition_grade: toNullableText(draft.condition_grade),
+    condition_grade: conditionGrade,
     cover_image_url: toNullableText(draft.cover_image_url),
     inspection_image_urls: normalizeUrlList(draft.inspection_image_urls),
     writing_percentage: normalizeOptionalInteger(draft.writing_percentage),
     has_damage: hasDamage,
     inspection_notes: toNullableText(draft.inspection_notes),
     inspected_at: toNullableText(draft.inspected_at),
-    is_public: Boolean(draft.is_public),
+    // ⚠️ 폐기 등급은 자동으로 status='discarded' + 비노출
+    is_public: isDiscarded ? false : Boolean(draft.is_public),
   };
+
+  if (isDiscarded) {
+    payload.status = "discarded";
+  }
 
   if (productId !== null) {
     payload.product_id = productId;

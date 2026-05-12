@@ -32,4 +32,5 @@ export const bookConditionLabel = {
   S: "S(새책)",
   A_PLUS: "A+(극미한 사용감)",
   A: "A(사용감 있음)",
+  DISCARD: "폐기(판매 불가)",
 };
