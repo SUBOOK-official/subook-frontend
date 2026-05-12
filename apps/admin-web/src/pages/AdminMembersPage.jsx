@@ -154,7 +154,30 @@ function AdminMembersPage() {
     }
 
     const normalizedData = normalizeMemberResponse(data);
-    setMembers(normalizedData.rows);
+
+    // 회원 차단 상태 별도 fetch — list_admin_members 본체 변경 없이 합침
+    const userIds = normalizedData.rows.map((r) => r.user_id).filter(Boolean);
+    let blockMap = new Map();
+    if (userIds.length > 0) {
+      const { data: blockRows } = await supabase
+        .from("member_profiles")
+        .select("user_id, is_blocked, blocked_at, block_reason")
+        .in("user_id", userIds);
+      if (Array.isArray(blockRows)) {
+        blockMap = new Map(blockRows.map((b) => [b.user_id, b]));
+      }
+    }
+    const enrichedRows = normalizedData.rows.map((row) => {
+      const block = blockMap.get(row.user_id);
+      return {
+        ...row,
+        is_blocked: Boolean(block?.is_blocked),
+        blocked_at: block?.blocked_at ?? null,
+        block_reason: block?.block_reason ?? null,
+      };
+    });
+
+    setMembers(enrichedRows);
     setSummary(normalizedData.summary);
     setTotalCount(normalizedData.totalCount);
     setIsLoading(false);
@@ -187,7 +210,19 @@ function AdminMembersPage() {
       return;
     }
 
-    setMemberDetail(data ?? null);
+    // list 에서 가져온 차단 정보(member.is_blocked 등)를 detail.member 에 merge
+    const enrichedDetail = data
+      ? {
+          ...data,
+          member: {
+            ...(data.member ?? {}),
+            is_blocked: Boolean(member?.is_blocked),
+            blocked_at: member?.blocked_at ?? null,
+            block_reason: member?.block_reason ?? null,
+          },
+        }
+      : null;
+    setMemberDetail(enrichedDetail);
     setIsDetailLoading(false);
   };
 
@@ -195,6 +230,40 @@ function AdminMembersPage() {
     setSelectedMember(null);
     setMemberDetail(null);
     setIsDetailLoading(false);
+  };
+
+  const handleBlockMember = async (member) => {
+    if (!member?.user_id) return;
+    const reason = window.prompt(`'${member.display_name || member.email}' 회원을 차단합니다.\n차단 사유 (선택, 회원에게는 보이지 않음):`);
+    if (reason === null) return; // 사용자가 취소
+    const { error } = await supabase.rpc("admin_block_member", {
+      p_user_id: member.user_id,
+      p_reason: reason || null,
+    });
+    if (error) {
+      showToast(error.message || "회원 차단에 실패했습니다.", "error");
+      return;
+    }
+    showToast("회원을 차단했습니다.", "success");
+    await loadMembers();
+    if (selectedMember?.user_id === member.user_id) {
+      await openMemberDetail({ ...member, is_blocked: true });
+    }
+  };
+
+  const handleUnblockMember = async (member) => {
+    if (!member?.user_id) return;
+    if (!window.confirm(`'${member.display_name || member.email}' 회원 차단을 해제하시겠습니까?`)) return;
+    const { error } = await supabase.rpc("admin_unblock_member", { p_user_id: member.user_id });
+    if (error) {
+      showToast(error.message || "차단 해제에 실패했습니다.", "error");
+      return;
+    }
+    showToast("차단을 해제했습니다.", "success");
+    await loadMembers();
+    if (selectedMember?.user_id === member.user_id) {
+      await openMemberDetail({ ...member, is_blocked: false });
+    }
   };
 
   const summaryCards = [
@@ -354,14 +423,41 @@ function AdminMembersPage() {
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Member Detail</p>
                 <h3 className="mt-1 text-2xl font-black text-slate-950">
                   {detailMember?.display_name || detailMember?.name || "회원 상세"}
+                  {detailMember?.is_blocked ? (
+                    <span className="ml-2 inline-flex items-center rounded-md bg-red-100 px-2 py-0.5 text-xs font-black text-red-700">
+                      차단됨
+                    </span>
+                  ) : null}
                 </h3>
                 <p className="mt-1 text-sm font-semibold text-slate-500">
                   {detailMember?.email || "-"} · {detailMember?.phone || "연락처 없음"}
                 </p>
+                {detailMember?.is_blocked && detailMember?.block_reason ? (
+                  <p className="mt-1 text-xs text-red-600">사유: {detailMember.block_reason}</p>
+                ) : null}
               </div>
-              <button className="btn-secondary !w-auto !px-4 !py-2 text-sm" onClick={closeMemberDetail} type="button">
-                닫기
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                {detailMember?.is_blocked ? (
+                  <button
+                    className="!w-auto rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+                    onClick={() => handleUnblockMember(detailMember)}
+                    type="button"
+                  >
+                    차단 해제
+                  </button>
+                ) : (
+                  <button
+                    className="!w-auto rounded-md border border-red-300 bg-white px-4 py-2 text-sm font-bold text-red-600 hover:bg-red-50"
+                    onClick={() => handleBlockMember(detailMember)}
+                    type="button"
+                  >
+                    회원 차단
+                  </button>
+                )}
+                <button className="btn-secondary !w-auto !px-4 !py-2 text-sm" onClick={closeMemberDetail} type="button">
+                  닫기
+                </button>
+              </div>
             </div>
 
             {isDetailLoading ? (

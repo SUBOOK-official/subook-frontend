@@ -1,9 +1,10 @@
 import { Component } from "react";
+import { Sentry } from "../lib/sentryInit";
 
 /**
  * Production 흰화면 사고 방지.
  * 자식 컴포넌트의 렌더링 에러를 잡아서 사용자에게 폴백 화면을 보여주고
- * 콘솔에 에러 로그를 남긴다 (외부 Sentry 등 도입 전 임시).
+ * 콘솔 + Sentry(DSN 설정 시)에 에러를 전송한다.
  */
 class ErrorBoundary extends Component {
   constructor(props) {
@@ -17,6 +18,13 @@ class ErrorBoundary extends Component {
 
   componentDidCatch(error, errorInfo) {
     console.error("[ErrorBoundary] 렌더링 에러 발생:", error, errorInfo);
+    try {
+      Sentry?.captureException?.(error, {
+        contexts: { react: { componentStack: errorInfo?.componentStack } },
+      });
+    } catch {
+      /* noop */
+    }
   }
 
   handleReload = () => {

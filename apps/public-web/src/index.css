@@ -8415,3 +8415,115 @@ img {
   color: #1B3A5C;
   text-decoration: underline;
 }
+
+/* ── 모바일 햄버거 + 드로어 ── */
+.public-nav-hamburger {
+  display: none;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  background: transparent;
+  font-size: 22px;
+  color: var(--public-text, #1B3A5C);
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (max-width: 767px) {
+  .public-nav-hamburger {
+    display: inline-flex;
+  }
+  .public-nav-actions {
+    display: none !important;
+  }
+  .public-site-header__search {
+    flex: 1;
+  }
+}
+
+.public-nav-drawer {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.public-nav-drawer__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.5);
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+.public-nav-drawer__panel {
+  position: relative;
+  width: min(80vw, 320px);
+  max-width: 100%;
+  height: 100%;
+  background: #ffffff;
+  padding: 80px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  box-shadow: -8px 0 24px rgba(15, 23, 42, 0.12);
+  animation: drawer-slide 220ms ease-out;
+}
+
+@keyframes drawer-slide {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+.public-nav-drawer__item {
+  display: block;
+  width: 100%;
+  padding: 14px 12px;
+  border: 0;
+  background: transparent;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--public-text, #1B3A5C);
+  text-align: left;
+  text-decoration: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.public-nav-drawer__item:hover,
+.public-nav-drawer__item:focus-visible {
+  background: #f1f5f9;
+}
+
+.public-nav-drawer__item--primary {
+  background: var(--public-primary, #1B3A5C);
+  color: #ffffff;
+  text-align: center;
+  margin-top: 12px;
+}
+
+.public-nav-drawer__item--primary:hover {
+  background: var(--public-primary, #1B3A5C);
+  opacity: 0.92;
+  color: #ffffff;
+}
+
+.public-nav-drawer__item--danger {
+  color: #b91c1c;
+}
+
+.public-nav-drawer__divider {
+  height: 1px;
+  background: #e5e7eb;
+  margin: 16px 0 8px;
+}
+
+.public-nav-drawer__user {
+  padding: 12px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--public-text-muted, #64748b);
+}

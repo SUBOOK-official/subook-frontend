@@ -5,12 +5,17 @@ import App from "./App";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { PublicAuthProvider } from "./contexts/PublicAuthContext";
 import { PublicWishlistProvider } from "./contexts/PublicWishlistContext";
+import { initSentry, Sentry } from "./lib/sentryInit";
 import "./index.css";
 
-// 전역 Unhandled Promise rejection도 콘솔에 표시 (모니터링 도입 전 임시)
+// Sentry 초기화 (VITE_SENTRY_DSN 있을 때만 실제 활성화)
+initSentry();
+
+// 전역 Unhandled Promise rejection
 if (typeof window !== "undefined") {
   window.addEventListener("unhandledrejection", (event) => {
     console.error("[unhandledrejection]", event.reason);
+    try { Sentry?.captureException?.(event.reason); } catch { /* noop */ }
   });
 }
 

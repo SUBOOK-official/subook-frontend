@@ -1,6 +1,7 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import AdminShell from "../components/AdminShell";
+import InspectionImageUploader from "../components/InspectionImageUploader";
 import { readSheetRowsAsObjects } from "../lib/excelFile";
 import { formatCurrency, formatDate } from "@shared-domain/format";
 import { bookConditionLabel, bookStatusLabel, shipmentStatusLabel } from "@shared-domain/status";
@@ -499,12 +500,24 @@ function BookPublicStoreEditor({
 
         <div className="grid gap-3 md:grid-cols-2">
           <label className="block">
-            <span className="label">검수 사진 URL</span>
+            <span className="label">검수 사진</span>
+            <InspectionImageUploader
+              bookId={book.id}
+              disabled={isDisabled}
+              onUploaded={(urls) => {
+                const currentLines = String(draft.inspection_image_urls || "")
+                  .split(/\r?\n|,/)
+                  .map((l) => l.trim())
+                  .filter(Boolean);
+                const merged = [...currentLines, ...urls].join("\n");
+                onChange("inspection_image_urls", merged);
+              }}
+            />
             <textarea
-              className={textareaClass}
+              className={`${textareaClass} mt-2`}
               disabled={isDisabled}
               onChange={(event) => onChange("inspection_image_urls", event.target.value)}
-              placeholder="한 줄에 하나씩 입력하거나 쉼표로 구분"
+              placeholder="업로드 시 자동 추가됩니다. 직접 입력 시 한 줄에 하나씩."
               value={draft.inspection_image_urls}
             />
           </label>

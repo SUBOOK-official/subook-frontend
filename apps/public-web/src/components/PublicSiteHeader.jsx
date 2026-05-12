@@ -10,11 +10,35 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
   const navigate = useNavigate();
   const { isAuthenticated, profile, user, signOut } = usePublicAuth();
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const accountMenuRef = useRef(null);
   const [portalNode, setPortalNode] = useState(null);
   const [headerHeight, setHeaderHeight] = useState(72);
   const [frameScale, setFrameScale] = useState(1);
   const headerRef = useRef(null);
+
+  // 모바일 메뉴 열려있을 때 body scroll lock
+  useEffect(() => {
+    if (typeof document === "undefined") return undefined;
+    if (isMobileMenuOpen) {
+      const previous = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = previous;
+      };
+    }
+    return undefined;
+  }, [isMobileMenuOpen]);
+
+  // ESC 키로 모바일 메뉴 닫기
+  useEffect(() => {
+    if (!isMobileMenuOpen) return undefined;
+    const handleKey = (event) => {
+      if (event.key === "Escape") setIsMobileMenuOpen(false);
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [isMobileMenuOpen]);
 
   useEffect(() => {
     if (typeof document === "undefined") {
@@ -203,7 +227,69 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
             </Link>
           )}
         </nav>
+
+        {/* 모바일 햄버거 버튼 (768px 미만에서만 표시) */}
+        <button
+          aria-expanded={isMobileMenuOpen}
+          aria-label={isMobileMenuOpen ? "메뉴 닫기" : "메뉴 열기"}
+          className="public-nav-hamburger"
+          onClick={() => setIsMobileMenuOpen((open) => !open)}
+          type="button"
+        >
+          <span aria-hidden="true">{isMobileMenuOpen ? "✕" : "☰"}</span>
+        </button>
       </ContentContainer>
+
+      {/* 모바일 드로어 */}
+      {isMobileMenuOpen ? (
+        <div className="public-nav-drawer" role="dialog" aria-modal="true" aria-label="모바일 메뉴">
+          <button
+            aria-label="메뉴 닫기"
+            className="public-nav-drawer__backdrop"
+            onClick={() => setIsMobileMenuOpen(false)}
+            type="button"
+          />
+          <div className="public-nav-drawer__panel">
+            <button
+              className="public-nav-drawer__item"
+              onClick={() => { setIsMobileMenuOpen(false); handleCartClick(); }}
+              type="button"
+            >
+              장바구니
+            </button>
+            <Link className="public-nav-drawer__item" to="/mypage" onClick={() => setIsMobileMenuOpen(false)}>
+              마이페이지
+            </Link>
+            <Link className="public-nav-drawer__item" to="/pickup/new" onClick={() => setIsMobileMenuOpen(false)}>
+              교재 판매하기
+            </Link>
+            <Link className="public-nav-drawer__item" to="/faq" onClick={() => setIsMobileMenuOpen(false)}>
+              자주 묻는 질문
+            </Link>
+            <div className="public-nav-drawer__divider" />
+            {isAuthenticated ? (
+              <>
+                <div className="public-nav-drawer__user">{displayName}님</div>
+                <button
+                  className="public-nav-drawer__item public-nav-drawer__item--danger"
+                  onClick={() => { setIsMobileMenuOpen(false); handleSignOut(); }}
+                  type="button"
+                >
+                  로그아웃
+                </button>
+              </>
+            ) : (
+              <Link
+                className="public-nav-drawer__item public-nav-drawer__item--primary"
+                to="/login"
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                로그인 / 회원가입
+              </Link>
+            )}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 
