@@ -39,14 +39,29 @@ const PAYMENT_METHODS = [
 ];
 
 function loadDaumPostcode() {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     if (window.daum?.Postcode) {
       resolve();
       return;
     }
     const script = document.createElement("script");
     script.src = "//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js";
-    script.onload = () => resolve();
+    script.async = true;
+
+    // 10초 타임아웃 — 광고차단/네트워크 끊김 등으로 onload/onerror 둘 다 안 불리는 케이스 방어
+    const timer = window.setTimeout(() => {
+      reject(new Error("주소 검색 스크립트 로드 시간이 초과되었습니다. 네트워크 또는 광고차단 설정을 확인해 주세요."));
+    }, 10_000);
+
+    script.onload = () => {
+      window.clearTimeout(timer);
+      resolve();
+    };
+    script.onerror = () => {
+      window.clearTimeout(timer);
+      reject(new Error("주소 검색을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요."));
+    };
+
     document.head.appendChild(script);
   });
 }
@@ -181,7 +196,18 @@ function PublicOrderPage() {
   };
 
   const handleSearchAddress = async () => {
-    await loadDaumPostcode();
+    try {
+      await loadDaumPostcode();
+    } catch (err) {
+      showToast(err?.message || "주소 검색을 불러오지 못했습니다.", "error");
+      return;
+    }
+
+    if (!window.daum?.Postcode) {
+      showToast("주소 검색을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.", "error");
+      return;
+    }
+
     new window.daum.Postcode({
       oncomplete: (data) => {
         setShipping((prev) => ({

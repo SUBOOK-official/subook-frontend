@@ -1022,6 +1022,7 @@ function PublicPickupRequestPage() {
       pickupAddress: address,
       settlementAccount: account,
       items,
+      policyAgreed,
     });
 
     setIsSubmitting(false);

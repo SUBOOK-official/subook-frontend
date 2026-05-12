@@ -148,6 +148,15 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
     }
   }, [selectedSubject, selectedFilters, sortOption, searchKeyword, currentPage, navigate]);
 
+  // 헤더 검색이 다른 페이지에서 발생해서 / 로 이동한 경우 그리드로 스크롤
+  useEffect(() => {
+    if (location.state?.scrollToStorefront && sectionTopRef.current) {
+      sectionTopRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+      // state 1회 사용 후 제거 (뒤로가기 시 재발동 방지)
+      navigate(location.pathname + location.search, { replace: true, state: {} });
+    }
+  }, [location.state, location.pathname, location.search, navigate]);
+
   // 사이드바 sticky (JS 구현)
   // PublicPageFrame이 1920px 디자인을 transform: scale로 viewport에 맞추는 구조라
   // CSS position: sticky가 transform parent를 containing block으로 잡아 viewport 기준 sticky가 깨짐.

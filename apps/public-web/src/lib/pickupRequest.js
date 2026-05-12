@@ -78,12 +78,29 @@ async function submitPickupRequest({
   pickupAddress,
   settlementAccount,
   items,
+  policyAgreed = false,
 }) {
   if (!isSupabaseConfigured || !supabase) {
     return {
       data: null,
       error: new Error("서비스에 연결할 수 없습니다."),
     };
+  }
+
+  // 정산계좌 형식 검증 (저장된 계좌(account_id) 사용 시는 RPC에서 검증되므로 skip)
+  const hasSavedAccount = Boolean(settlementAccount?.account_id ?? settlementAccount?.id);
+  if (!hasSavedAccount) {
+    const accountNumberRaw = String(settlementAccount?.account_number ?? "").trim();
+    if (!/^[0-9-]+$/.test(accountNumberRaw)) {
+      return { data: null, error: new Error("계좌번호는 숫자와 '-'만 입력할 수 있습니다.") };
+    }
+    const digitsOnly = accountNumberRaw.replace(/\D/g, "");
+    if (digitsOnly.length < 6) {
+      return { data: null, error: new Error("계좌번호가 너무 짧습니다. 다시 확인해 주세요.") };
+    }
+    if (digitsOnly.length > 20) {
+      return { data: null, error: new Error("계좌번호가 너무 깁니다. 다시 확인해 주세요.") };
+    }
   }
 
   const itemsPayload = items.map((item) => ({
@@ -119,6 +136,7 @@ async function submitPickupRequest({
     p_desired_pickup_date: pickupAddress.desired_pickup_date || null,
     p_expected_book_count: Number.isFinite(expectedBookCount) ? expectedBookCount : null,
     p_box_count: Number.isFinite(boxCount) ? boxCount : null,
+    p_policy_agreed: Boolean(policyAgreed),
   });
 
   if (error) {

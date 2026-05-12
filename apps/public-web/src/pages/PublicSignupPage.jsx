@@ -413,6 +413,10 @@ function PublicSignupPage() {
       return;
     }
 
+    // 가입 직후 세션이 자동 발급된 경우(이메일 인증이 비활성화된 Supabase 설정 등):
+    //   1) 비-회원 계정(어드민 등)이라면 곧바로 signOut + 가입 차단
+    //   2) 정상 회원이라면 이메일 인증 흐름과 일관성을 맞추기 위해 signOut 후
+    //      /signup-success 에서 인증 안내를 보여준다.
     if (data.session) {
       const accessState = await getPublicAccountAccessState(data.session.user);
 
@@ -429,10 +433,6 @@ function PublicSignupPage() {
         return;
       }
 
-      signupPayload.requiresEmailConfirmation = false;
-    }
-
-    if (data.session) {
       await supabase.auth.signOut();
       signupPayload.requiresEmailConfirmation = true;
     }

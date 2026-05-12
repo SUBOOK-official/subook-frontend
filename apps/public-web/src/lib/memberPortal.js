@@ -1285,6 +1285,30 @@ async function saveMemberSettlementAccount({ user, values, shouldMakeDefault }) 
     };
   }
 
+  // 계좌번호 형식 검증: 신규/수정 시 - 또는 숫자로만 구성, 숫자 부분이 최소 6자리 이상.
+  // (한국 은행 계좌번호는 보통 9~14자리)
+  if (nextValues.account_number) {
+    if (!/^[0-9-]+$/.test(nextValues.account_number)) {
+      return {
+        error: new Error("계좌번호는 숫자와 '-'만 입력할 수 있습니다."),
+        source: "validation",
+      };
+    }
+    const digitsOnly = nextValues.account_number.replace(/\D/g, "");
+    if (digitsOnly.length < 6) {
+      return {
+        error: new Error("계좌번호가 너무 짧습니다. 다시 확인해 주세요."),
+        source: "validation",
+      };
+    }
+    if (digitsOnly.length > 20) {
+      return {
+        error: new Error("계좌번호가 너무 깁니다. 다시 확인해 주세요."),
+        source: "validation",
+      };
+    }
+  }
+
   if (!isSupabaseConfigured || !supabase) {
     upsertLocalCollectionItem(user.id, "settlementAccounts", storedItem, shouldMakeDefault);
     return {

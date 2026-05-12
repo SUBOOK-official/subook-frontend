@@ -92,9 +92,13 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
     const formData = new FormData(event.currentTarget);
     const query = formData.get("q")?.toString().trim();
 
-    if (query) {
-      navigate(`/?q=${encodeURIComponent(query)}`);
-    }
+    if (!query) return;
+
+    // 다른 페이지에서 검색 시 사용자가 컨텍스트를 잃지 않도록
+    // 홈으로 이동 후 그리드 영역으로 스크롤하는 hint 전달.
+    navigate(`/?q=${encodeURIComponent(query)}`, {
+      state: { scrollToStorefront: true },
+    });
   };
 
   const handleCartClick = () => {

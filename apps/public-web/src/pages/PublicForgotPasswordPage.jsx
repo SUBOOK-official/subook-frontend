@@ -74,21 +74,20 @@ function PublicForgotPasswordPage() {
       return false;
     }
 
-    if (!isMatchedMember) {
-      setFieldErrors((currentValue) => ({
-        ...currentValue,
-        email: "입력한 이름과 이메일이 일치하는 회원을 찾지 못했습니다.",
-      }));
-      return false;
-    }
+    // ⚠️ Email enumeration 방어:
+    // 매칭 여부와 무관하게 항상 동일한 "발송 안내" 화면을 보여준다.
+    // 실제 발송은 매칭됐을 때만 수행. 진짜 사용자는 메일을 받고,
+    // 공격자는 회원 존재 여부를 식별할 수 없다.
+    if (isMatchedMember) {
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+        redirectTo: `${window.location.origin}/auth/reset-password`,
+      });
 
-    const { error: resetError } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
-      redirectTo: `${window.location.origin}/auth/reset-password`,
-    });
-
-    if (resetError) {
-      setPageError(resetError.message || "비밀번호 재설정 메일 발송에 실패했습니다. 다시 시도해 주세요.");
-      return false;
+      if (resetError) {
+        // 발송 실패 시에만 사용자에게 노출 (Supabase 측 일반 오류)
+        setPageError(resetError.message || "비밀번호 재설정 메일 발송에 실패했습니다. 다시 시도해 주세요.");
+        return false;
+      }
     }
 
     setSubmittedEmail(normalizedEmail);

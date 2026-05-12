@@ -150,21 +150,19 @@ async function addToCart({ bookId, productId = null, quantity = 1, productMeta =
 }
 
 async function getCartItems() {
-  const localItems = readLocalCart();
-
+  // Supabase 미설정 (로컬 데모 환경) — localStorage 카트만 사용
   if (!isSupabaseConfigured || !supabase) {
-    return { items: localItems, error: null };
+    return { items: readLocalCart(), error: null };
   }
 
+  // ⚠️ Supabase가 연결된 production에서는 localStorage 데모 카트를 emit하지 않는다.
+  // mock book id(local-...)로 'create_order' RPC가 호출되면 'Book X is not available'
+  // 에러로 사용자가 좌절. mock 카트는 데모 환경 전용.
   const { data, error } = await supabase.rpc("get_cart_items");
-
   if (error) {
-    // RPC 실패 시에도 localStorage 데모 카트는 유지
-    return { items: localItems, error };
+    return { items: [], error };
   }
-
-  const remoteItems = Array.isArray(data) ? data : [];
-  return { items: [...remoteItems, ...localItems], error: null };
+  return { items: Array.isArray(data) ? data : [], error: null };
 }
 
 async function updateCartItemQuantity(cartItemId, quantity) {
