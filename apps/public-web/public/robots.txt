@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /api
+Disallow: /auth
+Disallow: /mypage
+Disallow: /order
+
+Sitemap: https://subook.kr/sitemap.xml

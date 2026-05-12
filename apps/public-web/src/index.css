@@ -8357,3 +8357,61 @@ img {
     grid-template-columns: 1fr;
   }
 }
+
+/* ── ErrorBoundary 폴백 ── */
+.error-boundary {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: #f8fafc;
+}
+
+.error-boundary__card {
+  max-width: 420px;
+  text-align: center;
+  padding: 40px 24px;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+}
+
+.error-boundary__card h1 {
+  font-size: 20px;
+  font-weight: 800;
+  color: #1B3A5C;
+  margin-bottom: 12px;
+}
+
+.error-boundary__card p {
+  font-size: 14px;
+  color: #64748b;
+  line-height: 1.6;
+  margin-bottom: 20px;
+}
+
+.error-boundary__btn {
+  display: inline-block;
+  padding: 12px 24px;
+  border-radius: 8px;
+  border: 0;
+  background: #1B3A5C;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.error-boundary__btn:hover { opacity: 0.92; }
+
+.error-boundary__hint {
+  margin-top: 20px;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.error-boundary__hint a {
+  color: #1B3A5C;
+  text-decoration: underline;
+}
