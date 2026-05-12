@@ -5,7 +5,7 @@ import {
   normalizeHomeBestBooks,
 } from "./publicHomeBestBooksUtils";
 
-const HOME_BEST_BOOKS_CACHE_KEY = "subook.public.home.best-books.v2";
+const HOME_BEST_BOOKS_CACHE_KEY = "subook.public.home.best-books.v3";
 const HOME_BEST_BOOK_LIMIT = 12;
 
 function hasWindowStorage() {
@@ -77,13 +77,19 @@ export async function fetchHomeBestBooks() {
     throw result.error;
   }
 
-  const products = normalizeHomeBestBooks(result.products ?? result.books ?? []);
+  // 실제 재고가 0건이거나 어떤 이유로 mock 카탈로그로 폴백된 경우에는
+  // 목업 데이터를 노출하지 않는다 — 빈 배열로 처리하고 캐시도 쓰지 않음.
+  const isMockSource = result.source === "mock";
+  const rawProducts = isMockSource ? [] : (result.products ?? result.books ?? []);
+  const products = normalizeHomeBestBooks(rawProducts);
   const fetchedAt = Date.now();
 
-  writeHomeBestBooksCacheValue({
-    products,
-    fetchedAt,
-  });
+  if (!isMockSource) {
+    writeHomeBestBooksCacheValue({
+      products,
+      fetchedAt,
+    });
+  }
 
   return {
     products,

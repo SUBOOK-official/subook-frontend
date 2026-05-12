@@ -122,7 +122,10 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
   }, [location.search]);
 
   // 상태 → URL 동기화
+  // ⚠️ 반드시 location.pathname === "/" 일 때만 동작. 다른 페이지(/cart, /faq 등)에 있을 때
+  // 발동하면 강제로 "/"로 redirect되면서 페이지가 진동(무한 루프) 함.
   useEffect(() => {
+    if (location.pathname !== "/") return;
     const nextSearch = serializeStorefrontQuery({
       selectedSubject,
       selectedFilters,
@@ -137,7 +140,7 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
         { replace: true },
       );
     }
-  }, [selectedSubject, selectedFilters, sortOption, searchKeyword, currentPage, location.search, navigate]);
+  }, [selectedSubject, selectedFilters, sortOption, searchKeyword, currentPage, location.pathname, location.search, navigate]);
 
   // 사이드바 sticky (JS 구현)
   // PublicPageFrame이 1920px 디자인을 transform: scale로 viewport에 맞추는 구조라
