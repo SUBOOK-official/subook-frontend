@@ -122,10 +122,16 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
   }, [location.search]);
 
   // 상태 → URL 동기화
-  // ⚠️ 반드시 location.pathname === "/" 일 때만 동작. 다른 페이지(/cart, /faq 등)에 있을 때
-  // 발동하면 강제로 "/"로 redirect되면서 페이지가 진동(무한 루프) 함.
+  //   - location.pathname === "/" 가드: 다른 페이지에서 발동되면 강제로 "/"로 튕기는 사고 방지
+  //   - 의존성에서 location.search 제외:
+  //       URL 외부 변경(예: 로고 클릭 → /로 이동)은 위 'URL → 상태' useEffect가 처리.
+  //       이 useEffect까지 같이 발동되면 state가 아직 old value인 채로 URL을 다시 복원해서
+  //       무한 진동(/?page=15 ↔ /) 이 발생함.
+  //     → state 변경에만 반응하도록 dep을 정리하고, 안에서는 window.location.search를 직접 읽어
+  //       최신 URL과 비교한다.
   useEffect(() => {
-    if (location.pathname !== "/") return;
+    if (typeof window === "undefined") return;
+    if (window.location.pathname !== "/") return;
     const nextSearch = serializeStorefrontQuery({
       selectedSubject,
       selectedFilters,
@@ -133,14 +139,14 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
       searchKeyword,
       currentPage,
     });
-    const currentSearch = location.search.startsWith("?") ? location.search.slice(1) : location.search;
+    const currentSearch = window.location.search.replace(/^\?/, "");
     if (nextSearch !== currentSearch) {
       navigate(
         { pathname: "/", search: nextSearch ? `?${nextSearch}` : "" },
         { replace: true },
       );
     }
-  }, [selectedSubject, selectedFilters, sortOption, searchKeyword, currentPage, location.pathname, location.search, navigate]);
+  }, [selectedSubject, selectedFilters, sortOption, searchKeyword, currentPage, navigate]);
 
   // 사이드바 sticky (JS 구현)
   // PublicPageFrame이 1920px 디자인을 transform: scale로 viewport에 맞추는 구조라
