@@ -76,13 +76,6 @@ function PublicFooter() {
   return (
     <footer className="public-footer">
       <ContentContainer className="public-footer__inner">
-        <div className="public-footer__beta" role="note">
-          <strong>BETA</strong>
-          <span>
-            수북은 사업자 등록 및 통신판매업 신고 절차를 진행 중인 베타 서비스입니다.
-            현재 결제는 계좌이체로만 안내되며, 정식 등록 완료 후 공지드리겠습니다.
-          </span>
-        </div>
         <div className="public-footer__content">
           <div className="public-footer__brand">SUBOOK®</div>
 
