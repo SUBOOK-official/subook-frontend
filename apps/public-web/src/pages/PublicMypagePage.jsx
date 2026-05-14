@@ -155,6 +155,7 @@ function PublicMypagePage() {
   const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const isDemoPreview = searchParams.get("demo") === "1";
   const {
+    accountRole,
     isAdminAccount,
     isAuthenticated,
     isConfigured,
@@ -1279,6 +1280,12 @@ function PublicMypagePage() {
   }
 
   if (!isAuthenticated && !isDemoPreview) {
+    const withdrawalNotice =
+      accountRole === "withdrawal_pending"
+        ? "탈퇴 처리 중인 계정입니다. 30일 유예 기간 동안 로그인할 수 있도록 고객센터(subook2025@gmail.com)로 문의해 주세요."
+        : accountRole === "withdrawn"
+          ? "탈퇴 완료된 계정입니다. 동일 이메일로 재가입은 불가능합니다."
+          : "";
     return (
       <Navigate
         replace
@@ -1286,7 +1293,7 @@ function PublicMypagePage() {
           from: location,
           notice: isAdminAccount
             ? "운영자 계정은 공개 마이페이지를 사용할 수 없습니다. 관리자 페이지에서 로그인해 주세요."
-            : "",
+            : withdrawalNotice,
         }}
         to="/login"
       />

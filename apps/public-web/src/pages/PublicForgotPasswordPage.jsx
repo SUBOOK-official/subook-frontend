@@ -61,33 +61,33 @@ function PublicForgotPasswordPage() {
   const requestResetEmail = async () => {
     const normalizedEmail = normalizeEmail(formValues.email);
 
-    const { data: isMatchedMember, error: lookupError } = await supabase.rpc(
-      "lookup_member_for_password_reset",
-      {
-        p_name: formValues.name.trim(),
-        p_email: normalizedEmail,
-      },
-    );
+    // ⚠️ Email enumeration timing attack 방어:
+    // 매칭/미매칭 응답 시간을 동일하게 맞추기 위해 두 작업을 병렬로 실행 +
+    // 최소 800ms 인공 지연. 미매칭 케이스에서도 reset email 발송이 reject 처리되도록
+    // 동일 호출을 수행 (Supabase 자체가 미존재 메일에도 동일 응답).
+    const minDelay = new Promise((resolve) => setTimeout(resolve, 800));
 
-    if (lookupError) {
+    const lookupPromise = supabase.rpc("lookup_member_for_password_reset", {
+      p_name: formValues.name.trim(),
+      p_email: normalizedEmail,
+    });
+
+    const resetPromise = supabase.auth.resetPasswordForEmail(normalizedEmail, {
+      redirectTo: `${window.location.origin}/auth/reset-password`,
+    });
+
+    const [lookupResult, resetResult] = await Promise.all([lookupPromise, resetPromise, minDelay]);
+
+    if (lookupResult.error) {
       setPageError("회원 정보를 확인하는 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
       return false;
     }
 
-    // ⚠️ Email enumeration 방어:
-    // 매칭 여부와 무관하게 항상 동일한 "발송 안내" 화면을 보여준다.
-    // 실제 발송은 매칭됐을 때만 수행. 진짜 사용자는 메일을 받고,
-    // 공격자는 회원 존재 여부를 식별할 수 없다.
-    if (isMatchedMember) {
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
-        redirectTo: `${window.location.origin}/auth/reset-password`,
-      });
-
-      if (resetError) {
-        // 발송 실패 시에만 사용자에게 노출 (Supabase 측 일반 오류)
-        setPageError(resetError.message || "비밀번호 재설정 메일 발송에 실패했습니다. 다시 시도해 주세요.");
-        return false;
-      }
+    // 매칭 안 됐어도 동일 화면 표시 (사용자 존재 식별 불가).
+    // 실제 발송은 Supabase가 매칭된 auth.users에만 수행하므로 진짜 사용자만 메일 수신.
+    if (resetResult.error && lookupResult.data) {
+      setPageError(resetResult.error.message || "비밀번호 재설정 메일 발송에 실패했습니다. 다시 시도해 주세요.");
+      return false;
     }
 
     setSubmittedEmail(normalizedEmail);
