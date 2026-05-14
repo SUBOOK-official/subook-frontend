@@ -42,7 +42,7 @@ const CARRIER_OPTIONS = [
 // action: "refund"는 admin_refund_order RPC를 호출 (status 변경이 아닌 별도 흐름).
 const NEXT_STATUS_ACTIONS = {
   pending: [
-    { status: "paid", label: "입금확인", style: "btn-primary" },
+    { action: "confirm_payment", label: "입금확인", style: "btn-primary" },
     { status: "cancelled", label: "주문취소", style: "btn-danger" },
   ],
   paid: [
@@ -106,6 +106,10 @@ function AdminOrdersPage() {
   const [trackingModal, setTrackingModal] = useState(null);
   const [trackingCarrier, setTrackingCarrier] = useState("CJ대한통운");
   const [trackingInput, setTrackingInput] = useState("");
+
+  // 입금확인 모달 (금액 검증)
+  const [paymentModal, setPaymentModal] = useState(null);
+  const [paymentInput, setPaymentInput] = useState("");
 
   // CSV 일괄 송장 입력 모달
   const [csvModalOpen, setCsvModalOpen] = useState(false);
@@ -207,6 +211,52 @@ function AdminOrdersPage() {
     return true;
   };
 
+  // 입금확인 모달 열기: 금액 검증을 위해 입력 모달
+  const openPaymentModal = (order) => {
+    setPaymentModal(order);
+    setPaymentInput(String(order.total_amount ?? ""));
+  };
+
+  const closePaymentModal = () => {
+    setPaymentModal(null);
+    setPaymentInput("");
+  };
+
+  // 입금확인 처리: admin_confirm_payment RPC (금액 일치 + 동일 책 paid 재검증)
+  const handleConfirmPayment = async () => {
+    if (!paymentModal) return;
+    const amountNum = Number(paymentInput.replace(/[^0-9]/g, ""));
+    if (!Number.isFinite(amountNum) || amountNum <= 0) {
+      showToast("입금 금액을 숫자로 입력해주세요.", "error");
+      return;
+    }
+
+    setBusyOrderId(paymentModal.id);
+    const { error } = await supabase.rpc("admin_confirm_payment", {
+      p_order_id: paymentModal.id,
+      p_paid_amount: amountNum,
+    });
+    setBusyOrderId(null);
+
+    if (error) {
+      showToast(error.message || "입금확인에 실패했습니다.", "error");
+      return;
+    }
+
+    showToast(`주문 #${paymentModal.order_number} 입금이 확인되었습니다.`, "success");
+
+    // 알림톡 발송 (실패해도 paid는 유지)
+    try {
+      await notifyOrderConfirmed({ order: paymentModal });
+    } catch {
+      console.warn("알림톡 발송 실패 (입금확인은 정상)");
+    }
+
+    closePaymentModal();
+    setSelectedOrderId(null);
+    await loadOrders();
+  };
+
   // 환불 처리: 사유 입력 + 확인 → admin_refund_order RPC
   // settlements 자동 상태 변경(pending/approved→cancelled, completed→recovery_required) 포함
   const handleRefund = async (orderId) => {
@@ -288,12 +338,21 @@ function AdminOrdersPage() {
 
     const results = [];
     for (const row of csvRows) {
-      const order = orders.find((o) => o.order_number === row.orderNumber);
+      // 현재 페이지 메모리에 없는 주문도 처리 가능하도록 supabase에서 직접 조회
+      let order = orders.find((o) => o.order_number === row.orderNumber);
       if (!order) {
-        results.push({ ...row, success: false, message: "주문번호 없음" });
+        const { data: fetched } = await supabase
+          .from("orders")
+          .select("id, order_number, status, shipping_recipient_name, shipping_recipient_phone, user_id, total_amount")
+          .eq("order_number", row.orderNumber)
+          .maybeSingle();
+        order = fetched ?? null;
+      }
+      if (!order) {
+        results.push({ ...row, success: false, message: "주문번호 없음 (전체 검색에서도 못 찾음)" });
         continue;
       }
-      if (order.status !== "paid") {
+      if (order.status !== "paid" && order.status !== "preparing") {
         results.push({ ...row, success: false, message: `상태 불일치 (${getStatusLabel(order.status)})` });
         continue;
       }
@@ -621,6 +680,20 @@ function AdminOrdersPage() {
                   );
                 }
 
+                if (action.action === "confirm_payment") {
+                  return (
+                    <button
+                      className={`${action.style} !w-auto !px-4 !py-2 text-sm`}
+                      disabled={busyOrderId === selectedOrder.id}
+                      key="confirm_payment"
+                      onClick={() => openPaymentModal(selectedOrder)}
+                      type="button"
+                    >
+                      {action.label}
+                    </button>
+                  );
+                }
+
                 return (
                   <button
                     className={`${action.style} !w-auto !px-4 !py-2 text-sm`}
@@ -637,6 +710,66 @@ function AdminOrdersPage() {
               {(NEXT_STATUS_ACTIONS[selectedOrder.status] ?? []).length === 0 && (
                 <p className="text-xs text-slate-400">현재 상태에서 가능한 작업이 없습니다.</p>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 입금확인 모달 (금액 검증) */}
+      {paymentModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={closePaymentModal}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6 space-y-5" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-black text-slate-950">
+              입금확인 — {paymentModal.order_number}
+            </h3>
+
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-slate-500">주문 금액</span>
+                <span className="font-bold">{formatCurrency(paymentModal.total_amount)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">수령인</span>
+                <span>{paymentModal.shipping_recipient_name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">예상 입금자명</span>
+                <span className="font-mono">
+                  {paymentModal.shipping_recipient_name}
+                  {String(paymentModal.order_number ?? "").replace(/\D/g, "").slice(-4)}
+                </span>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-slate-600 block mb-1.5">
+                실제 입금된 금액 * (주문 금액과 일치해야 처리됩니다)
+              </label>
+              <input
+                className="input-base font-mono"
+                inputMode="numeric"
+                onChange={(e) => setPaymentInput(e.target.value)}
+                placeholder="입금된 금액"
+                type="text"
+                value={paymentInput}
+              />
+              <p className="text-xs text-slate-400 mt-1">
+                금액이 다르면 입금확인이 거부됩니다. 입금 내역을 다시 확인 후 입력해주세요.
+              </p>
+            </div>
+
+            <div className="flex gap-2">
+              <button className="btn-ghost flex-1" onClick={closePaymentModal} type="button">
+                취소
+              </button>
+              <button
+                className="btn-primary flex-1"
+                disabled={busyOrderId === paymentModal.id || !paymentInput.trim()}
+                onClick={handleConfirmPayment}
+                type="button"
+              >
+                {busyOrderId === paymentModal.id ? "확인 중..." : "입금확인 처리"}
+              </button>
             </div>
           </div>
         </div>
