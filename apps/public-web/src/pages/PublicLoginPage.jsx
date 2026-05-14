@@ -298,7 +298,10 @@ function PublicLoginPage() {
               </Link>
             </div>
 
-            <PublicOAuthButtons contextLabel="로그인" redirectTo={`${window.location.origin}${nextPath}`} />
+            <PublicOAuthButtons
+              contextLabel="로그인"
+              redirectTo={`${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`}
+            />
           </div>
         </section>
       </div>

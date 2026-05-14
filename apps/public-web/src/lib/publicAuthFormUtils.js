@@ -34,6 +34,19 @@ export function hasValidPhoneNumber(value) {
   return digits.length === 10 || digits.length === 11;
 }
 
+// 한국 휴대전화 정규식 (010/011/016/017/018/019). 픽업·주문 안내 SMS용으로
+// 일반 지역번호(02 등)는 거부한다. 010이면 11자리, 그 외는 10자리만 허용.
+export function isValidKoreanMobile(value) {
+  const digits = sanitizePhoneNumber(value);
+  if (digits.length === 11) {
+    return digits.startsWith("010");
+  }
+  if (digits.length === 10) {
+    return /^01[16789]/.test(digits);
+  }
+  return false;
+}
+
 export function getPasswordStrengthState(password) {
   const normalizedPassword = password ?? "";
   const rules = [

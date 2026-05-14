@@ -77,6 +77,17 @@ function PublicResetPasswordPage() {
     !fieldErrors.password &&
     !fieldErrors.passwordConfirm;
 
+  // 임시 비밀번호 재설정 세션은 페이지 이탈 시 반드시 signOut.
+  // 그러지 않으면 사용자가 비밀번호 변경 안 한 채 페이지를 닫아도 1시간가량 세션이
+  // 살아 있어, 같은 브라우저의 다른 탭에서 마이페이지/주문이 가능해진다.
+  useEffect(() => {
+    return () => {
+      if (supabase) {
+        void supabase.auth.signOut();
+      }
+    };
+  }, []);
+
   useEffect(() => {
     let isMounted = true;
 

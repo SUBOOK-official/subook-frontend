@@ -716,7 +716,10 @@ function PublicSignupPage() {
               </button>
             </form>
 
-            <PublicOAuthButtons contextLabel="회원가입" redirectTo={`${window.location.origin}/mypage`} />
+            <PublicOAuthButtons
+              contextLabel="회원가입"
+              redirectTo={`${window.location.origin}/auth/callback?next=${encodeURIComponent("/mypage")}`}
+            />
 
             <div className="public-auth-link-row public-auth-link-row--single">
               <Link className="public-auth-link-row__link" to="/login">

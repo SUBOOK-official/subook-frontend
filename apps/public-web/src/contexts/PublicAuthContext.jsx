@@ -127,6 +127,7 @@ function PublicAuthProvider({ children }) {
 
   const isOAuthUser = state.user?.app_metadata?.provider !== "email" && Boolean(state.user?.app_metadata?.provider);
   const isEmailVerified = Boolean(state.profile?.email_verified_at);
+  const hasAgreedToTerms = Boolean(state.profile?.terms_agreed_at);
 
   useEffect(() => {
     if (isOAuthUser && state.accountRole === "member" && !isEmailVerified && supabase) {
@@ -134,10 +135,17 @@ function PublicAuthProvider({ children }) {
     }
   }, [isOAuthUser, state.accountRole, isEmailVerified]);
 
+  // OAuth 사용자도 약관 동의 완료(terms_agreed_at)를 isAuthenticated 게이트 필수 조건으로.
+  // → 동의 안 거치면 /auth/oauth-consent로 이동시키는 로직은 라우트 가드 또는 콜백 페이지에서 처리.
+  const isMemberVerified = state.accountRole === "member" && hasAgreedToTerms && (isOAuthUser || isEmailVerified);
+
   const value = {
     ...state,
-    isAuthenticated: state.accountRole === "member" && (isOAuthUser || isEmailVerified),
+    isAuthenticated: isMemberVerified,
     isAdminAccount: state.accountRole === "admin",
+    isOAuthUser,
+    hasAgreedToTerms,
+    needsOAuthConsent: state.accountRole === "member" && isOAuthUser && !hasAgreedToTerms,
     refreshProfile,
     signOut,
   };

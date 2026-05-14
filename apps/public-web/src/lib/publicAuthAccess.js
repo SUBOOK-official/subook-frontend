@@ -55,6 +55,8 @@ function buildProfileFromAccessRow(row) {
     phone: row.phone ?? "",
     marketing_opt_in: Boolean(row.marketing_opt_in),
     email_verified_at: row.email_verified_at ?? null,
+    terms_agreed_at: row.terms_agreed_at ?? null,
+    privacy_agreed_at: row.privacy_agreed_at ?? null,
     withdrawal_requested_at: row.withdrawal_requested_at ?? null,
     withdrawal_scheduled_at: row.withdrawal_scheduled_at ?? null,
     personal_data_erased_at: row.personal_data_erased_at ?? null,
@@ -70,7 +72,7 @@ async function getLegacyAccessState(user) {
   const [profileResult, adminResult] = await Promise.all([
     supabase
       .from("member_profiles")
-      .select("user_id, email, name, nickname, phone, marketing_opt_in, email_verified_at")
+      .select("user_id, email, name, nickname, phone, marketing_opt_in, email_verified_at, terms_agreed_at, privacy_agreed_at")
       .eq("user_id", user.id)
       .maybeSingle(),
     supabase.rpc("is_admin_user"),

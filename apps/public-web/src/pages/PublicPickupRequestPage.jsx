@@ -17,6 +17,7 @@ import {
 import {
   loadMemberPortalSnapshot,
 } from "../lib/memberPortal";
+import { isValidKoreanMobile } from "../lib/publicAuthFormUtils";
 import "./PublicPickupRequestPage.css";
 
 const PICKUP_REQUEST_PATH = "/pickup/new";
@@ -367,6 +368,8 @@ function StepAddress({ address, setAddress, savedAddresses, onPrev, onNext, show
   const selectSaved = (addr) => {
     setSelectedSavedId(addr.id);
     setUseNewAddress(false);
+    // 새 주소 입력 도중 다른 저장 주소를 고르면 잔존 필드(공동현관 비밀번호/이메일 등)가
+    // 이전 입력값 그대로 전송될 수 있으므로 모두 빈 값으로 명시 reset.
     setAddress({
       recipient_name: addr.recipient_name,
       recipient_phone: addr.recipient_phone,
@@ -374,6 +377,11 @@ function StepAddress({ address, setAddress, savedAddresses, onPrev, onNext, show
       address_line1: addr.address_line1,
       address_line2: addr.address_line2 || "",
       memo: addr.delivery_memo || "",
+      email: "",
+      entrance_password: "",
+      desired_pickup_date: "",
+      expected_book_count: "",
+      box_count: "",
     });
   };
 
@@ -427,8 +435,10 @@ function StepAddress({ address, setAddress, savedAddresses, onPrev, onNext, show
   const isValid =
     address.recipient_name.trim() &&
     address.recipient_phone.trim() &&
+    isValidKoreanMobile(address.recipient_phone) &&
     address.postal_code.trim() &&
-    address.address_line1.trim();
+    address.address_line1.trim() &&
+    address.address_line2.trim();
 
   return (
     <div className="pickup-step">
