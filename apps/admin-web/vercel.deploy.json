@@ -31,7 +31,7 @@
     },
     {
       "path": "/api/admin/expire-unpaid-orders",
-      "schedule": "0 * * * *"
+      "schedule": "0 18 * * *"
     }
   ],
   "headers": [
