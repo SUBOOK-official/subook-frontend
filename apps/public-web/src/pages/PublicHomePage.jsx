@@ -8,6 +8,7 @@ import HomeStoreGrid from "../components/home/HomeStoreGrid";
 import PickupCTA from "../components/home/PickupCTA";
 import usePublicMemberGate from "../lib/publicMemberGate";
 import { usePublicWishlist } from "../contexts/PublicWishlistContext";
+import { usePageMeta } from "../lib/usePageMeta";
 
 const PICKUP_REQUEST_PATH = "/pickup/new";
 
@@ -38,6 +39,10 @@ const HOME_HERO_SLIDES = [
 ];
 
 function PublicHomePage() {
+  usePageMeta({
+    description:
+      "수험생을 위한 안 쓰는 수능 교재 위탁판매. CJ 픽업, 검수, 안전결제까지 수북이 책임집니다. 시대인재·강남대성·이투스 등 인기 교재를 합리적인 가격에 만나보세요.",
+  });
   const navigate = useNavigate();
   const { requireMember, memberGateDialog } = usePublicMemberGate();
   const { favoriteIds, toggleFavorite } = usePublicWishlist();

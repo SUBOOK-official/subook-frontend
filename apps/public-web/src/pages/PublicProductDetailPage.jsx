@@ -9,6 +9,7 @@ import PublicSiteHeader from "../components/PublicSiteHeader";
 import { usePublicWishlist } from "../contexts/PublicWishlistContext";
 import { addToCart } from "../lib/cart";
 import usePublicMemberGate from "../lib/publicMemberGate";
+import { usePageMeta } from "../lib/usePageMeta";
 import {
   fetchStorefrontProductDetail,
   fetchStorefrontProducts,
@@ -381,6 +382,13 @@ function PublicProductDetailPage() {
   const { requireMember, memberGateDialog } = usePublicMemberGate();
   const { favoriteIds, isFavoritePending, toggleFavorite } = usePublicWishlist();
   const [product, setProduct] = useState(null);
+  // 상품명·과목 동적 title + description (SEO/공유 미리보기에 노출)
+  usePageMeta({
+    title: product?.title ? `${product.title}${product.subject ? ` · ${product.subject}` : ""}` : undefined,
+    description: product?.title
+      ? `${product.title}${product.instructor_name ? ` (${product.instructor_name})` : ""} ${product.subject ?? ""} 위탁판매 — 검수 완료된 중고 교재를 합리적인 가격에.`
+      : undefined,
+  });
   const [relatedProducts, setRelatedProducts] = useState([]);
   const [selectedOptionId, setSelectedOptionId] = useState("");
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);

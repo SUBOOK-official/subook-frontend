@@ -4,6 +4,7 @@ import ContentContainer from "../components/ContentContainer";
 import PublicFooter from "../components/PublicFooter";
 import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
+import { usePageMeta } from "../lib/usePageMeta";
 import "./PublicFaqPage.css";
 
 const FAQ_ITEMS = [
@@ -128,6 +129,10 @@ function renderAnswerLine(line, index) {
 }
 
 function PublicFaqPage() {
+  usePageMeta({
+    title: "자주 묻는 질문",
+    description: "수북 위탁판매 서비스의 수거·검수·등급·정산·결제·반품에 대한 자주 묻는 질문 모음.",
+  });
   const [openIds, setOpenIds] = useState(() => new Set([FAQ_ITEMS[0]?.id]));
 
   const handleToggle = (id) => {

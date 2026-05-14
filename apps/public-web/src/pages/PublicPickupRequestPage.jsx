@@ -18,6 +18,7 @@ import {
   loadMemberPortalSnapshot,
 } from "../lib/memberPortal";
 import { isValidKoreanMobile } from "../lib/publicAuthFormUtils";
+import { usePageMeta } from "../lib/usePageMeta";
 import "./PublicPickupRequestPage.css";
 
 const PICKUP_REQUEST_PATH = "/pickup/new";
@@ -956,6 +957,10 @@ function CancelConfirmModal({ onConfirm, onCancel }) {
 
 // ─── 메인 페이지 ───
 function PublicPickupRequestPage() {
+  usePageMeta({
+    title: "교재 위탁판매 신청",
+    description: "안 쓰는 수능 교재를 CJ 픽업으로 보내고 검수 후 정산까지. 4단계로 신청 완료.",
+  });
   const location = useLocation();
   const navigate = useNavigate();
   const { isAuthenticated, isLoading, user } = usePublicAuth();

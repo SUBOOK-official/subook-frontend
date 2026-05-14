@@ -9,6 +9,7 @@ const PublicForgotPasswordPage = lazy(() => import("./pages/PublicForgotPassword
 const PublicHomePage = lazy(() => import("./pages/PublicHomePage"));
 const PublicLoginPage = lazy(() => import("./pages/PublicLoginPage"));
 const PublicMypagePage = lazy(() => import("./pages/PublicMypagePage"));
+const PublicNotFoundPage = lazy(() => import("./pages/PublicNotFoundPage"));
 const PublicOAuthConsentPage = lazy(() => import("./pages/PublicOAuthConsentPage"));
 const PublicOrderCompletePage = lazy(() => import("./pages/PublicOrderCompletePage"));
 const PublicOrderPage = lazy(() => import("./pages/PublicOrderPage"));
@@ -69,7 +70,7 @@ function App() {
           <Route element={<PublicSignupSuccessPage />} path="/signup-success" />
           <Route element={<Navigate replace to="/" />} path="/store" />
           <Route element={<PublicPolicyPage type="terms" />} path="/terms" />
-          <Route element={<Navigate replace to="/" />} path="*" />
+          <Route element={<PublicNotFoundPage />} path="*" />
         </Routes>
       </Suspense>
     </>

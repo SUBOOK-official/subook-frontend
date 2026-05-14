@@ -3,7 +3,14 @@ import ContentContainer from "../components/ContentContainer";
 import PublicSiteHeader from "../components/PublicSiteHeader";
 import PublicFooter from "../components/PublicFooter";
 import PublicPageFrame from "../components/PublicPageFrame";
+import { usePageMeta } from "../lib/usePageMeta";
 import "./PublicPolicyPage.css";
+
+const POLICY_TITLES = {
+  privacy: "개인정보처리방침",
+  terms: "이용약관",
+  refund: "환불 정책",
+};
 
 const termsSections = [
   {
@@ -95,6 +102,11 @@ function PublicPolicyPage({ type = "privacy" }) {
   if (location.pathname === "/terms") pageType = "terms";
   else if (location.pathname === "/refund") pageType = "refund";
   else if (location.pathname === "/privacy") pageType = "privacy";
+
+  usePageMeta({
+    title: POLICY_TITLES[pageType] ?? "정책",
+    description: `수북(SUBOOK) ${POLICY_TITLES[pageType] ?? "정책"} 안내.`,
+  });
 
   const isTerms = pageType === "terms";
   const isRefund = pageType === "refund";
