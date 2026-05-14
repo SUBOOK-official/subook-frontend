@@ -39,6 +39,7 @@ const CARRIER_OPTIONS = [
 // 워크플로우: pending → paid → preparing → shipping → delivered → confirmed
 // preparing은 어드민이 결제 확인 후 명시적으로 전환하는 단계.
 // 운송장 입력은 preparing에서만 가능하도록 UI를 강제(백엔드는 paid→shipping 직행도 호환).
+// action: "refund"는 admin_refund_order RPC를 호출 (status 변경이 아닌 별도 흐름).
 const NEXT_STATUS_ACTIONS = {
   pending: [
     { status: "paid", label: "입금확인", style: "btn-primary" },
@@ -47,16 +48,23 @@ const NEXT_STATUS_ACTIONS = {
   paid: [
     { status: "preparing", label: "상품 준비 중", style: "btn-primary" },
     { status: "cancelled", label: "주문취소", style: "btn-danger" },
+    { action: "refund", label: "환불처리", style: "btn-danger" },
   ],
   preparing: [
     { status: "shipping", label: "송장입력", style: "btn-primary", requiresTracking: true },
     { status: "cancelled", label: "주문취소", style: "btn-danger" },
+    { action: "refund", label: "환불처리", style: "btn-danger" },
   ],
   shipping: [
     { status: "delivered", label: "배송완료", style: "btn-primary" },
+    { action: "refund", label: "환불처리", style: "btn-danger" },
   ],
-  delivered: [],
-  confirmed: [],
+  delivered: [
+    { action: "refund", label: "환불처리", style: "btn-danger" },
+  ],
+  confirmed: [
+    { action: "refund", label: "환불처리", style: "btn-danger" },
+  ],
   cancelled: [],
   refunded: [],
 };
@@ -197,6 +205,48 @@ function AdminOrdersPage() {
     setTrackingCarrier("CJ대한통운");
     await loadOrders();
     return true;
+  };
+
+  // 환불 처리: 사유 입력 + 확인 → admin_refund_order RPC
+  // settlements 자동 상태 변경(pending/approved→cancelled, completed→recovery_required) 포함
+  const handleRefund = async (orderId) => {
+    const order = orders.find((o) => o.id === orderId);
+    const reasonInput = window.prompt(
+      "환불 사유를 입력해주세요.\n예) 단순 변심 / 상품 불량 / 배송 사고",
+    );
+    if (reasonInput === null) return; // 취소
+    const trimmedReason = (reasonInput || "").trim();
+
+    const confirmMsg =
+      `주문 #${order?.order_number ?? orderId}을(를) 환불 처리하시겠습니까?\n` +
+      `사유: ${trimmedReason || "(없음)"}\n\n` +
+      `[자동 처리]\n` +
+      `- 정산 상태가 pending/approved → cancelled (송금 안 함)\n` +
+      `- 정산 상태가 completed → recovery_required (셀러로부터 회수 필요)\n` +
+      `- 적용된 쿠폰 → available 로 복구\n\n` +
+      `이 작업은 되돌릴 수 없습니다.`;
+    if (!window.confirm(confirmMsg)) return;
+
+    setBusyOrderId(orderId);
+    const { data, error } = await supabase.rpc("admin_refund_order", {
+      p_order_id: orderId,
+      p_reason: trimmedReason || null,
+    });
+    setBusyOrderId(null);
+
+    if (error) {
+      showToast(error.message || "환불 처리에 실패했습니다.", "error");
+      return;
+    }
+
+    const cancelled = data?.cancelled_settlements ?? 0;
+    const recovery = data?.recovery_required_settlements ?? 0;
+    showToast(
+      `환불 완료. 정산 자동 처리: 취소 ${cancelled}건 / 회수 필요 ${recovery}건${recovery > 0 ? " (수동 회수 진행 필요)" : ""}`,
+      "success",
+    );
+    setSelectedOrderId(null);
+    await loadOrders();
   };
 
   // 송장 입력 모달 열기
@@ -553,6 +603,20 @@ function AdminOrdersPage() {
                       type="button"
                     >
                       송장입력
+                    </button>
+                  );
+                }
+
+                if (action.action === "refund") {
+                  return (
+                    <button
+                      className={`${action.style} !w-auto !px-4 !py-2 text-sm`}
+                      disabled={busyOrderId === selectedOrder.id}
+                      key="refund"
+                      onClick={() => handleRefund(selectedOrder.id)}
+                      type="button"
+                    >
+                      {busyOrderId === selectedOrder.id ? "처리 중..." : action.label}
                     </button>
                   );
                 }

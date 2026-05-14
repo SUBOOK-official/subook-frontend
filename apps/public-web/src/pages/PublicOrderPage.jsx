@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { formatCurrency } from "@shared-domain/format";
 import ContentContainer from "../components/ContentContainer";
@@ -109,6 +109,7 @@ function PublicOrderPage() {
   const [selectedAddressId, setSelectedAddressId] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState("bank_transfer");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const inFlightRef = useRef(false); // 더블 클릭으로 RPC 두 번 발사 방지 (state 비동기 보완)
   const [toast, setToast] = useState(null);
   const [pgToast, setPgToast] = useState(false);
   // 쿠폰
@@ -238,9 +239,15 @@ function PublicOrderPage() {
   };
 
   const handleSubmit = async () => {
+    // 동기 ref 가드: 빠른 더블 클릭 시 첫 호출이 끝나기 전 두 번째 클릭 차단.
+    // setState는 비동기라 isSubmitting state로는 race를 못 막는다.
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
+
     const validationError = validate();
     if (validationError) {
       showToast(validationError, "error");
+      inFlightRef.current = false;
       return;
     }
 
@@ -265,6 +272,7 @@ function PublicOrderPage() {
 
     if (error) {
       showToast(error.message || "주문에 실패했습니다.", "error");
+      inFlightRef.current = false;
       return;
     }
 
