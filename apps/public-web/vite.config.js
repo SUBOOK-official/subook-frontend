@@ -35,10 +35,6 @@ function getManualChunk(id) {
     return "supabase-vendor";
   }
 
-  if (normalizedId.includes("/node_modules/lottie-web/")) {
-    return "lottie-vendor";
-  }
-
   return "vendor";
 }
 
