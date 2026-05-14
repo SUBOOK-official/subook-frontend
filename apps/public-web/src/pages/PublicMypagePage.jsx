@@ -2637,7 +2637,15 @@ function SettingsTab({
             <div className="public-mypage-profile-list__item">
               <dt>이메일</dt>
               <dd>
-                {profileSnapshot?.email || user?.email || "-"} <em>(변경불가)</em>
+                {(() => {
+                  const rawEmail = profileSnapshot?.email || user?.email || "";
+                  if (!rawEmail) return "-";
+                  if (/@oauth\.subook\.local$/i.test(rawEmail)) {
+                    return "카카오 계정 (이메일 미연동)";
+                  }
+                  return rawEmail;
+                })()}{" "}
+                <em>(변경불가)</em>
               </dd>
             </div>
             <div className="public-mypage-profile-list__item">
@@ -2873,7 +2881,10 @@ function ProfileEditor({
         <div className="public-mypage-static-field">
           <span className="public-mypage-static-field__label">이메일</span>
           <span className="public-mypage-static-field__value">
-            {profileForm.email} <em>(변경불가)</em>
+            {/@oauth\.subook\.local$/i.test(profileForm.email || "")
+              ? "카카오 계정 (이메일 미연동)"
+              : profileForm.email}{" "}
+            <em>(변경불가)</em>
           </span>
         </div>
         <div className={`public-auth-field-row ${profileErrors.phone ? "is-error" : ""}`}>
