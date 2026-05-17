@@ -674,6 +674,34 @@ img {
   gap: 4px;
 }
 
+.public-nav-link--wishlist {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  position: relative;
+}
+
+.public-nav-link__icon {
+  color: #ef4444;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.public-nav-link__badge {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
 .public-cart-badge {
   width: 16px;
   height: 16px;

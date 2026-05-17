@@ -4,11 +4,20 @@ import { Link, useNavigate } from "react-router-dom";
 import ContentContainer from "./ContentContainer";
 import searchIconImage from "../assets/search-icon.svg";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
+import { usePublicWishlist } from "../contexts/PublicWishlistContext";
 import { createDisplayName } from "../lib/memberPortal";
 
 function PublicSiteHeader({ onCartClick, searchSlot }) {
   const navigate = useNavigate();
   const { isAuthenticated, profile, user, signOut } = usePublicAuth();
+  const { favoriteCount } = usePublicWishlist();
+
+  const handleWishlistClick = (event) => {
+    if (!isAuthenticated) {
+      event?.preventDefault?.();
+      navigate("/login", { state: { notice: "찜한 교재를 보려면 로그인이 필요해요." } });
+    }
+  };
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const accountMenuRef = useRef(null);
@@ -190,6 +199,18 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
         </div>
 
         <nav aria-label="유틸리티 메뉴" className="public-nav-actions">
+          <Link
+            aria-label={`찜한 교재 ${favoriteCount}개`}
+            className="public-nav-link public-nav-link--wishlist"
+            onClick={handleWishlistClick}
+            to="/mypage#wishlist"
+          >
+            <span aria-hidden="true" className="public-nav-link__icon">♥</span>
+            <span>찜</span>
+            {favoriteCount > 0 ? (
+              <span className="public-nav-link__badge">{favoriteCount > 99 ? "99+" : favoriteCount}</span>
+            ) : null}
+          </Link>
           <button className="public-nav-link public-nav-link--cart" onClick={handleCartClick} type="button">
             <span>장바구니</span>
           </button>
@@ -257,6 +278,22 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
             >
               장바구니
             </button>
+            <Link
+              className="public-nav-drawer__item"
+              onClick={(event) => {
+                setIsMobileMenuOpen(false);
+                handleWishlistClick(event);
+              }}
+              to="/mypage#wishlist"
+            >
+              <span aria-hidden="true" style={{ marginRight: 8 }}>♥</span>
+              찜한 교재
+              {favoriteCount > 0 ? (
+                <span className="public-nav-link__badge" style={{ marginLeft: 8 }}>
+                  {favoriteCount > 99 ? "99+" : favoriteCount}
+                </span>
+              ) : null}
+            </Link>
             <Link className="public-nav-drawer__item" to="/mypage" onClick={() => setIsMobileMenuOpen(false)}>
               마이페이지
             </Link>
