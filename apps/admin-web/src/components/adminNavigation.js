@@ -10,6 +10,8 @@ export const adminNavigationItems = [
   { key: "coupons", label: "쿠폰", to: "/admin/coupons", icon: "🎟" },
   { key: "members", label: "회원", to: "/admin/members", icon: "👤" },
   { key: "studio", label: "스튜디오", to: "/admin/studio", icon: "📷" },
+  { key: "faqs", label: "FAQ", to: "/admin/faqs", icon: "❓" },
+  { key: "notices", label: "공지사항", to: "/admin/notices", icon: "📣" },
 ];
 
 export function resolveActiveAdminModule({ pathname, explicitModule }) {
@@ -23,6 +25,14 @@ export function resolveActiveAdminModule({ pathname, explicitModule }) {
 
   if (pathname.startsWith("/admin/analytics")) {
     return "analytics";
+  }
+
+  if (pathname.startsWith("/admin/faqs")) {
+    return "faqs";
+  }
+
+  if (pathname.startsWith("/admin/notices")) {
+    return "notices";
   }
 
   if (pathname.startsWith("/admin/shipments/") || pathname.startsWith("/admin/inspections")) {

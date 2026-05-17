@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { isSupabaseConfigured, supabase } from "@shared-supabase/publicSupabaseClient";
 import ContentContainer from "../components/ContentContainer";
 import PublicFooter from "../components/PublicFooter";
 import PublicPageFrame from "../components/PublicPageFrame";
@@ -128,12 +129,51 @@ function renderAnswerLine(line, index) {
   return null;
 }
 
+// DB row를 기존 FAQ_ITEMS 형식으로 정규화. answer 텍스트의 줄바꿈을 paragraph로 분리.
+function normalizeDbFaq(row) {
+  const lines = (row.answer || "")
+    .split(/\n+/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((text) => ({ type: "text", text }));
+  return {
+    id: `db-${row.id}`,
+    category: row.category || "기타",
+    question: row.question,
+    answer: lines.length > 0 ? lines : [{ type: "text", text: row.answer || "" }],
+  };
+}
+
 function PublicFaqPage() {
   usePageMeta({
     title: "자주 묻는 질문",
     description: "수북 위탁판매 서비스의 수거·검수·등급·정산·결제·반품에 대한 자주 묻는 질문 모음.",
   });
+  // DB에서 받은 FAQ. 비어있으면 기존 하드코딩 FAQ_ITEMS fallback.
+  const [dbFaqs, setDbFaqs] = useState(null); // null=로딩, []=DB비어있음
   const [openIds, setOpenIds] = useState(() => new Set([FAQ_ITEMS[0]?.id]));
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!isSupabaseConfigured || !supabase) {
+        if (!cancelled) setDbFaqs([]);
+        return;
+      }
+      const { data, error } = await supabase.rpc("list_public_faqs");
+      if (cancelled) return;
+      if (error || !Array.isArray(data) || data.length === 0) {
+        setDbFaqs([]); // fallback to FAQ_ITEMS
+      } else {
+        setDbFaqs(data.map(normalizeDbFaq));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const effectiveItems = dbFaqs && dbFaqs.length > 0 ? dbFaqs : FAQ_ITEMS;
 
   const handleToggle = (id) => {
     setOpenIds((current) => {
@@ -148,7 +188,7 @@ function PublicFaqPage() {
   };
 
   const handleExpandAll = () => {
-    setOpenIds(new Set(FAQ_ITEMS.map((item) => item.id)));
+    setOpenIds(new Set(effectiveItems.map((item) => item.id)));
   };
 
   const handleCollapseAll = () => {
@@ -179,7 +219,7 @@ function PublicFaqPage() {
 
       <ContentContainer as="section" className="public-faq-list" aria-label="자주 묻는 질문">
         <div className="public-faq-list__toolbar">
-          <span className="public-faq-list__count">총 {FAQ_ITEMS.length}개의 질문</span>
+          <span className="public-faq-list__count">총 {effectiveItems.length}개의 질문</span>
           <div className="public-faq-list__actions">
             <button className="public-faq-list__action" onClick={handleExpandAll} type="button">
               모두 펼치기
@@ -192,7 +232,7 @@ function PublicFaqPage() {
         </div>
 
         <ul className="public-faq-list__items" role="list">
-          {FAQ_ITEMS.map((item) => {
+          {effectiveItems.map((item) => {
             const isOpen = openIds.has(item.id);
             return (
               <li className="public-faq-item" key={item.id}>

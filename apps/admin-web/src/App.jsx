@@ -4,7 +4,9 @@ import AdminRoute from "./components/AdminRoute";
 
 const AdminAnalyticsPage = lazy(() => import("./pages/AdminAnalyticsPage"));
 const AdminDashboardPage = lazy(() => import("./pages/AdminDashboardPage"));
+const AdminFaqsPage = lazy(() => import("./pages/AdminFaqsPage"));
 const AdminLoginPage = lazy(() => import("./pages/AdminLoginPage"));
+const AdminNoticesPage = lazy(() => import("./pages/AdminNoticesPage"));
 const AdminMembersPage = lazy(() => import("./pages/AdminMembersPage"));
 const AdminOrdersPage = lazy(() => import("./pages/AdminOrdersPage"));
 const AdminPickupRequestsPage = lazy(() => import("./pages/AdminPickupRequestsPage"));
@@ -162,6 +164,22 @@ function App() {
               </AdminRoute>
             }
             path="/admin/studio"
+          />
+          <Route
+            element={
+              <AdminRoute>
+                <AdminFaqsPage />
+              </AdminRoute>
+            }
+            path="/admin/faqs"
+          />
+          <Route
+            element={
+              <AdminRoute>
+                <AdminNoticesPage />
+              </AdminRoute>
+            }
+            path="/admin/notices"
           />
           <Route element={<ResetPasswordPage />} path="/auth/reset-password" />
           <Route element={<Navigate replace to="/admin/login" />} path="*" />
