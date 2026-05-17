@@ -912,6 +912,31 @@ async function fetchStorefrontProducts(filters = {}) {
     };
   }
 
+  // 검색어가 있으면 FTS + 초성 매칭 RPC 우선 사용 (한글 부분/오타/초성 매칭)
+  const searchTerm = normalizeNullableText(filters.search);
+  if (searchTerm) {
+    const { data: searchData, error: searchError } = await supabase.rpc(
+      "search_storefront_products",
+      {
+        p_query: searchTerm,
+        p_limit: normalizeInteger(filters.limit) ?? DEFAULT_CATALOG_LIMIT,
+        p_offset: normalizeInteger(filters.offset) ?? 0,
+      },
+    );
+    if (!searchError && Array.isArray(searchData)) {
+      const searchProducts = searchData
+        .map(normalizeStorefrontProductRow)
+        .filter((product) => Boolean(product.id));
+      return {
+        products: searchProducts,
+        books: searchProducts,
+        source: "supabase-search",
+        error: null,
+      };
+    }
+    // search RPC 실패 시 기존 RPC로 fallback (LIKE 검색)
+  }
+
   const rpcArgs = buildStorefrontRpcArgs(filters);
   const { data, error, source } = await rpcWithFallback(
     PRODUCT_LIST_RPC_NAME,
