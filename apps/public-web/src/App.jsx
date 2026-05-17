@@ -10,6 +10,7 @@ const PublicHomePage = lazy(() => import("./pages/PublicHomePage"));
 const PublicLoginPage = lazy(() => import("./pages/PublicLoginPage"));
 const PublicMypagePage = lazy(() => import("./pages/PublicMypagePage"));
 const PublicNoticesPage = lazy(() => import("./pages/PublicNoticesPage"));
+const PublicNotificationsPage = lazy(() => import("./pages/PublicNotificationsPage"));
 const PublicNotFoundPage = lazy(() => import("./pages/PublicNotFoundPage"));
 const PublicOAuthConsentPage = lazy(() => import("./pages/PublicOAuthConsentPage"));
 const PublicOrderCompletePage = lazy(() => import("./pages/PublicOrderCompletePage"));
@@ -62,6 +63,7 @@ function App() {
           <Route element={<PublicLoginPage />} path="/login" />
           <Route element={<PublicMypagePage />} path="/mypage" />
           <Route element={<PublicNoticesPage />} path="/notices" />
+          <Route element={<PublicNotificationsPage />} path="/notifications" />
           <Route element={<PublicOrderCompletePage />} path="/order/complete/:orderId" />
           <Route element={<PublicOrderPage />} path="/order" />
           <Route element={<PublicPickupRequestPage />} path="/pickup/new" />

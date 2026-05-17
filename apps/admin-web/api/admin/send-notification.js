@@ -109,6 +109,42 @@ function buildMessageBody(type, vars) {
   }
 }
 
+// ── 사이트 내 알림 센터용 짧은 제목 ──────────────────────────
+function buildInAppTitle(type, vars) {
+  switch (type) {
+    case "pickup_accepted": return "수거 접수가 완료되었어요";
+    case "arrived":         return "교재 입고 완료";
+    case "inspection_done": return "검수 결과 도착";
+    case "sold":            return `"${vars.bookTitle ?? "내 교재"}" 판매 완료`;
+    case "settlement_done": return "정산이 완료되었어요";
+    case "order_confirmed": return "주문 결제가 확인되었어요";
+    case "shipping_started":return "배송이 시작되었어요";
+    case "delivery_done":   return "교재가 도착했어요";
+    case "restock":         return `"${vars.productTitle ?? "찜한 교재"}" 재입고`;
+    default:                return "알림";
+  }
+}
+
+// ── 사이트 내 알림 클릭 시 이동할 URL ────────────────────────
+function buildInAppRefUrl(type, refType, refId, vars) {
+  if (type === "restock" && vars.productId) {
+    return `/store/${vars.productId}`;
+  }
+  if (refType === "order" && refId) {
+    return `/mypage#orders`;
+  }
+  if (refType === "pickup_request") {
+    return `/mypage#sales`;
+  }
+  if (refType === "settlement") {
+    return `/mypage#settlements`;
+  }
+  if (refType === "shipment") {
+    return `/mypage#sales`;
+  }
+  return "/mypage";
+}
+
 // ── 카카오 알림톡 API 호출 ───────────────────────────────────
 async function sendKakaoAlimtalk({ recipientPhone, templateCode, templateVariables }) {
   const appKey = process.env.KAKAO_ALIMTALK_APP_KEY;
@@ -331,6 +367,25 @@ export default async function handler(req, res) {
 
   if (logError) {
     console.error("Failed to save notification log:", logError);
+  }
+
+  // 사이트 내 알림 센터에 미러링 (recipientUserId가 있을 때만)
+  // 알림톡 발송 실패해도 사이트 내 알림은 노출 (사용자가 보장적으로 확인 가능)
+  if (recipientUserId) {
+    const inAppTitle = buildInAppTitle(notificationType, templateVariables || {});
+    const inAppRefUrl = buildInAppRefUrl(notificationType, refType, refId, templateVariables || {});
+    const { error: notifError } = await supabase.rpc("admin_create_member_notification", {
+      p_user_id: recipientUserId,
+      p_type: notificationType,
+      p_title: inAppTitle,
+      p_body: messageBody,
+      p_ref_url: inAppRefUrl,
+      p_ref_type: refType || null,
+      p_ref_id: refId || null,
+    });
+    if (notifError) {
+      console.error("Failed to create member_notification:", notifError);
+    }
   }
 
   if (!kakaoResult.success) {

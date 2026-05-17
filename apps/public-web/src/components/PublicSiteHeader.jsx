@@ -1,21 +1,51 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import ContentContainer from "./ContentContainer";
 import searchIconImage from "../assets/search-icon.svg";
+import { supabase } from "@shared-supabase/publicSupabaseClient";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { usePublicWishlist } from "../contexts/PublicWishlistContext";
 import { createDisplayName } from "../lib/memberPortal";
 
 function PublicSiteHeader({ onCartClick, searchSlot }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { isAuthenticated, profile, user, signOut } = usePublicAuth();
   const { favoriteCount } = usePublicWishlist();
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
+
+  // 안 읽은 알림 카운트 폴링 (mount + 60s + 라우트 변경)
+  useEffect(() => {
+    if (!isAuthenticated || !supabase) {
+      setUnreadNotifCount(0);
+      return undefined;
+    }
+    let cancelled = false;
+    const fetchCount = async () => {
+      const { data, error } = await supabase.rpc("count_my_unread_notifications");
+      if (cancelled || error) return;
+      setUnreadNotifCount(Number(data) || 0);
+    };
+    void fetchCount();
+    const interval = window.setInterval(fetchCount, 60_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [isAuthenticated, location.pathname]);
 
   const handleWishlistClick = (event) => {
     if (!isAuthenticated) {
       event?.preventDefault?.();
       navigate("/login", { state: { notice: "찜한 교재를 보려면 로그인이 필요해요." } });
+    }
+  };
+
+  const handleNotificationsClick = (event) => {
+    if (!isAuthenticated) {
+      event?.preventDefault?.();
+      navigate("/login", { state: { notice: "알림함을 보려면 로그인이 필요해요." } });
     }
   };
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
@@ -200,6 +230,18 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
 
         <nav aria-label="유틸리티 메뉴" className="public-nav-actions">
           <Link
+            aria-label={`알림 ${unreadNotifCount}개`}
+            className="public-nav-link public-nav-link--wishlist"
+            onClick={handleNotificationsClick}
+            to="/notifications"
+          >
+            <span aria-hidden="true" className="public-nav-link__icon" style={{ color: "#3B82F6" }}>🔔</span>
+            <span>알림</span>
+            {unreadNotifCount > 0 ? (
+              <span className="public-nav-link__badge">{unreadNotifCount > 99 ? "99+" : unreadNotifCount}</span>
+            ) : null}
+          </Link>
+          <Link
             aria-label={`찜한 교재 ${favoriteCount}개`}
             className="public-nav-link public-nav-link--wishlist"
             onClick={handleWishlistClick}
@@ -278,6 +320,22 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
             >
               장바구니
             </button>
+            <Link
+              className="public-nav-drawer__item"
+              onClick={(event) => {
+                setIsMobileMenuOpen(false);
+                handleNotificationsClick(event);
+              }}
+              to="/notifications"
+            >
+              <span aria-hidden="true" style={{ marginRight: 8 }}>🔔</span>
+              알림함
+              {unreadNotifCount > 0 ? (
+                <span className="public-nav-link__badge" style={{ marginLeft: 8 }}>
+                  {unreadNotifCount > 99 ? "99+" : unreadNotifCount}
+                </span>
+              ) : null}
+            </Link>
             <Link
               className="public-nav-drawer__item"
               onClick={(event) => {
