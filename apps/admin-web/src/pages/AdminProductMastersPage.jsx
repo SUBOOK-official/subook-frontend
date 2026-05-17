@@ -80,6 +80,77 @@ function AdminProductMastersPage() {
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const requestIdRef = useRef(0);
 
+  // 일괄 선택
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [bulkProcessing, setBulkProcessing] = useState(false);
+
+  const toggleSelectId = (id) => {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    setSelectedIds((current) => {
+      if (current.size === products.length && products.length > 0) return new Set();
+      return new Set(products.map((p) => p.id));
+    });
+  };
+
+  const handleBulkProductAction = async (action) => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+
+    if (action === "delete") {
+      if (!window.confirm(
+        `선택한 ${ids.length}개 상품을 삭제할까요?\n\n` +
+        `(연결된 책이 있는 상품은 자동 skip됩니다.)\n\n이 작업은 되돌릴 수 없습니다.`,
+      )) return;
+    } else {
+      const label = { selling: "공개(판매중)", hidden: "숨김", sold_out: "품절" }[action] ?? action;
+      if (!window.confirm(`선택한 ${ids.length}개 상품을 '${label}' 상태로 일괄 변경할까요?`)) return;
+    }
+
+    setBulkProcessing(true);
+    try {
+      if (action === "delete") {
+        const { data, error } = await supabase.rpc("admin_bulk_delete_products", { p_ids: ids });
+        if (error) {
+          showToast(error.message || "삭제에 실패했습니다.", "error");
+        } else {
+          const deleted = data?.deleted_count ?? 0;
+          const blocked = data?.blocked_count ?? 0;
+          showToast(
+            `삭제 ${deleted}건 완료${blocked > 0 ? ` / 차단 ${blocked}건 (연결된 책 존재)` : ""}`,
+            blocked > 0 ? "info" : "success",
+          );
+        }
+      } else {
+        const { data, error } = await supabase.rpc("admin_bulk_update_product_status", {
+          p_ids: ids,
+          p_status: action,
+        });
+        if (error) {
+          showToast(error.message || "일괄 변경에 실패했습니다.", "error");
+        } else {
+          showToast(`${data?.updated_count ?? 0}개 상품 상태 변경 완료`, "success");
+        }
+      }
+      setSelectedIds(new Set());
+      await loadProducts();
+    } finally {
+      setBulkProcessing(false);
+    }
+  };
+
+  // products 목록이 갱신되면 선택 초기화
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [products]);
+
   const showToast = useCallback((message, tone = "info") => {
     setToast({ message, tone });
     window.setTimeout(() => setToast(null), 3500);
@@ -358,6 +429,45 @@ function AdminProductMastersPage() {
           <span className="ml-auto text-xs text-slate-500">{productCount}개 표시</span>
         </div>
 
+        {/* 일괄 액션 바 (선택 시 표시) */}
+        {selectedIds.size > 0 ? (
+          <div className="sticky top-0 z-30 mb-3 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 shadow-sm flex flex-wrap items-center gap-3">
+            <span className="text-sm font-bold text-amber-900">{selectedIds.size}개 상품 선택됨</span>
+            <button
+              className="text-xs text-amber-700 underline hover:text-amber-900"
+              onClick={() => setSelectedIds(new Set())}
+              type="button"
+            >
+              선택 해제
+            </button>
+            <div className="flex-1" />
+            <button
+              className="text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-md px-3 py-1.5 disabled:opacity-60"
+              disabled={bulkProcessing}
+              onClick={() => handleBulkProductAction("selling")}
+              type="button"
+            >
+              일괄 공개
+            </button>
+            <button
+              className="text-xs font-semibold text-white bg-slate-600 hover:bg-slate-700 rounded-md px-3 py-1.5 disabled:opacity-60"
+              disabled={bulkProcessing}
+              onClick={() => handleBulkProductAction("hidden")}
+              type="button"
+            >
+              일괄 숨김
+            </button>
+            <button
+              className="text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-md px-3 py-1.5 disabled:opacity-60"
+              disabled={bulkProcessing}
+              onClick={() => handleBulkProductAction("delete")}
+              type="button"
+            >
+              {bulkProcessing ? "처리 중..." : "일괄 삭제"}
+            </button>
+          </div>
+        ) : null}
+
         {/* 상품 그리드 (테이블) */}
         <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
           {isLoading ? (
@@ -372,6 +482,14 @@ function AdminProductMastersPage() {
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500">
                 <tr>
+                  <th className="w-10 px-2 py-3 text-left">
+                    <input
+                      aria-label="전체 선택"
+                      checked={products.length > 0 && selectedIds.size === products.length}
+                      onChange={toggleSelectAll}
+                      type="checkbox"
+                    />
+                  </th>
                   <th className="w-16 px-3 py-3 text-left">이미지</th>
                   <th className="px-3 py-3 text-left">상품 이름</th>
                   <th className="w-32 px-3 py-3 text-right">판매가</th>
@@ -384,9 +502,19 @@ function AdminProductMastersPage() {
                 {products.map((product) => (
                   <tr
                     key={product.id}
-                    className="cursor-pointer hover:bg-slate-50"
+                    className={`cursor-pointer hover:bg-slate-50 ${
+                      selectedIds.has(product.id) ? "bg-amber-50" : ""
+                    }`}
                     onClick={() => openDetail(product)}
                   >
+                    <td className="px-2 py-3" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        aria-label={`${product.title} 선택`}
+                        checked={selectedIds.has(product.id)}
+                        onChange={() => toggleSelectId(product.id)}
+                        type="checkbox"
+                      />
+                    </td>
                     <td className="px-3 py-3">
                       <div className="h-12 w-12 overflow-hidden rounded-md border border-slate-200 bg-slate-100">
                         {product.cover_image_url ? (

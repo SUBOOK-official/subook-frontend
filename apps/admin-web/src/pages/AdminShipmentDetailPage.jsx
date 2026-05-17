@@ -670,6 +670,83 @@ function AdminShipmentDetailPage() {
     setBookListPage((prev) => Math.min(prev, totalBookPages));
   }, [totalBookPages]);
 
+  // ─── 일괄 책 선택/작업 ───────────────────────────────────────────────
+  const [selectedBookIds, setSelectedBookIds] = useState(() => new Set());
+  const [bulkBookProcessing, setBulkBookProcessing] = useState(false);
+
+  const toggleSelectBook = (id) => {
+    setSelectedBookIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAllVisibleBooks = () => {
+    setSelectedBookIds((current) => {
+      const visibleIds = pagedBooks.map((b) => b.id);
+      const allVisibleSelected = visibleIds.every((id) => current.has(id)) && visibleIds.length > 0;
+      if (allVisibleSelected) {
+        const next = new Set(current);
+        visibleIds.forEach((id) => next.delete(id));
+        return next;
+      }
+      const next = new Set(current);
+      visibleIds.forEach((id) => next.add(id));
+      return next;
+    });
+  };
+
+  // 페이지/검색 바뀌면 선택 초기화
+  useEffect(() => {
+    setSelectedBookIds(new Set());
+  }, [bookSearchQuery, bookListPage]);
+
+  const handleBulkBookAction = async (action, opts = {}) => {
+    const ids = Array.from(selectedBookIds);
+    if (ids.length === 0) return;
+
+    let confirmMsg = "";
+    if (action === "visibility-show") confirmMsg = `선택한 ${ids.length}권을 일괄 '공개'로 변경할까요?`;
+    else if (action === "visibility-hide") confirmMsg = `선택한 ${ids.length}권을 일괄 '숨김'으로 변경할까요?`;
+    else if (action === "status-discarded") {
+      confirmMsg = `선택한 ${ids.length}권을 일괄 '폐기'로 변경할까요?\n\n` +
+        `active 주문이 있는 책은 자동 reject됩니다.\n이 작업은 되돌릴 수 없습니다.`;
+    } else if (action === "price-delta") {
+      confirmMsg = `선택한 ${ids.length}권의 가격을 일괄 ${opts.percent > 0 ? "+" : ""}${opts.percent}% 변경할까요?`;
+    }
+    if (!window.confirm(confirmMsg)) return;
+
+    setBulkBookProcessing(true);
+    try {
+      let rpcName;
+      let params;
+      if (action === "visibility-show" || action === "visibility-hide") {
+        rpcName = "admin_bulk_update_books_visibility";
+        params = { p_ids: ids, p_is_public: action === "visibility-show" };
+      } else if (action === "status-discarded") {
+        rpcName = "admin_bulk_update_books_status";
+        params = { p_ids: ids, p_status: "discarded" };
+      } else if (action === "price-delta") {
+        rpcName = "admin_bulk_update_books_price_delta";
+        params = { p_ids: ids, p_delta_percent: opts.percent };
+      }
+      const { data, error } = await supabase.rpc(rpcName, params);
+      if (error) {
+        window.alert(`일괄 작업 실패: ${error.message}`);
+      } else {
+        const ok = data?.success_count ?? data?.updated_count ?? 0;
+        const fail = data?.fail_count ?? 0;
+        window.alert(`처리 완료 — 성공 ${ok}건${fail > 0 ? ` / 실패 ${fail}건` : ""}`);
+      }
+      setSelectedBookIds(new Set());
+      await refreshBooks();
+    } finally {
+      setBulkBookProcessing(false);
+    }
+  };
+
   const refreshBooks = async () => {
     if (!isSupabaseConfigured || Number.isNaN(parsedShipmentId)) {
       return false;
@@ -1497,11 +1574,77 @@ function AdminShipmentDetailPage() {
                 })}
               </div>
 
+              {/* 일괄 액션 바 — 선택 시 표시 (desktop 테이블 상단) */}
+              {selectedBookIds.size > 0 ? (
+                <div className="hidden lg:flex mb-3 flex-wrap items-center gap-2 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 shadow-sm">
+                  <span className="text-sm font-bold text-amber-900">
+                    {selectedBookIds.size}권 선택됨
+                  </span>
+                  <button
+                    className="text-xs text-amber-700 underline hover:text-amber-900"
+                    onClick={() => setSelectedBookIds(new Set())}
+                    type="button"
+                  >
+                    선택 해제
+                  </button>
+                  <div className="flex-1" />
+                  <button
+                    className="text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-md px-3 py-1.5 disabled:opacity-60"
+                    disabled={bulkBookProcessing}
+                    onClick={() => handleBulkBookAction("visibility-show")}
+                    type="button"
+                  >
+                    일괄 공개
+                  </button>
+                  <button
+                    className="text-xs font-semibold text-white bg-slate-600 hover:bg-slate-700 rounded-md px-3 py-1.5 disabled:opacity-60"
+                    disabled={bulkBookProcessing}
+                    onClick={() => handleBulkBookAction("visibility-hide")}
+                    type="button"
+                  >
+                    일괄 숨김
+                  </button>
+                  <button
+                    className="text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-md px-3 py-1.5 disabled:opacity-60"
+                    disabled={bulkBookProcessing}
+                    onClick={() => {
+                      const v = window.prompt("일괄 가격 변경 %를 입력하세요. 예: -10 (10% 할인), +5 (5% 인상)");
+                      const num = Number(v);
+                      if (Number.isFinite(num) && num !== 0) {
+                        void handleBulkBookAction("price-delta", { percent: num });
+                      }
+                    }}
+                    type="button"
+                  >
+                    일괄 가격 ±%
+                  </button>
+                  <button
+                    className="text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-md px-3 py-1.5 disabled:opacity-60"
+                    disabled={bulkBookProcessing}
+                    onClick={() => handleBulkBookAction("status-discarded")}
+                    type="button"
+                  >
+                    {bulkBookProcessing ? "처리 중..." : "일괄 폐기"}
+                  </button>
+                </div>
+              ) : null}
+
               <div className="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-soft lg:block">
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-slate-200 text-sm">
                     <thead className="bg-slate-50">
                       <tr>
+                        <th className="w-10 px-2 py-3 text-left">
+                          <input
+                            aria-label="현재 페이지 책 전체 선택"
+                            checked={
+                              pagedBooks.length > 0 &&
+                              pagedBooks.every((b) => selectedBookIds.has(b.id))
+                            }
+                            onChange={toggleSelectAllVisibleBooks}
+                            type="checkbox"
+                          />
+                        </th>
                         <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
                           책 정보
                         </th>
@@ -1537,7 +1680,20 @@ function AdminShipmentDetailPage() {
                           updatingBookPublicId === book.id;
 
                         return (
-                          <tr className="align-top transition hover:bg-slate-50" key={book.id}>
+                          <tr
+                            className={`align-top transition hover:bg-slate-50 ${
+                              selectedBookIds.has(book.id) ? "bg-amber-50" : ""
+                            }`}
+                            key={book.id}
+                          >
+                            <td className="px-2 py-4">
+                              <input
+                                aria-label={`${book.title} 선택`}
+                                checked={selectedBookIds.has(book.id)}
+                                onChange={() => toggleSelectBook(book.id)}
+                                type="checkbox"
+                              />
+                            </td>
                             <td className="px-4 py-4">
                               <p className="font-bold text-slate-900">{book.title}</p>
                               {toNullableText(book.option) ? (

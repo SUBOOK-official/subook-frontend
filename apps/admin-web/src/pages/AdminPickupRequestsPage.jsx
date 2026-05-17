@@ -373,6 +373,37 @@ function AdminPickupRequestsPage() {
     }
   };
 
+  // 일괄 수거 취소 (admin_bulk_cancel_pickup_requests RPC)
+  const handleBulkCancelPickups = async (targetIds) => {
+    if (!Array.isArray(targetIds) || targetIds.length === 0) return;
+    if (!isSupabaseConfigured || !supabase) return;
+
+    if (!window.confirm(
+      `선택한 ${targetIds.length}건의 수거 요청을 일괄 취소할까요?\n\n` +
+      `(pending / pickup_assigned 상태만 처리됩니다. 이미 CJ 접수된 건은 별도 처리 필요.)\n\n` +
+      `이 작업은 되돌릴 수 없습니다.`
+    )) {
+      return;
+    }
+
+    setError(null);
+    setRegisteringIds(targetIds);
+    try {
+      const { data, error: rpcError } = await supabase.rpc("admin_bulk_cancel_pickup_requests", {
+        p_ids: targetIds,
+        p_reason: null,
+      });
+      if (rpcError) throw rpcError;
+      const cancelledCount = data?.cancelled_count ?? 0;
+      window.alert(`수거 요청 ${cancelledCount}건 취소 완료.`);
+      await loadPickupRequests();
+    } catch (apiError) {
+      setError(apiError instanceof Error ? apiError.message : "일괄 취소에 실패했습니다.");
+    } finally {
+      setRegisteringIds([]);
+    }
+  };
+
   const handleTrackingLookup = async (pickupRequest) => {
     if (!pickupRequest.tracking_number) {
       setError("조회할 운송장 번호가 없습니다.");
@@ -508,16 +539,26 @@ function AdminPickupRequestsPage() {
               운송장이 없는 요청만 선택할 수 있습니다. 접수 성공 시 판매자에게 수거 접수 알림톡을 보냅니다.
             </p>
           </div>
-          <button
-            className="btn-primary !w-auto !px-4 !py-2.5 text-sm"
-            disabled={selectedEligibleIds.length === 0 || registeringIds.length > 0}
-            onClick={() => void handleRegisterPickups(selectedEligibleIds)}
-            type="button"
-          >
-            {registeringIds.length > 0
-              ? "CJ 접수 중..."
-              : `선택 ${selectedEligibleIds.length}건 CJ 접수`}
-          </button>
+          <div className="flex gap-2">
+            <button
+              className="btn-primary !w-auto !px-4 !py-2.5 text-sm"
+              disabled={selectedEligibleIds.length === 0 || registeringIds.length > 0}
+              onClick={() => void handleRegisterPickups(selectedEligibleIds)}
+              type="button"
+            >
+              {registeringIds.length > 0
+                ? "CJ 접수 중..."
+                : `선택 ${selectedEligibleIds.length}건 CJ 접수`}
+            </button>
+            <button
+              className="!w-auto !px-4 !py-2.5 text-sm rounded-lg border border-rose-300 text-rose-700 font-bold hover:bg-rose-50 disabled:opacity-60 disabled:cursor-not-allowed"
+              disabled={selectedEligibleIds.length === 0 || registeringIds.length > 0}
+              onClick={() => void handleBulkCancelPickups(selectedEligibleIds)}
+              type="button"
+            >
+              선택 {selectedEligibleIds.length}건 취소
+            </button>
+          </div>
         </div>
 
         <div className="overflow-x-auto rounded-xl border border-slate-200">

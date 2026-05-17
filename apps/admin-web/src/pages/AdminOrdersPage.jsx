@@ -118,6 +118,64 @@ function AdminOrdersPage() {
   const [csvResults, setCsvResults] = useState(null);
   const csvFileRef = useRef(null);
 
+  // 일괄 선택
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [bulkProcessing, setBulkProcessing] = useState(false);
+
+  // 일괄 작업 실행
+  const handleBulkAction = async (action) => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+
+    if (action === "preparing") {
+      if (!window.confirm(`선택한 ${ids.length}건을 '상품 준비 중'으로 일괄 전환할까요?\n(paid 상태만 처리되고, 다른 상태는 자동 skip됩니다.)`)) return;
+    } else if (action === "cancelled") {
+      if (!window.confirm(`선택한 ${ids.length}건을 일괄 취소할까요?\n(pending/paid/preparing만 처리됩니다.)\n\n이 작업은 되돌릴 수 없습니다.`)) return;
+    }
+
+    setBulkProcessing(true);
+    const { data, error } = await supabase.rpc("admin_bulk_update_order_status", {
+      p_ids: ids,
+      p_status: action,
+    });
+    setBulkProcessing(false);
+
+    if (error) {
+      showToast(error.message || "일괄 작업에 실패했습니다.", "error");
+      return;
+    }
+
+    const successCount = data?.success_count ?? 0;
+    const failCount = data?.fail_count ?? 0;
+    showToast(
+      `일괄 처리 완료 — 성공 ${successCount}건${failCount > 0 ? ` / 실패 ${failCount}건` : ""}`,
+      failCount > 0 ? "info" : "success",
+    );
+    setSelectedIds(new Set());
+    await loadOrders();
+  };
+
+  const toggleSelectId = (id) => {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    setSelectedIds((current) => {
+      if (current.size === orders.length && orders.length > 0) return new Set();
+      return new Set(orders.map((o) => o.id));
+    });
+  };
+
+  // 페이지 이동/필터 변경 시 선택 초기화
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [orders]);
+
   const showToast = useCallback((message, tone = "info") => {
     setToast({ message, tone });
     setTimeout(() => setToast(null), 3500);
@@ -477,6 +535,39 @@ function AdminOrdersPage() {
         </div>
       </div>
 
+      {/* 일괄 액션 바 — 선택 시에만 표시 */}
+      {selectedIds.size > 0 ? (
+        <div className="sticky top-0 z-30 -mx-1 mb-3 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 shadow-sm flex flex-wrap items-center gap-3">
+          <span className="text-sm font-bold text-amber-900">
+            {selectedIds.size}건 선택됨
+          </span>
+          <button
+            className="text-xs text-amber-700 underline hover:text-amber-900"
+            onClick={() => setSelectedIds(new Set())}
+            type="button"
+          >
+            선택 해제
+          </button>
+          <div className="flex-1" />
+          <button
+            className="text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-md px-3 py-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
+            disabled={bulkProcessing}
+            onClick={() => handleBulkAction("preparing")}
+            type="button"
+          >
+            {bulkProcessing ? "처리 중..." : "일괄 상품준비"}
+          </button>
+          <button
+            className="text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-md px-3 py-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
+            disabled={bulkProcessing}
+            onClick={() => handleBulkAction("cancelled")}
+            type="button"
+          >
+            {bulkProcessing ? "처리 중..." : "일괄 주문취소"}
+          </button>
+        </div>
+      ) : null}
+
       {/* 주문 목록 */}
       <div className="card">
         {isLoading ? (
@@ -488,6 +579,14 @@ function AdminOrdersPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  <th className="px-2 py-3 w-10">
+                    <input
+                      aria-label="현재 페이지 전체 선택"
+                      checked={orders.length > 0 && selectedIds.size === orders.length}
+                      onChange={toggleSelectAll}
+                      type="checkbox"
+                    />
+                  </th>
                   <th className="px-4 py-3">주문번호</th>
                   <th className="px-4 py-3">구매자</th>
                   <th className="px-4 py-3">상품</th>
@@ -502,10 +601,18 @@ function AdminOrdersPage() {
                 {orders.map((order) => (
                   <tr
                     className={`border-b border-slate-50 hover:bg-slate-50 transition ${
-                      selectedOrderId === order.id ? "bg-blue-50" : ""
+                      selectedOrderId === order.id ? "bg-blue-50" : selectedIds.has(order.id) ? "bg-amber-50" : ""
                     }`}
                     key={order.id}
                   >
+                    <td className="px-2 py-3">
+                      <input
+                        aria-label={`${order.order_number} 선택`}
+                        checked={selectedIds.has(order.id)}
+                        onChange={() => toggleSelectId(order.id)}
+                        type="checkbox"
+                      />
+                    </td>
                     <td className="px-4 py-3 font-mono text-xs font-bold whitespace-nowrap">
                       {order.order_number}
                     </td>
