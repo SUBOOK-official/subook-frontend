@@ -16,19 +16,13 @@ const sharedRoot = isStandaloneFrontendRepo
   : resolve(workspaceRoot, "frontend/packages");
 const envDir = existsSync(resolve(frontendRepoRoot, ".env")) ? frontendRepoRoot : workspaceRoot;
 
+// manualChunks 분할은 recharts 추가 후 vendor ↔ react-vendor circular dependency를
+// 일으켜 production 흰 화면을 유발한다. node_modules 전체를 단일 vendor 청크로 통합하여
+// circular를 제거. supabase/excel은 별도 청크 유지(상대적으로 자주 안 바뀜).
 function getManualChunk(id) {
   const normalizedId = id.replaceAll("\\", "/");
   if (!normalizedId.includes("/node_modules/")) {
     return undefined;
-  }
-
-  if (
-    normalizedId.includes("/node_modules/react/") ||
-    normalizedId.includes("/node_modules/react-dom/") ||
-    normalizedId.includes("/node_modules/react-router/") ||
-    normalizedId.includes("/node_modules/react-router-dom/")
-  ) {
-    return "react-vendor";
   }
 
   if (normalizedId.includes("/node_modules/@supabase/")) {
@@ -44,6 +38,7 @@ function getManualChunk(id) {
     return "excel-vendor";
   }
 
+  // react + react-router + recharts + 기타 모든 node_modules를 단일 vendor에 통합
   return "vendor";
 }
 
