@@ -512,6 +512,67 @@ function PublicProductDetailPage() {
   const activeAvailability = getAvailabilitySnapshot(activeDisplay);
   const canPurchase = !activeAvailability.isSoldOut;
 
+  // 재입고 알림 구독 상태
+  const [isSubscribedRestock, setIsSubscribedRestock] = useState(false);
+  const [restockBusy, setRestockBusy] = useState(false);
+
+  // 상품 로드 + 로그인 변경 시 구독 상태 재확인
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!product?.id) {
+        setIsSubscribedRestock(false);
+        return;
+      }
+      const { supabase: sb } = await import("@shared-supabase/publicSupabaseClient");
+      if (!sb) return;
+      const { data: sessionData } = await sb.auth.getSession();
+      if (!sessionData.session) {
+        if (!cancelled) setIsSubscribedRestock(false);
+        return;
+      }
+      const { data, error } = await sb.rpc("is_subscribed_restock", {
+        p_product_id: Number(product.id),
+      });
+      if (cancelled) return;
+      if (!error) setIsSubscribedRestock(Boolean(data));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [product?.id]);
+
+  const handleToggleRestockSubscribe = async () => {
+    if (!product?.id) return;
+    if (!requireMember("restockSubscribe")) return;
+    const { supabase: sb } = await import("@shared-supabase/publicSupabaseClient");
+    if (!sb) return;
+
+    setRestockBusy(true);
+    try {
+      const productIdNum = Number(product.id);
+      if (isSubscribedRestock) {
+        const { error } = await sb.rpc("unsubscribe_restock", { p_product_id: productIdNum });
+        if (error) {
+          showCartToast(error.message || "구독 취소에 실패했어요.", "error");
+        } else {
+          setIsSubscribedRestock(false);
+          showCartToast("재입고 알림을 해제했어요.");
+        }
+      } else {
+        const { error } = await sb.rpc("subscribe_restock", { p_product_id: productIdNum });
+        if (error) {
+          showCartToast(error.message || "구독에 실패했어요.", "error");
+        } else {
+          setIsSubscribedRestock(true);
+          showCartToast("재입고되면 알림을 보내드릴게요.");
+        }
+      }
+    } finally {
+      setRestockBusy(false);
+    }
+  };
+
   useEffect(() => {
     setQuantity((current) => Math.min(Math.max(1, current), activeAvailability.maxQuantity));
   }, [activeAvailability.maxQuantity]);
@@ -717,22 +778,37 @@ function PublicProductDetailPage() {
                   >
                     <span aria-hidden="true">{isProductFavorite ? "♥" : "♡"}</span>
                   </button>
-                  <button
-                    className="public-detail-hero__btn public-detail-hero__btn--cart"
-                    disabled={!canPurchase}
-                    onClick={handleAddToCart}
-                    type="button"
-                  >
-                    {canPurchase ? "장바구니 담기" : "품절"}
-                  </button>
-                  <button
-                    className="public-detail-hero__btn public-detail-hero__btn--buy"
-                    disabled={!canPurchase}
-                    onClick={handleBuyNow}
-                    type="button"
-                  >
-                    {canPurchase ? "바로 구매하기" : "입고 알림 확인"}
-                  </button>
+                  {canPurchase ? (
+                    <>
+                      <button
+                        className="public-detail-hero__btn public-detail-hero__btn--cart"
+                        onClick={handleAddToCart}
+                        type="button"
+                      >
+                        장바구니 담기
+                      </button>
+                      <button
+                        className="public-detail-hero__btn public-detail-hero__btn--buy"
+                        onClick={handleBuyNow}
+                        type="button"
+                      >
+                        바로 구매하기
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      className="public-detail-hero__btn public-detail-hero__btn--buy"
+                      disabled={restockBusy}
+                      onClick={handleToggleRestockSubscribe}
+                      type="button"
+                    >
+                      {restockBusy
+                        ? "처리 중..."
+                        : isSubscribedRestock
+                          ? "🔔 재입고 알림 받는 중 (해제)"
+                          : "🔔 재입고 알림 받기"}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -797,22 +873,37 @@ function PublicProductDetailPage() {
             {totalPriceValue === null ? "-" : formatCurrency(totalPriceValue)}
           </span>
         </div>
-        <button
-          className="public-detail-sticky-bar__btn public-detail-sticky-bar__btn--cart"
-          disabled={!canPurchase}
-          onClick={handleAddToCart}
-          type="button"
-        >
-          {canPurchase ? "장바구니" : "품절"}
-        </button>
-        <button
-          className="public-detail-sticky-bar__btn public-detail-sticky-bar__btn--buy"
-          disabled={!canPurchase}
-          onClick={handleBuyNow}
-          type="button"
-        >
-          구매하기
-        </button>
+        {canPurchase ? (
+          <>
+            <button
+              className="public-detail-sticky-bar__btn public-detail-sticky-bar__btn--cart"
+              onClick={handleAddToCart}
+              type="button"
+            >
+              장바구니
+            </button>
+            <button
+              className="public-detail-sticky-bar__btn public-detail-sticky-bar__btn--buy"
+              onClick={handleBuyNow}
+              type="button"
+            >
+              구매하기
+            </button>
+          </>
+        ) : (
+          <button
+            className="public-detail-sticky-bar__btn public-detail-sticky-bar__btn--buy"
+            disabled={restockBusy}
+            onClick={handleToggleRestockSubscribe}
+            type="button"
+          >
+            {restockBusy
+              ? "처리 중..."
+              : isSubscribedRestock
+                ? "🔔 알림 해제"
+                : "🔔 재입고 알림"}
+          </button>
+        )}
       </div>
     </div>
   );

@@ -15,6 +15,7 @@ const VALID_NOTIFICATION_TYPES = new Set([
   "order_confirmed",
   "shipping_started",
   "delivery_done",
+  "restock",
 ]);
 
 // 카카오 알림톡 템플릿 코드 매핑
@@ -27,6 +28,7 @@ const TEMPLATE_CODES = {
   order_confirmed: "SB_ORDER_CONFIRMED",
   shipping_started: "SB_SHIPPING_STARTED",
   delivery_done: "SB_DELIVERY_DONE",
+  restock: "SB_RESTOCK",
 };
 
 // ── 메시지 본문 생성 ─────────────────────────────────────────
@@ -93,6 +95,13 @@ function buildMessageBody(type, vars) {
         `교재가 도착했습니다.\n` +
         `확인 후 구매확정 부탁드려요.\n` +
         `7일 후 자동 확정됩니다.`
+      );
+
+    case "restock":
+      return (
+        `[수북] 재입고 알림\n` +
+        `찜하신 교재 "${vars.productTitle}"이(가) 재입고되었어요.\n` +
+        `subook.kr/store/${vars.productId} 에서 바로 구매하실 수 있어요.`
       );
 
     default:
