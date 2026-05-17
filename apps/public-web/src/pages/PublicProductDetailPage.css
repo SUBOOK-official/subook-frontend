@@ -738,3 +738,114 @@
 .public-detail-toast--error {
   background: #ef4444;
 }
+
+
+/* ====== 모바일 sticky 구매바 (≤767px) ====== */
+.public-detail-sticky-bar {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .public-detail-sticky-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    background: #ffffff;
+    border-top: 1px solid #e5e7eb;
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.08);
+  }
+
+  .public-detail-sticky-bar__favorite {
+    width: 44px;
+    height: 44px;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    background: #ffffff;
+    color: #6b7280;
+    font-size: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: color 0.18s ease, transform 0.18s ease;
+  }
+  .public-detail-sticky-bar__favorite.is-active {
+    color: #ef4444;
+    animation: public-store-favorite-pop 0.22s ease;
+  }
+  .public-detail-sticky-bar__favorite:disabled {
+    cursor: wait;
+    opacity: 0.6;
+  }
+
+  .public-detail-sticky-bar__price {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+    margin: 0 4px;
+  }
+  .public-detail-sticky-bar__price-label {
+    font-size: 11px;
+    color: #6b7280;
+    line-height: 1.2;
+  }
+  .public-detail-sticky-bar__price-value {
+    font-size: 15px;
+    font-weight: 700;
+    color: #111827;
+    line-height: 1.3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .public-detail-sticky-bar__btn {
+    height: 44px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: opacity 0.18s ease;
+  }
+  .public-detail-sticky-bar__btn:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+  .public-detail-sticky-bar__btn:disabled {
+    background: #f3f4f6;
+    color: #9ca3af;
+    border-color: transparent;
+    cursor: not-allowed;
+  }
+  .public-detail-sticky-bar__btn--cart {
+    background: #ffffff;
+    color: #1b3a5c;
+    border: 1.5px solid #1b3a5c;
+  }
+  .public-detail-sticky-bar__btn--buy {
+    background: #1b3a5c;
+    color: #ffffff;
+  }
+
+  /* hero 인라인 액션은 모바일에서 숨김 (sticky bar로 대체) */
+  .public-detail-hero__actions {
+    display: none;
+  }
+
+  /* 페이지 하단 콘텐츠가 sticky bar에 가려지지 않도록 spacer */
+  .public-product-detail-page {
+    padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+  }
+}
+

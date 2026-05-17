@@ -776,6 +776,44 @@ function PublicProductDetailPage() {
           {cartToast.message}
         </div>
       )}
+
+      {/* 모바일 sticky 구매바 — 모바일에서만 표시 (CSS @media로 제어) */}
+      <div className="public-detail-sticky-bar" role="region" aria-label="구매 액션 바">
+        <button
+          aria-label={isProductFavorite ? "찜 취소" : "찜하기"}
+          aria-pressed={isProductFavorite}
+          className={`public-detail-sticky-bar__favorite${isProductFavorite ? " is-active" : ""}`}
+          disabled={isProductFavoritePending}
+          onClick={() => {
+            void handleToggleFavorite(product.id);
+          }}
+          type="button"
+        >
+          <span aria-hidden="true">{isProductFavorite ? "♥" : "♡"}</span>
+        </button>
+        <div className="public-detail-sticky-bar__price">
+          <span className="public-detail-sticky-bar__price-label">총 {quantity}개</span>
+          <span className="public-detail-sticky-bar__price-value">
+            {totalPriceValue === null ? "-" : formatCurrency(totalPriceValue)}
+          </span>
+        </div>
+        <button
+          className="public-detail-sticky-bar__btn public-detail-sticky-bar__btn--cart"
+          disabled={!canPurchase}
+          onClick={handleAddToCart}
+          type="button"
+        >
+          {canPurchase ? "장바구니" : "품절"}
+        </button>
+        <button
+          className="public-detail-sticky-bar__btn public-detail-sticky-bar__btn--buy"
+          disabled={!canPurchase}
+          onClick={handleBuyNow}
+          type="button"
+        >
+          구매하기
+        </button>
+      </div>
     </div>
   );
 
