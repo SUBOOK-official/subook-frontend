@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import AdminRoute from "./components/AdminRoute";
 
+const AdminAnalyticsPage = lazy(() => import("./pages/AdminAnalyticsPage"));
 const AdminDashboardPage = lazy(() => import("./pages/AdminDashboardPage"));
 const AdminLoginPage = lazy(() => import("./pages/AdminLoginPage"));
 const AdminMembersPage = lazy(() => import("./pages/AdminMembersPage"));
@@ -73,6 +74,14 @@ function App() {
               </AdminRoute>
             }
             path="/admin"
+          />
+          <Route
+            element={
+              <AdminRoute>
+                <AdminAnalyticsPage />
+              </AdminRoute>
+            }
+            path="/admin/analytics"
           />
           <Route
             element={

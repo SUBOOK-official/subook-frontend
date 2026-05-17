@@ -1,5 +1,6 @@
 export const adminNavigationItems = [
   { key: "overview", label: "개요", to: "/admin", icon: "📊" },
+  { key: "analytics", label: "대시보드", to: "/admin/analytics", icon: "📈" },
   { key: "pickups", label: "수거", to: "/admin/pickups", icon: "📦" },
   { key: "inspection", label: "검수", to: "/admin/inspections", icon: "🔍" },
   { key: "catalog", label: "상품", to: "/admin/catalog", icon: "📚" },
@@ -18,6 +19,10 @@ export function resolveActiveAdminModule({ pathname, explicitModule }) {
 
   if (pathname.startsWith("/admin/studio")) {
     return "studio";
+  }
+
+  if (pathname.startsWith("/admin/analytics")) {
+    return "analytics";
   }
 
   if (pathname.startsWith("/admin/shipments/") || pathname.startsWith("/admin/inspections")) {
