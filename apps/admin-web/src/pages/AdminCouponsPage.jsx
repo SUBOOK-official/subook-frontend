@@ -335,23 +335,21 @@ function AdminCouponsPage() {
   }, [coupons]);
 
   return (
-    <AdminShell>
-      <div className="space-y-6 p-6">
-        <header className="flex items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-black text-slate-900">쿠폰 관리</h1>
-            <p className="mt-1 text-sm text-slate-500">
-              쿠폰 템플릿을 정의합니다. 발급(특정 회원/전체)과 회원 보유 쿠폰함은 다음 단계에서 추가됩니다.
-            </p>
-          </div>
-          <button
-            type="button"
-            className="rounded-md bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700"
-            onClick={openCreate}
-          >
-            + 새 쿠폰
-          </button>
-        </header>
+    <AdminShell
+      actions={
+        <button
+          className="rounded-md bg-slate-900 px-3 py-2 text-xs font-bold text-white hover:bg-slate-700"
+          onClick={openCreate}
+          type="button"
+        >
+          + 새 쿠폰
+        </button>
+      }
+      activeModule="coupons"
+      description="쿠폰 템플릿을 정의합니다. 발급(특정 회원/전체)과 회원 보유 쿠폰함은 다음 단계에서 추가됩니다."
+      title="쿠폰 관리"
+    >
+      <div className="space-y-6">
 
         <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-white p-4 text-sm">
           <input

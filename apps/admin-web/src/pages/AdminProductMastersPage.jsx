@@ -330,33 +330,31 @@ function AdminProductMastersPage() {
   const detailBooks = useMemo(() => detailData?.books ?? [], [detailData]);
 
   return (
-    <AdminShell>
-      <div className="space-y-6 p-6">
-        <header className="flex items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-black text-slate-900">상품 마스터</h1>
-            <p className="mt-1 text-sm text-slate-500">
-              책 종류 단위 관리. 같은 메타데이터의 책은 자동으로 한 상품 아래로 묶입니다.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              disabled
-              className="rounded-md border border-slate-300 px-4 py-2 text-sm font-bold text-slate-400 cursor-not-allowed"
-              title="식스샵 마이그레이션 후 활성화 예정"
-            >
-              + 상품 일괄 등록
-            </button>
-            <button
-              type="button"
-              onClick={openCreate}
-              className="rounded-md bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700"
-            >
-              + 새 상품
-            </button>
-          </div>
-        </header>
+    <AdminShell
+      actions={
+        <>
+          <button
+            className="rounded-md border border-slate-300 px-3 py-2 text-xs font-bold text-slate-400 cursor-not-allowed"
+            disabled
+            title="식스샵 마이그레이션 후 활성화 예정"
+            type="button"
+          >
+            + 상품 일괄 등록
+          </button>
+          <button
+            className="rounded-md bg-slate-900 px-3 py-2 text-xs font-bold text-white hover:bg-slate-700"
+            onClick={openCreate}
+            type="button"
+          >
+            + 새 상품
+          </button>
+        </>
+      }
+      activeModule="products"
+      description="책 종류 단위 관리. 같은 메타데이터의 책은 자동으로 한 상품 아래로 묶입니다."
+      title="상품 마스터"
+    >
+      <div className="space-y-6">
 
         {/* 통계 카드 */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
