@@ -1,6 +1,7 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import AdminShell from "../components/AdminShell";
+import BulkPriceDeltaModal from "../components/BulkPriceDeltaModal";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import InspectionImageUploader from "../components/InspectionImageUploader";
 import { readSheetRowsAsObjects } from "../lib/excelFile";
@@ -624,6 +625,7 @@ function AdminShipmentDetailPage() {
   const [books, setBooks] = useState([]);
   const [bookForm, setBookForm] = useState(initialBookForm);
   const [destructiveModal, setDestructiveModal] = useState(null);
+  const [priceDeltaOpen, setPriceDeltaOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -1633,14 +1635,8 @@ function AdminShipmentDetailPage() {
                   </button>
                   <button
                     className="text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-md px-3 py-1.5 disabled:opacity-60"
-                    disabled={bulkBookProcessing}
-                    onClick={() => {
-                      const v = window.prompt("일괄 가격 변경 %를 입력하세요. 예: -10 (10% 할인), +5 (5% 인상)");
-                      const num = Number(v);
-                      if (Number.isFinite(num) && num !== 0) {
-                        void handleBulkBookAction("price-delta", { percent: num });
-                      }
-                    }}
+                    disabled={bulkBookProcessing || selectedBookIds.size === 0}
+                    onClick={() => setPriceDeltaOpen(true)}
                     type="button"
                   >
                     일괄 가격 ±%
@@ -1821,6 +1817,18 @@ function AdminShipmentDetailPage() {
         reasonPlaceholder={destructiveModal?.reasonPlaceholder}
         reasonRequired={destructiveModal?.reasonRequired}
         title={destructiveModal?.title ?? ""}
+      />
+
+      <BulkPriceDeltaModal
+        books={books}
+        busy={bulkBookProcessing}
+        onCancel={() => setPriceDeltaOpen(false)}
+        onConfirm={(percent) => {
+          setPriceDeltaOpen(false);
+          handleBulkBookAction("price-delta", { percent });
+        }}
+        open={priceDeltaOpen}
+        selectedIds={selectedBookIds}
       />
     </AdminShell>
   );
