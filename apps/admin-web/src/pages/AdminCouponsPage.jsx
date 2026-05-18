@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AdminShell from "../components/AdminShell";
 import AdminPagination from "../components/AdminPagination";
+import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { formatCurrency } from "@shared-domain/format";
 
@@ -107,6 +108,7 @@ function AdminCouponsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
+  const [destructiveModal, setDestructiveModal] = useState(null);
   const COUPONS_PAGE_SIZE = 50;
   const [toast, setToast] = useState(null);
   const [form, setForm] = useState(initialForm);
@@ -281,24 +283,35 @@ function AdminCouponsPage() {
     await loadCoupons();
   };
 
-  const handleIssueToAll = async () => {
+  const handleIssueToAll = () => {
     if (!issueTarget) return;
-    if (!window.confirm(`전체 활성 회원에게 "${issueTarget.title}" 쿠폰을 발급하시겠습니까?\n(취소 불가)`)) {
-      return;
-    }
-    setIsIssuing(true);
-    const { data, error } = await supabase.rpc("admin_issue_coupon_to_all", {
-      p_coupon_id: issueTarget.id,
+    const phrase = issueTarget.code || issueTarget.title || `coupon-${issueTarget.id}`;
+    setDestructiveModal({
+      title: `전체 회원에 쿠폰 발급 — ${issueTarget.title}`,
+      description:
+        `전체 활성 회원에게 "${issueTarget.title}" 쿠폰을 일괄 발급합니다.\n\n` +
+        `· 발급된 쿠폰은 시스템에서 일괄 회수할 수 없습니다.\n` +
+        `· 회원당 1매 발급되며, 이미 보유한 회원은 자동 skip됩니다.\n` +
+        `· 회원 수에 따라 수십 초가 걸릴 수 있습니다.`,
+      confirmPhrase: phrase,
+      reasonRequired: false,
+      confirmLabel: "전체 발급",
+      run: async () => {
+        setIsIssuing(true);
+        const { data, error } = await supabase.rpc("admin_issue_coupon_to_all", {
+          p_coupon_id: issueTarget.id,
+        });
+        setIsIssuing(false);
+        if (error) {
+          showToast(error.message || "전체 발급에 실패했습니다.", "error");
+          return;
+        }
+        const count = data?.inserted_count ?? 0;
+        showToast(`${count}명에게 발급되었습니다.`, "success");
+        await loadCoupons();
+        closeIssue();
+      },
     });
-    setIsIssuing(false);
-    if (error) {
-      showToast(error.message || "전체 발급에 실패했습니다.", "error");
-      return;
-    }
-    const count = data?.inserted_count ?? 0;
-    showToast(`${count}명에게 발급되었습니다.`, "success");
-    await loadCoupons();
-    closeIssue();
   };
 
   // ── 발급 이력 모달 ─────────────────────────────────────────
@@ -918,6 +931,23 @@ function AdminCouponsPage() {
         </div>
       ) : null}
 
+      <DestructiveConfirmModal
+        busy={isIssuing}
+        cancelLabel="취소"
+        confirmLabel={destructiveModal?.confirmLabel}
+        confirmPhrase={destructiveModal?.confirmPhrase}
+        description={destructiveModal?.description ?? ""}
+        onCancel={() => setDestructiveModal(null)}
+        onConfirm={async (reason) => {
+          const current = destructiveModal;
+          if (!current) return;
+          setDestructiveModal(null);
+          await current.run(reason);
+        }}
+        open={!!destructiveModal}
+        reasonRequired={destructiveModal?.reasonRequired}
+        title={destructiveModal?.title ?? ""}
+      />
     </AdminShell>
   );
 }

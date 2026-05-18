@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import AdminShell from "../components/AdminShell";
 import AdminPagination from "../components/AdminPagination";
+import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import { formatCurrency, formatDate } from "@shared-domain/format";
 import { pickupRequestStatusLabel, shipmentStatusLabel } from "@shared-domain/status";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
@@ -112,6 +113,8 @@ function AdminMembersPage() {
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [toast, setToast] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [destructiveModal, setDestructiveModal] = useState(null);
+  const [destructiveBusy, setDestructiveBusy] = useState(false);
   const requestIdRef = useRef(0);
 
   const showToast = useCallback((message, tone = "info") => {
@@ -234,23 +237,38 @@ function AdminMembersPage() {
     setIsDetailLoading(false);
   };
 
-  const handleBlockMember = async (member) => {
+  const handleBlockMember = (member) => {
     if (!member?.user_id) return;
-    const reason = window.prompt(`'${member.display_name || member.email}' 회원을 차단합니다.\n차단 사유 (선택, 회원에게는 보이지 않음):`);
-    if (reason === null) return; // 사용자가 취소
-    const { error } = await supabase.rpc("admin_block_member", {
-      p_user_id: member.user_id,
-      p_reason: reason || null,
+    const label = member.display_name || member.email || `user#${member.user_id}`;
+    setDestructiveModal({
+      title: `회원 차단 — ${label}`,
+      description:
+        `이 회원의 로그인과 신규 활동을 즉시 차단합니다.\n\n` +
+        `· 사유는 회원에게는 표시되지 않으며 내부 기록용입니다.\n` +
+        `· 차단 후에는 "차단 해제" 버튼으로 복구할 수 있습니다.`,
+      confirmPhrase: "차단",
+      reasonRequired: true,
+      reasonMinLength: 5,
+      reasonPlaceholder: "예) 약관 위반 / 결제 분쟁 / 부정 사용 의심",
+      confirmLabel: "차단 실행",
+      run: async (reason) => {
+        setDestructiveBusy(true);
+        const { error } = await supabase.rpc("admin_block_member", {
+          p_user_id: member.user_id,
+          p_reason: reason || null,
+        });
+        setDestructiveBusy(false);
+        if (error) {
+          showToast(error.message || "회원 차단에 실패했습니다.", "error");
+          return;
+        }
+        showToast("회원을 차단했습니다.", "success");
+        await loadMembers();
+        if (selectedMember?.user_id === member.user_id) {
+          await openMemberDetail({ ...member, is_blocked: true });
+        }
+      },
     });
-    if (error) {
-      showToast(error.message || "회원 차단에 실패했습니다.", "error");
-      return;
-    }
-    showToast("회원을 차단했습니다.", "success");
-    await loadMembers();
-    if (selectedMember?.user_id === member.user_id) {
-      await openMemberDetail({ ...member, is_blocked: true });
-    }
   };
 
   const handleUnblockMember = async (member) => {
@@ -709,6 +727,26 @@ function AdminMembersPage() {
           {toast.message}
         </div>
       ) : null}
+
+      <DestructiveConfirmModal
+        busy={destructiveBusy}
+        cancelLabel="취소"
+        confirmLabel={destructiveModal?.confirmLabel}
+        confirmPhrase={destructiveModal?.confirmPhrase}
+        description={destructiveModal?.description ?? ""}
+        onCancel={() => setDestructiveModal(null)}
+        onConfirm={async (reason) => {
+          const current = destructiveModal;
+          if (!current) return;
+          setDestructiveModal(null);
+          await current.run(reason);
+        }}
+        open={!!destructiveModal}
+        reasonMinLength={destructiveModal?.reasonMinLength}
+        reasonPlaceholder={destructiveModal?.reasonPlaceholder}
+        reasonRequired={destructiveModal?.reasonRequired}
+        title={destructiveModal?.title ?? ""}
+      />
     </AdminShell>
   );
 }
