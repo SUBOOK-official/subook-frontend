@@ -368,7 +368,10 @@ function StepAddress({ address, setAddress, savedAddresses, onPrev, onNext, show
 
   const selectSaved = (addr) => {
     setSelectedSavedId(addr.id);
-    setUseNewAddress(false);
+    // 저장된 주소에 상세 주소(동/호수)가 없으면 사용자가 채워야 하므로
+    // 새 주소 입력 폼을 열어 address_line2를 노출한다.
+    const detail = addr.address_line2 || "";
+    setUseNewAddress(!detail.trim());
     // 새 주소 입력 도중 다른 저장 주소를 고르면 잔존 필드(공동현관 비밀번호/이메일 등)가
     // 이전 입력값 그대로 전송될 수 있으므로 모두 빈 값으로 명시 reset.
     setAddress({
@@ -376,7 +379,7 @@ function StepAddress({ address, setAddress, savedAddresses, onPrev, onNext, show
       recipient_phone: addr.recipient_phone,
       postal_code: addr.postal_code,
       address_line1: addr.address_line1,
-      address_line2: addr.address_line2 || "",
+      address_line2: detail,
       memo: addr.delivery_memo || "",
       email: "",
       entrance_password: "",
@@ -535,14 +538,15 @@ function StepAddress({ address, setAddress, savedAddresses, onPrev, onNext, show
             )}
           </div>
           <div className="pickup-form-field">
-            <label className="pickup-field-label">상세 주소</label>
+            <label className="pickup-field-label">상세 주소 *</label>
             <input
               className="pickup-input"
               onChange={(e) => setAddress((p) => ({ ...p, address_line2: e.target.value }))}
-              placeholder="동/호수"
+              placeholder="동/호수 — 예: 101동 1502호"
               ref={detailRef}
               value={address.address_line2}
             />
+            <span className="pickup-field-hint">택배기사가 정확히 찾아갈 수 있도록 동/호수까지 입력해주세요.</span>
           </div>
         </div>
       )}
@@ -637,6 +641,18 @@ function StepAddress({ address, setAddress, savedAddresses, onPrev, onNext, show
         </ul>
         <p className="pickup-info-box__tip">💡 잘 포장하면 교재 상태가 보존되어 더 좋은 등급을 받을 수 있어요!</p>
       </div>
+
+      {!isValid && (
+        <p className="pickup-step__invalid-hint">
+          {!address.recipient_name.trim() || !address.recipient_phone.trim() || !isValidKoreanMobile(address.recipient_phone)
+            ? "수령인 이름과 휴대폰 번호를 정확히 입력해주세요."
+            : !address.postal_code.trim() || !address.address_line1.trim()
+              ? "주소 검색으로 도로명/지번 주소를 선택해주세요."
+              : !address.address_line2.trim()
+                ? "상세 주소(동/호수)를 입력해주세요."
+                : "필수 입력값을 모두 채워주세요."}
+        </p>
+      )}
 
       <div className="pickup-step-actions">
         <button className="pickup-btn pickup-btn--secondary" onClick={onPrev} type="button">← 이전</button>

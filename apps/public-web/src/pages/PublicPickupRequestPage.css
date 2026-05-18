@@ -850,6 +850,18 @@
 
 /* ─── 스텝 액션 ─── */
 
+.pickup-step__invalid-hint {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  color: #c2410c;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+}
+
 .pickup-step-actions {
   display: flex;
   justify-content: space-between;
