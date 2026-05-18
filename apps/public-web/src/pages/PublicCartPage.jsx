@@ -27,7 +27,7 @@ function CartItemRow({ item, isSelected, onToggle, onQuantityChange, onDelete })
   };
 
   const handleIncrease = async () => {
-    if (item.quantity >= 99 || updating) return;
+    if (item.quantity >= 1 || updating) return;
     setUpdating(true);
     await onQuantityChange(item.id, item.quantity + 1);
     setUpdating(false);
@@ -90,7 +90,7 @@ function CartItemRow({ item, isSelected, onToggle, onQuantityChange, onDelete })
             <button
               aria-label="수량 늘리기"
               className="cart-item__qty-btn"
-              disabled={item.quantity >= 99 || updating || item.is_sold_out}
+              disabled={item.quantity >= 1 || updating || item.is_sold_out}
               onClick={handleIncrease}
               type="button"
             >

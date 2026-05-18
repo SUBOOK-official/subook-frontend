@@ -95,7 +95,12 @@ function PublicOrderPage() {
   const { isAuthenticated, isLoading: authLoading, user, profile } = usePublicAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const orderItems = location.state?.items;
+  const initialOrderItems = location.state?.items;
+  // 진입 시점의 cart snapshot을 보관하고, 서버에서 fresh 가격/판매상태를 받아 덮어쓴다.
+  // create_order RPC는 어차피 서버 가격으로 결제하므로, 표시 금액과 실제 결제 금액의
+  // mismatch를 막기 위해 진입 직후 한 번 재검증.
+  const [orderItems, setOrderItems] = useState(initialOrderItems);
+  const [priceDriftWarning, setPriceDriftWarning] = useState(null);
 
   const [shipping, setShipping] = useState({
     recipientName: "",
@@ -133,6 +138,60 @@ function PublicOrderPage() {
       return;
     }
   }, [authLoading, isAuthenticated, navigate, orderItems]);
+
+  // 가격 drift 검증: 진입 시 books 테이블에서 fresh 가격·status를 조회해 표시 금액을 동기화한다.
+  // initialOrderItems가 바뀔 때만 한 번 fetch (재실행 방지).
+  useEffect(() => {
+    if (!isAuthenticated || !initialOrderItems || initialOrderItems.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      const bookIds = initialOrderItems
+        .map((item) => item.bookId)
+        .filter((id) => id !== null && id !== undefined);
+      if (bookIds.length === 0) return;
+
+      const { data, error } = await publicSupabase
+        .from("books")
+        .select("id, price, status, is_public")
+        .in("id", bookIds);
+      if (cancelled || error || !Array.isArray(data)) return;
+
+      const freshMap = new Map(data.map((row) => [String(row.id), row]));
+      const drifts = [];
+      const unavailable = [];
+      const merged = initialOrderItems.map((item) => {
+        const fresh = freshMap.get(String(item.bookId));
+        if (!fresh) {
+          unavailable.push(item.title || "교재");
+          return { ...item, _unavailable: true };
+        }
+        if (fresh.status !== "on_sale" || !fresh.is_public) {
+          unavailable.push(item.title || "교재");
+          return { ...item, _unavailable: true };
+        }
+        if (Number(fresh.price) !== Number(item.price)) {
+          drifts.push({ title: item.title, oldPrice: item.price, newPrice: fresh.price });
+          return { ...item, price: fresh.price };
+        }
+        return item;
+      });
+      setOrderItems(merged.filter((item) => !item._unavailable));
+      if (unavailable.length > 0) {
+        setPriceDriftWarning(
+          `이미 판매되었거나 비공개된 교재가 ${unavailable.length}건 있어 주문에서 제외했습니다: ${unavailable.join(", ")}`,
+        );
+      } else if (drifts.length > 0) {
+        const lines = drifts.map(
+          (d) =>
+            `${d.title}: ${d.oldPrice?.toLocaleString() ?? "?"}원 → ${d.newPrice?.toLocaleString() ?? "?"}원`,
+        );
+        setPriceDriftWarning(`가격이 변동되었습니다.\n${lines.join("\n")}`);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, initialOrderItems]);
 
   useEffect(() => {
     if (!user) return;
@@ -304,6 +363,20 @@ function PublicOrderPage() {
 
         <ContentContainer as="section" className="order-content">
           <h1 className="order-page__title">주문/결제</h1>
+
+          {priceDriftWarning ? (
+            <div className="order-drift-warning" role="alert">
+              <strong>주문 정보가 변경되었습니다.</strong>
+              <pre className="order-drift-warning__detail">{priceDriftWarning}</pre>
+              <button
+                type="button"
+                className="order-drift-warning__close"
+                onClick={() => setPriceDriftWarning(null)}
+              >
+                확인
+              </button>
+            </div>
+          ) : null}
 
           <div className="order-layout">
             <div className="order-main">

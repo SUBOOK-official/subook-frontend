@@ -739,6 +739,12 @@ export function mapOrderToDisplayOrder(order) {
   const canConfirm = order.status === "delivered" && !order.confirmed_at;
   // 사용자는 배송 전 단계(입금대기/결제완료/상품 준비 중)에서 주문 취소 가능
   const canCancel = ["pending", "paid", "preparing"].includes(order.status);
+  // 전자상거래법 7일 청약철회: delivered(미확정)/confirmed에서 환불 신청 가능, 단 이미 신청·환불완료된 건 제외
+  const refundRequestedAt = order.refund_requested_at ?? null;
+  const canRequestRefund =
+    ["delivered", "confirmed"].includes(order.status) &&
+    !refundRequestedAt &&
+    order.status !== "refunded";
   const canReturn = order.status === "delivered" && !order.confirmed_at;
   const canReview = items.some((item) => item.canReview);
 
@@ -757,8 +763,11 @@ export function mapOrderToDisplayOrder(order) {
     autoConfirmDaysRemaining,
     canConfirm,
     canCancel,
+    canRequestRefund,
     canReturn,
     canReview,
+    refundRequestedAt,
+    refundRequestReason: order.refund_request_reason ?? null,
     items,
   };
 }

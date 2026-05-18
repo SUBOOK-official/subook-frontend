@@ -22,6 +22,7 @@ import {
   cancelMemberOrder,
   checkMemberNicknameAvailability,
   confirmMemberPurchase,
+  requestMemberRefund,
   createDisplayName,
   deleteMemberSettlementAccount,
   deleteMemberShippingAddress,
@@ -135,6 +136,9 @@ const initialConfirmState = {
   body: "",
   confirmLabel: "",
   confirmTone: "danger",
+  reasonInput: false,
+  reasonPlaceholder: "",
+  reasonMinLength: 4,
 };
 
 const initialReviewComposerState = {
@@ -196,6 +200,8 @@ function PublicMypagePage() {
   const [busyOrderId, setBusyOrderId] = useState(null);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [confirmState, setConfirmState] = useState(initialConfirmState);
+  const [confirmReason, setConfirmReason] = useState("");
+  const [isConfirmBusy, setIsConfirmBusy] = useState(false);
   const [reviewComposerState, setReviewComposerState] = useState(initialReviewComposerState);
   const [reviewForm, setReviewForm] = useState(initialReviewFormState);
   const [reviewError, setReviewError] = useState("");
@@ -419,6 +425,8 @@ function PublicMypagePage() {
 
   const closeConfirmDialog = () => {
     setConfirmState(initialConfirmState);
+    setConfirmReason("");
+    setIsConfirmBusy(false);
   };
 
   const closeReviewComposer = () => {
@@ -984,6 +992,35 @@ function PublicMypagePage() {
       }
 
       closeConfirmDialog();
+      return;
+    }
+
+    if (confirmState.type === "refund_order") {
+      setBusyOrderId(confirmState.itemId);
+      setIsConfirmBusy(true);
+      const result = await requestMemberRefund({
+        user: effectiveUser,
+        orderId: confirmState.itemId,
+        reason: confirmReason,
+        demoMode: isDemoPreview,
+      });
+      setBusyOrderId(null);
+      setIsConfirmBusy(false);
+
+      if (result.error) {
+        setToastState({
+          message: result.error.message || "환불 신청에 실패했습니다.",
+          tone: "error",
+        });
+        closeConfirmDialog();
+        return;
+      }
+
+      await syncPortalState({
+        message: "환불 신청이 접수되었습니다. 운영자 검토 후 처리됩니다.",
+        tone: "success",
+      });
+      closeConfirmDialog();
     }
   };
 
@@ -1131,10 +1168,41 @@ function PublicMypagePage() {
     navigate("/pickup/new");
   };
 
-  const handleReturnRequest = () => {
-    setToastState({
-      message: "반품 신청 기능은 다음 단계에서 연결됩니다.",
-      tone: "info",
+  const handleReturnRequest = (order) => {
+    if (!order?.id) {
+      setToastState({
+        message: "주문 정보를 찾을 수 없습니다.",
+        tone: "error",
+      });
+      return;
+    }
+    const eligibleStatuses = ["delivered", "confirmed"];
+    if (!eligibleStatuses.includes(order.status)) {
+      setToastState({
+        message: "배송완료 또는 구매확정 상태에서만 환불을 신청할 수 있어요.",
+        tone: "info",
+      });
+      return;
+    }
+    if (order.refund_requested_at || order.refundRequestedAt) {
+      setToastState({
+        message: "이미 환불 신청이 접수된 주문이에요.",
+        tone: "info",
+      });
+      return;
+    }
+    setConfirmReason("");
+    setConfirmState({
+      open: true,
+      type: "refund_order",
+      itemId: order.id,
+      title: "환불을 신청하시겠습니까?",
+      body: "환불 사유를 정확하게 입력해 주세요. 운영자 검토 후 환불이 진행됩니다.",
+      confirmLabel: "환불 신청",
+      confirmTone: "danger",
+      reasonInput: true,
+      reasonPlaceholder: "예: 상품 상태가 검수 등급과 다릅니다 / 단순 변심 등",
+      reasonMinLength: 4,
     });
   };
 
@@ -1549,13 +1617,19 @@ function PublicMypagePage() {
 
       <ConfirmDialog
         body={confirmState.body}
+        busy={isConfirmBusy}
         confirmLabel={confirmState.confirmLabel}
         confirmTone={confirmState.confirmTone}
         onClose={closeConfirmDialog}
         onConfirm={() => {
           void handleConfirmAction();
         }}
+        onReasonChange={setConfirmReason}
         open={confirmState.open}
+        reasonInput={confirmState.reasonInput}
+        reasonMinLength={confirmState.reasonMinLength}
+        reasonPlaceholder={confirmState.reasonPlaceholder}
+        reasonValue={confirmReason}
         title={confirmState.title}
       />
       {memberGateDialog}
@@ -2303,15 +2377,6 @@ function PurchasesView({
           <section className="public-mypage-order-group" key={group.dateKey}>
             <header className="public-mypage-order-group__head">
               <h2 className="public-mypage-order-group__date">{group.dateLabel}</h2>
-              {group.orders[0] ? (
-                <button
-                  className="public-mypage-order-group__detail"
-                  onClick={() => onRequestReturn?.()}
-                  type="button"
-                >
-                  주문 상세
-                </button>
-              ) : null}
             </header>
 
             <div className="public-mypage-order-cards">
@@ -2379,6 +2444,21 @@ function PurchasesView({
                         >
                           {busyOrderId === order.id ? "처리 중..." : "구매확정"}
                         </button>
+                      ) : null}
+                      {order.canRequestRefund ? (
+                        <button
+                          className="public-mypage-purchase-card__btn"
+                          disabled={busyOrderId === order.id}
+                          onClick={() => onRequestReturn?.(order)}
+                          type="button"
+                        >
+                          환불 신청
+                        </button>
+                      ) : null}
+                      {order.refundRequestedAt ? (
+                        <span className="public-mypage-purchase-card__refund-status">
+                          환불 신청 접수됨
+                        </span>
                       ) : null}
                     </div>
                   </article>

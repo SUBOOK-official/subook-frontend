@@ -167,21 +167,41 @@ function ConfirmDialog({
   onConfirm,
   open,
   title,
+  reasonInput,
+  reasonValue,
+  onReasonChange,
+  reasonPlaceholder,
+  reasonMinLength = 4,
+  busy = false,
 }) {
   const confirmClassName =
     confirmTone === "danger"
       ? "public-auth-button public-mypage-button--danger"
       : "public-auth-button public-auth-button--primary";
 
+  const trimmedReason = (reasonValue ?? "").trim();
+  const isReasonTooShort = reasonInput && trimmedReason.length < reasonMinLength;
+  const isConfirmDisabled = busy || isReasonTooShort;
+
   return (
     <ResponsiveSheet
       actions={
         <>
-          <button className="public-auth-button public-auth-button--secondary" onClick={onClose} type="button">
+          <button
+            className="public-auth-button public-auth-button--secondary"
+            disabled={busy}
+            onClick={onClose}
+            type="button"
+          >
             취소
           </button>
-          <button className={confirmClassName} onClick={onConfirm} type="button">
-            {confirmLabel}
+          <button
+            className={confirmClassName}
+            disabled={isConfirmDisabled}
+            onClick={onConfirm}
+            type="button"
+          >
+            {busy ? "처리 중..." : confirmLabel}
           </button>
         </>
       }
@@ -191,6 +211,27 @@ function ConfirmDialog({
       title={title}
     >
       <p className="public-mypage-confirm__body">{body}</p>
+      {reasonInput ? (
+        <div className="public-mypage-confirm__reason">
+          <label className="public-mypage-confirm__reason-label" htmlFor="public-mypage-confirm-reason">
+            사유 입력 (최소 {reasonMinLength}자)
+          </label>
+          <textarea
+            id="public-mypage-confirm-reason"
+            className="public-mypage-confirm__reason-input"
+            disabled={busy}
+            onChange={(event) => onReasonChange?.(event.target.value)}
+            placeholder={reasonPlaceholder ?? "사유를 입력해 주세요."}
+            rows={4}
+            value={reasonValue ?? ""}
+          />
+          {isReasonTooShort ? (
+            <p className="public-mypage-confirm__reason-hint" role="alert">
+              사유는 {reasonMinLength}자 이상 입력해주세요.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
     </ResponsiveSheet>
   );
 }

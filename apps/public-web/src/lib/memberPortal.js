@@ -1150,6 +1150,48 @@ async function confirmMemberPurchase({ user, orderId, demoMode = false }) {
   };
 }
 
+async function requestMemberRefund({ user, orderId, reason, demoMode = false }) {
+  if (!user) {
+    return {
+      error: new Error("로그인된 회원 정보를 찾지 못했습니다."),
+      source: "fallback",
+    };
+  }
+
+  const trimmedReason = normalizeText(reason);
+  if (trimmedReason.length < 4) {
+    return {
+      error: new Error("환불 사유는 4자 이상 입력해 주세요."),
+      source: "validation",
+    };
+  }
+
+  if (demoMode) {
+    return { error: null, source: "local" };
+  }
+
+  if (!isSupabaseConfigured || !supabase || typeof orderId !== "number") {
+    return {
+      error: new Error("서비스에 연결할 수 없습니다."),
+      source: "fallback",
+    };
+  }
+
+  const { error } = await supabase.rpc("request_member_refund", {
+    p_order_id: orderId,
+    p_reason: trimmedReason,
+  });
+
+  if (error) {
+    if (shouldUseLocalSchemaFallback(error)) {
+      return { error: new Error("환불 신청 기능 준비 중입니다. 곧 사용하실 수 있어요."), source: "fallback" };
+    }
+    return { error, source: "fallback" };
+  }
+
+  return { error: null, source: "supabase" };
+}
+
 async function cancelMemberOrder({ user, orderId, demoMode = false }) {
   if (!user) {
     return {
@@ -1375,6 +1417,7 @@ export {
   deleteMemberShippingAddress,
   cancelMemberOrder,
   loadMemberPortalSnapshot,
+  requestMemberRefund,
   requestMemberWithdrawal,
   saveMemberProfile,
   saveMemberSettlementAccount,

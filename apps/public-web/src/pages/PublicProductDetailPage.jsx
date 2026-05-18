@@ -17,7 +17,9 @@ import {
 } from "../lib/storefront";
 import "./PublicProductDetailPage.css";
 
-const FALLBACK_MAX_QUANTITY = 9;
+// 단일재고 모델(1 books row = 1 physical book)이므로 사용자가 1권만 살 수 있다.
+// 추후 다중 재고 도입 시 이 상수만 풀면 된다.
+const FALLBACK_MAX_QUANTITY = 1;
 const RELATED_RAIL_LIMIT = 12;
 const SCROLL_EDGE_THRESHOLD_PX = 4;
 
@@ -53,10 +55,9 @@ function getAvailabilitySnapshot(item) {
     Boolean(item.isSoldOut) ||
     item.status === "sold_out" ||
     normalizedAvailableCount === 0;
-  const maxQuantity =
-    normalizedAvailableCount !== null && normalizedAvailableCount > 0
-      ? normalizedAvailableCount
-      : FALLBACK_MAX_QUANTITY;
+  // 단일재고 모델: option별 availableCount와 무관하게 한 books row는 1권만 판매됨.
+  // 사용자는 항상 1권만 주문 가능. quantity stepper UX는 유지하되 최대값 1로 캡.
+  const maxQuantity = 1;
 
   return {
     availableCount: normalizedAvailableCount,
@@ -611,7 +612,7 @@ function PublicProductDetailPage() {
     const { data: cartData, error: cartError } = await addToCart({
       bookId,
       productId: product?.productId ?? null,
-      quantity,
+      quantity: 1,
       productMeta: {
         title: product?.title,
         subject: product?.subject,
@@ -636,12 +637,17 @@ function PublicProductDetailPage() {
   const handleBuyNow = async () => {
     if (!canPurchase) return;
     if (!requireMember("buyNow")) return;
-    const bookId = selectedOption?.id ?? product?.id;
-    if (!bookId) return;
+    // selectedOption.id 는 books.id. product.id로 fallback하면 RPC가 books.id를 못 찾고
+    // 'Book X is not available' 오류 → 사용자 좌절. 옵션 없으면 명시적으로 안내한다.
+    const bookId = selectedOption?.id;
+    if (!bookId) {
+      showCartToast("옵션이 선택되지 않았습니다.", "error");
+      return;
+    }
     const orderPayload = [{
       bookId,
       productId: product?.productId ?? null,
-      quantity,
+      quantity: 1,
       title: product?.title ?? "",
       optionLabel: activeDisplay?.option ?? activeDisplay?.conditionGradeLabel ?? "",
       conditionGrade: activeDisplay?.conditionGrade ?? "",

@@ -71,15 +71,16 @@ export default async function handler(req, res) {
 
     // 동시에 너무 많이 보내지 않도록 직렬 (또는 작은 chunk 병렬)
     for (const item of items) {
-      // 발송 후보: phone 또는 email 있어야 함
-      if (!item.user_phone && !item.user_email) {
+      // send-notification은 recipientPhone 필수 (이메일 경로 미구현).
+      // phone 없는 회원은 사이트 내 알림 센터만 받도록 mark는 하되 별도 처리.
+      if (!item.user_phone) {
         failed += 1;
         continue;
       }
 
       const payload = {
         notificationType: "restock",
-        recipientPhone: item.user_phone || "",
+        recipientPhone: item.user_phone,
         recipientName: item.user_name || "회원",
         recipientUserId: item.user_id,
         refType: "product",

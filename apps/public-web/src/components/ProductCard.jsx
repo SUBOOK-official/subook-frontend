@@ -70,10 +70,11 @@ function ProductCard({
     setImageStatus(coverImageUrl ? "loading" : "fallback");
     if (!coverImageUrl) return undefined;
     // Supabase Storage 응답이 끊겨 onLoad/onError가 영영 안 불리고 무한 로딩에 박히는
-    // 케이스 방지 — 8초 안에 결과 없으면 placeholder로 fallback.
+    // 케이스 방지 — 3초 안에 결과 없으면 placeholder로 fallback (모바일 LTE 환경에서
+    // 8초 회색 박스가 첫인상을 망치는 문제 방어).
     const timer = setTimeout(() => {
       setImageStatus((current) => (current === "loading" ? "fallback" : current));
-    }, 8000);
+    }, 3000);
     return () => clearTimeout(timer);
   }, [coverImageUrl]);
 

@@ -483,7 +483,8 @@
   .order-sidebar__card {
     border-radius: 16px 16px 0 0;
     box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
-    padding: 16px 20px;
+    /* iOS home-indicator(safe-area)에 결제 버튼이 가려져 탭 시 홈으로 빠지는 문제 방어 */
+    padding: 16px 20px calc(16px + env(safe-area-inset-bottom)) 20px;
   }
 
   .order-sidebar__title {
@@ -713,4 +714,41 @@
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
+}
+
+/* ── 가격 변동 경고 배너 (Phase 2 P0 launch fix) ── */
+.order-drift-warning {
+  margin: 12px 0 20px 0;
+  padding: 14px 16px;
+  background: #fef3c7;
+  border: 1px solid #f59e0b;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.order-drift-warning > strong {
+  color: #92400e;
+  font-size: 14px;
+}
+
+.order-drift-warning__detail {
+  margin: 0;
+  font-size: 13px;
+  color: #92400e;
+  white-space: pre-wrap;
+  font-family: inherit;
+}
+
+.order-drift-warning__close {
+  align-self: flex-end;
+  padding: 6px 12px;
+  background: #fff;
+  border: 1px solid #f59e0b;
+  border-radius: 6px;
+  color: #92400e;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 13px;
 }

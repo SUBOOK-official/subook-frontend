@@ -1307,3 +1307,51 @@
     grid-template-columns: 1fr 1fr;
   }
 }
+
+/* ── 환불 신청 상태 표시 + ConfirmDialog reason 입력 (Phase 2 P0 launch fix) ── */
+.public-mypage-purchase-card__refund-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  background: #fef3c7;
+  color: #92400e;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.public-mypage-confirm__reason {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.public-mypage-confirm__reason-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--public-ds-text, #1f2937);
+}
+
+.public-mypage-confirm__reason-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--public-ds-border, #d1d5db);
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 80px;
+}
+
+.public-mypage-confirm__reason-input:focus {
+  outline: none;
+  border-color: var(--public-primary, #1B3A5C);
+  box-shadow: 0 0 0 2px rgba(27, 58, 92, 0.1);
+}
+
+.public-mypage-confirm__reason-hint {
+  font-size: 12px;
+  color: #dc2626;
+  margin: 0;
+}
