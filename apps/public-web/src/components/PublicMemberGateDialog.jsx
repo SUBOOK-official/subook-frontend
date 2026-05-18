@@ -63,7 +63,10 @@ function PublicMemberGateDialog({ onClose, onLogin, onSignup, open }) {
       return;
     }
 
-    if (offsetY > 120) {
+    // 화면 높이의 25%를 넘게 끌어내리면 닫는다 — 디바이스 크기에 비례하므로
+    // 작은 화면(예: iPhone SE)에서도 동작이 자연스럽다.
+    const closeThreshold = window.innerHeight * 0.25;
+    if (offsetY > closeThreshold) {
       onClose();
       return;
     }

@@ -12,6 +12,13 @@ const POLICY_TITLES = {
   refund: "환불 정책",
 };
 
+// 정책별 시행일 — 각 문서 개정 시 여기만 갱신.
+const POLICY_EFFECTIVE_DATES = {
+  privacy: "2026년 4월 12일",
+  terms: "2026년 4월 12일",
+  refund: "2026년 4월 12일",
+};
+
 const termsSections = [
   {
     title: "서비스 이용",
@@ -134,7 +141,7 @@ function PublicPolicyPage({ type = "privacy" }) {
             <article className="public-policy-document">
               <p className="public-policy-eyebrow">SUBOOK Policy</p>
               <h1>{title}</h1>
-              <p className="public-policy-updated">시행일: 2026년 4월 12일</p>
+              <p className="public-policy-updated">시행일: {POLICY_EFFECTIVE_DATES[pageType] ?? POLICY_EFFECTIVE_DATES.privacy}</p>
 
               <div className="public-policy-section-list">
                 {sections.map((section) => (

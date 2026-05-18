@@ -69,7 +69,7 @@ function PublicAgreementDialog({ documentItem, onClose, open }) {
         </div>
         <div className="public-sheet__footer">
           <button className="public-auth-button public-auth-button--primary" onClick={onClose} type="button">
-            확인
+            닫기
           </button>
         </div>
       </section>

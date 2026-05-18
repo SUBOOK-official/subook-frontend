@@ -164,6 +164,14 @@ function ResponsiveSheet({ actions, children, eyebrow, onClose, open, title }) {
   );
 }
 
+// P1-8: 환불 사유 카테고리. 단순 변심은 전자상거래법상 배송비 사용자 부담 안내 추가.
+const REFUND_REASON_CATEGORIES = [
+  { value: "defect", label: "상품 하자/등급 불일치" },
+  { value: "change_of_mind", label: "단순 변심" },
+  { value: "wrong_item", label: "다른 상품 도착" },
+  { value: "other", label: "기타" },
+];
+
 function ConfirmDialog({
   body,
   confirmLabel,
@@ -177,6 +185,8 @@ function ConfirmDialog({
   onReasonChange,
   reasonPlaceholder,
   reasonMinLength = 4,
+  reasonCategoryValue,
+  onReasonCategoryChange,
   busy = false,
 }) {
   const confirmClassName =
@@ -186,7 +196,11 @@ function ConfirmDialog({
 
   const trimmedReason = (reasonValue ?? "").trim();
   const isReasonTooShort = reasonInput && trimmedReason.length < reasonMinLength;
-  const isConfirmDisabled = busy || isReasonTooShort;
+  // 카테고리 필드를 사용하는 경우(onReasonCategoryChange 제공) 선택도 필수.
+  const requireCategory = Boolean(onReasonCategoryChange);
+  const isCategoryMissing = requireCategory && !reasonCategoryValue;
+  const isConfirmDisabled = busy || isReasonTooShort || isCategoryMissing;
+  const isChangeOfMind = reasonCategoryValue === "change_of_mind";
 
   return (
     <ResponsiveSheet
@@ -218,8 +232,39 @@ function ConfirmDialog({
       <p className="public-mypage-confirm__body">{body}</p>
       {reasonInput ? (
         <div className="public-mypage-confirm__reason">
+          {requireCategory ? (
+            <>
+              <fieldset className="public-mypage-confirm__category">
+                <legend className="public-mypage-confirm__reason-label">환불 사유 분류</legend>
+                {REFUND_REASON_CATEGORIES.map((opt) => (
+                  <label className="public-mypage-confirm__category-option" key={opt.value}>
+                    <input
+                      checked={reasonCategoryValue === opt.value}
+                      disabled={busy}
+                      name="public-mypage-refund-category"
+                      onChange={() => onReasonCategoryChange(opt.value)}
+                      type="radio"
+                      value={opt.value}
+                    />
+                    <span>{opt.label}</span>
+                  </label>
+                ))}
+              </fieldset>
+              {isChangeOfMind ? (
+                <p className="public-mypage-confirm__reason-hint public-mypage-confirm__reason-hint--info">
+                  단순 변심은 전자상거래법상 왕복 배송비를 구매자가 부담합니다.
+                </p>
+              ) : null}
+              {isCategoryMissing ? (
+                <p className="public-mypage-confirm__reason-hint" role="alert">
+                  환불 사유를 선택해주세요.
+                </p>
+              ) : null}
+            </>
+          ) : null}
+
           <label className="public-mypage-confirm__reason-label" htmlFor="public-mypage-confirm-reason">
-            사유 입력 (최소 {reasonMinLength}자)
+            상세 사유 (최소 {reasonMinLength}자)
           </label>
           <textarea
             id="public-mypage-confirm-reason"

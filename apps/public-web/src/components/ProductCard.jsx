@@ -6,6 +6,7 @@ import {
   getProductCardPrice,
   getProductCardTitle,
   getStoreCardCoverImageUrl,
+  getStoreCardMetaLine,
   getStoreCardTags,
 } from "../lib/publicStoreCards";
 
@@ -60,6 +61,7 @@ function ProductCard({
   const coverImageUrl = getStoreCardCoverImageUrl(product);
   const { discountRate, originalPrice, price } = getProductCardPrice(product);
   const tags = getStoreCardTags(product);
+  const metaLine = getStoreCardMetaLine(product);
   const saleLabel = price !== null ? formatCurrency(price) : "가격 미정";
   const [imageStatus, setImageStatus] = useState(coverImageUrl ? "loading" : "fallback");
   const showImage = Boolean(coverImageUrl) && imageStatus !== "fallback";
@@ -132,6 +134,22 @@ function ProductCard({
         ) : null}
 
         <h3 className="public-product-card__title">{title}</h3>
+
+        {metaLine.length > 0 ? (
+          <p className="public-product-card__meta-line">
+            {metaLine.map((segment, index) => (
+              <span
+                className={`public-product-card__meta-segment public-product-card__meta-segment--${segment.tone}`}
+                key={`${product.id}-meta-${segment.key}`}
+              >
+                {index > 0 ? (
+                  <span aria-hidden="true" className="public-product-card__meta-divider">·</span>
+                ) : null}
+                {segment.label}
+              </span>
+            ))}
+          </p>
+        ) : null}
 
         <div className="public-product-card__price-row">
           {discountRate !== null ? (

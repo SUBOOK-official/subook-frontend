@@ -107,7 +107,7 @@ function PublicSignupPage() {
   const hasRequiredAgreements = agreementItems
     .filter((item) => item.required)
     .every((item) => agreements[item.key]);
-  const isAllAgreed = agreementItems.every((item) => agreements[item.key]);
+  const isRequiredAllAgreed = hasRequiredAgreements;
   const isEmailAvailable = emailStatus.state === "available" && emailStatus.email === normalizedEmail;
   const canSubmit =
     !hasSession &&
@@ -265,17 +265,13 @@ function PublicSignupPage() {
     }));
   };
 
-  const handleToggleAllAgreements = () => {
-    const nextValue = !isAllAgreed;
-    setAgreements(
-      agreementItems.reduce(
-        (result, item) => ({
-          ...result,
-          [item.key]: nextValue,
-        }),
-        {},
-      ),
-    );
+  const handleToggleRequiredAgreements = () => {
+    const nextValue = !isRequiredAllAgreed;
+    setAgreements((currentValue) => ({
+      ...currentValue,
+      terms: nextValue,
+      privacy: nextValue,
+    }));
     setFieldErrors((currentValue) => ({
       ...currentValue,
       agreements: "",
@@ -465,6 +461,7 @@ function PublicSignupPage() {
         <div className="public-auth-shell">
           <section aria-labelledby="public-signup-heading" className="public-auth-card public-auth-card--signup">
             <button
+              aria-label="이전 페이지로 돌아가기"
               className="public-auth-back-link"
               onClick={() => {
                 if (window.history.length > 1) {
@@ -476,8 +473,18 @@ function PublicSignupPage() {
               }}
               type="button"
             >
-              ← 뒤로
+              <span aria-hidden="true" className="public-auth-back-link__chevron">
+                ‹
+              </span>
+              <span>뒤로</span>
             </button>
+
+            <div className="public-auth-brand-lockup">
+              <Link className="public-auth-brand" to="/">
+                SUBOOK
+              </Link>
+              <p className="public-auth-brand-lockup__tagline">수능 교재, 똑똑하게 거래</p>
+            </div>
 
             <div className="public-auth-card__heading public-auth-card__heading--left">
               <h1 className="public-auth-card__title" id="public-signup-heading">
@@ -487,6 +494,14 @@ function PublicSignupPage() {
                 기본 정보와 약관 동의를 완료하면 바로 회원가입을 진행할 수 있어요.
               </p>
             </div>
+
+            <PublicOAuthButtons
+              contextLabel="회원가입"
+              dividerLabel="또는 이메일로 계속"
+              dividerPosition="bottom"
+              placement="top"
+              redirectTo={`${window.location.origin}/auth/callback?next=${encodeURIComponent("/mypage")}`}
+            />
 
             {hasSession && isAdminAccount ? (
               <div className="public-auth-alert public-auth-alert--info public-auth-alert--action">
@@ -556,14 +571,19 @@ function PublicSignupPage() {
                   />
                   <button
                     aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
-                    className="public-auth-field-row__toggle"
+                    className="public-auth-field-row__toggle public-auth-field-row__toggle--icon"
                     onClick={() => setShowPassword((currentValue) => !currentValue)}
                     type="button"
                   >
-                    {showPassword ? "숨기기" : "보기"}
+                    <span aria-hidden="true">{showPassword ? "🙈" : "👁"}</span>
+                    <span className="public-auth-sr-only">{showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}</span>
                   </button>
                 </div>
-                <div className="public-password-strength">
+                <div
+                  aria-live="polite"
+                  className="public-password-strength"
+                  role="status"
+                >
                   <div className="public-password-strength__summary">
                     <span>비밀번호 강도</span>
                     <strong className={`public-password-strength__label is-${passwordStrength.tone}`}>
@@ -577,15 +597,28 @@ function PublicSignupPage() {
                     />
                   </div>
                   <div className="public-password-strength__rules">
-                    {passwordStrength.rules.map((rule) => (
-                      <span
-                        className={`public-password-strength__rule ${rule.satisfied ? "is-satisfied" : ""}`}
-                        key={rule.key}
-                      >
-                        <span aria-hidden="true">{rule.satisfied ? "✓" : "•"}</span>
-                        <span>{rule.label}</span>
-                      </span>
-                    ))}
+                    {passwordStrength.rules.map((rule) => {
+                      const tagLabel = rule.required ? "(필수)" : "(권장)";
+                      const ariaLabel = `${rule.label} ${tagLabel} ${rule.satisfied ? "충족" : "미충족"}`;
+
+                      return (
+                        <span
+                          aria-label={ariaLabel}
+                          className={`public-password-strength__rule ${rule.satisfied ? "is-satisfied" : ""} ${
+                            rule.required
+                              ? "public-password-strength__rule--required"
+                              : "public-password-strength__rule--recommended"
+                          }`}
+                          key={rule.key}
+                        >
+                          <span aria-hidden="true">{rule.satisfied ? "✓" : "•"}</span>
+                          <span>
+                            {rule.label}{" "}
+                            <span className="public-password-strength__rule-tag">{tagLabel}</span>
+                          </span>
+                        </span>
+                      );
+                    })}
                   </div>
                 </div>
                 {fieldErrors.password ? (
@@ -665,42 +698,85 @@ function PublicSignupPage() {
               </div>
 
               <div className={`public-auth-agreement-box ${fieldErrors.agreements ? "is-error" : ""}`}>
+                {/*
+                  다크 패턴 해소: "전체 동의" 토글은 필수 약관만 한 번에 켜고 끄도록 변경.
+                  마케팅 수신은 사용자가 명시적으로 선택해야 함 — 별도 그룹으로 분리.
+                */}
                 <label className="public-auth-agreement-box__all">
                   <span className="public-auth-checkmark">
-                    <input checked={isAllAgreed} onChange={handleToggleAllAgreements} type="checkbox" />
+                    <input checked={isRequiredAllAgreed} onChange={handleToggleRequiredAgreements} type="checkbox" />
                     <span aria-hidden="true" className="public-auth-checkmark__indicator">
                       ✓
                     </span>
                   </span>
-                  <span>전체 동의</span>
+                  <span>
+                    필수 약관 전체 동의
+                    <span className="public-auth-agreement-box__all-hint"> (선택 항목 제외)</span>
+                  </span>
                 </label>
 
                 <div aria-hidden="true" className="public-auth-agreement-box__divider" />
 
                 <div className="public-auth-agreement-box__list">
-                  {agreementItems.map((item) => (
-                    <div className="public-auth-agreement-box__item" key={item.key}>
-                      <label className="public-auth-agreement-box__item-label">
-                        <span className="public-auth-checkmark">
-                          <input checked={agreements[item.key]} onChange={() => handleToggleAgreement(item.key)} type="checkbox" />
-                          <span aria-hidden="true" className="public-auth-checkmark__indicator">
-                            ✓
+                  {agreementItems
+                    .filter((item) => item.required)
+                    .map((item) => (
+                      <div className="public-auth-agreement-box__item" key={item.key}>
+                        <label className="public-auth-agreement-box__item-label">
+                          <span className="public-auth-checkmark">
+                            <input checked={agreements[item.key]} onChange={() => handleToggleAgreement(item.key)} type="checkbox" />
+                            <span aria-hidden="true" className="public-auth-checkmark__indicator">
+                              ✓
+                            </span>
                           </span>
-                        </span>
-                        <span className="public-auth-agreement-box__item-copy">
-                          <span className="public-auth-agreement-box__item-tag">{item.tagLabel}</span>
-                          <span>{item.label}</span>
-                        </span>
-                      </label>
-                      <button
-                        className="public-auth-agreement-box__view"
-                        onClick={() => setActiveAgreementKey(item.key)}
-                        type="button"
-                      >
-                        보기
-                      </button>
-                    </div>
-                  ))}
+                          <span className="public-auth-agreement-box__item-copy">
+                            <span className="public-auth-agreement-box__item-tag public-auth-agreement-box__item-tag--required">
+                              {item.tagLabel}
+                            </span>
+                            <span>{item.label}</span>
+                          </span>
+                        </label>
+                        <button
+                          className="public-auth-agreement-box__view"
+                          onClick={() => setActiveAgreementKey(item.key)}
+                          type="button"
+                        >
+                          보기
+                        </button>
+                      </div>
+                    ))}
+                </div>
+
+                <div aria-hidden="true" className="public-auth-agreement-box__divider" />
+
+                <div className="public-auth-agreement-box__list">
+                  {agreementItems
+                    .filter((item) => !item.required)
+                    .map((item) => (
+                      <div className="public-auth-agreement-box__item" key={item.key}>
+                        <label className="public-auth-agreement-box__item-label">
+                          <span className="public-auth-checkmark">
+                            <input checked={agreements[item.key]} onChange={() => handleToggleAgreement(item.key)} type="checkbox" />
+                            <span aria-hidden="true" className="public-auth-checkmark__indicator">
+                              ✓
+                            </span>
+                          </span>
+                          <span className="public-auth-agreement-box__item-copy">
+                            <span className="public-auth-agreement-box__item-tag public-auth-agreement-box__item-tag--optional">
+                              {item.tagLabel}
+                            </span>
+                            <span>{item.label}</span>
+                          </span>
+                        </label>
+                        <button
+                          className="public-auth-agreement-box__view"
+                          onClick={() => setActiveAgreementKey(item.key)}
+                          type="button"
+                        >
+                          보기
+                        </button>
+                      </div>
+                    ))}
                 </div>
               </div>
               {fieldErrors.agreements ? (
@@ -718,11 +794,6 @@ function PublicSignupPage() {
                 )}
               </button>
             </form>
-
-            <PublicOAuthButtons
-              contextLabel="회원가입"
-              redirectTo={`${window.location.origin}/auth/callback?next=${encodeURIComponent("/mypage")}`}
-            />
 
             <div className="public-auth-link-row public-auth-link-row--single">
               <Link className="public-auth-link-row__link" to="/login">

@@ -182,6 +182,159 @@
   font-size: 13px;
   line-height: 1.5;
   margin-top: 4px;
+  display: block;
+}
+
+.pickup-field-hint--warn {
+  color: #b45309;
+  font-weight: 600;
+}
+
+/* ─── 작성 중 신청서 복구 배너 ─── */
+.pickup-draft-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  border: 1px solid #bae6fd;
+  background: #f0f9ff;
+  border-radius: 12px;
+  flex-wrap: wrap;
+}
+
+.pickup-draft-banner__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 14px;
+  color: var(--public-ds-text);
+  line-height: 1.5;
+  min-width: 0;
+}
+
+.pickup-draft-banner__text strong {
+  color: #0c4a6e;
+  font-weight: 700;
+}
+
+.pickup-draft-banner__actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* ─── 신청 전 정책 사전 노출 카드 ─── */
+.pickup-policy-preview {
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+}
+
+.pickup-policy-preview__title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #92400e;
+  margin: 0 0 8px;
+}
+
+.pickup-policy-preview__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--public-ds-text);
+  line-height: 1.55;
+}
+
+.pickup-policy-preview__list strong {
+  color: #b45309;
+  margin-right: 4px;
+}
+
+/* ─── 약관 동의 (sub) ─── */
+.pickup-policy-agree {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pickup-checkbox-label--all {
+  background: #f0f9ff;
+  border-color: #bae6fd;
+  font-weight: 600;
+}
+
+.pickup-policy-agree__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pickup-checkbox-label--sub {
+  padding: 10px 14px;
+  font-size: 13px;
+}
+
+.pickup-policy-agree__toggle {
+  align-self: flex-start;
+  font-size: 13px;
+}
+
+/* ─── 비밀번호 토글 ─── */
+.pickup-input-with-toggle {
+  position: relative;
+}
+
+.pickup-input-with-toggle .pickup-input {
+  padding-right: 64px;
+}
+
+.pickup-input-toggle {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--public-ds-border);
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--public-ds-text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.pickup-input-toggle:hover {
+  border-color: var(--public-ds-accent);
+  color: var(--public-ds-accent);
+}
+
+/* ─── 모달 footer 3열 (저장하고 계속 추가 버튼 추가용) ─── */
+.pickup-modal__footer--3col .pickup-btn {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ─── 검색 결과 z-index (모바일 키보드 가림 방지) ─── */
+.pickup-search-results {
+  position: relative;
+  z-index: 5;
+}
+
+/* ─── 작은 버튼 ─── */
+.pickup-btn--sm {
+  min-height: 36px;
+  padding: 0 12px;
+  font-size: 13px;
 }
 
 .pickup-input {

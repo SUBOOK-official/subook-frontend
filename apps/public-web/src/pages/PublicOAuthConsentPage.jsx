@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@shared-supabase/publicSupabaseClient";
 import PublicAgreementDialog from "../components/PublicAgreementDialog";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { usePageMeta } from "../lib/usePageMeta";
+import { formatPhoneNumber, hasValidPhoneNumber } from "../lib/publicAuthFormUtils";
 
 const agreementItems = [
   {
@@ -44,6 +45,44 @@ const agreementItems = [
   },
 ];
 
+function pickInitialName(user) {
+  if (!user) return "";
+  const metadata = user.user_metadata ?? {};
+
+  // 카카오/구글 OAuth가 제공하는 후보 필드들. 우선순위 높은 순서.
+  const candidates = [
+    metadata.name,
+    metadata.full_name,
+    metadata.user_name,
+    metadata.preferred_username,
+    metadata.nickname,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate.trim();
+    }
+  }
+
+  return "";
+}
+
+function pickInitialPhone(user) {
+  if (!user) return "";
+  const metadata = user.user_metadata ?? {};
+
+  // 카카오는 phone_number(또는 user.phone), 구글은 일반적으로 비제공.
+  const candidates = [metadata.phone_number, metadata.phone, user.phone];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) {
+      return formatPhoneNumber(candidate.trim());
+    }
+  }
+
+  return "";
+}
+
 function PublicOAuthConsentPage() {
   usePageMeta({
     title: "서비스 이용 약관 동의",
@@ -53,7 +92,8 @@ function PublicOAuthConsentPage() {
 
   const location = useLocation();
   const navigate = useNavigate();
-  const { isLoading, hasSession, needsOAuthConsent, isAuthenticated, refreshProfile, signOut } = usePublicAuth();
+  const { isLoading, hasSession, needsOAuthConsent, isAuthenticated, refreshProfile, signOut, user, profile } =
+    usePublicAuth();
 
   const search = new URLSearchParams(location.search);
   const next = search.get("next") || "/";
@@ -63,11 +103,24 @@ function PublicOAuthConsentPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [formValues, setFormValues] = useState({ name: "", phone: "" });
+  const [fieldErrors, setFieldErrors] = useState({ name: "", phone: "" });
 
-  const isAllAgreed = agreementItems.every((item) => agreements[item.key]);
-  const hasRequiredAgreements = agreementItems
+  // 카카오/구글 메타데이터에서 이름·연락처 prefill (가능한 경우).
+  const initialName = useMemo(() => pickInitialName(user) || profile?.name || "", [user, profile]);
+  const initialPhone = useMemo(() => pickInitialPhone(user) || profile?.phone || "", [user, profile]);
+
+  useEffect(() => {
+    setFormValues((current) => ({
+      name: current.name || initialName,
+      phone: current.phone || initialPhone,
+    }));
+  }, [initialName, initialPhone]);
+
+  const isRequiredAllAgreed = agreementItems
     .filter((item) => item.required)
     .every((item) => agreements[item.key]);
+  const hasRequiredAgreements = isRequiredAllAgreed;
 
   // 이미 인증 완료된 사용자는 next로 즉시 이동
   useEffect(() => {
@@ -86,13 +139,42 @@ function PublicOAuthConsentPage() {
     setErrorMessage("");
   };
 
-  const handleToggleAllAgreements = () => {
-    const nextValue = !isAllAgreed;
-    setAgreements({ terms: nextValue, privacy: nextValue, marketing: nextValue });
+  const handleToggleRequiredAgreements = () => {
+    const nextValue = !isRequiredAllAgreed;
+    setAgreements((prev) => ({
+      ...prev,
+      terms: nextValue,
+      privacy: nextValue,
+    }));
+    setErrorMessage("");
+  };
+
+  const handleChangeValue = (key) => (event) => {
+    const rawValue = event.target.value;
+    const nextValue = key === "phone" ? formatPhoneNumber(rawValue) : rawValue;
+    setFormValues((current) => ({ ...current, [key]: nextValue }));
+    setFieldErrors((current) => ({ ...current, [key]: "" }));
     setErrorMessage("");
   };
 
   const activeAgreement = agreementItems.find((item) => item.key === activeAgreementKey) ?? null;
+
+  const validateFields = () => {
+    const nextErrors = { name: "", phone: "" };
+
+    if (!formValues.name.trim()) {
+      nextErrors.name = "필수 항목입니다.";
+    }
+
+    if (!formValues.phone.trim()) {
+      nextErrors.phone = "필수 항목입니다.";
+    } else if (!hasValidPhoneNumber(formValues.phone)) {
+      nextErrors.phone = "연락처 형식을 확인해 주세요.";
+    }
+
+    setFieldErrors(nextErrors);
+    return !nextErrors.name && !nextErrors.phone;
+  };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -102,6 +184,9 @@ function PublicOAuthConsentPage() {
       setErrorMessage("필수 약관에 모두 동의해 주세요.");
       return;
     }
+    if (!validateFields()) {
+      return;
+    }
     if (!supabase) {
       setErrorMessage("일시적으로 동의 처리가 어렵습니다. 잠시 후 다시 시도해 주세요.");
       return;
@@ -109,14 +194,39 @@ function PublicOAuthConsentPage() {
 
     setIsSubmitting(true);
     try {
-      const { error } = await supabase.rpc("complete_oauth_signup", {
+      // TODO(backend): complete_oauth_signup RPC 시그니처에 p_name, p_phone 추가 필요.
+      //   현재 RPC가 두 인자를 받지 않으면 PGRST202(missing parameter)로 실패할 수 있음 →
+      //   그 경우 fallback으로 인자 없이 재호출하여 약관 동의만 처리.
+      let { error } = await supabase.rpc("complete_oauth_signup", {
         p_marketing_opt_in: agreements.marketing,
+        p_name: formValues.name.trim(),
+        p_phone: formValues.phone.trim(),
       });
+
+      // RPC가 아직 새 시그니처 미지원이면 (PGRST202 등) 기존 호출로 fallback.
+      if (error) {
+        const rawCode = error.code ?? "";
+        const rawMessage = error.message?.toLowerCase?.() ?? "";
+        const isSignatureMissing =
+          rawCode === "PGRST202" ||
+          rawMessage.includes("p_name") ||
+          rawMessage.includes("p_phone") ||
+          rawMessage.includes("function complete_oauth_signup");
+
+        if (isSignatureMissing) {
+          const fallback = await supabase.rpc("complete_oauth_signup", {
+            p_marketing_opt_in: agreements.marketing,
+          });
+          error = fallback.error;
+        }
+      }
+
       if (error) {
         setErrorMessage(`동의 처리에 실패했어요. ${error.message ?? ""}`);
         setIsSubmitting(false);
         return;
       }
+
       await refreshProfile();
       navigate(next, { replace: true });
     } catch (err) {
@@ -173,9 +283,9 @@ function PublicOAuthConsentPage() {
                   거의 다 왔어요!
                 </h1>
                 <p className="public-auth-card__description">
-                  서비스를 이용하시려면 아래 약관에 동의해 주세요.
+                  서비스 이용을 위해 기본 정보와 약관에 동의해 주세요.
                   <br />
-                  한 번만 동의하시면 다음부터는 바로 이용하실 수 있어요.
+                  한 번만 입력하시면 다음부터는 바로 이용하실 수 있어요.
                 </p>
               </div>
 
@@ -184,51 +294,139 @@ function PublicOAuthConsentPage() {
               ) : null}
 
               <form className="public-auth-form-card" noValidate onSubmit={handleSubmit}>
+                <div className={`public-auth-field-row ${fieldErrors.name ? "is-error" : ""}`}>
+                  <label className="public-auth-field-row__label" htmlFor="public-oauth-consent-name">
+                    이름 <span className="public-auth-field-row__required">*</span>
+                  </label>
+                  <div className="public-auth-field-row__control">
+                    <input
+                      autoComplete="name"
+                      className="public-auth-field-row__input"
+                      id="public-oauth-consent-name"
+                      onChange={handleChangeValue("name")}
+                      placeholder="홍길동"
+                      type="text"
+                      value={formValues.name}
+                    />
+                  </div>
+                  {fieldErrors.name ? (
+                    <p className="public-auth-inline-message public-auth-inline-message--error">{fieldErrors.name}</p>
+                  ) : null}
+                </div>
+
+                <div className={`public-auth-field-row ${fieldErrors.phone ? "is-error" : ""}`}>
+                  <label className="public-auth-field-row__label" htmlFor="public-oauth-consent-phone">
+                    연락처 <span className="public-auth-field-row__required">*</span>
+                  </label>
+                  <div className="public-auth-field-row__control">
+                    <input
+                      autoComplete="tel"
+                      className="public-auth-field-row__input"
+                      id="public-oauth-consent-phone"
+                      inputMode="numeric"
+                      onChange={handleChangeValue("phone")}
+                      placeholder="010-1234-5678"
+                      type="tel"
+                      value={formValues.phone}
+                    />
+                  </div>
+                  {fieldErrors.phone ? (
+                    <p className="public-auth-inline-message public-auth-inline-message--error">{fieldErrors.phone}</p>
+                  ) : (
+                    <p className="public-auth-inline-message public-auth-inline-message--info">
+                      픽업·배송·정산 안내 SMS 발송에 사용돼요.
+                    </p>
+                  )}
+                </div>
+
                 <div className="public-auth-agreement-box">
                   <label className="public-auth-agreement-box__all">
                     <span className="public-auth-checkmark">
                       <input
-                        checked={isAllAgreed}
-                        onChange={handleToggleAllAgreements}
+                        checked={isRequiredAllAgreed}
+                        onChange={handleToggleRequiredAgreements}
                         type="checkbox"
                       />
                       <span aria-hidden="true" className="public-auth-checkmark__indicator">
                         ✓
                       </span>
                     </span>
-                    <span>전체 동의</span>
+                    <span>
+                      필수 약관 전체 동의
+                      <span className="public-auth-agreement-box__all-hint"> (선택 항목 제외)</span>
+                    </span>
                   </label>
 
                   <div aria-hidden="true" className="public-auth-agreement-box__divider" />
 
                   <div className="public-auth-agreement-box__list">
-                    {agreementItems.map((item) => (
-                      <div className="public-auth-agreement-box__item" key={item.key}>
-                        <label className="public-auth-agreement-box__item-label">
-                          <span className="public-auth-checkmark">
-                            <input
-                              checked={agreements[item.key]}
-                              onChange={() => handleToggleAgreement(item.key)}
-                              type="checkbox"
-                            />
-                            <span aria-hidden="true" className="public-auth-checkmark__indicator">
-                              ✓
+                    {agreementItems
+                      .filter((item) => item.required)
+                      .map((item) => (
+                        <div className="public-auth-agreement-box__item" key={item.key}>
+                          <label className="public-auth-agreement-box__item-label">
+                            <span className="public-auth-checkmark">
+                              <input
+                                checked={agreements[item.key]}
+                                onChange={() => handleToggleAgreement(item.key)}
+                                type="checkbox"
+                              />
+                              <span aria-hidden="true" className="public-auth-checkmark__indicator">
+                                ✓
+                              </span>
                             </span>
-                          </span>
-                          <span className="public-auth-agreement-box__item-copy">
-                            <span className="public-auth-agreement-box__item-tag">{item.tagLabel}</span>
-                            <span>{item.label}</span>
-                          </span>
-                        </label>
-                        <button
-                          className="public-auth-agreement-box__view"
-                          onClick={() => setActiveAgreementKey(item.key)}
-                          type="button"
-                        >
-                          보기
-                        </button>
-                      </div>
-                    ))}
+                            <span className="public-auth-agreement-box__item-copy">
+                              <span className="public-auth-agreement-box__item-tag public-auth-agreement-box__item-tag--required">
+                                {item.tagLabel}
+                              </span>
+                              <span>{item.label}</span>
+                            </span>
+                          </label>
+                          <button
+                            className="public-auth-agreement-box__view"
+                            onClick={() => setActiveAgreementKey(item.key)}
+                            type="button"
+                          >
+                            보기
+                          </button>
+                        </div>
+                      ))}
+                  </div>
+
+                  <div aria-hidden="true" className="public-auth-agreement-box__divider" />
+
+                  <div className="public-auth-agreement-box__list">
+                    {agreementItems
+                      .filter((item) => !item.required)
+                      .map((item) => (
+                        <div className="public-auth-agreement-box__item" key={item.key}>
+                          <label className="public-auth-agreement-box__item-label">
+                            <span className="public-auth-checkmark">
+                              <input
+                                checked={agreements[item.key]}
+                                onChange={() => handleToggleAgreement(item.key)}
+                                type="checkbox"
+                              />
+                              <span aria-hidden="true" className="public-auth-checkmark__indicator">
+                                ✓
+                              </span>
+                            </span>
+                            <span className="public-auth-agreement-box__item-copy">
+                              <span className="public-auth-agreement-box__item-tag public-auth-agreement-box__item-tag--optional">
+                                {item.tagLabel}
+                              </span>
+                              <span>{item.label}</span>
+                            </span>
+                          </label>
+                          <button
+                            className="public-auth-agreement-box__view"
+                            onClick={() => setActiveAgreementKey(item.key)}
+                            type="button"
+                          >
+                            보기
+                          </button>
+                        </div>
+                      ))}
                   </div>
                 </div>
 

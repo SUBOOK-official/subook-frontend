@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/publicSupabaseClient";
 import ContentContainer from "../components/ContentContainer";
@@ -7,6 +7,7 @@ import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { usePageMeta } from "../lib/usePageMeta";
+import "./PublicNotificationsPage.css";
 
 const TYPE_ICONS = {
   pickup_accepted: "📦",
@@ -19,6 +20,18 @@ const TYPE_ICONS = {
   delivery_done: "📬",
   restock: "🔔",
 };
+
+// P1-6: 카테고리 필터 칩. 각 카테고리에 매핑되는 알림 type 집합 정의.
+const CATEGORY_FILTERS = [
+  { key: "all", label: "전체", types: null },
+  { key: "pickup", label: "수거", types: ["pickup_accepted", "arrived"] },
+  { key: "inspection", label: "검수", types: ["inspection_done"] },
+  { key: "settlement", label: "정산", types: ["sold", "settlement_done"] },
+  { key: "order", label: "주문", types: ["order_confirmed", "shipping_started", "delivery_done"] },
+  { key: "restock", label: "재입고", types: ["restock"] },
+];
+
+const PAGE_SIZE = 30;
 
 function formatRelativeTime(iso) {
   if (!iso) return "";
@@ -50,34 +63,51 @@ function PublicNotificationsPage() {
 
   const [items, setItems] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [categoryKey, setCategoryKey] = useState("all");
 
-  const loadNotifications = useCallback(async () => {
+  const loadNotifications = useCallback(async ({ offset = 0, append = false } = {}) => {
     if (!isSupabaseConfigured || !supabase) {
       setIsLoading(false);
       return;
     }
-    setIsLoading(true);
+    if (append) {
+      setIsLoadingMore(true);
+    } else {
+      setIsLoading(true);
+    }
     setErrorMessage("");
     const { data, error } = await supabase.rpc("list_my_notifications", {
-      p_limit: 100,
-      p_offset: 0,
+      p_limit: PAGE_SIZE,
+      p_offset: offset,
       p_unread_only: false,
     });
     if (error) {
       setErrorMessage(error.message || "알림을 불러오지 못했어요.");
+      setHasMore(false);
     } else {
-      setItems(Array.isArray(data) ? data : []);
+      const rows = Array.isArray(data) ? data : [];
+      setItems((prev) => (append ? [...prev, ...rows] : rows));
+      // 더 가져올 게 있는지 — PAGE_SIZE보다 적게 왔으면 끝.
+      setHasMore(rows.length === PAGE_SIZE);
     }
     setIsLoading(false);
+    setIsLoadingMore(false);
   }, []);
 
   useEffect(() => {
     if (authLoading) return;
     if (!hasSession) return;
-    void loadNotifications();
+    void loadNotifications({ offset: 0, append: false });
   }, [authLoading, hasSession, loadNotifications]);
+
+  const handleLoadMore = () => {
+    if (isLoadingMore || !hasMore) return;
+    void loadNotifications({ offset: items.length, append: true });
+  };
 
   const handleItemClick = async (item) => {
     if (!item.read_at && supabase) {
@@ -88,7 +118,6 @@ function PublicNotificationsPage() {
       );
     }
     if (item.ref_url) {
-      // hash 포함 절대/상대 처리
       if (item.ref_url.startsWith("/")) {
         navigate(item.ref_url);
       } else {
@@ -110,11 +139,16 @@ function PublicNotificationsPage() {
     setItems((prev) => prev.map((it) => ({ ...it, read_at: it.read_at ?? now })));
   };
 
+  const filteredItems = useMemo(() => {
+    const filter = CATEGORY_FILTERS.find((c) => c.key === categoryKey);
+    if (!filter || !filter.types) return items;
+    return items.filter((it) => filter.types.includes(it.type));
+  }, [items, categoryKey]);
+
   if (!authLoading && !hasSession) {
     return <Navigate replace state={{ notice: "알림함을 보려면 로그인이 필요해요." }} to="/login" />;
   }
   if (!authLoading && hasSession && !isAuthenticated) {
-    // 약관 미동의 등의 경우 — 다른 가드에서 처리됨, 안전망
     return <Navigate replace to="/" />;
   }
 
@@ -151,8 +185,8 @@ function PublicNotificationsPage() {
           {isLoading ? (
             <p className="public-faq-list__count">불러오는 중...</p>
           ) : items.length === 0 ? (
-            <div style={{ padding: "48px 0", textAlign: "center" }}>
-              <p style={{ fontSize: 40, marginBottom: 12 }} aria-hidden="true">🔔</p>
+            <div className="public-notifications-empty">
+              <p className="public-notifications-empty__icon" aria-hidden="true">🔔</p>
               <p className="public-faq-list__count">아직 받은 알림이 없어요.</p>
             </div>
           ) : (
@@ -175,90 +209,77 @@ function PublicNotificationsPage() {
                 ) : null}
               </div>
 
-              <ul className="public-faq-list__items" role="list" style={{ marginTop: 12 }}>
-                {items.map((item) => {
-                  const icon = TYPE_ICONS[item.type] ?? "🔔";
-                  const isUnread = !item.read_at;
-                  return (
-                    <li key={item.id}>
-                      <button
-                        onClick={() => handleItemClick(item)}
-                        style={{
-                          display: "block",
-                          width: "100%",
-                          textAlign: "left",
-                          padding: "16px 20px",
-                          marginBottom: 8,
-                          borderRadius: 12,
-                          border: `1px solid ${isUnread ? "#DBEAFE" : "#E5E7EB"}`,
-                          background: isUnread ? "#EFF6FF" : "#FFFFFF",
-                          cursor: "pointer",
-                          transition: "background 0.15s ease",
-                        }}
-                        type="button"
-                      >
-                        <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-                          <span aria-hidden="true" style={{ fontSize: 24, lineHeight: 1 }}>
-                            {icon}
-                          </span>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div
-                              style={{
-                                display: "flex",
-                                justifyContent: "space-between",
-                                gap: 8,
-                                alignItems: "baseline",
-                              }}
-                            >
-                              <strong
-                                style={{
-                                  fontSize: 15,
-                                  fontWeight: isUnread ? 700 : 600,
-                                  color: "#111827",
-                                }}
-                              >
-                                {item.title}
-                              </strong>
-                              <span style={{ fontSize: 12, color: "#9CA3AF", flexShrink: 0 }}>
-                                {formatRelativeTime(item.created_at)}
-                              </span>
+              {/* P1-6: 카테고리 필터 */}
+              <div className="public-notifications-filter" role="tablist" aria-label="알림 카테고리">
+                {CATEGORY_FILTERS.map((filter) => (
+                  <button
+                    aria-selected={categoryKey === filter.key}
+                    className={`public-notifications-filter__chip ${categoryKey === filter.key ? "is-active" : ""}`}
+                    key={filter.key}
+                    onClick={() => setCategoryKey(filter.key)}
+                    role="tab"
+                    type="button"
+                  >
+                    {filter.label}
+                  </button>
+                ))}
+              </div>
+
+              {filteredItems.length === 0 ? (
+                <div className="public-notifications-empty">
+                  <p className="public-faq-list__count">선택한 카테고리에 알림이 없어요.</p>
+                </div>
+              ) : (
+                <ul className="public-faq-list__items" role="list">
+                  {filteredItems.map((item) => {
+                    const icon = TYPE_ICONS[item.type] ?? "🔔";
+                    const isUnread = !item.read_at;
+                    return (
+                      <li className="public-notifications-item" key={item.id}>
+                        <button
+                          className={`public-notifications-item__button ${isUnread ? "is-unread" : ""}`}
+                          onClick={() => handleItemClick(item)}
+                          type="button"
+                        >
+                          <div className="public-notifications-item__body">
+                            <span aria-hidden="true" className="public-notifications-item__icon">
+                              {icon}
+                            </span>
+                            <div className="public-notifications-item__content">
+                              <div className="public-notifications-item__head">
+                                <strong className={`public-notifications-item__title ${isUnread ? "is-unread" : ""}`}>
+                                  {item.title}
+                                </strong>
+                                <span className="public-notifications-item__time">
+                                  {formatRelativeTime(item.created_at)}
+                                </span>
+                              </div>
+                              {item.body ? (
+                                <p className="public-notifications-item__excerpt">{item.body}</p>
+                              ) : null}
                             </div>
-                            {item.body ? (
-                              <p
-                                style={{
-                                  marginTop: 6,
-                                  fontSize: 13,
-                                  color: "#4B5563",
-                                  whiteSpace: "pre-wrap",
-                                  display: "-webkit-box",
-                                  WebkitLineClamp: 3,
-                                  WebkitBoxOrient: "vertical",
-                                  overflow: "hidden",
-                                }}
-                              >
-                                {item.body}
-                              </p>
+                            {isUnread ? (
+                              <span aria-label="안 읽음" className="public-notifications-item__dot" />
                             ) : null}
                           </div>
-                          {isUnread ? (
-                            <span
-                              aria-label="안 읽음"
-                              style={{
-                                width: 8,
-                                height: 8,
-                                borderRadius: "50%",
-                                background: "#3B82F6",
-                                flexShrink: 0,
-                                marginTop: 8,
-                              }}
-                            />
-                          ) : null}
-                        </div>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+
+              {/* P1-6: 더 보기 버튼 (30건씩 페이지네이션) */}
+              {hasMore && filteredItems.length > 0 ? (
+                <button
+                  className="public-notifications-loadmore"
+                  disabled={isLoadingMore}
+                  onClick={handleLoadMore}
+                  type="button"
+                >
+                  {isLoadingMore ? "불러오는 중..." : "더 보기"}
+                </button>
+              ) : null}
             </>
           )}
         </ContentContainer>

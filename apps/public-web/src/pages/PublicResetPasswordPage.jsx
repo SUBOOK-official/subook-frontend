@@ -35,6 +35,7 @@ function PublicResetPasswordPage() {
 
   const [phase, setPhase] = useState("checking");
   const [showPassword, setShowPassword] = useState(false);
+  const [isCapsLockOn, setIsCapsLockOn] = useState(false);
   const [pageError, setPageError] = useState("");
   const [formValues, setFormValues] = useState({
     password: "",
@@ -44,6 +45,12 @@ function PublicResetPasswordPage() {
     password: "",
     passwordConfirm: "",
   });
+
+  const handlePasswordKeyEvent = (event) => {
+    if (typeof event.getModifierState === "function") {
+      setIsCapsLockOn(event.getModifierState("CapsLock"));
+    }
+  };
 
   const urlInfo = useMemo(() => {
     const searchParams = new URLSearchParams(location.search);
@@ -80,10 +87,14 @@ function PublicResetPasswordPage() {
   // 임시 비밀번호 재설정 세션은 페이지 이탈 시 반드시 signOut.
   // 그러지 않으면 사용자가 비밀번호 변경 안 한 채 페이지를 닫아도 1시간가량 세션이
   // 살아 있어, 같은 브라우저의 다른 탭에서 마이페이지/주문이 가능해진다.
+  //
+  // ⚠️ scope: 'local'을 사용해서 이 탭만 정리 — 다른 탭에서 정상적으로 로그인되어 있던
+  // 기존 회원 세션은 건드리지 않는다 (글로벌 signOut을 하면 다른 탭 결제 흐름이 깨짐).
+  // 비번 변경에 실제로 성공한 경우(handleSubmit success 분기)에만 global signOut을 호출.
   useEffect(() => {
     return () => {
       if (supabase) {
-        void supabase.auth.signOut();
+        void supabase.auth.signOut({ scope: "local" });
       }
     };
   }, []);
@@ -165,7 +176,10 @@ function PublicResetPasswordPage() {
     return () => {
       isMounted = false;
     };
-  }, [location.hash, location.pathname, location.search, urlInfo]);
+    // urlInfo는 location.hash/search 기반으로 useMemo한 결과이므로 location 의존만 남기면
+    // 중복 트리거를 막을 수 있다 (eslint-disable로 명시적으로 안전성을 표시).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.hash, location.pathname, location.search]);
 
   const handleChange = (key) => (event) => {
     const nextValue = event.target.value;
@@ -268,21 +282,38 @@ function PublicResetPasswordPage() {
                       autoComplete="new-password"
                       className="public-auth-field-row__input"
                       id="public-reset-password-password"
+                      onBlur={() => setIsCapsLockOn(false)}
                       onChange={handleChange("password")}
+                      onKeyDown={handlePasswordKeyEvent}
+                      onKeyUp={handlePasswordKeyEvent}
                       placeholder="새 비밀번호를 입력해 주세요."
                       type={showPassword ? "text" : "password"}
                       value={formValues.password}
                     />
                     <button
                       aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
-                      className="public-auth-field-row__toggle"
+                      className="public-auth-field-row__toggle public-auth-field-row__toggle--icon"
                       onClick={() => setShowPassword((currentValue) => !currentValue)}
                       type="button"
                     >
-                      {showPassword ? "숨기기" : "보기"}
+                      <span aria-hidden="true">{showPassword ? "🙈" : "👁"}</span>
+                      <span className="public-auth-sr-only">{showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}</span>
                     </button>
                   </div>
-                  <div className="public-password-strength">
+                  {isCapsLockOn ? (
+                    <p
+                      aria-live="polite"
+                      className="public-auth-inline-message public-auth-inline-message--warning"
+                      role="status"
+                    >
+                      ⚠ Caps Lock이 켜져 있습니다.
+                    </p>
+                  ) : null}
+                  <div
+                    aria-live="polite"
+                    className="public-password-strength"
+                    role="status"
+                  >
                     <div className="public-password-strength__summary">
                       <span>비밀번호 강도</span>
                       <strong className={`public-password-strength__label is-${passwordStrength.tone}`}>
@@ -296,15 +327,28 @@ function PublicResetPasswordPage() {
                       />
                     </div>
                     <div className="public-password-strength__rules">
-                      {passwordStrength.rules.map((rule) => (
-                        <span
-                          className={`public-password-strength__rule ${rule.satisfied ? "is-satisfied" : ""}`}
-                          key={rule.key}
-                        >
-                          <span aria-hidden="true">{rule.satisfied ? "✓" : "•"}</span>
-                          <span>{rule.label}</span>
-                        </span>
-                      ))}
+                      {passwordStrength.rules.map((rule) => {
+                        const tagLabel = rule.required ? "(필수)" : "(권장)";
+                        const ariaLabel = `${rule.label} ${tagLabel} ${rule.satisfied ? "충족" : "미충족"}`;
+
+                        return (
+                          <span
+                            aria-label={ariaLabel}
+                            className={`public-password-strength__rule ${rule.satisfied ? "is-satisfied" : ""} ${
+                              rule.required
+                                ? "public-password-strength__rule--required"
+                                : "public-password-strength__rule--recommended"
+                            }`}
+                            key={rule.key}
+                          >
+                            <span aria-hidden="true">{rule.satisfied ? "✓" : "•"}</span>
+                            <span>
+                              {rule.label}{" "}
+                              <span className="public-password-strength__rule-tag">{tagLabel}</span>
+                            </span>
+                          </span>
+                        );
+                      })}
                     </div>
                   </div>
                   {fieldErrors.password ? (

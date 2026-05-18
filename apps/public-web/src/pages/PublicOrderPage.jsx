@@ -9,7 +9,44 @@ import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { supabase as publicSupabase } from "@shared-supabase/publicSupabaseClient";
 import { FREE_SHIPPING_THRESHOLD, calculateShippingFee, createOrder } from "../lib/cart";
 import { loadMemberPortalSnapshot } from "../lib/memberPortal";
+import {
+  BANK_ACCOUNT,
+  BANK_HOLDER,
+  BANK_NAME,
+  PAYMENT_DEADLINE_HOURS,
+} from "../lib/paymentBankInfo";
 import "./PublicOrderPage.css";
+
+// P1-7: 쿠폰 정렬 — 만료 임박(<24h) 우선 + 같은 그룹에서 큰 할인 순.
+// 결제 시점에 사용자가 가장 큰 이득을 가져갈 수 있는 쿠폰을 상단에 노출.
+const COUPON_EXPIRY_SOON_MS = 24 * 60 * 60 * 1000;
+
+function estimateCouponDiscountAmount(coupon, subtotal) {
+  if (!coupon) return 0;
+  if (coupon.discount_type === "fixed") {
+    return Math.min(coupon.discount_value || 0, subtotal);
+  }
+  if (coupon.discount_type === "percentage") {
+    let d = Math.floor((subtotal * (coupon.discount_value || 0)) / 100);
+    if (coupon.max_discount_amount != null) d = Math.min(d, coupon.max_discount_amount);
+    return d;
+  }
+  // free_shipping은 SHIPPING_FEE 만큼 가치를 가지지만 비교 단순화를 위해 0으로 둔다.
+  // (배송비 정확 비교는 결제 요약에서 별도)
+  return 0;
+}
+
+function getCouponExpiryMs(coupon) {
+  if (!coupon?.expires_at) return Number.POSITIVE_INFINITY;
+  const ms = new Date(coupon.expires_at).getTime();
+  return Number.isFinite(ms) ? ms : Number.POSITIVE_INFINITY;
+}
+
+function isCouponExpiringSoon(coupon) {
+  if (!coupon?.expires_at) return false;
+  const ms = getCouponExpiryMs(coupon);
+  return ms - Date.now() <= COUPON_EXPIRY_SOON_MS;
+}
 
 // 쿠폰 할인 미리 계산 (백엔드 create_order RPC와 동일 규칙).
 // 결제 요약 미리보기용. 실제 차감은 백엔드에서 다시 계산해 source of truth로 둔다.
@@ -114,13 +151,36 @@ function PublicOrderPage() {
   const [selectedAddressId, setSelectedAddressId] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState("bank_transfer");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [agreementChecked, setAgreementChecked] = useState(false);
+  // P0-3: 동의 체크박스 3개로 분리 — 주문 내용/결제 및 자동 취소/환불 정책
+  const [agreementOrder, setAgreementOrder] = useState(false);
+  const [agreementPayment, setAgreementPayment] = useState(false);
+  const [agreementRefund, setAgreementRefund] = useState(false);
+  const allAgreementsChecked = agreementOrder && agreementPayment && agreementRefund;
   const inFlightRef = useRef(false); // 더블 클릭으로 RPC 두 번 발사 방지 (state 비동기 보완)
   const [toast, setToast] = useState(null);
   // 쿠폰
   const [applicableCoupons, setApplicableCoupons] = useState([]);
   const [selectedCouponId, setSelectedCouponId] = useState(null);
   const [isCouponPickerOpen, setIsCouponPickerOpen] = useState(false);
+  // P1-4: 모바일 키보드 감지 — sticky bar bottom 보정
+  const [keyboardOffset, setKeyboardOffset] = useState(0);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.visualViewport) return undefined;
+    const vv = window.visualViewport;
+    const sync = () => {
+      // 키보드가 올라오면 visualViewport.height < window.innerHeight.
+      const diff = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      setKeyboardOffset(diff > 80 ? diff : 0);
+    };
+    sync();
+    vv.addEventListener("resize", sync);
+    vv.addEventListener("scroll", sync);
+    return () => {
+      vv.removeEventListener("resize", sync);
+      vv.removeEventListener("scroll", sync);
+    };
+  }, []);
 
   const showToast = useCallback((message, type = "info") => {
     setToast({ message, type });
@@ -282,7 +342,11 @@ function PublicOrderPage() {
 
   const handlePaymentSelect = (methodId) => {
     const method = PAYMENT_METHODS.find((m) => m.id === methodId);
-    if (!method?.available) return;
+    if (!method?.available) {
+      // P1-8: 비활성 결제 수단 클릭 시 사용자가 "왜 안 되지" 멈추지 않게 명시
+      showToast("사업자 등록 완료 후 오픈 예정입니다.", "info");
+      return;
+    }
     setPaymentMethod(methodId);
   };
 
@@ -290,6 +354,9 @@ function PublicOrderPage() {
     if (!shipping.recipientName.trim()) return "수령인 이름을 입력해주세요.";
     if (!shipping.recipientPhone.trim()) return "수령인 연락처를 입력해주세요.";
     if (!shipping.postalCode.trim() || !shipping.addressLine1.trim()) return "배송지 주소를 입력해주세요.";
+    if (!agreementOrder) return "[필수] 주문 내용·개인정보 제공 동의에 체크해주세요.";
+    if (!agreementPayment) return "[필수] 24시간 미입금 시 자동 취소 동의에 체크해주세요.";
+    if (!agreementRefund) return "[필수] 환불·교환 정책 확인에 체크해주세요.";
     return null;
   };
 
@@ -351,6 +418,25 @@ function PublicOrderPage() {
   const shippingFee = couponPreview.shippingFeeAfter;
   const couponDiscount = couponPreview.subtotalDiscount;
   const totalAmount = Math.max(0, subtotal + shippingFee - couponDiscount);
+
+  // P1-7: 쿠폰 정렬 — 만료 임박(<24h) 우선 + 큰 할인 순.
+  // 가장 큰 이득이 되는 쿠폰을 위로 올리고, 추천/만료 임박 라벨로 시각 가이드.
+  const sortedCoupons = [...applicableCoupons].sort((a, b) => {
+    const aExpiring = isCouponExpiringSoon(a);
+    const bExpiring = isCouponExpiringSoon(b);
+    if (aExpiring !== bExpiring) return aExpiring ? -1 : 1;
+    const aDiscount = estimateCouponDiscountAmount(a, subtotal);
+    const bDiscount = estimateCouponDiscountAmount(b, subtotal);
+    if (aDiscount !== bDiscount) return bDiscount - aDiscount;
+    return getCouponExpiryMs(a) - getCouponExpiryMs(b);
+  });
+  // "추천" 뱃지는 가장 큰 할인 쿠폰 1장에만. 만료 임박은 따로 표시.
+  const recommendedCouponId = sortedCoupons
+    .map((coupon) => ({ id: coupon.id, amount: estimateCouponDiscountAmount(coupon, subtotal) }))
+    .reduce(
+      (acc, cur) => (acc === null || cur.amount > acc.amount ? cur : acc),
+      null,
+    )?.id;
 
   return (
     <PublicPageFrame>
@@ -508,17 +594,31 @@ function PublicOrderPage() {
                 {paymentMethod === "bank_transfer" && (
                   <div className="order-bank-info">
                     <p className="order-bank-info__title">계좌이체로 결제하기</p>
-                    <p className="order-bank-info__notice">
-                      <strong>주문 완료 후</strong> 입금 계좌·금액·입금자명을 안내해드립니다.<br />
-                      안내된 입금자명(본인 성함 + 주문번호 마지막 4자리)으로 24시간 이내 입금해주세요.
+                    {/* P0-2: 결제 직전 계좌 정보 사전 노출 — 입금자명은 주문번호 확정 후 자동 안내 */}
+                    <p className="order-bank-info__account">
+                      {BANK_NAME} {BANK_ACCOUNT}
                     </p>
+                    <p className="order-bank-info__holder">예금주: {BANK_HOLDER}</p>
+                    <ul className="order-bank-info__bullets">
+                      <li>
+                        결제 후 <strong>{PAYMENT_DEADLINE_HOURS}시간 이내</strong> 입금해주세요.
+                      </li>
+                      <li>미입금 시 주문이 자동 취소됩니다.</li>
+                      <li>
+                        입금자명은 결제 완료 후 화면·카카오톡으로 자동 안내드립니다.
+                        (본인 성함 + 주문번호 마지막 4자리)
+                      </li>
+                    </ul>
                   </div>
                 )}
               </div>
             </div>
 
-            {/* 결제 요약 사이드바 */}
-            <div className="order-sidebar">
+            {/* 결제 요약 사이드바 — 모바일 키보드 활성 시 가려지지 않도록 bottom 동적 보정 */}
+            <div
+              className="order-sidebar"
+              style={keyboardOffset > 0 ? { bottom: keyboardOffset } : undefined}
+            >
               <div className="order-sidebar__card">
                 <h2 className="order-sidebar__title">결제 금액</h2>
                 <div className="order-sidebar__row">
@@ -531,7 +631,8 @@ function PublicOrderPage() {
                 </div>
                 {shippingFee > 0 && (
                   <p className="order-sidebar__hint">
-                    {formatCurrency(FREE_SHIPPING_THRESHOLD)}원 이상 무료배송
+                    {/* P2-5: 카트와 동일한 hint — N원 더 담으면 무료배송 */}
+                    {formatCurrency(Math.max(0, FREE_SHIPPING_THRESHOLD - subtotal))} 더 담으면 무료배송
                   </p>
                 )}
 
@@ -578,20 +679,53 @@ function PublicOrderPage() {
                   <span>{formatCurrency(totalAmount)}</span>
                 </div>
 
-                <label className="order-sidebar__agreement-check">
-                  <input
-                    checked={agreementChecked}
-                    onChange={(e) => setAgreementChecked(e.target.checked)}
-                    type="checkbox"
-                  />
-                  <span>
-                    <strong>[필수]</strong> 주문 내용과 개인정보 제공·결제 진행에 동의합니다.
-                  </span>
-                </label>
+                {/* P0-3: 동의 체크박스 3분리 — 주문 내용 / 자동 취소 / 환불 정책 */}
+                <div className="order-sidebar__agreements">
+                  <label className="order-sidebar__agreement-check">
+                    <input
+                      checked={agreementOrder}
+                      onChange={(e) => setAgreementOrder(e.target.checked)}
+                      type="checkbox"
+                    />
+                    <span>
+                      <strong>[필수]</strong> 주문 내용·개인정보 제공에 동의합니다.
+                    </span>
+                  </label>
+                  <label className="order-sidebar__agreement-check">
+                    <input
+                      checked={agreementPayment}
+                      onChange={(e) => setAgreementPayment(e.target.checked)}
+                      type="checkbox"
+                    />
+                    <span>
+                      <strong>[필수]</strong> 결제 후 {PAYMENT_DEADLINE_HOURS}시간 이내 미입금 시
+                      <strong> 자동 취소</strong>에 동의합니다.
+                    </span>
+                  </label>
+                  <label className="order-sidebar__agreement-check">
+                    <input
+                      checked={agreementRefund}
+                      onChange={(e) => setAgreementRefund(e.target.checked)}
+                      type="checkbox"
+                    />
+                    <span>
+                      <strong>[필수]</strong>{" "}
+                      <a
+                        className="order-sidebar__agreement-link"
+                        href="/refund"
+                        rel="noopener noreferrer"
+                        target="_blank"
+                      >
+                        환불·교환 정책
+                      </a>
+                      을 확인했습니다. (포장 개봉/필기 추가 시 단순변심 환불 불가)
+                    </span>
+                  </label>
+                </div>
 
                 <button
                   className="order-sidebar__submit-btn"
-                  disabled={isSubmitting || !agreementChecked}
+                  disabled={isSubmitting || !allAgreementsChecked}
                   onClick={handleSubmit}
                   type="button"
                 >
@@ -628,13 +762,15 @@ function PublicOrderPage() {
               </header>
 
               <ul className="order-coupon-modal__list">
-                {applicableCoupons.length === 0 ? (
+                {sortedCoupons.length === 0 ? (
                   <li className="order-coupon-modal__empty">
                     이 주문에 사용할 수 있는 쿠폰이 없습니다.
                   </li>
                 ) : (
-                  applicableCoupons.map((c) => {
+                  sortedCoupons.map((c) => {
                     const isSelected = c.id === selectedCouponId;
+                    const isRecommended = c.id === recommendedCouponId;
+                    const expiringSoon = isCouponExpiringSoon(c);
                     return (
                       <li key={c.id}>
                         <button
@@ -653,6 +789,18 @@ function PublicOrderPage() {
                                 : `${formatCurrency(c.discount_value)} 할인`}
                           </div>
                           <div className="order-coupon-modal__item-body">
+                            <div className="order-coupon-modal__item-tags">
+                              {isRecommended ? (
+                                <span className="order-coupon-modal__tag order-coupon-modal__tag--recommend">
+                                  추천
+                                </span>
+                              ) : null}
+                              {expiringSoon ? (
+                                <span className="order-coupon-modal__tag order-coupon-modal__tag--expiring">
+                                  만료 임박
+                                </span>
+                              ) : null}
+                            </div>
                             <strong>{c.title}</strong>
                             {c.min_order_amount > 0 ? (
                               <span>{formatCurrency(c.min_order_amount)} 이상 주문 시</span>

@@ -83,6 +83,26 @@
   transform: translateY(-1px);
 }
 
+/* P2-2: 빈 장바구니에서 찜으로 가는 보조 CTA */
+.cart-empty__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.cart-empty__link--secondary {
+  background: #ffffff;
+  color: var(--public-ds-primary);
+  border: 1px solid var(--public-ds-border);
+}
+
+/* P2-3: 가격 등록 지연 안내 배지 */
+.cart-item__sold-out-badge--stale {
+  color: #92400e;
+  background: #fef3c7;
+}
+
 /* ── Layout ── */
 .cart-layout {
   display: flex;
@@ -424,7 +444,8 @@
     bottom: 0;
     left: 0;
     right: 0;
-    z-index: 100;
+    /* P2-10: 모든 sticky bar 동일 z-index var 사용. PublicProductDetailPage.css에서 정의. */
+    z-index: var(--public-sticky-bottom-z, 50);
     padding: 0;
   }
 

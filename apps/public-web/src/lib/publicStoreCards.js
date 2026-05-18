@@ -250,6 +250,84 @@ export function getStoreCardTags(product = {}) {
   return tags;
 }
 
+function getProductYearLabel(product = {}) {
+  const nestedCandidates = getNestedObjectCandidates(product);
+  const candidates = [
+    product.publishedYear,
+    product.published_year,
+    product.year,
+    product.targetYear,
+    product.target_year,
+    product.editionYear,
+    product.edition_year,
+    ...nestedCandidates.flatMap((candidate) => [
+      candidate.publishedYear,
+      candidate.published_year,
+      candidate.year,
+      candidate.targetYear,
+      candidate.target_year,
+      candidate.editionYear,
+      candidate.edition_year,
+    ]),
+  ];
+
+  for (const candidate of candidates) {
+    if (candidate === null || candidate === undefined || candidate === "") continue;
+    const numeric = Number(candidate);
+    if (Number.isFinite(numeric) && numeric >= 2000 && numeric <= 2099) {
+      return `${Math.trunc(numeric)}`;
+    }
+    const text = String(candidate).trim();
+    if (text) return text;
+  }
+
+  return null;
+}
+
+function getProductTeacherLabel(product = {}) {
+  const nestedCandidates = getNestedObjectCandidates(product);
+  return getNormalizedTextFromCandidates([
+    product.teacherName,
+    product.teacher_name,
+    product.instructorName,
+    product.instructor_name,
+    product.teacher,
+    product.author,
+    ...nestedCandidates.flatMap((candidate) => [
+      candidate.teacherName,
+      candidate.teacher_name,
+      candidate.instructorName,
+      candidate.instructor_name,
+      candidate.teacher,
+      candidate.author,
+    ]),
+  ]);
+}
+
+// 카드 메타라인: "2026 · 강기원 · 수학" 같은 1줄.
+// year는 별도 톤(neutral-strong), teacher는 일반, subject는 항상 마지막.
+// 데이터가 부족하면 가지고 있는 항목만 노출 (• separator 없이 자연스럽게 join).
+export function getStoreCardMetaLine(product = {}) {
+  const segments = [];
+
+  const year = getProductYearLabel(product);
+  if (year) {
+    segments.push({ key: "year", label: year, tone: "year" });
+  }
+
+  const teacher = getProductTeacherLabel(product);
+  if (teacher) {
+    segments.push({ key: "teacher", label: teacher, tone: "teacher" });
+  }
+
+  const subject = typeof product.subject === "string" ? product.subject.trim() : "";
+  if (subject) {
+    segments.push({ key: "subject", label: subject, tone: "subject" });
+  }
+
+  return segments;
+}
+
 export function getStoreDisplayProducts(
   products = [],
   currentPage = 1,

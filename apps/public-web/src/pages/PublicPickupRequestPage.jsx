@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import PublicSiteHeader from "../components/PublicSiteHeader";
 import PublicFooter from "../components/PublicFooter";
@@ -23,6 +23,68 @@ import "./PublicPickupRequestPage.css";
 
 const PICKUP_REQUEST_PATH = "/pickup/new";
 const STEPS = ["교재 등록", "수거 정보", "정산 정보", "확인"];
+
+// ─── 작성 중 신청서 임시 저장 ───
+const DRAFT_STORAGE_KEY = "subook.pickup.draft.v1";
+const DRAFT_TTL_MS = 1000 * 60 * 60 * 24; // 24시간
+
+function readDraft() {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(DRAFT_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+    if (!parsed.savedAt || Date.now() - parsed.savedAt > DRAFT_TTL_MS) {
+      window.sessionStorage.removeItem(DRAFT_STORAGE_KEY);
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeDraft(payload) {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(
+      DRAFT_STORAGE_KEY,
+      JSON.stringify({ ...payload, savedAt: Date.now() }),
+    );
+  } catch {
+    /* ignore quota */
+  }
+}
+
+function clearDraft() {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.removeItem(DRAFT_STORAGE_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+// ─── 영업일 계산 (간단 — 주말 제외, 법정공휴일은 백엔드 확정 시 보강) ───
+function isWeekend(date) {
+  const day = date.getDay();
+  return day === 0 || day === 6;
+}
+
+function addBusinessDays(date, days) {
+  const result = new Date(date);
+  let added = 0;
+  while (added < days) {
+    result.setDate(result.getDate() + 1);
+    if (!isWeekend(result)) added += 1;
+  }
+  return result;
+}
+
+function getMinPickupDateISO() {
+  return addBusinessDays(new Date(), 1).toISOString().split("T")[0];
+}
 
 // ─── 프로그레스 바 ───
 function ProgressBar({ currentStep }) {
@@ -61,6 +123,29 @@ function Toast({ message, tone, onClose }) {
     <div className={`pickup-toast pickup-toast--${tone}`} role="alert">
       <span className="pickup-toast__icon">{icon}</span>
       <span className="pickup-toast__message">{message}</span>
+    </div>
+  );
+}
+
+// ─── 신청 전 핵심 정책 카드 (Step 1 상단) ───
+function PickupPolicyPreview() {
+  return (
+    <div className="pickup-policy-preview" role="region" aria-label="신청 전 꼭 알아두세요">
+      <p className="pickup-policy-preview__title">📌 신청 전 꼭 알아두세요</p>
+      <ul className="pickup-policy-preview__list">
+        <li>
+          <strong>수수료</strong> 1만원 초과 책은 40%, 1만원 이하·모의고사는 45%
+        </li>
+        <li>
+          <strong>정산</strong> 구매자 구매확정 후 <strong>3영업일 이내 계좌이체</strong>
+        </li>
+        <li>
+          <strong>검수 폐기</strong> 필기 10% 초과·심한 훼손은 판매불가 → 자체 폐기
+        </li>
+        <li>
+          <strong>최소 권수</strong> 검수 통과 20권 미만이면 수거 배송비 3,500원 차감
+        </li>
+      </ul>
     </div>
   );
 }
@@ -109,7 +194,7 @@ function StepBooks({ items, setItems, onNext, showToast }) {
     setShowManualForm(true);
   };
 
-  const saveManualItem = () => {
+  const saveManualItem = ({ keepOpen = false } = {}) => {
     if (!manualForm.title.trim()) {
       showToast("교재명을 입력해주세요.", "error");
       return;
@@ -120,9 +205,18 @@ function StepBooks({ items, setItems, onNext, showToast }) {
         prev.map((item) => (item.localId === editingId ? { ...manualForm, localId: editingId } : item)),
       );
       showToast("교재가 수정되었습니다.", "success");
-    } else {
-      setItems((prev) => [...prev, manualForm]);
-      showToast("교재가 추가되었습니다.", "success");
+      setShowManualForm(false);
+      setEditingId(null);
+      return;
+    }
+
+    setItems((prev) => [...prev, manualForm]);
+    showToast("교재가 추가되었습니다.", "success");
+
+    if (keepOpen) {
+      // 모달은 유지하고 폼만 비워 다음 책 입력 가능
+      setManualForm(createEmptyManualItem());
+      return;
     }
     setShowManualForm(false);
     setEditingId(null);
@@ -151,6 +245,8 @@ function StepBooks({ items, setItems, onNext, showToast }) {
         <h2 className="pickup-step__title">보낼 교재를 등록해주세요</h2>
         <p className="pickup-step__subtitle">교재 DB에서 검색하거나, 직접 입력할 수 있어요.</p>
       </div>
+
+      <PickupPolicyPreview />
 
       {/* 교재 검색 */}
       <div className="pickup-search">
@@ -281,11 +377,20 @@ function StepBooks({ items, setItems, onNext, showToast }) {
                 </div>
               </div>
             </div>
-            <div className="pickup-modal__footer">
+            <div className="pickup-modal__footer pickup-modal__footer--3col">
               <button className="pickup-btn pickup-btn--secondary" onClick={() => setShowManualForm(false)} type="button">
                 취소
               </button>
-              <button className="pickup-btn pickup-btn--primary" onClick={saveManualItem} type="button">
+              {!editingId && (
+                <button
+                  className="pickup-btn pickup-btn--ghost"
+                  onClick={() => saveManualItem({ keepOpen: true })}
+                  type="button"
+                >
+                  저장하고 계속 추가
+                </button>
+              )}
+              <button className="pickup-btn pickup-btn--primary" onClick={() => saveManualItem()} type="button">
                 {editingId ? "수정하기" : "등록하기"}
               </button>
             </div>
@@ -352,12 +457,63 @@ function StepBooks({ items, setItems, onNext, showToast }) {
   );
 }
 
+// ─── 공동현관 비밀번호 보기/숨기기 토글 ───
+function PickupPasswordField({ value, onChange }) {
+  const [reveal, setReveal] = useState(false);
+  return (
+    <div className="pickup-form-field">
+      <label className="pickup-field-label">공동현관 비밀번호 (선택)</label>
+      <div className="pickup-input-with-toggle">
+        <input
+          autoComplete="off"
+          className="pickup-input"
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="예: #1234*"
+          type={reveal ? "text" : "password"}
+          value={value}
+        />
+        <button
+          aria-label={reveal ? "비밀번호 숨기기" : "비밀번호 보기"}
+          className="pickup-input-toggle"
+          onClick={() => setReveal((v) => !v)}
+          type="button"
+        >
+          {reveal ? "숨기기" : "보기"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Step 2: 수거 정보 ───
-function StepAddress({ address, setAddress, savedAddresses, onPrev, onNext, showToast }) {
+function StepAddress({ address, setAddress, savedAddresses, itemCount, onPrev, onNext, showToast }) {
   const [selectedSavedId, setSelectedSavedId] = useState(null);
   const [useNewAddress, setUseNewAddress] = useState(savedAddresses.length === 0);
   const [isSearchingAddress, setIsSearchingAddress] = useState(false);
   const detailRef = useRef(null);
+  const minPickupDate = useMemo(() => getMinPickupDateISO(), []);
+  const pickupDateNotice = useMemo(() => {
+    if (!address.desired_pickup_date) return "";
+    const picked = new Date(address.desired_pickup_date);
+    if (Number.isNaN(picked.getTime())) return "";
+    if (isWeekend(picked)) return "주말은 수거가 어렵습니다. 다음 영업일로 변경해주세요.";
+    return "";
+  }, [address.desired_pickup_date]);
+  const expectedCountNumber = Number.parseInt(address.expected_book_count, 10);
+  const countDiffHint = useMemo(() => {
+    if (!Number.isFinite(expectedCountNumber) || expectedCountNumber <= 0) return "";
+    if (itemCount <= 0) return "";
+    const diff = Math.abs(expectedCountNumber - itemCount);
+    if (diff === 0) return "";
+    if (diff / itemCount > 0.2) {
+      return `등록한 교재(${itemCount}권)와 차이가 있어요. 박스에 추가로 넣을 책이 있나요?`;
+    }
+    return "";
+  }, [expectedCountNumber, itemCount]);
+  const boxCountNumber = Number.parseInt(address.box_count, 10);
+  const boxHint = Number.isFinite(boxCountNumber) && itemCount >= 30 && boxCountNumber === 1
+    ? "교재가 30권 이상이면 박스를 2개 이상 사용하는 게 안전해요."
+    : "";
 
   useEffect(() => {
     if (savedAddresses.length > 0 && !selectedSavedId && !useNewAddress) {
@@ -392,12 +548,20 @@ function StepAddress({ address, setAddress, savedAddresses, onPrev, onNext, show
   const startNewAddress = () => {
     setSelectedSavedId(null);
     setUseNewAddress(true);
-    setAddress({
-      recipient_name: "", recipient_phone: "", postal_code: "",
-      address_line1: "", address_line2: "", memo: "",
-      email: "", entrance_password: "", desired_pickup_date: "",
-      expected_book_count: "", box_count: "",
-    });
+    // 새 주소 입력으로 전환할 때 프로필 기본값(수령인 이름/전화)은 보존하고 주소만 비운다.
+    setAddress((prev) => ({
+      recipient_name: prev.recipient_name || "",
+      recipient_phone: prev.recipient_phone || "",
+      postal_code: "",
+      address_line1: "",
+      address_line2: "",
+      memo: "",
+      email: prev.email || "",
+      entrance_password: "",
+      desired_pickup_date: prev.desired_pickup_date || "",
+      expected_book_count: prev.expected_book_count || "",
+      box_count: prev.box_count || "",
+    }));
   };
 
   const openDaumPostcode = async () => {
@@ -563,17 +727,10 @@ function StepAddress({ address, setAddress, savedAddresses, onPrev, onNext, show
             value={address.email}
           />
         </div>
-        <div className="pickup-form-field">
-          <label className="pickup-field-label">공동현관 비밀번호 (선택)</label>
-          <input
-            autoComplete="off"
-            className="pickup-input"
-            onChange={(e) => setAddress((p) => ({ ...p, entrance_password: e.target.value }))}
-            placeholder="예: #1234*"
-            type="password"
-            value={address.entrance_password}
-          />
-        </div>
+        <PickupPasswordField
+          value={address.entrance_password}
+          onChange={(value) => setAddress((p) => ({ ...p, entrance_password: value }))}
+        />
       </div>
 
       {/* 희망 수거일 */}
@@ -581,11 +738,17 @@ function StepAddress({ address, setAddress, savedAddresses, onPrev, onNext, show
         <label className="pickup-field-label">희망 수거일</label>
         <input
           className="pickup-input"
-          min={new Date().toISOString().split("T")[0]}
+          min={minPickupDate}
           onChange={(e) => setAddress((p) => ({ ...p, desired_pickup_date: e.target.value }))}
           type="date"
           value={address.desired_pickup_date}
         />
+        <span className="pickup-field-hint">
+          오늘 신청 시 가장 빠른 수거일은 <strong>{minPickupDate}</strong>이에요. 주말·공휴일은 수거가 어려워요.
+        </span>
+        {pickupDateNotice && (
+          <span className="pickup-field-hint pickup-field-hint--warn">{pickupDateNotice}</span>
+        )}
       </div>
 
       {/* 예상권수 / 박스개수 */}
@@ -600,10 +763,13 @@ function StepAddress({ address, setAddress, savedAddresses, onPrev, onNext, show
               const digits = e.target.value.replace(/\D/g, "").slice(0, 4);
               setAddress((p) => ({ ...p, expected_book_count: digits }));
             }}
-            placeholder="예: 25"
+            placeholder={itemCount > 0 ? `예: ${itemCount}` : "예: 25"}
             type="text"
             value={address.expected_book_count}
           />
+          {countDiffHint && (
+            <span className="pickup-field-hint pickup-field-hint--warn">{countDiffHint}</span>
+          )}
         </div>
         <div className="pickup-form-field">
           <label className="pickup-field-label">박스 개수</label>
@@ -619,6 +785,9 @@ function StepAddress({ address, setAddress, savedAddresses, onPrev, onNext, show
             type="text"
             value={address.box_count}
           />
+          {boxHint && (
+            <span className="pickup-field-hint pickup-field-hint--warn">{boxHint}</span>
+          )}
         </div>
       </div>
 
@@ -675,6 +844,7 @@ function StepAddress({ address, setAddress, savedAddresses, onPrev, onNext, show
 function StepSettlement({ account, setAccount, savedAccounts, policyAgreed, setPolicyAgreed, onPrev, onNext }) {
   const [selectedSavedId, setSelectedSavedId] = useState(null);
   const [useNewAccount, setUseNewAccount] = useState(savedAccounts.length === 0);
+  const [showPolicyDetail, setShowPolicyDetail] = useState(false);
 
   useEffect(() => {
     if (savedAccounts.length > 0 && !selectedSavedId && !useNewAccount) {
@@ -686,10 +856,13 @@ function StepSettlement({ account, setAccount, savedAccounts, policyAgreed, setP
   const selectSaved = (acc) => {
     setSelectedSavedId(acc.id);
     setUseNewAccount(false);
+    // P0-2: 저장된 계좌 선택 시 account_number를 빈 값으로 두고 account_id만 식별자로 보존.
+    // 마스킹된 계좌번호를 페이로드에 실어 보내면 잘못된 계좌번호가 RPC에 전달될 수 있음.
     setAccount({
       account_id: acc.id,
       bank_name: acc.bank_name,
-      account_number: acc.account_number_masked || acc.account_number,
+      account_number: "",
+      account_number_masked: acc.account_number_masked || acc.account_number,
       account_number_last4: acc.account_last4 ?? acc.account_number_last4,
       account_holder: acc.account_holder,
     });
@@ -698,14 +871,23 @@ function StepSettlement({ account, setAccount, savedAccounts, policyAgreed, setP
   const startNewAccount = () => {
     setSelectedSavedId(null);
     setUseNewAccount(true);
-    setAccount({ account_id: null, bank_name: "", account_number: "", account_number_last4: "", account_holder: "" });
+    setAccount({ account_id: null, bank_name: "", account_number: "", account_number_masked: "", account_number_last4: "", account_holder: "" });
+  };
+
+  const allAgreed = policyAgreed.consignment && policyAgreed.privacy && policyAgreed.disposal;
+  const togglePolicy = (key) => (event) => {
+    setPolicyAgreed((prev) => ({ ...prev, [key]: event.target.checked }));
+  };
+  const toggleAll = (event) => {
+    const checked = event.target.checked;
+    setPolicyAgreed({ consignment: checked, privacy: checked, disposal: checked });
   };
 
   const isValid =
     account.bank_name.trim() &&
     (account.account_id || account.account_number.trim()) &&
     account.account_holder.trim() &&
-    policyAgreed;
+    allAgreed;
 
   return (
     <div className="pickup-step">
@@ -735,7 +917,12 @@ function StepSettlement({ account, setAccount, savedAccounts, policyAgreed, setP
                   {acc.is_default && <span className="pickup-saved-card__default">기본</span>}
                 </div>
                 <span className="pickup-saved-card__name">
-                  {acc.account_number_masked || acc.account_number} · {acc.account_holder}
+                  {acc.account_number_masked
+                    || (acc.account_last4 || acc.account_number_last4
+                      ? `****${acc.account_last4 ?? acc.account_number_last4}`
+                      : acc.account_number)}
+                  {" · "}
+                  {acc.account_holder}
                 </span>
               </div>
             </label>
@@ -793,42 +980,89 @@ function StepSettlement({ account, setAccount, savedAccounts, policyAgreed, setP
         </div>
       )}
 
-      {/* 판매 정책 */}
-      <div className="pickup-policy-box">
-        <p className="pickup-policy-box__title">📋 판매 정책</p>
-        <div className="pickup-policy-box__section">
-          <p className="pickup-policy-box__heading">수수료 안내</p>
-          <ul className="pickup-policy-box__list">
-            <li>1만원 초과 교재: 판매가의 40%</li>
-            <li>1만원 이하 교재/모의고사: 판매가의 45%</li>
-          </ul>
-        </div>
-        <div className="pickup-policy-box__section">
-          <p className="pickup-policy-box__heading">검수 안내</p>
-          <ul className="pickup-policy-box__list">
-            <li>전문 검수원이 S/A+/A 등급을 판정합니다</li>
-            <li>필기 10% 초과, 심한 훼손 교재는 판매불가</li>
-            <li>판매불가 교재는 자체 폐기됩니다</li>
-          </ul>
-        </div>
-        <div className="pickup-policy-box__section">
-          <p className="pickup-policy-box__heading">정산 안내</p>
-          <ul className="pickup-policy-box__list">
-            <li>교재 판매 완료 + 구매자 확정 후 3영업일 이내 정산</li>
-            <li>검수 통과 20권 미만 시 초기 수거 배송비 3,500원 차감</li>
-          </ul>
-        </div>
-      </div>
+      {/* 판매 정책 — 전체동의 + 펼치기 패턴 */}
+      <div className="pickup-policy-agree">
+        <label className="pickup-checkbox-label pickup-checkbox-label--all">
+          <input
+            checked={allAgreed}
+            className="pickup-checkbox"
+            onChange={toggleAll}
+            type="checkbox"
+          />
+          <span>전체 동의 <span className="pickup-required">[필수]</span></span>
+        </label>
 
-      <label className="pickup-checkbox-label">
-        <input
-          checked={policyAgreed}
-          className="pickup-checkbox"
-          onChange={(e) => setPolicyAgreed(e.target.checked)}
-          type="checkbox"
-        />
-        <span>위 판매 정책을 확인하였으며 동의합니다 <span className="pickup-required">[필수]</span></span>
-      </label>
+        <ul className="pickup-policy-agree__list">
+          <li>
+            <label className="pickup-checkbox-label pickup-checkbox-label--sub">
+              <input
+                checked={policyAgreed.consignment}
+                className="pickup-checkbox"
+                onChange={togglePolicy("consignment")}
+                type="checkbox"
+              />
+              <span>(필수) 위탁판매 약관 동의 — 수수료(1만원 초과 40%, 이하 45%) · 정산 D+3영업일</span>
+            </label>
+          </li>
+          <li>
+            <label className="pickup-checkbox-label pickup-checkbox-label--sub">
+              <input
+                checked={policyAgreed.privacy}
+                className="pickup-checkbox"
+                onChange={togglePolicy("privacy")}
+                type="checkbox"
+              />
+              <span>(필수) 개인정보 제3자 제공 동의 — CJ대한통운에 수령인 이름·연락처·주소 전달</span>
+            </label>
+          </li>
+          <li>
+            <label className="pickup-checkbox-label pickup-checkbox-label--sub">
+              <input
+                checked={policyAgreed.disposal}
+                className="pickup-checkbox"
+                onChange={togglePolicy("disposal")}
+                type="checkbox"
+              />
+              <span>(필수) 판매불가 교재 자체 폐기 동의 — 필기 10% 초과·심한 훼손 시 폐기</span>
+            </label>
+          </li>
+        </ul>
+
+        <button
+          className="pickup-link-button pickup-policy-agree__toggle"
+          onClick={() => setShowPolicyDetail((v) => !v)}
+          type="button"
+        >
+          {showPolicyDetail ? "약관 자세히 닫기 ▲" : "약관 자세히 보기 ▼"}
+        </button>
+
+        {showPolicyDetail && (
+          <div className="pickup-policy-box">
+            <div className="pickup-policy-box__section">
+              <p className="pickup-policy-box__heading">수수료 안내</p>
+              <ul className="pickup-policy-box__list">
+                <li>1만원 초과 교재: 판매가의 40%</li>
+                <li>1만원 이하 교재·모의고사: 판매가의 45%</li>
+                <li>1만원 이하 수수료가 더 높은 이유: 검수·촬영·창고 단가가 책 가격에 관계없이 거의 일정해서, 저가 교재일수록 비율을 더 받아야 운영이 가능해요.</li>
+              </ul>
+            </div>
+            <div className="pickup-policy-box__section">
+              <p className="pickup-policy-box__heading">검수 안내</p>
+              <ul className="pickup-policy-box__list">
+                <li>전문 검수원이 S/A+/A 등급 판정</li>
+                <li>필기 10% 초과·심한 훼손 교재는 판매불가 → 자체 폐기</li>
+              </ul>
+            </div>
+            <div className="pickup-policy-box__section">
+              <p className="pickup-policy-box__heading">정산 안내</p>
+              <ul className="pickup-policy-box__list">
+                <li>구매자 구매확정 후 3영업일 이내 계좌이체</li>
+                <li>검수 통과 20권 미만 시 초기 수거 배송비 3,500원 차감</li>
+              </ul>
+            </div>
+          </div>
+        )}
+      </div>
 
       <div className="pickup-step-actions">
         <button className="pickup-btn pickup-btn--secondary" onClick={onPrev} type="button">← 이전</button>
@@ -876,6 +1110,11 @@ function StepConfirm({ items, address, account, isSubmitting, onPrev, onSubmit, 
             </div>
           ))}
         </div>
+        {address.expected_book_count && Number(address.expected_book_count) !== items.length && (
+          <p className="pickup-confirm-detail pickup-confirm-detail__memo">
+            등록한 교재 <strong>{items.length}권</strong> · 신고한 예상 <strong>{address.expected_book_count}권</strong> — 박스에 추가로 넣을 책이 있는지 확인해주세요.
+          </p>
+        )}
       </div>
 
       {/* 수거 주소 요약 */}
@@ -888,11 +1127,14 @@ function StepConfirm({ items, address, account, isSubmitting, onPrev, onSubmit, 
         <div className="pickup-confirm-detail">
           <p>{address.recipient_name} · {address.recipient_phone}</p>
           <p>{address.address_line1}{address.address_line2 ? `, ${address.address_line2}` : ""}</p>
+          {address.desired_pickup_date && (
+            <p>희망 수거일: {address.desired_pickup_date}</p>
+          )}
           {address.memo && <p className="pickup-confirm-detail__memo">요청: {address.memo}</p>}
         </div>
       </div>
 
-      {/* 정산 계좌 요약 */}
+      {/* 정산 계좌 요약 — account_number는 P0-2로 인해 비어있음, 마스킹된 표시 사용 */}
       <div className="pickup-confirm-section">
         <div className="pickup-confirm-section__header">
           <span className="pickup-confirm-section__icon">💰</span>
@@ -900,7 +1142,17 @@ function StepConfirm({ items, address, account, isSubmitting, onPrev, onSubmit, 
           <button className="pickup-link-button" onClick={() => goToStep(2)} type="button">수정 →</button>
         </div>
         <div className="pickup-confirm-detail">
-          <p>{account.bank_name} · {account.account_number} · {account.account_holder}</p>
+          <p>
+            {account.bank_name} ·{" "}
+            {account.account_number
+              || account.account_number_masked
+              || (account.account_number_last4 ? `****${account.account_number_last4}` : "")}
+            {" · "}
+            {account.account_holder}
+          </p>
+          <p className="pickup-confirm-detail__memo">
+            정산 예상 시점: <strong>구매자 구매확정 후 3영업일 이내</strong> · 최소 정산 보장 권수: <strong>검수 통과 20권</strong>
+          </p>
         </div>
       </div>
 
@@ -991,8 +1243,8 @@ function PublicPickupRequestPage() {
     email: "", entrance_password: "", desired_pickup_date: "",
     expected_book_count: "", box_count: "",
   });
-  const [account, setAccount] = useState({ account_id: null, bank_name: "", account_number: "", account_number_last4: "", account_holder: "" });
-  const [policyAgreed, setPolicyAgreed] = useState(false);
+  const [account, setAccount] = useState({ account_id: null, bank_name: "", account_number: "", account_number_masked: "", account_number_last4: "", account_holder: "" });
+  const [policyAgreed, setPolicyAgreed] = useState({ consignment: false, privacy: false, disposal: false });
   const [savedAddresses, setSavedAddresses] = useState([]);
   const [savedAccounts, setSavedAccounts] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1000,6 +1252,10 @@ function PublicPickupRequestPage() {
   const [toast, setToast] = useState(null);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(true);
+  // P0-1: 작성 중인 draft 복구 안내
+  const [draftPrompt, setDraftPrompt] = useState(null); // { items, address, account, step, savedAt } | null
+  const draftDecidedRef = useRef(false);
+  const draftReadyRef = useRef(false);
 
   const showToast = useCallback((message, tone = "info") => {
     setToast({ message, tone, key: Date.now() });
@@ -1036,6 +1292,51 @@ function PublicPickupRequestPage() {
     return () => { cancelled = true; };
   }, [user]);
 
+  // P0-1: 마운트 시 draft 복구 후보 확인 (한 번만)
+  useEffect(() => {
+    if (draftDecidedRef.current) return;
+    const draft = readDraft();
+    if (draft && Array.isArray(draft.items) && draft.items.length > 0) {
+      setDraftPrompt(draft);
+    } else {
+      draftDecidedRef.current = true;
+      draftReadyRef.current = true;
+    }
+  }, []);
+
+  // P0-1: 사용자가 결정 후에만 작성 내용을 sessionStorage에 debounce 저장
+  useEffect(() => {
+    if (!draftReadyRef.current) return;
+    // 빈 상태(처음 진입)에서는 저장하지 않음
+    if (items.length === 0 && !address.address_line1 && !address.recipient_name) return;
+    const timer = setTimeout(() => {
+      writeDraft({ items, address, account, step: currentStep });
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [items, address, account, currentStep]);
+
+  const handleDraftContinue = () => {
+    if (!draftPrompt) return;
+    setItems(Array.isArray(draftPrompt.items) ? draftPrompt.items : []);
+    if (draftPrompt.address && typeof draftPrompt.address === "object") {
+      setAddress((prev) => ({ ...prev, ...draftPrompt.address }));
+    }
+    if (draftPrompt.account && typeof draftPrompt.account === "object") {
+      setAccount((prev) => ({ ...prev, ...draftPrompt.account }));
+    }
+    if (Number.isFinite(draftPrompt.step)) setCurrentStep(Math.min(3, Math.max(0, draftPrompt.step)));
+    setDraftPrompt(null);
+    draftDecidedRef.current = true;
+    draftReadyRef.current = true;
+  };
+
+  const handleDraftDiscard = () => {
+    clearDraft();
+    setDraftPrompt(null);
+    draftDecidedRef.current = true;
+    draftReadyRef.current = true;
+  };
+
   const handleCancel = () => {
     if (items.length > 0 || address.address_line1) {
       setShowCancelModal(true);
@@ -1051,11 +1352,12 @@ function PublicPickupRequestPage() {
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
+    const allAgreed = policyAgreed.consignment && policyAgreed.privacy && policyAgreed.disposal;
     const { data, error } = await submitPickupRequest({
       pickupAddress: address,
       settlementAccount: account,
       items,
-      policyAgreed,
+      policyAgreed: allAgreed,
     });
 
     setIsSubmitting(false);
@@ -1065,6 +1367,8 @@ function PublicPickupRequestPage() {
       return;
     }
 
+    // P0-1: 신청 성공 시 draft cleanup
+    clearDraft();
     setSubmitResult(data);
   };
 
@@ -1124,6 +1428,32 @@ function PublicPickupRequestPage() {
             ← {currentStep === 0 ? "취소" : "취소"}
           </button>
 
+          {/* P0-1: 작성 중 신청서 이어쓰기 안내 */}
+          {draftPrompt && (
+            <div className="pickup-draft-banner" role="status">
+              <div className="pickup-draft-banner__text">
+                <strong>작성 중이던 신청서가 있어요.</strong>
+                <span>교재 {Array.isArray(draftPrompt.items) ? draftPrompt.items.length : 0}권 — 이어서 작성할까요?</span>
+              </div>
+              <div className="pickup-draft-banner__actions">
+                <button
+                  className="pickup-btn pickup-btn--secondary pickup-btn--sm"
+                  onClick={handleDraftDiscard}
+                  type="button"
+                >
+                  새로 시작
+                </button>
+                <button
+                  className="pickup-btn pickup-btn--primary pickup-btn--sm"
+                  onClick={handleDraftContinue}
+                  type="button"
+                >
+                  이어서 작성
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* 헤더 + 프로그레스 */}
           <div className="pickup-card">
             <div className="pickup-card__top">
@@ -1155,6 +1485,7 @@ function PublicPickupRequestPage() {
                   {currentStep === 1 && (
                     <StepAddress
                       address={address}
+                      itemCount={items.length}
                       onNext={() => goToStep(2)}
                       onPrev={() => goToStep(0)}
                       savedAddresses={savedAddresses}

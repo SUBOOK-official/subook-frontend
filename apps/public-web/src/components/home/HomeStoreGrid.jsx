@@ -28,6 +28,7 @@ import {
 
 const ITEMS_PER_PAGE = 28;
 const SKELETON_COUNT = 8;
+const MOBILE_BREAKPOINT_PX = 767;
 
 function getFilterOptionLabel(option) {
   return typeof option === "string" ? option : option.label;
@@ -67,8 +68,6 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
   const location = useLocation();
   const sortMenuRef = useRef(null);
   const sectionTopRef = useRef(null);
-  const sidebarRef = useRef(null);
-  const layoutRef = useRef(null);
 
   const initialQueryState = useMemo(
     () => parseStorefrontQuery(location.search),
@@ -83,6 +82,11 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
   const [currentPage, setCurrentPage] = useState(initialQueryState.page);
   const [searchKeyword, setSearchKeyword] = useState(initialQueryState.searchKeyword);
   const [isSortMenuOpen, setIsSortMenuOpen] = useState(false);
+  // 모바일 무한 스크롤: 현재까지 보여준 카드 수. 페이지네이션 대신 누적.
+  const [mobileVisibleCount, setMobileVisibleCount] = useState(ITEMS_PER_PAGE);
+  const [isMobileViewport, setIsMobileViewport] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth <= MOBILE_BREAKPOINT_PX : false,
+  );
 
   // 카탈로그 로딩 (한 번만)
   useEffect(() => {
@@ -105,6 +109,22 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
     return () => {
       isActive = false;
     };
+  }, []);
+
+  // 뷰포트 추적 (페이지네이션 vs 무한 스크롤 분기)
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+      return undefined;
+    }
+    const mediaQuery = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT_PX}px)`);
+    const syncViewport = (event) => setIsMobileViewport(event.matches);
+    syncViewport(mediaQuery);
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", syncViewport);
+      return () => mediaQuery.removeEventListener("change", syncViewport);
+    }
+    mediaQuery.addListener(syncViewport);
+    return () => mediaQuery.removeListener(syncViewport);
   }, []);
 
   // URL 쿼리 → 상태 동기화 (브라우저 뒤로가기 등)
@@ -157,53 +177,9 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
     }
   }, [location.state, location.pathname, location.search, navigate]);
 
-  // 사이드바 sticky (JS 구현)
-  // PublicPageFrame이 1920px 디자인을 transform: scale로 viewport에 맞추는 구조라
-  // CSS position: sticky가 transform parent를 containing block으로 잡아 viewport 기준 sticky가 깨짐.
-  // → window scroll에 맞춰 사이드바를 layout 안에서 translateY로 직접 따라가게 함.
-  useEffect(() => {
-    const STICKY_OFFSET = 96; // viewport top에서 박힐 위치(px)
-    const sidebarEl = sidebarRef.current;
-    const layoutEl = layoutRef.current;
-    if (!sidebarEl || !layoutEl) return undefined;
-
-    const isDesktopLayout = () => window.matchMedia("(min-width: 1024px)").matches;
-
-    const getFrameScale = () => {
-      const frameEl = sidebarEl.closest(".public-home__frame");
-      if (!frameEl) return 1;
-      const raw = getComputedStyle(frameEl).getPropertyValue("--public-frame-scale").trim();
-      const parsed = Number.parseFloat(raw);
-      return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
-    };
-
-    const sync = () => {
-      if (!isDesktopLayout()) {
-        sidebarEl.style.transform = "";
-        return;
-      }
-      const layoutRect = layoutEl.getBoundingClientRect();
-      const sidebarHeight = sidebarEl.offsetHeight;
-      const layoutHeight = layoutEl.offsetHeight;
-      const scale = getFrameScale();
-
-      // viewport에서 사이드바 top: STICKY_OFFSET에 박히도록 local translateY 계산.
-      // viewport_y = layoutRect.top + localTranslateY * scale  →  STICKY_OFFSET
-      const desiredLocal = (STICKY_OFFSET - layoutRect.top) / scale;
-      const maxLocal = Math.max(0, layoutHeight - sidebarHeight);
-      const clamped = Math.min(Math.max(desiredLocal, 0), maxLocal);
-      sidebarEl.style.transform = `translateY(${clamped}px)`;
-    };
-
-    sync();
-    window.addEventListener("scroll", sync, { passive: true });
-    window.addEventListener("resize", sync);
-    return () => {
-      window.removeEventListener("scroll", sync);
-      window.removeEventListener("resize", sync);
-      sidebarEl.style.transform = "";
-    };
-  }, []);
+  // 사이드바 sticky: 이전에는 JS로 translateY를 직접 따라가게 했지만, PublicPageFrame이
+  // 더 이상 transform: scale을 사용하지 않으므로 순수 CSS `position: sticky; top: 96px;`
+  // (index.css의 `.public-home-store-grid__sidebar`)로 환원했다. JS sticky 코드 제거.
 
   // 정렬 메뉴 외부 클릭 닫기
   useEffect(() => {
@@ -243,9 +219,39 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
   const totalPages = Math.max(1, Math.ceil(visibleBooks.length / ITEMS_PER_PAGE));
   const safeCurrentPage = Math.min(currentPage, totalPages);
   const startIndex = (safeCurrentPage - 1) * ITEMS_PER_PAGE;
-  const displayedProducts = visibleBooks.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  const desktopDisplayed = visibleBooks.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  const mobileDisplayed = visibleBooks.slice(0, mobileVisibleCount);
+  const displayedProducts = isMobileViewport ? mobileDisplayed : desktopDisplayed;
   const paginationItems = getPaginationItems(safeCurrentPage, totalPages);
   const selectedFilterCount = countSelectedStoreFilters(selectedFilters);
+
+  // 필터/검색이 바뀌면 모바일 노출 카드 수 reset
+  useEffect(() => {
+    setMobileVisibleCount(ITEMS_PER_PAGE);
+  }, [selectedSubject, selectedFilters, sortOption, searchKeyword]);
+
+  // 모바일: IntersectionObserver로 무한 스크롤
+  const loadMoreRef = useRef(null);
+  useEffect(() => {
+    if (!isMobileViewport) return undefined;
+    if (typeof IntersectionObserver === "undefined") return undefined;
+    const sentinel = loadMoreRef.current;
+    if (!sentinel) return undefined;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          setMobileVisibleCount((current) => {
+            if (current >= visibleBooks.length) return current;
+            return Math.min(current + ITEMS_PER_PAGE, visibleBooks.length);
+          });
+        });
+      },
+      { rootMargin: "200px 0px" },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [isMobileViewport, visibleBooks.length]);
 
   const scrollToTop = () => {
     if (sectionTopRef.current) {
@@ -274,6 +280,11 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
     setCurrentPage(1);
   };
 
+  const handleClearSearchKeyword = () => {
+    setSearchKeyword("");
+    setCurrentPage(1);
+  };
+
   const handleSelectSort = (nextValue) => {
     setIsSortMenuOpen(false);
     if (nextValue === sortOption) return;
@@ -287,14 +298,35 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
     scrollToTop();
   };
 
+  // 빈 상태 회복: 가장 많이 선택된 필터를 토글 해제하는 추천 칩.
+  // 최대 2개까지만 노출하여 인지 부담 최소화.
+  const emptyStateRecoverableFilters = useMemo(() => {
+    const candidates = [];
+    Object.entries(selectedFilters).forEach(([groupKey, values]) => {
+      if (!Array.isArray(values)) return;
+      values.forEach((value) => candidates.push({ groupKey, value }));
+    });
+    return candidates.slice(0, 2);
+  }, [selectedFilters]);
+
+  const handleNotifyRestock = () => {
+    if (typeof window === "undefined") return;
+    const confirmed = window.confirm(
+      "원하는 교재가 들어오면 알림을 보내드릴까요? 카카오톡 채널에서 입고 소식을 받을 수 있어요.",
+    );
+    if (confirmed) {
+      window.open("https://pf.kakao.com/_subook", "_blank", "noopener,noreferrer");
+    }
+  };
+
   const isEmpty = !isLoading && displayedProducts.length === 0;
 
   return (
     <section className="public-home-store-grid" aria-label="전체 교재" ref={sectionTopRef}>
       <ContentContainer>
-        <div className="public-home-store-grid__layout" ref={layoutRef}>
+        <div className="public-home-store-grid__layout">
           {/* 좌측 세로 사이드바 (PC) — 모바일에선 그리드 위로 떨어짐 */}
-          <aside className="public-home-store-grid__sidebar" aria-label="필터" ref={sidebarRef}>
+          <aside className="public-home-store-grid__sidebar" aria-label="필터">
             {HOME_SIDEBAR_FILTER_GROUPS.map((group) => {
               const hasSelected = selectedFilters[group.key].length > 0;
               return (
@@ -392,17 +424,34 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
           </div>
         </div>
 
-        {/* 활성 필터 요약 (있을 때만) */}
-        {selectedFilterCount > 0 ? (
+        {/* 활성 검색 / 필터 요약 */}
+        {searchKeyword || selectedFilterCount > 0 ? (
           <div className="public-home-store-grid__active-filters">
-            <span className="public-home-store-grid__active-label">적용 필터 {selectedFilterCount}개</span>
-            <button
-              className="public-home-store-grid__reset"
-              onClick={handleResetAllFilters}
-              type="button"
-            >
-              전체 초기화
-            </button>
+            {searchKeyword ? (
+              <span className="public-home-store-grid__search-chip">
+                {`"${searchKeyword}" 검색 결과 ${visibleBooks.length.toLocaleString("ko-KR")}건`}
+                <button
+                  aria-label="검색 해제"
+                  className="public-home-store-grid__search-chip-remove"
+                  onClick={handleClearSearchKeyword}
+                  type="button"
+                >
+                  ×
+                </button>
+              </span>
+            ) : null}
+            {selectedFilterCount > 0 ? (
+              <>
+                <span className="public-home-store-grid__active-label">적용 필터 {selectedFilterCount}개</span>
+                <button
+                  className="public-home-store-grid__reset"
+                  onClick={handleResetAllFilters}
+                  type="button"
+                >
+                  전체 초기화
+                </button>
+              </>
+            ) : null}
           </div>
         ) : null}
 
@@ -415,24 +464,77 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
           </div>
         ) : isEmpty ? (
           <div className="public-home-store-grid__empty">
-            <strong>조건에 맞는 교재가 없어요</strong>
-            <p>필터를 줄이거나 다른 과목을 선택해 보세요.</p>
-            {selectedFilterCount > 0 ? (
-              <button
-                className="public-home-store-grid__empty-button"
-                onClick={handleResetAllFilters}
-                type="button"
-              >
-                필터 초기화
-              </button>
+            {searchKeyword ? (
+              <>
+                <strong>"{searchKeyword}" 검색 결과가 없어요</strong>
+                <p>검색어를 줄이거나 비슷한 이름으로 다시 찾아보세요.</p>
+                <div className="public-home-store-grid__empty-actions">
+                  <button
+                    className="public-home-store-grid__empty-button"
+                    onClick={handleClearSearchKeyword}
+                    type="button"
+                  >
+                    검색 해제
+                  </button>
+                  {selectedFilterCount > 0 ? (
+                    <button
+                      className="public-home-store-grid__empty-button"
+                      onClick={handleResetAllFilters}
+                      type="button"
+                    >
+                      필터 초기화
+                    </button>
+                  ) : null}
+                </div>
+                <button
+                  className="public-home-store-grid__notify-toggle"
+                  onClick={handleNotifyRestock}
+                  type="button"
+                >
+                  원하는 교재가 없나요? 입고 알림 받기
+                </button>
+              </>
             ) : (
-              <button
-                className="public-home-store-grid__empty-button"
-                onClick={() => handleSelectSubject(STORE_DEFAULT_SUBJECT)}
-                type="button"
-              >
-                전체 보기
-              </button>
+              <>
+                <strong>조건에 맞는 교재가 없어요</strong>
+                <p>필터를 줄이거나 다른 과목을 선택해 보세요.</p>
+                {emptyStateRecoverableFilters.length > 0 ? (
+                  <div className="public-home-store-grid__empty-actions">
+                    {emptyStateRecoverableFilters.map(({ groupKey, value }) => (
+                      <button
+                        className="public-home-store-grid__empty-chip"
+                        key={`${groupKey}-${value}`}
+                        onClick={() => handleToggleFilter(groupKey, value)}
+                        type="button"
+                      >
+                        {value} 해제
+                      </button>
+                    ))}
+                    <button
+                      className="public-home-store-grid__empty-button"
+                      onClick={handleResetAllFilters}
+                      type="button"
+                    >
+                      필터 초기화
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    className="public-home-store-grid__empty-button"
+                    onClick={() => handleSelectSubject(STORE_DEFAULT_SUBJECT)}
+                    type="button"
+                  >
+                    전체 보기
+                  </button>
+                )}
+                <button
+                  className="public-home-store-grid__notify-toggle"
+                  onClick={handleNotifyRestock}
+                  type="button"
+                >
+                  원하는 교재가 없나요? 입고 알림 받기
+                </button>
+              </>
             )}
           </div>
         ) : (
@@ -448,8 +550,23 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
           </div>
         )}
 
-        {/* 페이지네이션 */}
-        {!isLoading && totalPages > 1 ? (
+        {/* 모바일: 무한 스크롤 sentinel + 명시적 "더보기" fallback */}
+        {!isLoading && isMobileViewport && mobileVisibleCount < visibleBooks.length ? (
+          <div className="public-home-store-grid__loadmore" ref={loadMoreRef}>
+            <button
+              className="public-home-store-grid__loadmore-button"
+              onClick={() =>
+                setMobileVisibleCount((current) => Math.min(current + ITEMS_PER_PAGE, visibleBooks.length))
+              }
+              type="button"
+            >
+              더 많은 교재 보기 ({mobileVisibleCount.toLocaleString("ko-KR")}/{visibleBooks.length.toLocaleString("ko-KR")})
+            </button>
+          </div>
+        ) : null}
+
+        {/* 페이지네이션 — 데스크탑 전용 (모바일은 무한 스크롤로 대체) */}
+        {!isLoading && !isMobileViewport && totalPages > 1 ? (
           <nav className="public-home-store-grid__pagination" aria-label="페이지 탐색">
             <button
               aria-label="이전 페이지"

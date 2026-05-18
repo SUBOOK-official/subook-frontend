@@ -7,11 +7,13 @@ import PublicFooter from "../components/PublicFooter";
 import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
+import {
+  BANK_ACCOUNT,
+  BANK_HOLDER,
+  BANK_NAME,
+  PAYMENT_DEADLINE_HOURS,
+} from "../lib/paymentBankInfo";
 import "./PublicOrderCompletePage.css";
-
-const BANK_NAME = "카카오뱅크";
-const BANK_ACCOUNT = "3333-36-3268506";
-const BANK_HOLDER = "박영제";
 
 // 주문번호(예: ORD-2412-0042)에서 마지막 4자리 추출
 function getOrderTail(orderNumber) {
@@ -33,7 +35,7 @@ function formatDeadline(createdAtIso) {
   if (!createdAtIso) return "";
   try {
     const created = new Date(createdAtIso);
-    const deadline = new Date(created.getTime() + 24 * 60 * 60 * 1000);
+    const deadline = new Date(created.getTime() + PAYMENT_DEADLINE_HOURS * 60 * 60 * 1000);
     const formatter = new Intl.DateTimeFormat("ko-KR", {
       timeZone: "Asia/Seoul",
       month: "2-digit",
@@ -281,9 +283,18 @@ function PublicOrderCompletePage() {
                         </>
                       ) : (
                         <>
-                          주문 후 <strong>24시간 이내</strong>에 입금해주세요. 미입금 시 주문이 자동 취소됩니다.
+                          주문 후 <strong>{PAYMENT_DEADLINE_HOURS}시간 이내</strong>에 입금해주세요. 미입금 시 주문이 자동 취소됩니다.
                         </>
                       )}
+                    </p>
+
+                    {/* P0-6: 비로그인 / state 소실 시에도 다시 확인할 수 있도록 회복 경로 명시 */}
+                    <p className="order-complete-card__bank-recovery">
+                      이 정보는 카카오톡으로도 발송됩니다.{" "}
+                      <Link className="order-complete-card__bank-recovery-link" to="/mypage">
+                        마이페이지 &gt; 주문내역
+                      </Link>
+                      에서 언제든지 다시 확인할 수 있어요.
                     </p>
                   </div>
                 ) : null}

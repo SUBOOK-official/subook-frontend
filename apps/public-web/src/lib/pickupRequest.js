@@ -119,6 +119,15 @@ async function submitPickupRequest({
   const expectedBookCount = Number.parseInt(pickupAddress.expected_book_count, 10);
   const boxCount = Number.parseInt(pickupAddress.box_count, 10);
 
+  // P0-2: 저장된 계좌(account_id)가 있을 때는 account_number를 절대 전송하지 않는다.
+  // (마스킹된 문자열이 새 계좌번호로 잘못 저장되는 사고 방지)
+  const resolvedAccountId = settlementAccount.account_id ?? settlementAccount.id ?? null;
+  const resolvedAccountNumber = resolvedAccountId
+    ? null
+    : (settlementAccount.account_number || null);
+  const resolvedBankName = resolvedAccountId ? null : settlementAccount.bank_name;
+  const resolvedAccountHolder = resolvedAccountId ? null : settlementAccount.account_holder;
+
   const { data, error } = await supabase.rpc("submit_pickup_request", {
     p_pickup_recipient_name: pickupAddress.recipient_name,
     p_pickup_recipient_phone: pickupAddress.recipient_phone,
@@ -126,10 +135,10 @@ async function submitPickupRequest({
     p_pickup_address_line1: pickupAddress.address_line1,
     p_pickup_address_line2: pickupAddress.address_line2 || null,
     p_pickup_memo: pickupAddress.memo || null,
-    p_settlement_bank_name: settlementAccount.bank_name,
-    p_settlement_account_number: settlementAccount.account_number,
-    p_settlement_account_holder: settlementAccount.account_holder,
-    p_settlement_account_id: settlementAccount.account_id ?? settlementAccount.id ?? null,
+    p_settlement_bank_name: resolvedBankName,
+    p_settlement_account_number: resolvedAccountNumber,
+    p_settlement_account_holder: resolvedAccountHolder,
+    p_settlement_account_id: resolvedAccountId,
     p_items: itemsPayload,
     p_pickup_email: pickupAddress.email || null,
     p_pickup_entrance_password: pickupAddress.entrance_password || null,

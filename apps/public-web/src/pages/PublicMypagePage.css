@@ -426,6 +426,47 @@
   line-height: 1.4;
 }
 
+/* P1-5: 정산 카드 타임라인 */
+.public-mypage-settlement-card__toggle {
+  margin-top: 12px;
+  align-self: flex-start;
+  font-size: 13px;
+}
+
+.public-mypage-settlement-timeline {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  background: var(--public-ds-background);
+  border-radius: 8px;
+  border: 1px dashed var(--public-ds-border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.public-mypage-settlement-timeline__item {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--public-ds-text);
+  line-height: 1.6;
+}
+
+.public-mypage-settlement-timeline__label {
+  color: var(--public-ds-text-secondary);
+}
+
+.public-mypage-settlement-timeline__value {
+  font-weight: 600;
+}
+
+.public-mypage-settlement-timeline__empty {
+  font-size: 12px;
+  color: var(--public-ds-text-secondary);
+  line-height: 1.5;
+}
+
 .public-mypage-button--danger-outline {
   border: 1px solid rgba(239, 68, 68, 0.24);
   background: #ffffff;
@@ -792,6 +833,69 @@
   font-weight: 700;
 }
 
+/* P0-6: 사이드바 "+ 수거 요청하기" CTA */
+.public-mypage-sidebar__cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 4px 0 6px;
+  padding: 10px 12px;
+  background: var(--public-ds-primary, #1b3a5c);
+  color: #ffffff;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 700;
+  border-radius: 8px;
+  transition: opacity 0.15s ease;
+}
+
+.public-mypage-sidebar__cta:hover {
+  opacity: 0.92;
+}
+
+/* P0-5: 폐기 책 상세 + 검수 사진 + 이의제기 링크 */
+.public-mypage-book-row__detail {
+  margin: 4px 0 0 !important;
+  font-size: 13px;
+  color: var(--public-ds-text-secondary);
+  line-height: 1.5;
+}
+
+.public-mypage-book-row__photos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.public-mypage-book-row__photo {
+  display: block;
+  width: 60px;
+  height: 60px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--public-ds-border);
+}
+
+.public-mypage-book-row__photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.public-mypage-book-row__dispute {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--public-ds-danger, #ef4444);
+  text-decoration: underline;
+}
+
+.public-mypage-book-row__dispute:hover {
+  opacity: 0.85;
+}
+
 .public-mypage-content {
   min-width: 0;
 }
@@ -1016,6 +1120,52 @@
   border-color: #fca5a5;
 }
 
+/* P2-7: 운송장 번호 + 복사 */
+.public-mypage-purchase-card__tracking {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--public-ds-divider, #f3f4f6);
+  border-radius: 8px;
+  background: var(--public-ds-background, #f8fafc);
+  font-size: 13px;
+  margin-top: 2px;
+  flex-wrap: wrap;
+}
+
+.public-mypage-purchase-card__tracking-label {
+  color: var(--public-ds-text-secondary);
+  font-weight: 600;
+}
+
+.public-mypage-purchase-card__tracking-number {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 13px;
+  color: var(--public-ds-text);
+  background: #ffffff;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.public-mypage-purchase-card__tracking-copy {
+  margin-left: auto;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--public-ds-border);
+  border-radius: 6px;
+  background: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--public-ds-text);
+  cursor: pointer;
+}
+
+.public-mypage-purchase-card__tracking-copy:hover {
+  border-color: var(--public-ds-accent);
+  color: var(--public-ds-accent);
+}
+
 @media (max-width: 1023px) {
   .public-mypage-shell-grid {
     grid-template-columns: 180px minmax(0, 1fr);
@@ -1033,19 +1183,33 @@
     gap: 16px;
   }
 
+  /* P2-10: 모바일은 가로 스크롤로 노출, 좌우 padding으로 첫/마지막 잘림 방지 */
   .public-mypage-sidebar {
     position: static;
     border-right: 0;
     border-bottom: 1px solid #e5e7eb;
     padding-right: 0;
-    padding-bottom: 16px;
+    padding-bottom: 12px;
     flex-direction: row;
-    flex-wrap: wrap;
-    gap: 16px 24px;
+    flex-wrap: nowrap;
+    gap: 20px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .public-mypage-sidebar::-webkit-scrollbar {
+    display: none;
   }
 
   .public-mypage-sidebar__group {
-    flex: 1 1 auto;
+    flex: 0 0 auto;
+    scroll-snap-align: start;
+  }
+
+  .public-mypage-sidebar__cta {
+    padding: 8px 12px;
+    font-size: 12px;
   }
 
   .public-mypage-stat-row {
@@ -1127,4 +1291,31 @@
   font-size: 12px;
   color: #dc2626;
   margin: 0;
+}
+
+.public-mypage-confirm__reason-hint--info {
+  color: var(--public-ds-accent, #3b82f6);
+}
+
+/* P1-8: 환불 사유 카테고리 라디오 */
+.public-mypage-confirm__category {
+  border: 0;
+  margin: 0 0 12px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.public-mypage-confirm__category-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--public-ds-text);
+  cursor: pointer;
+}
+
+.public-mypage-confirm__category-option input[type="radio"] {
+  accent-color: var(--public-ds-accent, #3b82f6);
 }

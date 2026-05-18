@@ -11,6 +11,7 @@ import {
 } from "./publicWishlistUtils";
 
 const WISHLIST_STORAGE_PREFIX = "subook.public.wishlist.v1";
+const WISHLIST_GUEST_STORAGE_KEY = `${WISHLIST_STORAGE_PREFIX}:guest`;
 const WISHLIST_TABLE = "wishlist_items";
 const DEFAULT_WISHLIST_LIMIT = 50;
 
@@ -20,6 +21,55 @@ function hasWindowStorage() {
 
 function getWishlistStorageKey(userId) {
   return `${WISHLIST_STORAGE_PREFIX}:${userId}`;
+}
+
+// 비로그인 사용자의 임시 위시리스트(guest). 로그인 시 user wishlist에 merge.
+function readGuestWishlistProductIds() {
+  if (!hasWindowStorage()) {
+    return [];
+  }
+
+  try {
+    const rawValue = window.localStorage.getItem(WISHLIST_GUEST_STORAGE_KEY);
+    if (!rawValue) {
+      return [];
+    }
+    return normalizeWishlistProductIds(JSON.parse(rawValue));
+  } catch {
+    return [];
+  }
+}
+
+function writeGuestWishlistProductIds(productIds) {
+  if (!hasWindowStorage()) {
+    return;
+  }
+  try {
+    window.localStorage.setItem(
+      WISHLIST_GUEST_STORAGE_KEY,
+      JSON.stringify(normalizeWishlistProductIds(productIds)),
+    );
+  } catch {
+    // ignore quota / private mode failures
+  }
+}
+
+function clearGuestWishlistProductIds() {
+  if (!hasWindowStorage()) {
+    return;
+  }
+  try {
+    window.localStorage.removeItem(WISHLIST_GUEST_STORAGE_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+function toggleGuestWishlistProductId(productId, nextActive = null) {
+  const current = readGuestWishlistProductIds();
+  const next = mergeWishlistProductIds(current, productId, nextActive);
+  writeGuestWishlistProductIds(next);
+  return next;
 }
 
 function normalizeErrorCode(error) {
@@ -93,13 +143,50 @@ async function loadWishlistProductIds({ user }) {
   }
 
   const storedIds = readStoredWishlistProductIds(user.id);
+  // 로그인 직후 비로그인 상태에서 모아둔 guest wishlist를 한 번 병합한다.
+  // 병합 후에는 guest store를 비워, 추후 다른 사용자가 같은 브라우저로
+  // 로그인할 때 위시리스트가 섞이지 않도록 한다.
+  const guestIds = readGuestWishlistProductIds();
 
   if (!isSupabaseConfigured || !supabase) {
+    const mergedLocal = normalizeWishlistProductIds([...storedIds, ...guestIds]);
+    if (guestIds.length > 0) {
+      writeStoredWishlistProductIds(user.id, mergedLocal);
+      clearGuestWishlistProductIds();
+    }
     return {
-      productIds: storedIds,
+      productIds: mergedLocal,
       source: "local",
       error: null,
     };
+  }
+
+  // 1) guest wishlist를 user wishlist로 server-side upsert (RPC가 없으므로 client에서 처리)
+  //    실패해도 client 정렬은 그대로 진행. 다음 fetch 때 다시 시도.
+  if (guestIds.length > 0) {
+    const guestUpsertPayload = guestIds
+      .map((productId) => normalizeNumericWishlistProductId(productId))
+      .filter((value) => value !== null)
+      .map((numericProductId) => ({
+        user_id: user.id,
+        product_id: numericProductId,
+      }));
+
+    if (guestUpsertPayload.length > 0) {
+      const { error: upsertError } = await supabase
+        .from(WISHLIST_TABLE)
+        .upsert(guestUpsertPayload, {
+          onConflict: "user_id,product_id",
+          ignoreDuplicates: true,
+        });
+      // TODO(backend): guest merge용 RPC가 생기면 단일 RPC 호출로 대체.
+      if (!upsertError || shouldUseLocalWishlistFallback(upsertError)) {
+        clearGuestWishlistProductIds();
+      }
+    } else {
+      // numeric으로 변환 안 되는 ID는 server에 못 넘기지만 local에는 유지.
+      clearGuestWishlistProductIds();
+    }
   }
 
   const { data, error } = await supabase
@@ -111,8 +198,12 @@ async function loadWishlistProductIds({ user }) {
 
   if (error) {
     if (shouldUseLocalWishlistFallback(error)) {
+      const mergedLocal = normalizeWishlistProductIds([...storedIds, ...guestIds]);
+      if (guestIds.length > 0) {
+        writeStoredWishlistProductIds(user.id, mergedLocal);
+      }
       return {
-        productIds: storedIds,
+        productIds: mergedLocal,
         source: "local",
         error: null,
       };
@@ -128,7 +219,9 @@ async function loadWishlistProductIds({ user }) {
   const remoteIds = normalizeWishlistProductIds(
     (Array.isArray(data) ? data : []).map((row) => row.product_id),
   );
-  const mergedIds = normalizeWishlistProductIds([...remoteIds, ...storedIds]);
+  // remoteIds는 created_at DESC 순. guestIds(numeric으로 변환 안 된 mock 등)도
+  // 뒤에 붙여 local 캐시에 보관.
+  const mergedIds = normalizeWishlistProductIds([...remoteIds, ...storedIds, ...guestIds]);
 
   writeStoredWishlistProductIds(user.id, mergedIds);
 
@@ -291,13 +384,17 @@ async function fetchWishlistProducts({
 }
 
 export {
+  clearGuestWishlistProductIds,
   fetchWishlistProducts,
   loadWishlistProductIds,
   mergeWishlistProductIds,
   normalizeWishlistProductId,
   normalizeWishlistProductIds,
+  readGuestWishlistProductIds,
   readStoredWishlistProductIds,
   setWishlistItemActive,
   sortWishlistProductsByIds,
+  toggleGuestWishlistProductId,
+  writeGuestWishlistProductIds,
   writeStoredWishlistProductIds,
 };

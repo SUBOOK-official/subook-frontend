@@ -22,6 +22,16 @@ function formatKstDate(iso) {
   }
 }
 
+// 게시일이 최근 14일 이내면 NEW 뱃지 노출
+const NOTICE_NEW_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
+
+function isNoticeNew(publishedAt, now = Date.now()) {
+  if (!publishedAt) return false;
+  const timestamp = new Date(publishedAt).getTime();
+  if (!Number.isFinite(timestamp)) return false;
+  return now - timestamp < NOTICE_NEW_WINDOW_MS;
+}
+
 function PublicNoticesPage() {
   usePageMeta({
     title: "공지사항",
@@ -122,7 +132,12 @@ function PublicNoticesPage() {
                         <span className="public-faq-item__category">
                           {notice.is_pinned ? "📌 공지" : formatKstDate(notice.published_at)}
                         </span>
-                        <span className="public-faq-item__question">{notice.title}</span>
+                        <span className="public-faq-item__question">
+                          {notice.title}
+                          {isNoticeNew(notice.published_at) ? (
+                            <span aria-label="새 공지" className="public-notice-new-badge">NEW</span>
+                          ) : null}
+                        </span>
                         <span
                           aria-hidden="true"
                           className={`public-faq-item__chevron ${isOpen ? "is-open" : ""}`}

@@ -7,7 +7,7 @@ import PublicFooter from "../components/PublicFooter";
 import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
 import { usePublicWishlist } from "../contexts/PublicWishlistContext";
-import { addToCart } from "../lib/cart";
+import { FREE_SHIPPING_THRESHOLD, SHIPPING_FEE, addToCart } from "../lib/cart";
 import usePublicMemberGate from "../lib/publicMemberGate";
 import { usePageMeta } from "../lib/usePageMeta";
 import {
@@ -73,23 +73,42 @@ function getAvailabilitySnapshot(item) {
   };
 }
 
+// 등급 라벨 → CSS modifier(--grade-s/a-plus/a). 색상 변별력을 위해 등급별 다른 톤.
+function getGradeTone(label) {
+  if (!label) return null;
+  const normalized = String(label).trim().toUpperCase();
+  if (normalized === "S") return "s";
+  if (normalized === "A+") return "a-plus";
+  if (normalized === "A") return "a";
+  return null;
+}
+
 function ProductChips({ subject, bookType, brand, conditionGradeLabel }) {
+  const gradeTone = getGradeTone(conditionGradeLabel);
   const items = [
     subject ? { type: "subject", label: subject } : null,
     bookType ? { type: "type", label: bookType } : null,
     brand ? { type: "brand", label: brand } : null,
-    conditionGradeLabel ? { type: "grade", label: conditionGradeLabel } : null,
+    conditionGradeLabel
+      ? { type: "grade", label: conditionGradeLabel, tone: gradeTone }
+      : null,
   ].filter(Boolean);
 
   if (items.length === 0) return null;
 
   return (
     <div className="public-detail-chips">
-      {items.map((item) => (
-        <span className={`public-detail-chip public-detail-chip--${item.type}`} key={`${item.type}-${item.label}`}>
-          {item.label}
-        </span>
-      ))}
+      {items.map((item) => {
+        const className =
+          item.type === "grade" && item.tone
+            ? `public-detail-chip public-detail-chip--grade public-detail-chip--grade-${item.tone}`
+            : `public-detail-chip public-detail-chip--${item.type}`;
+        return (
+          <span className={className} key={`${item.type}-${item.label}`}>
+            {item.label}
+          </span>
+        );
+      })}
     </div>
   );
 }
@@ -98,7 +117,7 @@ function ProductPriceLine({ priceValue, originalPriceValue, discountRate }) {
   if (priceValue === null) {
     return (
       <div className="public-detail-price-line">
-        <span className="public-detail-price-line__amount">가격 미입력</span>
+        <span className="public-detail-price-line__amount" aria-label="판매가">가격 미입력</span>
       </div>
     );
   }
@@ -110,14 +129,38 @@ function ProductPriceLine({ priceValue, originalPriceValue, discountRate }) {
         ? Math.round(((originalPriceValue - priceValue) / originalPriceValue) * 100)
         : null;
 
+  const savings =
+    originalPriceValue && originalPriceValue > priceValue
+      ? originalPriceValue - priceValue
+      : 0;
+
   return (
-    <div className="public-detail-price-line">
-      {computedDiscount ? (
-        <span className="public-detail-price-line__discount">{computedDiscount}%</span>
-      ) : null}
-      <span className="public-detail-price-line__amount">{formatCurrency(priceValue)}</span>
-      {originalPriceValue && originalPriceValue > priceValue ? (
-        <span className="public-detail-price-line__original">{formatCurrency(originalPriceValue)}</span>
+    <div className="public-detail-price-line-group">
+      <div className="public-detail-price-line">
+        {computedDiscount ? (
+          <span
+            className="public-detail-price-line__discount"
+            aria-label={`정가 대비 ${computedDiscount}퍼센트 할인`}
+          >
+            {computedDiscount}%
+          </span>
+        ) : null}
+        <span className="public-detail-price-line__amount" aria-label="판매가">
+          {formatCurrency(priceValue)}
+        </span>
+        {originalPriceValue && originalPriceValue > priceValue ? (
+          <s
+            className="public-detail-price-line__original"
+            aria-label={`정가 ${formatCurrency(originalPriceValue)}`}
+          >
+            {formatCurrency(originalPriceValue)}
+          </s>
+        ) : null}
+      </div>
+      {savings > 0 ? (
+        <p className="public-detail-price-line__savings">
+          정가 대비 {formatCurrency(savings)} 아꼈어요
+        </p>
       ) : null}
     </div>
   );
@@ -183,7 +226,7 @@ function QuantityRow({ value, maxQuantity, disabled, onDecrease, onIncrease }) {
   );
 }
 
-function DetailTabPanel({ activeKey, product, activeDisplay }) {
+function DetailTabPanel({ activeKey, product, activeDisplay, onOpenLightbox }) {
   if (activeKey === "grade") {
     return (
       <div className="public-detail-tab-content">
@@ -207,7 +250,9 @@ function DetailTabPanel({ activeKey, product, activeDisplay }) {
         <ul className="public-detail-tab-content__list">
           <li>택배사: CJ대한통운</li>
           <li>발송 기준: 결제 확인 후 영업일 기준 1~2일 이내 출고</li>
-          <li>배송비: 일반 3,500원 / 5만원 이상 구매 시 무료 배송</li>
+          <li>
+            배송비: 일반 {formatCurrency(SHIPPING_FEE)} / {formatCurrency(FREE_SHIPPING_THRESHOLD)} 이상 구매 시 무료 배송
+          </li>
           <li>제주·도서산간 추가 배송비: 3,000원~</li>
           <li>주말 및 공휴일 발송은 익영업일 처리됩니다.</li>
         </ul>
@@ -222,8 +267,11 @@ function DetailTabPanel({ activeKey, product, activeDisplay }) {
         <ul className="public-detail-tab-content__list">
           <li>수령 후 7일 이내 단순 변심으로 교환·반품 가능 (왕복 배송비 고객 부담)</li>
           <li>교재의 상태가 검수 등급과 다르거나, 페이지 누락·심한 훼손이 발견된 경우 무료 교환·반품</li>
-          <li>마이페이지 &gt; 구매 내역에서 신청해 주세요.</li>
+          <li>
+            <strong>포장을 개봉했거나 필기·표시가 추가된 경우</strong>에는 단순 변심에 의한 환불이 제한됩니다. (한국 중고서점 표준 정책)
+          </li>
           <li>주문 제작 / 사용 흔적이 더해진 교재는 교환·반품이 제한될 수 있습니다.</li>
+          <li>마이페이지 &gt; 구매 내역에서 신청해 주세요.</li>
         </ul>
       </div>
     );
@@ -268,18 +316,106 @@ function DetailTabPanel({ activeKey, product, activeDisplay }) {
           <span className="public-detail-info-notes__label">검수 사진</span>
           <div className="public-detail-info-images__grid">
             {product.inspectionImageUrls.map((imageUrl, index) => (
-              <a
+              <button
+                aria-label={`${product.title} 검수 사진 ${index + 1} 크게 보기`}
                 className="public-detail-info-images__item"
-                href={imageUrl}
                 key={`${imageUrl}-${index}`}
-                rel="noreferrer"
-                target="_blank"
+                onClick={() => onOpenLightbox?.(product.inspectionImageUrls ?? [], index, `${product.title} 검수 사진`)}
+                type="button"
               >
-                <img alt={`${product.title} 검수 사진 ${index + 1}`} src={imageUrl} />
-              </a>
+                <img alt={`${product.title} 검수 사진 ${index + 1}`} loading="lazy" src={imageUrl} />
+              </button>
             ))}
           </div>
         </div>
+      ) : null}
+    </div>
+  );
+}
+
+// 인라인 lightbox: 같은 페이지 내 closure로 구현. ESC 키로 닫기, 좌/우 화살표로 이전/다음.
+// 모바일 검수 사진 확대 + 메인 이미지 클릭 줌을 모두 처리.
+function ProductImageLightbox({ images, initialIndex, captionPrefix, onClose }) {
+  const [currentIndex, setCurrentIndex] = useState(initialIndex);
+  const overlayRef = useRef(null);
+  const total = images?.length ?? 0;
+
+  useEffect(() => {
+    setCurrentIndex(Math.min(Math.max(0, initialIndex), Math.max(0, total - 1)));
+  }, [initialIndex, total]);
+
+  useEffect(() => {
+    const handleKey = (event) => {
+      if (event.key === "Escape") {
+        onClose?.();
+      } else if (event.key === "ArrowLeft") {
+        setCurrentIndex((idx) => Math.max(0, idx - 1));
+      } else if (event.key === "ArrowRight") {
+        setCurrentIndex((idx) => Math.min(total - 1, idx + 1));
+      }
+    };
+    window.addEventListener("keydown", handleKey);
+    // 모달 열린 동안 body 스크롤 잠금 (모바일에서 배경 스크롤 방지)
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", handleKey);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [onClose, total]);
+
+  if (!images || images.length === 0) return null;
+
+  const currentUrl = images[currentIndex];
+  const hasPrev = currentIndex > 0;
+  const hasNext = currentIndex < total - 1;
+
+  return (
+    <div
+      aria-label="이미지 크게 보기"
+      aria-modal="true"
+      className="public-detail-lightbox"
+      onClick={(event) => {
+        if (event.target === overlayRef.current) onClose?.();
+      }}
+      ref={overlayRef}
+      role="dialog"
+    >
+      <button
+        aria-label="닫기"
+        className="public-detail-lightbox__close"
+        onClick={onClose}
+        type="button"
+      >
+        ✕
+      </button>
+      {hasPrev ? (
+        <button
+          aria-label="이전 이미지"
+          className="public-detail-lightbox__nav public-detail-lightbox__nav--prev"
+          onClick={() => setCurrentIndex((idx) => Math.max(0, idx - 1))}
+          type="button"
+        >
+          ‹
+        </button>
+      ) : null}
+      <figure className="public-detail-lightbox__figure">
+        <img alt={`${captionPrefix ?? "이미지"} ${currentIndex + 1}`} src={currentUrl} />
+        {total > 1 ? (
+          <figcaption className="public-detail-lightbox__caption">
+            {currentIndex + 1} / {total}
+          </figcaption>
+        ) : null}
+      </figure>
+      {hasNext ? (
+        <button
+          aria-label="다음 이미지"
+          className="public-detail-lightbox__nav public-detail-lightbox__nav--next"
+          onClick={() => setCurrentIndex((idx) => Math.min(total - 1, idx + 1))}
+          type="button"
+        >
+          ›
+        </button>
       ) : null}
     </div>
   );
@@ -398,6 +534,14 @@ function PublicProductDetailPage() {
   const [error, setError] = useState("");
   const [cartToast, setCartToast] = useState(null);
   const [activeTabKey, setActiveTabKey] = useState("info");
+  // P0: 옵션 미선택 시 사용자 책임으로 둔갑하는 토스트 대신 explicit error state.
+  const [optionLoadError, setOptionLoadError] = useState(false);
+  // P1: lightbox 상태 — 메인 이미지 클릭, 검수 사진 클릭 모두 이 모달로 통합.
+  const [lightboxState, setLightboxState] = useState(null);
+  // P0: 단일재고 정책 → 페이지 진입 후 sold_out으로 바뀌면 인라인 메시지 표시.
+  // TODO(backend): Supabase Realtime 채널이 별도 작업. 현재는 옵션 변경/재방문 시점 갱신만.
+  const wasInStockRef = useRef(false);
+  const [justSoldOut, setJustSoldOut] = useState(false);
 
   const showCartToast = useCallback((message, type = "info") => {
     setCartToast({ message, type });
@@ -511,7 +655,37 @@ function PublicProductDetailPage() {
 
   const activeDisplay = selectedOption ?? product;
   const activeAvailability = getAvailabilitySnapshot(activeDisplay);
-  const canPurchase = !activeAvailability.isSoldOut;
+  // P0: 구매 정보(bookId)를 못 불러오면 explicit error. 사용자 책임으로 둔갑하는
+  // "옵션 선택해 주세요" 토스트보다 솔직한 안내가 신뢰감을 준다.
+  const hasResolvedOption = Boolean(selectedOption?.id);
+  const canPurchase = !activeAvailability.isSoldOut && hasResolvedOption && !optionLoadError;
+
+  // 옵션이 비어 있고 product가 있으면 explicit error 표시.
+  useEffect(() => {
+    if (!product) {
+      setOptionLoadError(false);
+      return;
+    }
+    const hasAnyOption = (product.options ?? []).length > 0;
+    setOptionLoadError(!hasAnyOption);
+  }, [product]);
+
+  // P0: 페이지 진입 시 in-stock → sold_out 전환 감지.
+  useEffect(() => {
+    if (!product) {
+      wasInStockRef.current = false;
+      setJustSoldOut(false);
+      return;
+    }
+    const isCurrentlySoldOut = activeAvailability.isSoldOut;
+    if (wasInStockRef.current && isCurrentlySoldOut) {
+      setJustSoldOut(true);
+    }
+    if (!isCurrentlySoldOut) {
+      wasInStockRef.current = true;
+      setJustSoldOut(false);
+    }
+  }, [product, activeAvailability.isSoldOut]);
 
   // 재입고 알림 구독 상태
   const [isSubscribedRestock, setIsSubscribedRestock] = useState(false);
@@ -603,10 +777,12 @@ function PublicProductDetailPage() {
   const handleAddToCart = async () => {
     if (!canPurchase) return;
     if (!requireMember("addToCart")) return;
-    // selectedOption.id 는 books.id 의 string 표현 — 우선 사용
+    // selectedOption.id 는 books.id 의 string 표현 — 우선 사용.
+    // canPurchase 가드에서 이미 hasResolvedOption을 검사하므로 여기 도달하면 bookId가 있다.
     const bookId = selectedOption?.id ?? null;
     if (!bookId) {
-      showCartToast("옵션이 선택되지 않았습니다.", "error");
+      // 안전망: 비정상 상태이므로 explicit error를 보여주고 페이지 새로고침 유도.
+      setOptionLoadError(true);
       return;
     }
     const { data: cartData, error: cartError } = await addToCart({
@@ -637,11 +813,10 @@ function PublicProductDetailPage() {
   const handleBuyNow = async () => {
     if (!canPurchase) return;
     if (!requireMember("buyNow")) return;
-    // selectedOption.id 는 books.id. product.id로 fallback하면 RPC가 books.id를 못 찾고
-    // 'Book X is not available' 오류 → 사용자 좌절. 옵션 없으면 명시적으로 안내한다.
+    // canPurchase 가드에서 hasResolvedOption 검사 완료. bookId 누락은 비정상 상태.
     const bookId = selectedOption?.id;
     if (!bookId) {
-      showCartToast("옵션이 선택되지 않았습니다.", "error");
+      setOptionLoadError(true);
       return;
     }
     const orderPayload = [{
@@ -697,16 +872,37 @@ function PublicProductDetailPage() {
             <div className="public-detail-hero">
               {/* 좌측 이미지 */}
               <div className="public-detail-hero__media">
-                <div className="public-detail-hero__main-image">
+                {/* P1: 메인 이미지 클릭 시 lightbox로 줌. 모바일에서 핀치 줌 대용. */}
+                {/* P2: LCP 최적화 — eager + high priority. */}
+                <button
+                  aria-label="이미지 크게 보기"
+                  className="public-detail-hero__main-image public-detail-hero__main-image--button"
+                  disabled={!selectedImageUrl}
+                  onClick={() =>
+                    selectedImageUrl &&
+                    setLightboxState({
+                      images: galleryImages,
+                      initialIndex: selectedImageIndex,
+                      captionPrefix: product.title,
+                    })
+                  }
+                  type="button"
+                >
                   {selectedImageUrl ? (
-                    <img alt={product.title} src={selectedImageUrl} />
+                    <img
+                      alt={product.title}
+                      decoding="async"
+                      fetchpriority="high"
+                      loading="eager"
+                      src={selectedImageUrl}
+                    />
                   ) : (
                     <div className="public-detail-hero__placeholder">
                       <span>SUBOOK</span>
                       <p>이미지 준비 중</p>
                     </div>
                   )}
-                </div>
+                </button>
                 {galleryImages.length > 1 ? (
                   <div className="public-detail-hero__thumbs">
                     {galleryImages.map((imageUrl, index) => (
@@ -717,7 +913,7 @@ function PublicProductDetailPage() {
                         onClick={() => setSelectedImageIndex(index)}
                         type="button"
                       >
-                        <img alt="" src={imageUrl} />
+                        <img alt="" loading="lazy" src={imageUrl} />
                       </button>
                     ))}
                   </div>
@@ -741,10 +937,37 @@ function PublicProductDetailPage() {
                   priceValue={priceValue}
                 />
 
+                {/* P0: 단일재고(1권) 시급성 신호 + 방금 다른 분이 구매했어요 인라인 메시지 */}
+                {!activeAvailability.isSoldOut ? (
+                  <div className="public-detail-urgency-badge" role="status">
+                    <span aria-hidden="true">⚡</span>
+                    <span>단 1권 — 결제 순서대로 판매</span>
+                  </div>
+                ) : justSoldOut ? (
+                  <div className="public-detail-soldout-flash" role="status">
+                    방금 다른 분이 구매했어요. 재입고 알림을 받아 보세요.
+                  </div>
+                ) : (
+                  <div className="public-detail-urgency-badge public-detail-urgency-badge--soldout" role="status">
+                    {activeAvailability.availabilityLabel}
+                  </div>
+                )}
+
+                {/* P0: 옵션 미선택 → "옵션 선택해주세요" 토스트 대신 explicit error */}
+                {optionLoadError ? (
+                  <div className="public-detail-option-error" role="alert">
+                    구매 정보를 불러오지 못했어요. 새로고침 후에도 같은 문제면 고객센터로 알려주세요.
+                  </div>
+                ) : null}
+
                 <dl className="public-detail-hero__summary">
                   <div>
                     <dt>배송비</dt>
-                    <dd>{priceValue !== null && priceValue >= 50000 ? "무료" : "3,500원"}</dd>
+                    <dd>
+                      {priceValue !== null && priceValue >= FREE_SHIPPING_THRESHOLD
+                        ? "무료"
+                        : formatCurrency(SHIPPING_FEE)}
+                    </dd>
                   </div>
                   <div>
                     <dt>총 상품 금액 ({quantity}개)</dt>
@@ -835,7 +1058,14 @@ function PublicProductDetailPage() {
               ))}
             </div>
 
-            <DetailTabPanel activeKey={activeTabKey} activeDisplay={activeDisplay} product={product} />
+            <DetailTabPanel
+              activeKey={activeTabKey}
+              activeDisplay={activeDisplay}
+              onOpenLightbox={(images, initialIndex, captionPrefix) =>
+                setLightboxState({ images, initialIndex, captionPrefix })
+              }
+              product={product}
+            />
 
             {/* 비슷한 교재 추천 (가로 스크롤) */}
             <RelatedProductsRail
@@ -858,6 +1088,16 @@ function PublicProductDetailPage() {
           {cartToast.message}
         </div>
       )}
+
+      {/* P1: 이미지 lightbox — 메인 이미지 클릭 + 검수 사진 통합 */}
+      {lightboxState ? (
+        <ProductImageLightbox
+          captionPrefix={lightboxState.captionPrefix}
+          images={lightboxState.images}
+          initialIndex={lightboxState.initialIndex}
+          onClose={() => setLightboxState(null)}
+        />
+      ) : null}
 
       {/* 모바일 sticky 구매바 — 모바일에서만 표시 (CSS @media로 제어) */}
       <div className="public-detail-sticky-bar" role="region" aria-label="구매 액션 바">

@@ -1,6 +1,9 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
+
+const WITHDRAWAL_RECOVERY_NOTICE =
+  "탈퇴 처리 중인 계정입니다. 복구가 필요하면 subook2025@gmail.com 으로 메일을 보내거나 아래 안내를 따라주세요.";
 
 /**
  * OAuth provider 콜백 후 도착하는 페이지.
@@ -30,6 +33,12 @@ function PublicAuthCallbackPage() {
 
   const search = new URLSearchParams(location.search);
   const next = search.get("next") || "/";
+  const [showStuckHint, setShowStuckHint] = useState(false);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => setShowStuckHint(true), 5000);
+    return () => window.clearTimeout(timeoutId);
+  }, []);
 
   useEffect(() => {
     if (isLoading) return;
@@ -50,7 +59,7 @@ function PublicAuthCallbackPage() {
     // 탈퇴 처리 중인 회원
     if (accountRole === "withdrawal_pending" || accountRole === "withdrawn") {
       void signOut();
-      navigate("/login", { replace: true, state: { notice: "탈퇴 처리 중인 계정입니다. 고객센터로 문의해 주세요." } });
+      navigate("/login", { replace: true, state: { notice: WITHDRAWAL_RECOVERY_NOTICE } });
       return;
     }
 
@@ -87,6 +96,11 @@ function PublicAuthCallbackPage() {
       <div role="status" aria-live="polite" className="public-auth-callback-loading__inner">
         <span className="public-auth-spinner" aria-hidden="true" />
         <p>로그인 처리 중입니다. 잠시만 기다려 주세요...</p>
+        {showStuckHint ? (
+          <p className="public-auth-callback-loading__hint">
+            5초 이상 이 화면이 멈춰 있다면 새로고침해 주세요.
+          </p>
+        ) : null}
       </div>
     </main>
   );

@@ -5,14 +5,32 @@ import PublicPageFrame from "../components/PublicPageFrame";
 import BestBooksSection from "../components/home/BestBooksSection";
 import HeroBanner from "../components/home/HeroBanner";
 import HomeStoreGrid from "../components/home/HomeStoreGrid";
+import LatestArrivalsSection from "../components/home/LatestArrivalsSection";
 import PickupCTA from "../components/home/PickupCTA";
+import SubjectGrid from "../components/home/SubjectGrid";
 import usePublicMemberGate from "../lib/publicMemberGate";
 import { usePublicWishlist } from "../contexts/PublicWishlistContext";
 import { usePageMeta } from "../lib/usePageMeta";
 
 const PICKUP_REQUEST_PATH = "/pickup/new";
 
+// 첫 슬라이드는 구매자 가치 전달(수능 끝, 검수된 중고 교재 최대 60% 할인).
+// 두번째는 판매자 동기 부여. FAQ 슬라이드("정말 믿고 사도 되는걸까요?")는
+// negative framing이므로 제거했다 (2026-05-19).
 const HOME_HERO_SLIDES = [
+  {
+    id: "shop-textbooks",
+    eyebrow: "BUY USED TEXTBOOKS",
+    titleLines: ["수능 끝, 검수된", "중고 교재를 합리적으로"],
+    descriptionLines: [
+      "S·A+급 위주, 정가 대비 최대 60% 할인",
+      "지금 바로 원하는 교재를 찾아보세요",
+    ],
+    ctaLabel: "교재 보러가기",
+    ctaTextColor: "#0B1F47",
+    gradient: "135deg, #1D4ED8 0%, #3B82F6 50%, #60A5FA 100%",
+    actionType: "shop",
+  },
   {
     id: "pickup-request",
     eyebrow: "SELL YOUR BOOKS",
@@ -25,16 +43,6 @@ const HOME_HERO_SLIDES = [
     ctaTextColor: "#9F1239",
     gradient: "135deg, #BE123C 0%, #E11D48 50%, #F43F5E 100%",
     actionType: "pickup",
-  },
-  {
-    id: "faq",
-    eyebrow: "FAQ",
-    titleLines: ["수북, 정말", "믿고 사도 되는걸까요?"],
-    descriptionLines: ["판매·수거·등급·정산까지", "자주 묻는 질문을 한 번에 확인해 보세요"],
-    ctaLabel: "자주 묻는 질문 보러가기",
-    ctaTextColor: "#0F766E",
-    gradient: "135deg, #0F766E 0%, #14B8A6 50%, #5EEAD4 100%",
-    href: "/faq",
   },
 ];
 
@@ -69,6 +77,12 @@ function PublicHomePage() {
       return;
     }
 
+    if (slide.actionType === "shop") {
+      // 쇼핑 CTA는 검색어 없이 그리드로 점프해 "교재 보러가기" 의도를 반영.
+      navigate("/?q=", { state: { scrollToStorefront: true } });
+      return;
+    }
+
     if (slide.href) {
       navigate(slide.href);
     }
@@ -86,13 +100,21 @@ function PublicHomePage() {
     <div className="public-home-route">
       <PublicSiteHeader onCartClick={handleGoToCart} />
 
+      {/* 시각적으로 숨겨진 단일 <h1>. SEO·스크린리더용 페이지 제목. */}
+      <h1 className="public-visually-hidden">수능 중고 교재 위탁판매 | 수북</h1>
+
       <HeroBanner onSlideAction={handleHeroAction} slides={HOME_HERO_SLIDES} />
+      <PickupCTA onRequestPickup={handlePickupRequest} />
       <BestBooksSection
         favoriteIds={favoriteIds}
         onToggleFavorite={handleToggleFavorite}
       />
+      <SubjectGrid />
+      <LatestArrivalsSection
+        favoriteIds={favoriteIds}
+        onToggleFavorite={handleToggleFavorite}
+      />
       <HomeStoreGrid favoriteIds={favoriteIds} onToggleFavorite={handleToggleFavorite} />
-      <PickupCTA onRequestPickup={handlePickupRequest} />
 
       <PublicFooter />
       {memberGateDialog}

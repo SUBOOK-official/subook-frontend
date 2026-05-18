@@ -27,6 +27,8 @@ function HeroBanner({ onSlideAction, slides = [] }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [isInteractionPaused, setIsInteractionPaused] = useState(false);
   const [isPlaybackPaused, setIsPlaybackPaused] = useState(false);
+  // prefers-reduced-motion 사용자는 자동회전을 완전히 끈다 (WCAG 2.3.3).
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const touchStartXRef = useRef(null);
   const interactionTimeoutRef = useRef(null);
   const slideCount = slides.length;
@@ -36,7 +38,28 @@ function HeroBanner({ onSlideAction, slides = [] }) {
   }, [slideCount]);
 
   useEffect(() => {
-    if (slideCount <= 1 || isInteractionPaused || isPlaybackPaused) {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+      return undefined;
+    }
+
+    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const syncReducedMotion = (event) => {
+      setPrefersReducedMotion(event.matches);
+    };
+
+    syncReducedMotion(mediaQuery);
+
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", syncReducedMotion);
+      return () => mediaQuery.removeEventListener("change", syncReducedMotion);
+    }
+
+    mediaQuery.addListener(syncReducedMotion);
+    return () => mediaQuery.removeListener(syncReducedMotion);
+  }, []);
+
+  useEffect(() => {
+    if (slideCount <= 1 || isInteractionPaused || isPlaybackPaused || prefersReducedMotion) {
       return undefined;
     }
 
@@ -47,7 +70,7 @@ function HeroBanner({ onSlideAction, slides = [] }) {
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [isInteractionPaused, isPlaybackPaused, slideCount]);
+  }, [isInteractionPaused, isPlaybackPaused, prefersReducedMotion, slideCount]);
 
   useEffect(() => {
     return () => {
@@ -145,7 +168,7 @@ function HeroBanner({ onSlideAction, slides = [] }) {
 
           return (
             <article
-              aria-hidden={!isActive}
+              aria-hidden={isActive ? "false" : "true"}
               aria-label={`슬라이드 ${index + 1}/${slideCount}`}
               aria-roledescription="slide"
               className={`public-home-hero-banner__slide ${isActive ? "is-active" : ""}`}
@@ -158,15 +181,15 @@ function HeroBanner({ onSlideAction, slides = [] }) {
               <ContentContainer className="public-home-hero-banner__slide-shell">
                 <div className="public-home-hero-banner__content">
                   <p className="public-home-hero-banner__eyebrow">{slide.eyebrow}</p>
-                  {isActive ? (
-                    <h1 className="public-home-hero-banner__title">{renderLines(slide.titleLines)}</h1>
-                  ) : (
-                    <p className="public-home-hero-banner__title" aria-hidden="true">{renderLines(slide.titleLines)}</p>
-                  )}
+                  {/* 페이지의 단일 <h1>은 PublicHomePage 최상단에서 시각적으로 숨겨 제공.
+                      슬라이드 텍스트는 <h2>로 두고 비활성 슬라이드는 aria-hidden 처리. */}
+                  <h2 className="public-home-hero-banner__title">{renderLines(slide.titleLines)}</h2>
                   <p className="public-home-hero-banner__description">{renderLines(slide.descriptionLines)}</p>
                   <button
+                    aria-hidden={isActive ? undefined : "true"}
                     className="public-home-hero-banner__cta"
                     onClick={() => onSlideAction?.(slide)}
+                    tabIndex={isActive ? 0 : -1}
                     type="button"
                   >
                     <span>{slide.ctaLabel}</span>
@@ -211,14 +234,16 @@ function HeroBanner({ onSlideAction, slides = [] }) {
               ))}
             </div>
 
-            <button
-              aria-label={isPlaybackPaused ? "자동 전환 재생" : "자동 전환 일시정지"}
-              className="public-home-hero-banner__playback"
-              onClick={handlePauseToggle}
-              type="button"
-            >
-              <span aria-hidden="true">{isPlaybackPaused ? "▶" : "⏸"}</span>
-            </button>
+            {prefersReducedMotion ? null : (
+              <button
+                aria-label={isPlaybackPaused ? "자동 전환 재생" : "자동 전환 일시정지"}
+                className="public-home-hero-banner__playback"
+                onClick={handlePauseToggle}
+                type="button"
+              >
+                <span aria-hidden="true">{isPlaybackPaused ? "▶" : "⏸"}</span>
+              </button>
+            )}
           </ContentContainer>
         ) : null}
       </div>

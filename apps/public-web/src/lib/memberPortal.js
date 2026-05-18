@@ -508,6 +508,14 @@ function mapSettlementRow(row) {
     status: row.status,
     statusLabel: statusLabelMap[row.status] ?? row.status,
     tone: toneMap[row.status] ?? "neutral",
+    // P1-5: 정산 명세 expand용 timeline. RPC가 반환하지 않으면 null.
+    // TODO(backend): get_my_settlements가 sold_at / confirmed_at / scheduled_at / completed_at /
+    // order_number / buyer_nickname을 명세 row에 포함하도록 보강 필요.
+    soldAt: row.sold_at ?? null,
+    confirmedAt: row.confirmed_at ?? null,
+    scheduledAt: row.scheduled_at ?? row.scheduled_date ?? null,
+    completedAt: row.completed_at ?? null,
+    buyerNickname: row.buyer_nickname ?? null,
   };
 }
 
@@ -1158,9 +1166,10 @@ async function requestMemberRefund({ user, orderId, reason, demoMode = false }) 
   }
 
   const trimmedReason = normalizeText(reason);
-  if (trimmedReason.length < 4) {
+  // P1-8: 환불 신청 최소 20자. UI에서 카테고리 prefix를 자동 추가하므로 실제 본문은 충분히 받게 됨.
+  if (trimmedReason.length < 20) {
     return {
-      error: new Error("환불 사유는 4자 이상 입력해 주세요."),
+      error: new Error("환불 사유는 분류 선택 후 상세 내용을 20자 이상 적어주세요."),
       source: "validation",
     };
   }

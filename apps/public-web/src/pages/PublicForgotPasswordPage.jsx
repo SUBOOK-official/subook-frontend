@@ -60,6 +60,9 @@ function PublicForgotPasswordPage() {
 
   const requestResetEmail = async () => {
     const normalizedEmail = normalizeEmail(formValues.email);
+    // 이름 매칭 친절화: trim + lowercase 후 비교. 백엔드 RPC가 어떤 비교 로직을 쓰든
+    // 클라이언트는 일관되게 정규화된 값을 보낸다.
+    const normalizedName = formValues.name.trim().toLowerCase();
 
     // ⚠️ Email enumeration timing attack 방어:
     // 매칭/미매칭 응답 시간을 동일하게 맞추기 위해 두 작업을 병렬로 실행 +
@@ -68,7 +71,7 @@ function PublicForgotPasswordPage() {
     const minDelay = new Promise((resolve) => setTimeout(resolve, 800));
 
     const lookupPromise = supabase.rpc("lookup_member_for_password_reset", {
-      p_name: formValues.name.trim(),
+      p_name: normalizedName,
       p_email: normalizedEmail,
     });
 
@@ -220,7 +223,11 @@ function PublicForgotPasswordPage() {
                   </div>
                   {fieldErrors.name ? (
                     <p className="public-auth-inline-message public-auth-inline-message--error">{fieldErrors.name}</p>
-                  ) : null}
+                  ) : (
+                    <p className="public-auth-inline-message public-auth-inline-message--info">
+                      회원가입 때 쓴 이름과 정확히 일치해야 해요. (공백 자동 제거)
+                    </p>
+                  )}
                 </div>
 
                 <div className={`public-auth-field-row ${fieldErrors.email ? "is-error" : ""}`}>

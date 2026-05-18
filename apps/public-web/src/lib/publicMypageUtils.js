@@ -23,12 +23,20 @@ export const TAB_ITEMS = [
 // 새 사이드바 메뉴 구성. 그룹별로 묶여 표시되며,
 // 키는 location.hash와 동기화되어 활성 메뉴 판단에 사용된다.
 // settings-* 키는 SettingsTab을 공유하되 section prop으로 분기된다.
+// P0-6: 판매·쇼핑(구매)·내 정보 3그룹으로 재편하고 "수거 요청하기"를 판매 그룹 진입점으로 노출.
 export const SIDEBAR_GROUPS = [
+  {
+    title: "판매 정보",
+    items: [
+      { key: "pickup-new", label: "+ 수거 요청하기", isCta: true, to: "/pickup/new" },
+      { key: "sales", label: "판매 내역" },
+      { key: "settlements", label: "정산 내역" },
+    ],
+  },
   {
     title: "쇼핑 정보",
     items: [
       { key: "purchases", label: "구매 내역" },
-      { key: "sales", label: "판매 내역" },
       { key: "wishlist", label: "찜한 교재" },
       { key: "coupons", label: "쿠폰" },
     ],
@@ -43,16 +51,28 @@ export const SIDEBAR_GROUPS = [
   },
 ];
 
-const SIDEBAR_KEYS = SIDEBAR_GROUPS.flatMap((group) => group.items.map((item) => item.key));
+// CTA(외부 라우팅) 아이템은 사이드바 hash 키 매칭 대상에서 제외한다.
+const SIDEBAR_KEYS = SIDEBAR_GROUPS.flatMap((group) =>
+  group.items.filter((item) => !item.isCta).map((item) => item.key),
+);
 
 export function findSidebarItem(key) {
   for (const group of SIDEBAR_GROUPS) {
-    const found = group.items.find((item) => item.key === key);
+    const found = group.items.find((item) => item.key === key && !item.isCta);
     if (found) {
       return { ...found, group: group.title };
     }
   }
   return null;
+}
+
+// P1-4: 첫 진입 시 어떤 탭을 보여줄지 결정. 판매 이력 > 구매 이력 > 기본 안내 순.
+export function getDefaultTabForMember(snapshot = {}) {
+  const shipments = Array.isArray(snapshot.shipments) ? snapshot.shipments : [];
+  const orders = Array.isArray(snapshot.orders) ? snapshot.orders : [];
+  if (shipments.length > 0) return "sales";
+  if (orders.length > 0) return "purchases";
+  return "purchases";
 }
 
 export const SALES_STATUS_FILTERS = [
@@ -680,15 +700,40 @@ export function mapPickupRequestToShipment(pr) {
     completed: { label: "정산완료", tone: "neutral" },
     cancelled: { label: "취소", tone: "danger" },
   };
-  const items = (pr.items ?? []).map((item) => ({
-    id: item.id,
-    title: item.title ?? "교재",
-    gradeLabel: null,
-    price: item.original_price ?? null,
-    rejectionReason: pr.status === "cancelled" ? "수거 취소" : null,
-    statusLabel: statusLabelMap[pr.status]?.label ?? "접수됨",
-    tone: statusLabelMap[pr.status]?.tone ?? "neutral",
-  }));
+  // P0-5: 백엔드에 폐기 사유/사진/검수 메모 필드가 있으면 그대로 노출.
+  // 현재는 inspections 테이블이 rejection_detail/rejection_photo_urls/inspector_note를
+  // 반환하지 않으므로 client에서는 조건부로 매핑하고, 없으면 "사유 미입력"으로 표시한다.
+  // TODO(backend): get_my_pickup_requests RPC가 items에 위 3개 필드를 함께 반환하도록 보강 필요.
+  const items = (pr.items ?? []).map((item) => {
+    const fallbackReason = pr.status === "cancelled" ? "수거 취소" : null;
+    const rejectionReason = item.rejection_reason ?? item.rejectionReason ?? fallbackReason;
+    const rejectionDetail = item.rejection_detail ?? item.rejectionDetail ?? null;
+    const rejectionPhotoUrls = Array.isArray(item.rejection_photo_urls)
+      ? item.rejection_photo_urls
+      : Array.isArray(item.rejectionPhotoUrls)
+        ? item.rejectionPhotoUrls
+        : [];
+    const inspectorNote = item.inspector_note ?? item.inspectorNote ?? null;
+    const inspectedAt = item.inspected_at ?? item.inspectedAt ?? null;
+    const isRejected = Boolean(rejectionReason) || item.status === "rejected";
+
+    return {
+      id: item.id,
+      title: item.title ?? "교재",
+      gradeLabel: item.grade ?? null,
+      price: item.original_price ?? null,
+      rejectionReason,
+      rejectionDetail,
+      rejectionPhotoUrls,
+      inspectorNote,
+      inspectedAt,
+      isRejected,
+      statusLabel: isRejected
+        ? (rejectionReason ? "판매불가" : "판매불가")
+        : (statusLabelMap[pr.status]?.label ?? "접수됨"),
+      tone: isRejected ? "danger" : (statusLabelMap[pr.status]?.tone ?? "neutral"),
+    };
+  });
   const itemCount = pr.item_count ?? items.length;
   const summaryByStatus = {
     completed: `교재 ${itemCount}권 · 정산완료`,

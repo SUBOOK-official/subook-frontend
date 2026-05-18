@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link, useNavigate } from "react-router-dom";
 import ContentContainer from "./ContentContainer";
@@ -7,12 +7,189 @@ import { supabase } from "@shared-supabase/publicSupabaseClient";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { usePublicWishlist } from "../contexts/PublicWishlistContext";
 import { createDisplayName } from "../lib/memberPortal";
+import { getCartItems } from "../lib/cart";
+import { fetchStorefrontProducts } from "../lib/storefront";
+import {
+  STORE_AUTOCOMPLETE_MIN_KEYWORD_LENGTH,
+  STORE_RECENT_SEARCH_LIMIT,
+  STORE_RECENT_SEARCH_STORAGE_KEY,
+  addRecentSearchTerm,
+  buildStoreAutocomplete,
+  hasAutocompleteResults,
+  normalizeRecentSearches,
+  removeRecentSearchTerm,
+} from "../lib/publicStoreSearch";
+import { SEARCH_DEBOUNCE_MS } from "../lib/publicStoreNavigation";
+
+// catalog snapshot은 헤더 단 한 곳에서만 캐싱하면 충분.
+// 30초 in-memory 캐시 — 사용자 한 명이 짧은 시간에 여러 글자를 치는 동안
+// Supabase RPC를 반복 호출하지 않게 한다.
+const CATALOG_CACHE_TTL_MS = 30_000;
+let catalogCachedAt = 0;
+let catalogCache = null;
+let catalogInflight = null;
+
+async function loadCatalogSnapshot() {
+  const now = Date.now();
+  if (catalogCache && now - catalogCachedAt < CATALOG_CACHE_TTL_MS) {
+    return catalogCache;
+  }
+
+  if (catalogInflight) {
+    return catalogInflight;
+  }
+
+  catalogInflight = (async () => {
+    try {
+      const result = await fetchStorefrontProducts({ limit: 500, sort: "latest" });
+      catalogCache = Array.isArray(result.products) ? result.products : [];
+      catalogCachedAt = Date.now();
+      return catalogCache;
+    } catch {
+      // 실패해도 캐시는 비우지 않고 빈 배열로 진행. 다음 시도에서 다시 fetch.
+      return [];
+    } finally {
+      catalogInflight = null;
+    }
+  })();
+
+  return catalogInflight;
+}
+
+function readRecentSearches() {
+  if (typeof window === "undefined" || !window.localStorage) return [];
+  try {
+    const raw = window.localStorage.getItem(STORE_RECENT_SEARCH_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return normalizeRecentSearches(parsed);
+  } catch {
+    return [];
+  }
+}
+
+function writeRecentSearches(values) {
+  if (typeof window === "undefined" || !window.localStorage) return;
+  try {
+    window.localStorage.setItem(STORE_RECENT_SEARCH_STORAGE_KEY, JSON.stringify(values));
+  } catch {
+    // ignore quota / private mode failures
+  }
+}
+
+function SuggestionCategoryLabel({ kind }) {
+  const label = kind === "book" ? "교재" : kind === "instructor" ? "강사" : "브랜드";
+  return <span className="public-search-suggestion__kind">{label}</span>;
+}
+
+function SearchSuggestionsPanel({
+  autocomplete,
+  hasKeyword,
+  keyword,
+  onPickAutocomplete,
+  onPickRecent,
+  onRemoveRecent,
+  recentSearches,
+}) {
+  const hasAuto = hasAutocompleteResults(autocomplete);
+
+  if (hasKeyword) {
+    if (!hasAuto) {
+      return (
+        <div className="public-search__suggestions" role="listbox">
+          <p className="public-search-suggestion__empty">
+            "{keyword}"에 맞는 추천을 찾지 못했어요. 그대로 검색해 보세요.
+          </p>
+        </div>
+      );
+    }
+    return (
+      <div className="public-search__suggestions" role="listbox">
+        {autocomplete.books.map((item) => (
+          <button
+            className="public-search-suggestion"
+            key={item.id}
+            onClick={() => onPickAutocomplete(item)}
+            role="option"
+            type="button"
+          >
+            <strong>{item.label}</strong>
+            <span>
+              <SuggestionCategoryLabel kind={item.kind} />
+              {item.meta ? <span className="public-search-suggestion__meta">{item.meta}</span> : null}
+            </span>
+          </button>
+        ))}
+        {autocomplete.instructors.map((item) => (
+          <button
+            className="public-search-suggestion"
+            key={item.id}
+            onClick={() => onPickAutocomplete(item)}
+            role="option"
+            type="button"
+          >
+            <strong>{item.label}</strong>
+            <span>
+              <SuggestionCategoryLabel kind={item.kind} />
+              {item.meta ? <span className="public-search-suggestion__meta">{item.meta}</span> : null}
+            </span>
+          </button>
+        ))}
+        {autocomplete.brands.map((item) => (
+          <button
+            className="public-search-suggestion"
+            key={item.id}
+            onClick={() => onPickAutocomplete(item)}
+            role="option"
+            type="button"
+          >
+            <strong>{item.label}</strong>
+            <span>
+              <SuggestionCategoryLabel kind={item.kind} />
+              {item.meta ? <span className="public-search-suggestion__meta">{item.meta}</span> : null}
+            </span>
+          </button>
+        ))}
+      </div>
+    );
+  }
+
+  if (recentSearches.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="public-search__suggestions" role="listbox">
+      <p className="public-search-suggestion__header">최근 검색어</p>
+      {recentSearches.map((term) => (
+        <div className="public-search-suggestion public-search-suggestion--recent" key={`recent-${term}`}>
+          <button
+            className="public-search-suggestion__recent-button"
+            onClick={() => onPickRecent(term)}
+            type="button"
+          >
+            <span aria-hidden="true" className="public-search-suggestion__recent-icon">🕘</span>
+            <span>{term}</span>
+          </button>
+          <button
+            aria-label={`최근 검색어 ${term} 삭제`}
+            className="public-search-suggestion__recent-remove"
+            onClick={() => onRemoveRecent(term)}
+            type="button"
+          >
+            <span aria-hidden="true">×</span>
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function PublicSiteHeader({ onCartClick, searchSlot }) {
   const navigate = useNavigate();
   const { isAuthenticated, profile, user, signOut } = usePublicAuth();
   const { favoriteCount } = usePublicWishlist();
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
+  const [cartItemCount, setCartItemCount] = useState(0);
 
   // 안 읽은 알림 카운트 폴링.
   // - 라우트 변경 시 매번 fetch하면 페이지 이동마다 RPC가 호출되어 Supabase 비용 증가.
@@ -36,6 +213,30 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
     };
   }, [isAuthenticated]);
 
+  // 카트 카운트는 인증 상태가 바뀔 때 + 라우트 진입 직후에만 한 번씩 가져온다.
+  // 카트 페이지에서의 수정은 자기 페이지에서 재계산하므로 헤더는 진입 시 fetch면 충분.
+  // 비로그인 사용자는 로컬 카트도 보여주기 위해 동일 함수 사용 (localStorage 기반).
+  useEffect(() => {
+    let cancelled = false;
+    const fetchCartCount = async () => {
+      try {
+        // getCartItems는 { items, error } 형태로 반환. Supabase 미설정 시 localStorage fallback.
+        const { items } = await getCartItems();
+        if (cancelled) return;
+        const total = Array.isArray(items)
+          ? items.reduce((sum, item) => sum + (Number(item?.quantity) || 1), 0)
+          : 0;
+        setCartItemCount(total);
+      } catch {
+        if (!cancelled) setCartItemCount(0);
+      }
+    };
+    void fetchCartCount();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated]);
+
   const handleWishlistClick = (event) => {
     if (!isAuthenticated) {
       event?.preventDefault?.();
@@ -56,6 +257,43 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
   const [headerHeight, setHeaderHeight] = useState(72);
   const [frameScale, setFrameScale] = useState(1);
   const headerRef = useRef(null);
+
+  // 검색 자동완성 상태
+  const [searchValue, setSearchValue] = useState("");
+  const [debouncedKeyword, setDebouncedKeyword] = useState("");
+  const [recentSearches, setRecentSearches] = useState(() => readRecentSearches());
+  const [autocomplete, setAutocomplete] = useState({ books: [], instructors: [], brands: [] });
+  const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
+  const searchWrapRef = useRef(null);
+  const mobileSearchValueRef = useRef("");
+
+  // debounce
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      setDebouncedKeyword(searchValue.trim());
+    }, SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(handle);
+  }, [searchValue]);
+
+  // 자동완성 lookup: 키워드가 최소 길이 이상이면 catalog snapshot에 대해 buildStoreAutocomplete.
+  useEffect(() => {
+    let cancelled = false;
+    const normalizedKeyword = debouncedKeyword;
+    if (normalizedKeyword.replace(/\s+/g, "").length < STORE_AUTOCOMPLETE_MIN_KEYWORD_LENGTH) {
+      setAutocomplete({ books: [], instructors: [], brands: [] });
+      return undefined;
+    }
+
+    (async () => {
+      const catalog = await loadCatalogSnapshot();
+      if (cancelled) return;
+      setAutocomplete(buildStoreAutocomplete(catalog, normalizedKeyword));
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedKeyword]);
 
   // 모바일 메뉴 열려있을 때 body scroll lock
   useEffect(() => {
@@ -151,18 +389,89 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
     };
   }, []);
 
+  // 자동완성 패널 외부 클릭 시 닫기
+  useEffect(() => {
+    if (!isSuggestionsOpen) return undefined;
+    const handlePointerDown = (event) => {
+      if (searchWrapRef.current && !searchWrapRef.current.contains(event.target)) {
+        setIsSuggestionsOpen(false);
+      }
+    };
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") setIsSuggestionsOpen(false);
+    };
+    window.addEventListener("mousedown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("mousedown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isSuggestionsOpen]);
+
+  const navigateToSearch = useCallback(
+    (query) => {
+      const trimmed = String(query ?? "").trim();
+      if (!trimmed) return;
+      const nextRecent = addRecentSearchTerm(recentSearches, trimmed);
+      setRecentSearches(nextRecent);
+      writeRecentSearches(nextRecent);
+      navigate(`/?q=${encodeURIComponent(trimmed)}`, {
+        state: { scrollToStorefront: true },
+      });
+    },
+    [navigate, recentSearches],
+  );
+
   const handleSearchSubmit = (event) => {
+    event.preventDefault();
+    setIsSuggestionsOpen(false);
+    navigateToSearch(searchValue);
+  };
+
+  const handlePickAutocomplete = (item) => {
+    setIsSuggestionsOpen(false);
+    if (item.kind === "book" && item.productId) {
+      // 교재 자동완성 클릭은 상세 페이지로 직접 점프.
+      const trimmed = item.label.trim();
+      const nextRecent = addRecentSearchTerm(recentSearches, trimmed);
+      setRecentSearches(nextRecent);
+      writeRecentSearches(nextRecent);
+      navigate(`/store/${item.productId}`);
+      return;
+    }
+    if (item.kind === "brand") {
+      const nextRecent = addRecentSearchTerm(recentSearches, item.brand);
+      setRecentSearches(nextRecent);
+      writeRecentSearches(nextRecent);
+      navigate(`/?brand=${encodeURIComponent(item.brand)}`, {
+        state: { scrollToStorefront: true },
+      });
+      return;
+    }
+    // instructor / 일반은 키워드 검색으로 처리
+    navigateToSearch(item.keyword ?? item.label);
+  };
+
+  const handlePickRecent = (term) => {
+    setIsSuggestionsOpen(false);
+    setSearchValue(term);
+    navigateToSearch(term);
+  };
+
+  const handleRemoveRecent = (term) => {
+    const next = removeRecentSearchTerm(recentSearches, term);
+    setRecentSearches(next);
+    writeRecentSearches(next);
+  };
+
+  // 모바일 드로어 안 검색 폼 (별도 controlled input 없이 form submit으로 처리)
+  const handleMobileSearchSubmit = (event) => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const query = formData.get("q")?.toString().trim();
-
     if (!query) return;
-
-    // 다른 페이지에서 검색 시 사용자가 컨텍스트를 잃지 않도록
-    // 홈으로 이동 후 그리드 영역으로 스크롤하는 hint 전달.
-    navigate(`/?q=${encodeURIComponent(query)}`, {
-      state: { scrollToStorefront: true },
-    });
+    setIsMobileMenuOpen(false);
+    navigateToSearch(query);
   };
 
   const handleCartClick = () => {
@@ -205,6 +514,13 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
     ? createDisplayName(profile ?? { email: user?.email ?? "" })
     : "";
 
+  const cartBadge = cartItemCount > 0 ? (cartItemCount > 99 ? "99+" : cartItemCount) : null;
+  const visibleRecent = useMemo(
+    () => recentSearches.slice(0, STORE_RECENT_SEARCH_LIMIT),
+    [recentSearches],
+  );
+  const hasKeyword = debouncedKeyword.replace(/\s+/g, "").length >= STORE_AUTOCOMPLETE_MIN_KEYWORD_LENGTH;
+
   const headerNode = (
     <div className="public-sticky-header" ref={headerRef}>
       <ContentContainer as="header" className="public-nav public-site-header">
@@ -214,18 +530,40 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
 
         <div className="public-site-header__search">
           {searchSlot ?? (
-            <form className="public-search" onSubmit={handleSearchSubmit} role="search" aria-label="교재 검색">
-              <img alt="" className="public-search__icon" src={searchIconImage} />
-              <div className="public-search__field">
-                <input
-                  aria-label="교재명 또는 강사명 검색"
-                  className="public-search__input"
-                  name="q"
-                  placeholder="교재명, 강사명으로 검색"
-                  type="search"
+            <div className="public-search-wrap" ref={searchWrapRef}>
+              <form className="public-search" onSubmit={handleSearchSubmit} role="search" aria-label="교재 검색">
+                <img alt="" className="public-search__icon" src={searchIconImage} />
+                <div className="public-search__field">
+                  <input
+                    aria-label="교재명 또는 강사명 검색"
+                    aria-autocomplete="list"
+                    aria-expanded={isSuggestionsOpen}
+                    autoComplete="off"
+                    className="public-search__input"
+                    name="q"
+                    onChange={(event) => {
+                      setSearchValue(event.target.value);
+                      setIsSuggestionsOpen(true);
+                    }}
+                    onFocus={() => setIsSuggestionsOpen(true)}
+                    placeholder="교재명, 강사명으로 검색"
+                    type="search"
+                    value={searchValue}
+                  />
+                </div>
+              </form>
+              {isSuggestionsOpen ? (
+                <SearchSuggestionsPanel
+                  autocomplete={autocomplete}
+                  hasKeyword={hasKeyword}
+                  keyword={debouncedKeyword}
+                  onPickAutocomplete={handlePickAutocomplete}
+                  onPickRecent={handlePickRecent}
+                  onRemoveRecent={handleRemoveRecent}
+                  recentSearches={visibleRecent}
                 />
-              </div>
-            </form>
+              ) : null}
+            </div>
           )}
         </div>
 
@@ -254,8 +592,17 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
               <span className="public-nav-link__badge">{favoriteCount > 99 ? "99+" : favoriteCount}</span>
             ) : null}
           </Link>
-          <button className="public-nav-link public-nav-link--cart" onClick={handleCartClick} type="button">
+          <button
+            aria-label={`장바구니 ${cartItemCount}개`}
+            className="public-nav-link public-nav-link--cart"
+            onClick={handleCartClick}
+            type="button"
+          >
+            <span aria-hidden="true" className="public-nav-link__icon">🛒</span>
             <span>장바구니</span>
+            {cartBadge !== null ? (
+              <span className="public-nav-link__badge">{cartBadge}</span>
+            ) : null}
           </button>
           <Link className="public-nav-link" to="/mypage">
             마이페이지
@@ -292,16 +639,29 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
           )}
         </nav>
 
-        {/* 모바일 햄버거 버튼 (768px 미만에서만 표시) */}
-        <button
-          aria-expanded={isMobileMenuOpen}
-          aria-label={isMobileMenuOpen ? "메뉴 닫기" : "메뉴 열기"}
-          className="public-nav-hamburger"
-          onClick={() => setIsMobileMenuOpen((open) => !open)}
-          type="button"
-        >
-          <span aria-hidden="true">{isMobileMenuOpen ? "✕" : "☰"}</span>
-        </button>
+        {/* 모바일 헤더 우측: 장바구니 + 햄버거 (768px 미만) */}
+        <div className="public-nav-mobile-actions">
+          <button
+            aria-label={`장바구니 ${cartItemCount}개`}
+            className="public-nav-mobile-cart"
+            onClick={handleCartClick}
+            type="button"
+          >
+            <span aria-hidden="true">🛒</span>
+            {cartBadge !== null ? (
+              <span className="public-nav-mobile-cart__badge">{cartBadge}</span>
+            ) : null}
+          </button>
+          <button
+            aria-expanded={isMobileMenuOpen}
+            aria-label={isMobileMenuOpen ? "메뉴 닫기" : "메뉴 열기"}
+            className="public-nav-hamburger"
+            onClick={() => setIsMobileMenuOpen((open) => !open)}
+            type="button"
+          >
+            <span aria-hidden="true">{isMobileMenuOpen ? "✕" : "☰"}</span>
+          </button>
+        </div>
       </ContentContainer>
 
       {/* 모바일 드로어 */}
@@ -314,12 +674,53 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
             type="button"
           />
           <div className="public-nav-drawer__panel">
+            {/* 드로어 내부 검색 — recent 기반의 빠른 진입 */}
+            <form
+              aria-label="교재 검색"
+              className="public-nav-drawer__search"
+              onSubmit={handleMobileSearchSubmit}
+              role="search"
+            >
+              <input
+                aria-label="교재명 또는 강사명 검색"
+                className="public-nav-drawer__search-input"
+                defaultValue={mobileSearchValueRef.current}
+                name="q"
+                placeholder="교재명, 강사명으로 검색"
+                type="search"
+              />
+              <button className="public-nav-drawer__search-submit" type="submit">검색</button>
+            </form>
+            {visibleRecent.length > 0 ? (
+              <div className="public-nav-drawer__recent">
+                <span className="public-nav-drawer__recent-label">최근 검색어</span>
+                <div className="public-nav-drawer__recent-list">
+                  {visibleRecent.map((term) => (
+                    <button
+                      className="public-nav-drawer__recent-chip"
+                      key={`mobile-recent-${term}`}
+                      onClick={() => {
+                        setIsMobileMenuOpen(false);
+                        navigateToSearch(term);
+                      }}
+                      type="button"
+                    >
+                      {term}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
             <button
               className="public-nav-drawer__item"
               onClick={() => { setIsMobileMenuOpen(false); handleCartClick(); }}
               type="button"
             >
+              <span aria-hidden="true" style={{ marginRight: 8 }}>🛒</span>
               장바구니
+              {cartBadge !== null ? (
+                <span className="public-nav-link__badge" style={{ marginLeft: 8 }}>{cartBadge}</span>
+              ) : null}
             </button>
             <Link
               className="public-nav-drawer__item"

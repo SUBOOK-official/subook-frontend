@@ -49,11 +49,18 @@ export function isValidKoreanMobile(value) {
 
 export function getPasswordStrengthState(password) {
   const normalizedPassword = password ?? "";
+  // 필수 3개(length, letter, number)는 회원가입 조건과 일치 — hasRequiredPasswordConditions와
+  // 동일 룰. 4번째(특수문자)는 권장 강도용으로만 분리.
   const rules = [
-    { key: "length", label: "8자 이상", satisfied: normalizedPassword.length >= 8 },
-    { key: "letter", label: "영문 포함", satisfied: hasLetterPattern.test(normalizedPassword) },
-    { key: "number", label: "숫자 포함", satisfied: hasNumberPattern.test(normalizedPassword) },
-    { key: "special", label: "특수문자 포함", satisfied: hasSpecialCharacterPattern.test(normalizedPassword) },
+    { key: "length", label: "8자 이상", required: true, satisfied: normalizedPassword.length >= 8 },
+    { key: "letter", label: "영문 포함", required: true, satisfied: hasLetterPattern.test(normalizedPassword) },
+    { key: "number", label: "숫자 포함", required: true, satisfied: hasNumberPattern.test(normalizedPassword) },
+    {
+      key: "special",
+      label: "특수문자 포함",
+      required: false,
+      satisfied: hasSpecialCharacterPattern.test(normalizedPassword),
+    },
   ];
   const satisfiedCount = rules.filter((rule) => rule.satisfied).length;
 

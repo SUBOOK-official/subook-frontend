@@ -44,6 +44,11 @@
   max-width: 1200px;
 }
 
+/* sticky-bar z-index 통일 (P2-10) */
+:root {
+  --public-sticky-bottom-z: 50;
+}
+
 /* ── Hero: 이미지 + 정보 (2 column) ─────────────────────────── */
 .public-detail-hero {
   display: grid;
@@ -82,6 +87,24 @@
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+/* P1: 메인 이미지를 button으로 래핑 — native button 스타일 제거 + 클릭 인디케이터 */
+.public-detail-hero__main-image--button {
+  border: 0;
+  padding: 0;
+  cursor: zoom-in;
+  display: block;
+  width: 100%;
+}
+
+.public-detail-hero__main-image--button:disabled {
+  cursor: default;
+}
+
+.public-detail-hero__main-image--button:focus-visible {
+  outline: 2px solid var(--public-primary, #1B3A5C);
+  outline-offset: 2px;
 }
 
 .public-detail-hero__placeholder {
@@ -205,6 +228,31 @@
   transform: translateY(-50%);
 }
 
+/* P2-4: 등급별 색상 토큰. S=파랑, A+=청록, A=회색 (기본). */
+.public-detail-chip--grade-s {
+  background: #DBEAFE;
+  color: #1D4ED8;
+}
+.public-detail-chip--grade-s::before {
+  background: #1D4ED8;
+}
+
+.public-detail-chip--grade-a-plus {
+  background: #CCFBF1;
+  color: #0F766E;
+}
+.public-detail-chip--grade-a-plus::before {
+  background: #0F766E;
+}
+
+.public-detail-chip--grade-a {
+  background: #E2E8F0;
+  color: #334155;
+}
+.public-detail-chip--grade-a::before {
+  background: #475569;
+}
+
 /* 제목 */
 .public-detail-hero__title {
   margin: 4px 0 0;
@@ -213,6 +261,28 @@
   letter-spacing: -0.02em;
   color: var(--public-ds-text, #0f172a);
   line-height: 1.4;
+}
+
+/* P1-2: 가격 라인 묶음 (가격 + savings 라인) */
+.public-detail-price-line-group {
+  padding: 8px 0 16px;
+  border-bottom: 1px solid var(--public-border, #e2e8f0);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.public-detail-price-line-group .public-detail-price-line {
+  padding: 0;
+  border-bottom: 0;
+}
+
+.public-detail-price-line__savings {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #15803D;
+  letter-spacing: -0.01em;
 }
 
 /* ── 가격 라인 (눈에 띄는 큰 빨간 할인 + 큰 검정 가격) ── */
@@ -751,7 +821,8 @@
     bottom: 0;
     left: 0;
     right: 0;
-    z-index: 50;
+    /* P2-10: 모든 sticky bar 동일 z-index */
+    z-index: var(--public-sticky-bottom-z, 50);
     display: flex;
     align-items: center;
     gap: 8px;
@@ -760,6 +831,11 @@
     background: #ffffff;
     border-top: 1px solid #e5e7eb;
     box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.08);
+  }
+
+  /* P2-7: 토스트가 sticky bar 위로 올라오도록 (mobile) */
+  .public-detail-toast {
+    bottom: calc(96px + env(safe-area-inset-bottom, 0px));
   }
 
   .public-detail-sticky-bar__favorite {
@@ -849,3 +925,171 @@
   }
 }
 
+/* ── P0: 단일재고 시급성 배지 + sold-out flash ──────────────── */
+.public-detail-urgency-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: #FEF2F2;
+  color: #B91C1C;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  width: fit-content;
+  border: 1px solid #FECACA;
+}
+
+.public-detail-urgency-badge--soldout {
+  background: #F1F5F9;
+  color: #475569;
+  border-color: #CBD5E1;
+}
+
+.public-detail-soldout-flash {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #FEF3C7;
+  color: #92400E;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid #FDE68A;
+}
+
+/* ── P0: 옵션 미선택 explicit error ────────────────────────── */
+.public-detail-option-error {
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #FEF2F2;
+  color: #B91C1C;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid #FECACA;
+  line-height: 1.5;
+}
+
+/* ── P1: lightbox 모달 ───────────────────────────────────── */
+.public-detail-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.92);
+  padding: 24px;
+}
+
+.public-detail-lightbox__close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  font-size: 20px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.public-detail-lightbox__close:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.public-detail-lightbox__figure {
+  margin: 0;
+  max-width: min(90vw, 1000px);
+  max-height: min(86vh, 900px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.public-detail-lightbox__figure img {
+  max-width: 100%;
+  max-height: 80vh;
+  object-fit: contain;
+  border-radius: 6px;
+  background: #111827;
+}
+
+.public-detail-lightbox__caption {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
+.public-detail-lightbox__nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 48px;
+  height: 48px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  font-size: 28px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.public-detail-lightbox__nav:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.public-detail-lightbox__nav--prev {
+  left: 24px;
+}
+
+.public-detail-lightbox__nav--next {
+  right: 24px;
+}
+
+@media (max-width: 600px) {
+  .public-detail-lightbox {
+    padding: 12px;
+  }
+  .public-detail-lightbox__nav {
+    width: 40px;
+    height: 40px;
+    font-size: 22px;
+  }
+  .public-detail-lightbox__nav--prev {
+    left: 8px;
+  }
+  .public-detail-lightbox__nav--next {
+    right: 8px;
+  }
+  .public-detail-lightbox__close {
+    top: 8px;
+    right: 8px;
+  }
+}
+
+/* P2-4: 등급 칩 색상 — 정보 탭 dl에 표시되는 grade pill에도 적용. */
+.public-detail-info-images__item {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  aspect-ratio: 1 / 1;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: zoom-in;
+}
+.public-detail-info-images__item:focus-visible {
+  outline: 2px solid var(--public-primary, #1B3A5C);
+  outline-offset: 2px;
+}

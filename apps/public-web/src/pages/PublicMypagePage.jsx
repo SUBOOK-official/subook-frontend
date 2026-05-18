@@ -52,6 +52,7 @@ import {
   findSidebarItem,
   formatCompactDate,
   formatShipmentReference,
+  getDefaultTabForMember,
   getOrderStatusLabel,
   getOrderStatusTone,
   getShipmentProgressIndex,
@@ -184,6 +185,7 @@ function PublicMypagePage() {
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [confirmState, setConfirmState] = useState(initialConfirmState);
   const [confirmReason, setConfirmReason] = useState("");
+  const [confirmReasonCategory, setConfirmReasonCategory] = useState("");
   const [isConfirmBusy, setIsConfirmBusy] = useState(false);
   const [wishlistProducts, setWishlistProducts] = useState([]);
   const [wishlistError, setWishlistError] = useState("");
@@ -201,8 +203,15 @@ function PublicMypagePage() {
   const activeSidebarItem = findSidebarItem(activeTabKey);
 
   useEffect(() => {
+    // P1-4: hash가 비어있고 데이터가 로드되었으면 판매/구매 이력에 맞춰 기본 탭 결정.
+    if (!location.hash || location.hash === "#") {
+      if (portalState.profile) {
+        setActiveTabKey(getDefaultTabForMember(portalState));
+        return;
+      }
+    }
     setActiveTabKey(getTabKeyFromHash(location.hash));
-  }, [location.hash]);
+  }, [location.hash, portalState]);
 
   useEffect(() => {
     if (!effectiveUser || loadedTabs[dataKey]) {
@@ -376,6 +385,7 @@ function PublicMypagePage() {
   const closeConfirmDialog = () => {
     setConfirmState(initialConfirmState);
     setConfirmReason("");
+    setConfirmReasonCategory("");
     setIsConfirmBusy(false);
   };
 
@@ -941,10 +951,15 @@ function PublicMypagePage() {
     if (confirmState.type === "refund_order") {
       setBusyOrderId(confirmState.itemId);
       setIsConfirmBusy(true);
+      // P1-8: 카테고리 + 상세사유를 한 문자열로 합쳐서 RPC에 전달.
+      const categoryLabel = (
+        { defect: "상품 하자/등급 불일치", change_of_mind: "단순 변심", wrong_item: "다른 상품 도착", other: "기타" }
+      )[confirmReasonCategory] ?? "기타";
+      const combinedReason = `[${categoryLabel}] ${confirmReason}`.trim();
       const result = await requestMemberRefund({
         user: effectiveUser,
         orderId: confirmState.itemId,
-        reason: confirmReason,
+        reason: combinedReason,
         demoMode: isDemoPreview,
       });
       setBusyOrderId(null);
@@ -1059,17 +1074,18 @@ function PublicMypagePage() {
       return;
     }
     setConfirmReason("");
+    setConfirmReasonCategory("");
     setConfirmState({
       open: true,
       type: "refund_order",
       itemId: order.id,
       title: "환불을 신청하시겠습니까?",
-      body: "환불 사유를 정확하게 입력해 주세요. 운영자 검토 후 환불이 진행됩니다.",
+      body: "환불 사유를 정확하게 알려주세요. 운영자 검토 후 환불이 진행됩니다.",
       confirmLabel: "환불 신청",
       confirmTone: "danger",
       reasonInput: true,
-      reasonPlaceholder: "예: 상품 상태가 검수 등급과 다릅니다 / 단순 변심 등",
-      reasonMinLength: 4,
+      reasonPlaceholder: "예: 받은 책 상태가 검수 등급과 다릅니다. 어디가 어떻게 다른지 자세히 적어주세요.",
+      reasonMinLength: 20,
     });
   };
 
@@ -1410,14 +1426,23 @@ function PublicMypagePage() {
                         <ul className="public-mypage-sidebar__list">
                           {group.items.map((item) => (
                             <li key={item.key}>
-                              <button
-                                aria-current={activeTabKey === item.key ? "page" : undefined}
-                                className={`public-mypage-sidebar__link ${activeTabKey === item.key ? "is-active" : ""}`}
-                                onClick={() => moveToTab(item.key, { smoothScroll: false })}
-                                type="button"
-                              >
-                                {item.label}
-                              </button>
+                              {item.isCta ? (
+                                <Link
+                                  className="public-mypage-sidebar__cta"
+                                  to={item.to ?? "/"}
+                                >
+                                  {item.label}
+                                </Link>
+                              ) : (
+                                <button
+                                  aria-current={activeTabKey === item.key ? "page" : undefined}
+                                  className={`public-mypage-sidebar__link ${activeTabKey === item.key ? "is-active" : ""}`}
+                                  onClick={() => moveToTab(item.key, { smoothScroll: false })}
+                                  type="button"
+                                >
+                                  {item.label}
+                                </button>
+                              )}
                             </li>
                           ))}
                         </ul>
@@ -1473,8 +1498,10 @@ function PublicMypagePage() {
         onConfirm={() => {
           void handleConfirmAction();
         }}
+        onReasonCategoryChange={confirmState.type === "refund_order" ? setConfirmReasonCategory : undefined}
         onReasonChange={setConfirmReason}
         open={confirmState.open}
+        reasonCategoryValue={confirmReasonCategory}
         reasonInput={confirmState.reasonInput}
         reasonMinLength={confirmState.reasonMinLength}
         reasonPlaceholder={confirmState.reasonPlaceholder}
@@ -1496,6 +1523,183 @@ function MypageOverviewGrid({ items }) {
         </div>
       ))}
     </div>
+  );
+}
+
+// P0-5: 폐기/판매불가 책의 사유·사진·검수메모를 노출하고 이의제기 mailto를 제공.
+// rejection_detail/rejection_photo_urls/inspector_note는 백엔드 RPC에 아직 반영 안 됨 → 있으면 표시.
+function RejectableBookRow({ item, requestNumber }) {
+  const isRejected = Boolean(item.isRejected || item.rejectionReason);
+  const photos = Array.isArray(item.rejectionPhotoUrls) ? item.rejectionPhotoUrls : [];
+  const inspectedDate = item.inspectedAt ? formatCompactDate(item.inspectedAt) : null;
+
+  const buildDisputeMailto = () => {
+    const subject = `[검수 이의 신청] 요청번호 ${requestNumber} / 책 #${item.id}`;
+    const lines = [
+      "안녕하세요, 수북 운영팀에게 검수 결과에 대해 이의를 신청합니다.",
+      "",
+      `요청번호: ${requestNumber}`,
+      `책 ID: ${item.id}`,
+      `책 제목: ${item.title}`,
+      `검수 결과: ${item.statusLabel ?? "-"}`,
+      `검수 사유: ${item.rejectionReason ?? "-"}`,
+      `검수일: ${inspectedDate ?? "-"}`,
+      "",
+      "이의 사유:",
+      "(여기에 상세 내용을 적어주세요)",
+    ];
+    return `mailto:subook2025@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(lines.join("\n"))}`;
+  };
+
+  return (
+    <div className="public-mypage-book-row" key={item.id}>
+      <div className="public-mypage-book-row__copy">
+        <strong>[📚] {item.title}</strong>
+        {isRejected ? (
+          <>
+            <p>판매불가 · 사유: {item.rejectionReason || "사유 미입력"}</p>
+            {item.rejectionDetail ? (
+              <p className="public-mypage-book-row__detail">{item.rejectionDetail}</p>
+            ) : null}
+            {item.inspectorNote ? (
+              <p className="public-mypage-book-row__detail">검수자 메모: {item.inspectorNote}</p>
+            ) : null}
+            {inspectedDate ? (
+              <p className="public-mypage-book-row__detail">검수일: {inspectedDate}</p>
+            ) : null}
+            {photos.length > 0 ? (
+              <div className="public-mypage-book-row__photos">
+                {photos.map((url, idx) => (
+                  <a
+                    className="public-mypage-book-row__photo"
+                    href={url}
+                    key={url}
+                    rel="noopener noreferrer"
+                    target="_blank"
+                  >
+                    <img alt={`검수 사진 ${idx + 1}`} src={url} />
+                  </a>
+                ))}
+              </div>
+            ) : null}
+            <a
+              className="public-mypage-book-row__dispute"
+              href={buildDisputeMailto()}
+              rel="noopener noreferrer"
+            >
+              이 결과가 잘못됐나요? 운영팀에 문의하기 →
+            </a>
+          </>
+        ) : (
+          <p>
+            등급: {item.gradeLabel ?? "-"} | 판매가:{" "}
+            {item.price ? formatCurrency(item.price) : "-"}
+          </p>
+        )}
+      </div>
+      <span className={`public-mypage-chip public-mypage-chip--${item.tone ?? "neutral"}`}>
+        {item.statusLabel}
+      </span>
+    </div>
+  );
+}
+
+// P2-7: 운송장 번호 + 복사 버튼.
+function TrackingNumberRow({ company, trackingNumber }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = async () => {
+    if (typeof navigator === "undefined" || !navigator.clipboard) return;
+    try {
+      await navigator.clipboard.writeText(trackingNumber);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* ignore */
+    }
+  };
+  return (
+    <div className="public-mypage-purchase-card__tracking">
+      <span className="public-mypage-purchase-card__tracking-label">
+        {company ?? "CJ대한통운"}
+      </span>
+      <code className="public-mypage-purchase-card__tracking-number">{trackingNumber}</code>
+      <button
+        aria-label="운송장 번호 복사"
+        className="public-mypage-purchase-card__tracking-copy"
+        onClick={handleCopy}
+        type="button"
+      >
+        {copied ? "복사됨" : "복사"}
+      </button>
+    </div>
+  );
+}
+
+// P1-5: 정산 카드 — 클릭 시 주문번호·판매일·구매확정일·입금일 타임라인 노출.
+function SettlementCard({ settlement, status }) {
+  const [expanded, setExpanded] = useState(false);
+  const isCompleted = status === "completed";
+  const timeline = [
+    { label: "판매일", value: settlement.soldAt },
+    { label: "구매확정일", value: settlement.confirmedAt },
+    { label: "입금예정일", value: settlement.scheduledAt },
+    isCompleted ? { label: "정산완료일", value: settlement.completedAt ?? settlement.date } : null,
+  ].filter(Boolean);
+  const hasTimelineData = timeline.some((entry) => entry.value);
+
+  return (
+    <article className="public-mypage-settlement-card">
+      <div className="public-mypage-settlement-card__row">
+        <strong>
+          {formatCompactDate(settlement.date)} {isCompleted ? "정산완료" : "예정"}
+        </strong>
+        <span className="public-mypage-settlement-card__amount">+{formatCurrency(settlement.amount)}</span>
+      </div>
+      <p>
+        {settlement.orderReference ? `주문 #${settlement.orderReference} · ` : ""}
+        수거 #{settlement.pickupReference} · 교재 {settlement.bookCount}권
+      </p>
+      {isCompleted ? (
+        <>
+          <p>
+            판매 {formatCurrency(settlement.grossSales)} - 수수료 {formatCurrency(settlement.feeAmount)}
+          </p>
+          <p>
+            입금: {settlement.bankLabel} {settlement.maskedAccount}
+          </p>
+        </>
+      ) : (
+        <span className={`public-mypage-chip public-mypage-chip--${settlement.tone ?? "warning"}`}>
+          {settlement.statusLabel}
+        </span>
+      )}
+
+      <button
+        className="public-mypage-inline-link public-mypage-settlement-card__toggle"
+        onClick={() => setExpanded((v) => !v)}
+        type="button"
+      >
+        {expanded ? "타임라인 접기 ▲" : "타임라인 보기 ▼"}
+      </button>
+
+      {expanded ? (
+        <ol className="public-mypage-settlement-timeline">
+          {timeline.map((entry) => (
+            <li className="public-mypage-settlement-timeline__item" key={entry.label}>
+              <span className="public-mypage-settlement-timeline__label">{entry.label}</span>
+              <span className="public-mypage-settlement-timeline__value">
+                {entry.value ? formatCompactDate(entry.value) : "미확정"}
+              </span>
+            </li>
+          ))}
+          {!hasTimelineData && (
+            <li className="public-mypage-settlement-timeline__empty">
+              상세 일자 정보를 불러올 수 없어요. 입금이 늦어진다면 운영팀(subook2025@gmail.com)에 문의해주세요.
+            </li>
+          )}
+        </ol>
+      ) : null}
+    </article>
   );
 }
 
@@ -1683,21 +1887,11 @@ function SalesTab({
 
                     <div className="public-mypage-book-list">
                       {shipment.items.map((item) => (
-                        <div className="public-mypage-book-row" key={item.id}>
-                          <div className="public-mypage-book-row__copy">
-                            <strong>[📚] {item.title}</strong>
-                            <p>
-                              {item.rejectionReason
-                                ? `판매불가 · 사유: ${item.rejectionReason}`
-                                : `등급: ${item.gradeLabel ?? "-"} | 판매가: ${
-                                    item.price ? formatCurrency(item.price) : "-"
-                                  }`}
-                            </p>
-                          </div>
-                          <span className={`public-mypage-chip public-mypage-chip--${item.tone ?? "neutral"}`}>
-                            {item.statusLabel}
-                          </span>
-                        </div>
+                        <RejectableBookRow
+                          item={item}
+                          key={item.id}
+                          requestNumber={shipment.reference}
+                        />
                       ))}
                     </div>
                   </>
@@ -2054,6 +2248,13 @@ function PurchasesView({
                       </div>
                     </div>
 
+                    {order.trackingNumber ? (
+                      <TrackingNumberRow
+                        company={order.trackingCompany}
+                        trackingNumber={order.trackingNumber}
+                      />
+                    ) : null}
+
                     <div className="public-mypage-purchase-card__actions">
                       <button
                         className="public-mypage-purchase-card__btn"
@@ -2169,21 +2370,7 @@ function SettlementsTab({ completedSettlements, onRequestPickup, scheduledSettle
 
         <div className="public-mypage-settlement-list">
           {completedSettlements.map((settlement) => (
-            <article className="public-mypage-settlement-card" key={settlement.id}>
-              <div className="public-mypage-settlement-card__row">
-                <strong>{formatCompactDate(settlement.date)} 정산완료</strong>
-                <span className="public-mypage-settlement-card__amount">+{formatCurrency(settlement.amount)}</span>
-              </div>
-              <p>
-                수거 #{settlement.pickupReference} · 교재 {settlement.bookCount}권
-              </p>
-              <p>
-                판매 {formatCurrency(settlement.grossSales)} - 수수료 {formatCurrency(settlement.feeAmount)}
-              </p>
-              <p>
-                입금: {settlement.bankLabel} {settlement.maskedAccount}
-              </p>
-            </article>
+            <SettlementCard key={settlement.id} settlement={settlement} status="completed" />
           ))}
         </div>
 
@@ -2192,15 +2379,7 @@ function SettlementsTab({ completedSettlements, onRequestPickup, scheduledSettle
             <h3 className="public-mypage-pending-settlements__title">정산 예정</h3>
             <div className="public-mypage-settlement-list">
               {scheduledSettlements.map((settlement) => (
-                <article className="public-mypage-settlement-card" key={settlement.id}>
-                  <div className="public-mypage-settlement-card__row">
-                    <strong>{formatCompactDate(settlement.date)} 예정</strong>
-                    <span className="public-mypage-settlement-card__amount">+{formatCurrency(settlement.amount)}</span>
-                  </div>
-                  <span className={`public-mypage-chip public-mypage-chip--${settlement.tone ?? "warning"}`}>
-                    {settlement.statusLabel}
-                  </span>
-                </article>
+                <SettlementCard key={settlement.id} settlement={settlement} status="scheduled" />
               ))}
             </div>
           </div>

@@ -72,8 +72,7 @@ function PublicSignupSuccessPage() {
     navigate("/", { replace: true });
   };
 
-  const handleVerifyCode = async (event) => {
-    event.preventDefault();
+  const verifyCodeWithValue = async (codeValue) => {
     setCodeError("");
     setPageNotice("");
 
@@ -93,7 +92,7 @@ function PublicSignupSuccessPage() {
       return;
     }
 
-    const normalizedCode = normalizeVerificationCode(verificationCode);
+    const normalizedCode = normalizeVerificationCode(codeValue);
 
     if (normalizedCode.length !== 6) {
       setCodeError("숫자 6자리 인증코드를 입력해주세요.");
@@ -132,6 +131,11 @@ function PublicSignupSuccessPage() {
       replace: true,
       state: nextState,
     });
+  };
+
+  const handleVerifyCode = async (event) => {
+    event.preventDefault();
+    await verifyCodeWithValue(verificationCode);
   };
 
   const handleResendEmail = async () => {
@@ -190,8 +194,11 @@ function PublicSignupSuccessPage() {
       <main className="public-auth-route public-auth-route--success">
         <div className="public-auth-shell">
           <section aria-labelledby="public-signup-success-heading" className="public-auth-card public-auth-card--success">
-            <div className="public-auth-success-badge" aria-hidden="true">
-              {isVerified ? "🎉" : "✦"}
+            <div
+              aria-hidden="true"
+              className={`public-auth-success-badge ${isVerified ? "public-auth-success-badge--success" : ""}`}
+            >
+              {isVerified ? "✓" : "✦"}
             </div>
 
             <div className="public-auth-card__heading">
@@ -229,9 +236,16 @@ function PublicSignupSuccessPage() {
                         inputMode="numeric"
                         maxLength={6}
                         onChange={(event) => {
-                          setVerificationCode(normalizeVerificationCode(event.target.value));
+                          const nextCode = normalizeVerificationCode(event.target.value);
+                          setVerificationCode(nextCode);
                           setCodeError("");
                           setPageNotice("");
+
+                          // 6자리가 채워지면 (붙여넣기 포함) 자동으로 인증 시도.
+                          // 이미 검증 중이거나 인증 완료된 상태면 무시.
+                          if (nextCode.length === 6 && !isVerifying) {
+                            void verifyCodeWithValue(nextCode);
+                          }
                         }}
                         placeholder="6자리 코드"
                         type="text"

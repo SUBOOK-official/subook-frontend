@@ -6,6 +6,7 @@ import PublicFooter from "../components/PublicFooter";
 import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
+import { usePublicWishlist } from "../contexts/PublicWishlistContext";
 import {
   FREE_SHIPPING_THRESHOLD,
   calculateShippingFee,
@@ -14,6 +15,44 @@ import {
   getCartItems,
 } from "../lib/cart";
 import "./PublicCartPage.css";
+
+// P1-3: 장바구니 → 주문 → 뒤로가기 시 selection 보존용 sessionStorage 키
+const CART_SELECTION_STORAGE_KEY = "subook.cart.selection.v1";
+// P2-3: 가격 미등록 24시간 이상이면 사용자가 해당 line을 삭제할 수 있게 표시
+const STALE_PRICE_MS = 24 * 60 * 60 * 1000;
+
+function readPersistedCartSelection() {
+  if (typeof window === "undefined" || !window.sessionStorage) return null;
+  try {
+    const raw = window.sessionStorage.getItem(CART_SELECTION_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.map(String) : null;
+  } catch {
+    return null;
+  }
+}
+
+function persistCartSelection(ids) {
+  if (typeof window === "undefined" || !window.sessionStorage) return;
+  try {
+    window.sessionStorage.setItem(
+      CART_SELECTION_STORAGE_KEY,
+      JSON.stringify(Array.from(ids).map(String)),
+    );
+  } catch {
+    // ignore
+  }
+}
+
+function isStalePriceMissing(item) {
+  if (item.price !== null && item.price !== undefined) return false;
+  const createdAtRaw = item.created_at ?? item.createdAt;
+  if (!createdAtRaw) return false;
+  const createdAt = new Date(createdAtRaw).getTime();
+  if (!Number.isFinite(createdAt)) return false;
+  return Date.now() - createdAt >= STALE_PRICE_MS;
+}
 
 function CartItemRow({ item, isSelected, onToggle, onDelete }) {
   const [updating, setUpdating] = useState(false);
@@ -27,6 +66,8 @@ function CartItemRow({ item, isSelected, onToggle, onDelete }) {
   const lineTotal = (item.price ?? 0) * item.quantity;
   const isPriceMissing = item.price === null || item.price === undefined;
   const isCheckboxDisabled = item.is_sold_out || isPriceMissing;
+  // P2-3: 가격 미등록 24시간 이상 → 사용자가 직접 삭제할 수 있게 라벨 분리
+  const isStaleMissing = isPriceMissing && !item.is_sold_out && isStalePriceMissing(item);
 
   return (
     <div
@@ -46,7 +87,7 @@ function CartItemRow({ item, isSelected, onToggle, onDelete }) {
 
       <div className="cart-item__image">
         {item.cover_image_url ? (
-          <img alt={item.title} src={item.cover_image_url} />
+          <img alt={item.title} loading="lazy" src={item.cover_image_url} />
         ) : (
           <div className="cart-item__image-placeholder">SUBOOK</div>
         )}
@@ -62,8 +103,13 @@ function CartItemRow({ item, isSelected, onToggle, onDelete }) {
             .join(" · ")}
         </div>
         {item.is_sold_out && <span className="cart-item__sold-out-badge">품절</span>}
-        {isPriceMissing && !item.is_sold_out && (
+        {isPriceMissing && !item.is_sold_out && !isStaleMissing && (
           <span className="cart-item__sold-out-badge">가격 확인 중</span>
+        )}
+        {isStaleMissing && (
+          <span className="cart-item__sold-out-badge cart-item__sold-out-badge--stale">
+            가격 등록이 지연되고 있어요
+          </span>
         )}
 
         <div className="cart-item__price-mobile">
@@ -78,7 +124,7 @@ function CartItemRow({ item, isSelected, onToggle, onDelete }) {
             onClick={handleDelete}
             type="button"
           >
-            삭제
+            {isStaleMissing ? "삭제하기" : "삭제"}
           </button>
         </div>
       </div>
@@ -97,6 +143,7 @@ function CartItemRow({ item, isSelected, onToggle, onDelete }) {
 
 function PublicCartPage() {
   const { isAuthenticated, isLoading: authLoading } = usePublicAuth();
+  const { favoriteCount } = usePublicWishlist();
   const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -112,15 +159,34 @@ function PublicCartPage() {
     setIsLoading(true);
     const { items: cartItems, error } = await getCartItems();
     setItems(cartItems);
-    const availableIds = new Set(
-      cartItems.filter((i) => !i.is_sold_out).map((i) => i.id),
-    );
-    setSelectedIds(availableIds);
+
+    // P1-3: 주문 페이지에서 뒤로가기 시 selection 복원. sessionStorage에서 읽어와
+    // 현재 카트에 살아 있는 item만 추려 다시 선택. 없으면 기본(available 전체).
+    const cartItemIds = new Set(cartItems.map((i) => String(i.id)));
+    const availableIdsArr = cartItems.filter((i) => !i.is_sold_out).map((i) => String(i.id));
+    const persisted = readPersistedCartSelection();
+    if (persisted && persisted.length > 0) {
+      const restored = persisted.filter((id) => cartItemIds.has(id));
+      if (restored.length > 0) {
+        setSelectedIds(new Set(restored));
+      } else {
+        setSelectedIds(new Set(availableIdsArr));
+      }
+    } else {
+      setSelectedIds(new Set(availableIdsArr));
+    }
+
     if (error) {
       showToast("장바구니를 불러오지 못했습니다.", "error");
     }
     setIsLoading(false);
   }, [showToast]);
+
+  // P1-3: 선택 변경 시 sessionStorage에 영속화 (mount 직후 빈 Set은 skip).
+  useEffect(() => {
+    if (isLoading) return;
+    persistCartSelection(selectedIds);
+  }, [selectedIds, isLoading]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -238,7 +304,14 @@ function PublicCartPage() {
               </div>
               <p className="cart-empty__text">장바구니가 비어있습니다</p>
               <p className="cart-empty__hint">마음에 드는 교재를 담아보세요</p>
-              <Link className="cart-empty__link" to="/">스토어 둘러보기</Link>
+              <div className="cart-empty__actions">
+                <Link className="cart-empty__link" to="/">스토어 둘러보기</Link>
+                {favoriteCount > 0 ? (
+                  <Link className="cart-empty__link cart-empty__link--secondary" to="/mypage#wishlist">
+                    찜한 교재 {favoriteCount}개 보기
+                  </Link>
+                ) : null}
+              </div>
             </div>
           ) : (
             <div className="cart-layout">

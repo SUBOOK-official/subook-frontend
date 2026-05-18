@@ -372,10 +372,33 @@
 }
 
 .order-bank-info__account {
-  font-size: 16px;
-  font-weight: 700;
+  font-size: 17px;
+  font-weight: 800;
   color: #78350f;
-  margin-bottom: 8px;
+  letter-spacing: 0.01em;
+  margin: 0 0 4px;
+}
+
+.order-bank-info__holder {
+  font-size: 13px;
+  color: #92400e;
+  margin: 0 0 12px;
+}
+
+.order-bank-info__bullets {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: #b45309;
+  line-height: 1.6;
+}
+
+.order-bank-info__bullets li + li {
+  margin-top: 4px;
+}
+
+.order-bank-info__bullets strong {
+  color: #92400e;
 }
 
 .order-bank-info__notice {
@@ -456,11 +479,18 @@
   margin-top: 10px;
 }
 
+.order-sidebar__agreements {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 12px 0 4px;
+}
+
 .order-sidebar__agreement-check {
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  margin: 0 0 10px;
+  margin: 0;
   padding: 10px 12px;
   border-radius: 8px;
   background: #f9fafb;
@@ -479,6 +509,12 @@
 
 .order-sidebar__agreement-check strong {
   color: #c2410c;
+}
+
+.order-sidebar__agreement-link {
+  color: var(--public-ds-primary);
+  text-decoration: underline;
+  font-weight: 600;
 }
 
 /* ── Toast ── */
@@ -526,7 +562,10 @@
     bottom: 0;
     left: 0;
     right: 0;
-    z-index: 100;
+    /* P2-10: 모든 sticky bar 동일 z-index */
+    z-index: var(--public-sticky-bottom-z, 50);
+    /* P1-4: 모바일 키보드 활성 시 bottom을 동적으로 끌어올리도록 transition */
+    transition: bottom 0.2s ease;
   }
 
   .order-sidebar__card {
@@ -731,6 +770,34 @@
 
 .order-coupon-modal__item-expiry {
   color: var(--public-ds-text-muted, #94a3b8) !important;
+}
+
+/* P1-7: 쿠폰 추천/만료 임박 태그 */
+.order-coupon-modal__item-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 2px;
+}
+
+.order-coupon-modal__tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.order-coupon-modal__tag--recommend {
+  background: #DCFCE7;
+  color: #15803D;
+}
+
+.order-coupon-modal__tag--expiring {
+  background: #FEF2F2;
+  color: #DC2626;
 }
 
 .order-coupon-modal__footer {

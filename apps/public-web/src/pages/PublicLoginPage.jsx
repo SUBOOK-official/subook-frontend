@@ -31,13 +31,29 @@ function PublicLoginPage() {
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(() => getPublicAuthSessionPersistence());
   const [showPassword, setShowPassword] = useState(false);
+  const [isCapsLockOn, setIsCapsLockOn] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({
     email: "",
     password: "",
   });
   const [pageNotice, setPageNotice] = useState(location.state?.notice ?? "");
   const [pageError, setPageError] = useState("");
+  const [withdrawalRecoveryEmail, setWithdrawalRecoveryEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handlePasswordKeyEvent = (event) => {
+    if (typeof event.getModifierState === "function") {
+      setIsCapsLockOn(event.getModifierState("CapsLock"));
+    }
+  };
+
+  const buildWithdrawalRecoveryMailto = (emailAddress) => {
+    const subject = encodeURIComponent("탈퇴 철회 요청");
+    const body = encodeURIComponent(
+      `안녕하세요, 수북 운영팀.\n\n탈퇴 처리 중인 계정을 다시 살리고 싶어 요청드립니다.\n\n가입 이메일: ${emailAddress}\n\n감사합니다.`,
+    );
+    return `mailto:subook2025@gmail.com?subject=${subject}&body=${body}`;
+  };
 
   const redirectToVerification = (emailAddress, notice) => {
     const verificationState = {
@@ -62,6 +78,7 @@ function PublicLoginPage() {
   const handleEmailChange = (event) => {
     setEmail(event.target.value);
     setPageError("");
+    setWithdrawalRecoveryEmail("");
     setFieldErrors((currentValue) => ({
       ...currentValue,
       email: "",
@@ -71,6 +88,7 @@ function PublicLoginPage() {
   const handlePasswordChange = (event) => {
     setPassword(event.target.value);
     setPageError("");
+    setWithdrawalRecoveryEmail("");
     setFieldErrors((currentValue) => ({
       ...currentValue,
       password: "",
@@ -155,7 +173,10 @@ function PublicLoginPage() {
 
     if (accessState.accountRole === "withdrawal_pending" || accessState.accountRole === "withdrawn") {
       await supabase.auth.signOut();
-      setPageError("회원탈퇴 처리 중인 계정입니다. 복구가 필요하면 고객센터로 문의해주세요.");
+      setWithdrawalRecoveryEmail(normalized);
+      setPageError(
+        "회원탈퇴 처리 중인 계정입니다. 복구가 필요하면 아래 안내를 통해 탈퇴 철회를 요청해 주세요.",
+      );
       setIsSubmitting(false);
       return;
     }
@@ -209,7 +230,32 @@ function PublicLoginPage() {
             ) : null}
 
             {pageNotice ? <div className="public-auth-alert public-auth-alert--success">{pageNotice}</div> : null}
-            {pageError ? <div className="public-auth-alert public-auth-alert--error">{pageError}</div> : null}
+            {pageError ? (
+              <div className="public-auth-alert public-auth-alert--error">
+                <p>{pageError}</p>
+                {withdrawalRecoveryEmail ? (
+                  <div className="public-auth-alert__actions">
+                    <a
+                      className="public-auth-inline-button public-auth-inline-button--cta"
+                      href={buildWithdrawalRecoveryMailto(withdrawalRecoveryEmail)}
+                    >
+                      탈퇴 철회 요청하기
+                    </a>
+                    <span className="public-auth-alert__hint">
+                      또는 <a href="mailto:subook2025@gmail.com">subook2025@gmail.com</a> 으로 직접 메일 주세요.
+                    </span>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            <PublicOAuthButtons
+              contextLabel="로그인"
+              dividerLabel="또는 이메일로 계속"
+              dividerPosition="bottom"
+              placement="top"
+              redirectTo={`${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`}
+            />
 
             <form className="public-auth-form-card" noValidate onSubmit={handleSubmit}>
               <div className={`public-auth-field-row ${fieldErrors.email ? "is-error" : ""}`}>
@@ -223,6 +269,10 @@ function PublicLoginPage() {
                     id="public-login-email"
                     onChange={handleEmailChange}
                     onKeyDown={(event) => {
+                      // IME composition 중 Enter는 후보 확정으로 사용되므로 무시.
+                      if (event.nativeEvent?.isComposing || event.keyCode === 229) {
+                        return;
+                      }
                       if (event.key === "Enter") {
                         event.preventDefault();
                         passwordInputRef.current?.focus();
@@ -247,7 +297,10 @@ function PublicLoginPage() {
                     autoComplete="current-password"
                     className="public-auth-field-row__input"
                     id="public-login-password"
+                    onBlur={() => setIsCapsLockOn(false)}
                     onChange={handlePasswordChange}
+                    onKeyDown={handlePasswordKeyEvent}
+                    onKeyUp={handlePasswordKeyEvent}
                     placeholder="비밀번호를 입력해주세요"
                     ref={passwordInputRef}
                     type={showPassword ? "text" : "password"}
@@ -255,13 +308,23 @@ function PublicLoginPage() {
                   />
                   <button
                     aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
-                    className="public-auth-field-row__toggle"
+                    className="public-auth-field-row__toggle public-auth-field-row__toggle--icon"
                     onClick={() => setShowPassword((currentValue) => !currentValue)}
                     type="button"
                   >
-                    {showPassword ? "숨기기" : "보기"}
+                    <span aria-hidden="true">{showPassword ? "🙈" : "👁"}</span>
+                    <span className="public-auth-sr-only">{showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}</span>
                   </button>
                 </div>
+                {isCapsLockOn ? (
+                  <p
+                    className="public-auth-inline-message public-auth-inline-message--warning"
+                    role="status"
+                    aria-live="polite"
+                  >
+                    ⚠ Caps Lock이 켜져 있습니다.
+                  </p>
+                ) : null}
                 {fieldErrors.password ? (
                   <p className="public-auth-inline-message public-auth-inline-message--error">{fieldErrors.password}</p>
                 ) : null}
@@ -297,11 +360,6 @@ function PublicLoginPage() {
                 회원가입
               </Link>
             </div>
-
-            <PublicOAuthButtons
-              contextLabel="로그인"
-              redirectTo={`${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`}
-            />
           </div>
         </section>
       </div>

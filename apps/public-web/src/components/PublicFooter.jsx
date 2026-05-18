@@ -41,7 +41,8 @@ const footerTopLinks = [
   { label: "이용약관", to: "/terms" },
   { label: "개인정보처리방침", to: "/privacy", bold: true },
   { label: "환불정책", to: "/refund" },
-  { label: "1:1문의", href: "mailto:subook2025@gmail.com" },
+  // 1:1문의는 카카오톡 채널 우선 (답장 속도/접근성), 이메일은 socials 아이콘으로 보조
+  { label: "1:1문의 (카카오톡)", href: "https://pf.kakao.com/_subook", external: true },
 ];
 
 const footerMetaLines = [
@@ -89,7 +90,14 @@ function PublicFooter() {
                   {link.label}
                 </Link>
               ) : link.href ? (
-                <a className={className} href={link.href} key={link.label}>
+                <a
+                  className={className}
+                  href={link.href}
+                  key={link.label}
+                  {...(link.external
+                    ? { rel: "noopener noreferrer", target: "_blank" }
+                    : {})}
+                >
                   {link.label}
                 </a>
               ) : (

@@ -1,7 +1,10 @@
 import { isSupabaseConfigured, supabase } from "@shared-supabase/publicSupabaseClient";
 
+// 배송비 정책 — public-web 전체의 source of truth.
+// 상세/카트/주문/안내탭 모두 이 상수에서 import해 동일한 기준을 사용해야 한다.
+// 기준 변경 시 백엔드 create_order RPC의 정책도 함께 조정할 것.
 const SHIPPING_FEE = 3500;
-const FREE_SHIPPING_THRESHOLD = 30000;
+const FREE_SHIPPING_THRESHOLD = 50000;
 
 const LOCAL_CART_STORAGE_KEY = "subook.public.local-cart.v1";
 const LOCAL_CART_ID_PREFIX = "local-";

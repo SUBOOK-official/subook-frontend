@@ -1,12 +1,21 @@
 import { useState } from "react";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/publicSupabaseClient";
 
+// TODO(ops): Supabase 대시보드에서 Google provider 활성 + Client ID/Secret 등록 필요.
+//   (Project Settings → Authentication → Providers → Google) 등록 전까지는 버튼이 표시되더라도
+//   클릭 시 buildOAuthFallbackMessage로 "아직 연결되지 않았습니다" 안내가 노출됨.
 const oauthProviders = [
   {
     provider: "kakao",
     label: "카카오로 시작하기",
     styleKey: "kakao",
     brandIcon: "K",
+  },
+  {
+    provider: "google",
+    label: "Google로 시작하기",
+    styleKey: "google",
+    brandIcon: "G",
   },
 ];
 
@@ -28,7 +37,13 @@ function buildOAuthFallbackMessage(providerLabel, error) {
   return `${providerLabel} 로그인이 아직 준비되지 않았습니다. 이메일 로그인으로 계속 진행해 주세요.`;
 }
 
-function PublicOAuthButtons({ contextLabel, redirectTo }) {
+function PublicOAuthButtons({
+  contextLabel,
+  redirectTo,
+  dividerLabel = "또는",
+  dividerPosition = "top",
+  placement = "bottom",
+}) {
   const [activeProvider, setActiveProvider] = useState("");
   const [notice, setNotice] = useState("");
 
@@ -64,13 +79,27 @@ function PublicOAuthButtons({ contextLabel, redirectTo }) {
     setActiveProvider("");
   };
 
-  return (
-    <section aria-label={`${contextLabel} 소셜 로그인`} className="public-auth-social">
-      <div aria-hidden="true" className="public-auth-social__divider">
-        <span>또는</span>
-      </div>
+  const dividerElement = (
+    <div aria-hidden="true" className="public-auth-social__divider">
+      <span>{dividerLabel}</span>
+    </div>
+  );
 
-      {notice ? <p className="public-auth-inline-message public-auth-inline-message--error">{notice}</p> : null}
+  return (
+    <section
+      aria-label={`${contextLabel} 소셜 로그인`}
+      className={`public-auth-social public-auth-social--${placement}`}
+    >
+      {dividerPosition === "top" ? dividerElement : null}
+
+      {notice ? (
+        <p
+          className="public-auth-inline-message public-auth-inline-message--error"
+          role="alert"
+        >
+          {notice}
+        </p>
+      ) : null}
 
       <div className="public-auth-social__buttons">
         {oauthProviders.map((providerConfig) => {
@@ -101,6 +130,8 @@ function PublicOAuthButtons({ contextLabel, redirectTo }) {
           );
         })}
       </div>
+
+      {dividerPosition === "bottom" ? dividerElement : null}
     </section>
   );
 }
