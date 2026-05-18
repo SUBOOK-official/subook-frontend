@@ -386,14 +386,6 @@ function AdminProductMastersPage() {
       actions={
         <>
           <button
-            className="rounded-md border border-slate-300 px-3 py-2 text-xs font-bold text-slate-400 cursor-not-allowed"
-            disabled
-            title="식스샵 마이그레이션 후 활성화 예정"
-            type="button"
-          >
-            + 상품 일괄 등록
-          </button>
-          <button
             className="rounded-md bg-slate-900 px-3 py-2 text-xs font-bold text-white hover:bg-slate-700"
             onClick={openCreate}
             type="button"
