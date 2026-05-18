@@ -1,6 +1,7 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import AdminShell from "../components/AdminShell";
+import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import InspectionImageUploader from "../components/InspectionImageUploader";
 import { readSheetRowsAsObjects } from "../lib/excelFile";
 import { formatCurrency, formatDate } from "@shared-domain/format";
@@ -622,6 +623,7 @@ function AdminShipmentDetailPage() {
   const [shipment, setShipment] = useState(null);
   const [books, setBooks] = useState([]);
   const [bookForm, setBookForm] = useState(initialBookForm);
+  const [destructiveModal, setDestructiveModal] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -703,47 +705,72 @@ function AdminShipmentDetailPage() {
     setSelectedBookIds(new Set());
   }, [bookSearchQuery, bookListPage]);
 
-  const handleBulkBookAction = async (action, opts = {}) => {
-    const ids = Array.from(selectedBookIds);
-    if (ids.length === 0) return;
-
-    let confirmMsg = "";
-    if (action === "visibility-show") confirmMsg = `선택한 ${ids.length}권을 일괄 '공개'로 변경할까요?`;
-    else if (action === "visibility-hide") confirmMsg = `선택한 ${ids.length}권을 일괄 '숨김'으로 변경할까요?`;
-    else if (action === "status-discarded") {
-      confirmMsg = `선택한 ${ids.length}권을 일괄 '폐기'로 변경할까요?\n\n` +
-        `active 주문이 있는 책은 자동 reject됩니다.\n이 작업은 되돌릴 수 없습니다.`;
-    } else if (action === "price-delta") {
-      confirmMsg = `선택한 ${ids.length}권의 가격을 일괄 ${opts.percent > 0 ? "+" : ""}${opts.percent}% 변경할까요?`;
-    }
-    if (!window.confirm(confirmMsg)) return;
-
+  const runBulkBookRpc = async (rpcName, params) => {
     setBulkBookProcessing(true);
     try {
-      let rpcName;
-      let params;
-      if (action === "visibility-show" || action === "visibility-hide") {
-        rpcName = "admin_bulk_update_books_visibility";
-        params = { p_ids: ids, p_is_public: action === "visibility-show" };
-      } else if (action === "status-discarded") {
-        rpcName = "admin_bulk_update_books_status";
-        params = { p_ids: ids, p_status: "discarded" };
-      } else if (action === "price-delta") {
-        rpcName = "admin_bulk_update_books_price_delta";
-        params = { p_ids: ids, p_delta_percent: opts.percent };
-      }
       const { data, error } = await supabase.rpc(rpcName, params);
       if (error) {
-        window.alert(`일괄 작업 실패: ${error.message}`);
+        setError(`일괄 작업 실패: ${error.message}`);
       } else {
         const ok = data?.success_count ?? data?.updated_count ?? 0;
         const fail = data?.fail_count ?? 0;
-        window.alert(`처리 완료 — 성공 ${ok}건${fail > 0 ? ` / 실패 ${fail}건` : ""}`);
+        setNotice(`처리 완료 — 성공 ${ok}건${fail > 0 ? ` / 실패 ${fail}건` : ""}`);
       }
       setSelectedBookIds(new Set());
       await refreshBooks();
     } finally {
       setBulkBookProcessing(false);
+    }
+  };
+
+  const handleBulkBookAction = (action, opts = {}) => {
+    const ids = Array.from(selectedBookIds);
+    if (ids.length === 0) return;
+
+    if (action === "visibility-show" || action === "visibility-hide") {
+      const label = action === "visibility-show" ? "공개" : "숨김";
+      if (!window.confirm(`선택한 ${ids.length}권을 일괄 '${label}'으로 변경할까요?`)) return;
+      void runBulkBookRpc("admin_bulk_update_books_visibility", {
+        p_ids: ids,
+        p_is_public: action === "visibility-show",
+      });
+      return;
+    }
+
+    if (action === "status-discarded") {
+      setDestructiveModal({
+        title: `책 일괄 폐기 — ${ids.length}권`,
+        description:
+          `선택한 ${ids.length}권을 일괄 '폐기'로 변경합니다.\n\n` +
+          `· active 주문이 있는 책은 자동 reject됩니다.\n` +
+          `· 폐기 상태의 책은 더 이상 노출되지 않습니다.\n\n` +
+          `이 작업은 되돌릴 수 없습니다.`,
+        confirmPhrase: String(ids.length),
+        reasonRequired: true,
+        reasonMinLength: 3,
+        reasonPlaceholder: "예) 파손 / 오염 / 검수 불합격 / 분실",
+        confirmLabel: `${ids.length}권 폐기`,
+        run: async () => {
+          await runBulkBookRpc("admin_bulk_update_books_status", {
+            p_ids: ids,
+            p_status: "discarded",
+          });
+        },
+      });
+      return;
+    }
+
+    if (action === "price-delta") {
+      // P0-5 별도 처리: 입력 검증된 percent 값으로 호출됨
+      const percent = Number(opts.percent);
+      if (!Number.isFinite(percent) || percent === 0) {
+        setError("유효한 변동 비율이 아닙니다.");
+        return;
+      }
+      void runBulkBookRpc("admin_bulk_update_books_price_delta", {
+        p_ids: ids,
+        p_delta_percent: percent,
+      });
     }
   };
 
@@ -1775,6 +1802,26 @@ function AdminShipmentDetailPage() {
           ) : null}
         </section>
       </div>
+
+      <DestructiveConfirmModal
+        busy={bulkBookProcessing}
+        cancelLabel="취소"
+        confirmLabel={destructiveModal?.confirmLabel}
+        confirmPhrase={destructiveModal?.confirmPhrase}
+        description={destructiveModal?.description ?? ""}
+        onCancel={() => setDestructiveModal(null)}
+        onConfirm={async (reason) => {
+          const current = destructiveModal;
+          if (!current) return;
+          setDestructiveModal(null);
+          await current.run(reason);
+        }}
+        open={!!destructiveModal}
+        reasonMinLength={destructiveModal?.reasonMinLength}
+        reasonPlaceholder={destructiveModal?.reasonPlaceholder}
+        reasonRequired={destructiveModal?.reasonRequired}
+        title={destructiveModal?.title ?? ""}
+      />
     </AdminShell>
   );
 }

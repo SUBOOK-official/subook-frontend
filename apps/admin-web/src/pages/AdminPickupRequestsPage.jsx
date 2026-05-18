@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AdminShell from "../components/AdminShell";
+import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import { notifyPickupAccepted } from "../lib/adminNotification";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { formatDate } from "@shared-domain/format";
@@ -145,6 +146,7 @@ function AdminPickupRequestsPage() {
   const [registeringIds, setRegisteringIds] = useState([]);
   const [trackingLookupId, setTrackingLookupId] = useState(null);
   const [trackingModal, setTrackingModal] = useState(null);
+  const [destructiveModal, setDestructiveModal] = useState(null);
 
   const totalPages = useMemo(
     () => Math.max(1, Math.ceil(totalCount / PAGE_SIZE)),
@@ -374,34 +376,41 @@ function AdminPickupRequestsPage() {
   };
 
   // 일괄 수거 취소 (admin_bulk_cancel_pickup_requests RPC)
-  const handleBulkCancelPickups = async (targetIds) => {
+  const handleBulkCancelPickups = (targetIds) => {
     if (!Array.isArray(targetIds) || targetIds.length === 0) return;
     if (!isSupabaseConfigured || !supabase) return;
 
-    if (!window.confirm(
-      `선택한 ${targetIds.length}건의 수거 요청을 일괄 취소할까요?\n\n` +
-      `(pending / pickup_assigned 상태만 처리됩니다. 이미 CJ 접수된 건은 별도 처리 필요.)\n\n` +
-      `이 작업은 되돌릴 수 없습니다.`
-    )) {
-      return;
-    }
-
-    setError(null);
-    setRegisteringIds(targetIds);
-    try {
-      const { data, error: rpcError } = await supabase.rpc("admin_bulk_cancel_pickup_requests", {
-        p_ids: targetIds,
-        p_reason: null,
-      });
-      if (rpcError) throw rpcError;
-      const cancelledCount = data?.cancelled_count ?? 0;
-      window.alert(`수거 요청 ${cancelledCount}건 취소 완료.`);
-      await loadPickupRequests();
-    } catch (apiError) {
-      setError(apiError instanceof Error ? apiError.message : "일괄 취소에 실패했습니다.");
-    } finally {
-      setRegisteringIds([]);
-    }
+    setDestructiveModal({
+      title: `수거 일괄 취소 — ${targetIds.length}건`,
+      description:
+        `선택한 ${targetIds.length}건의 수거 요청을 일괄 취소합니다.\n\n` +
+        `(pending / pickup_assigned 상태만 처리됩니다.\n` +
+        `이미 CJ 접수된 건은 별도 처리 필요.)\n\n` +
+        `이 작업은 되돌릴 수 없습니다.`,
+      confirmPhrase: String(targetIds.length),
+      reasonRequired: true,
+      reasonMinLength: 3,
+      reasonPlaceholder: "예) 셀러 변심 / 중복 요청 / 운영 판단",
+      confirmLabel: `${targetIds.length}건 취소`,
+      run: async (reason) => {
+        setError(null);
+        setRegisteringIds(targetIds);
+        try {
+          const { data, error: rpcError } = await supabase.rpc(
+            "admin_bulk_cancel_pickup_requests",
+            { p_ids: targetIds, p_reason: reason || null },
+          );
+          if (rpcError) throw rpcError;
+          const cancelledCount = data?.cancelled_count ?? 0;
+          setNotice(`수거 요청 ${cancelledCount}건 취소 완료.`);
+          await loadPickupRequests();
+        } catch (apiError) {
+          setError(apiError instanceof Error ? apiError.message : "일괄 취소에 실패했습니다.");
+        } finally {
+          setRegisteringIds([]);
+        }
+      },
+    });
   };
 
   const handleTrackingLookup = async (pickupRequest) => {
@@ -834,6 +843,26 @@ function AdminPickupRequestsPage() {
           </section>
         </div>
       ) : null}
+
+      <DestructiveConfirmModal
+        busy={registeringIds.length > 0}
+        cancelLabel="취소"
+        confirmLabel={destructiveModal?.confirmLabel}
+        confirmPhrase={destructiveModal?.confirmPhrase}
+        description={destructiveModal?.description ?? ""}
+        onCancel={() => setDestructiveModal(null)}
+        onConfirm={async (reason) => {
+          const current = destructiveModal;
+          if (!current) return;
+          setDestructiveModal(null);
+          await current.run(reason);
+        }}
+        open={!!destructiveModal}
+        reasonMinLength={destructiveModal?.reasonMinLength}
+        reasonPlaceholder={destructiveModal?.reasonPlaceholder}
+        reasonRequired={destructiveModal?.reasonRequired}
+        title={destructiveModal?.title ?? ""}
+      />
     </AdminShell>
   );
 }

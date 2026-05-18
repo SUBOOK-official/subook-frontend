@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AdminShell from "../components/AdminShell";
 import AdminPagination from "../components/AdminPagination";
+import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { formatCurrency, formatDate } from "@shared-domain/format";
 import { notifyOrderConfirmed, notifyShippingStarted, notifyDeliveryDone } from "../lib/adminNotification";
@@ -127,17 +128,11 @@ function AdminOrdersPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
 
-  // 일괄 작업 실행
-  const handleBulkAction = async (action) => {
-    const ids = Array.from(selectedIds);
-    if (ids.length === 0) return;
+  // 비가역 작업 확인 모달 (환불, 일괄취소)
+  const [destructiveModal, setDestructiveModal] = useState(null);
 
-    if (action === "preparing") {
-      if (!window.confirm(`선택한 ${ids.length}건을 '상품 준비 중'으로 일괄 전환할까요?\n(paid 상태만 처리되고, 다른 상태는 자동 skip됩니다.)`)) return;
-    } else if (action === "cancelled") {
-      if (!window.confirm(`선택한 ${ids.length}건을 일괄 취소할까요?\n(pending/paid/preparing만 처리됩니다.)\n\n이 작업은 되돌릴 수 없습니다.`)) return;
-    }
-
+  // 일괄 액션 실제 실행 (확인 단계 통과 후 호출)
+  const runBulkAction = async (action, ids) => {
     setBulkProcessing(true);
     const { data, error } = await supabase.rpc("admin_bulk_update_order_status", {
       p_ids: ids,
@@ -158,6 +153,40 @@ function AdminOrdersPage() {
     );
     setSelectedIds(new Set());
     await loadOrders();
+  };
+
+  // 일괄 작업 진입점
+  const handleBulkAction = (action) => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+
+    if (action === "preparing") {
+      if (
+        !window.confirm(
+          `선택한 ${ids.length}건을 '상품 준비 중'으로 일괄 전환할까요?\n(paid 상태만 처리되고, 다른 상태는 자동 skip됩니다.)`,
+        )
+      ) {
+        return;
+      }
+      void runBulkAction(action, ids);
+      return;
+    }
+
+    if (action === "cancelled") {
+      setDestructiveModal({
+        title: `주문 일괄 취소 — ${ids.length}건`,
+        description:
+          `선택한 ${ids.length}건의 주문을 일괄 취소합니다.\n` +
+          `(pending/paid/preparing 상태의 주문만 처리됩니다.)\n\n` +
+          `이 작업은 되돌릴 수 없습니다.`,
+        confirmPhrase: String(ids.length),
+        reasonRequired: false,
+        confirmLabel: `${ids.length}건 취소`,
+        run: async () => {
+          await runBulkAction(action, ids);
+        },
+      });
+    }
   };
 
   const toggleSelectId = (id) => {
@@ -332,46 +361,50 @@ function AdminOrdersPage() {
     await loadOrders();
   };
 
-  // 환불 처리: 사유 입력 + 확인 → admin_refund_order RPC
+  // 환불 처리: 사유 + 타이핑 확인 → admin_refund_order RPC
   // settlements 자동 상태 변경(pending/approved→cancelled, completed→recovery_required) 포함
-  const handleRefund = async (orderId) => {
+  const handleRefund = (orderId) => {
     const order = orders.find((o) => o.id === orderId);
-    const reasonInput = window.prompt(
-      "환불 사유를 입력해주세요.\n예) 단순 변심 / 상품 불량 / 배송 사고",
-    );
-    if (reasonInput === null) return; // 취소
-    const trimmedReason = (reasonInput || "").trim();
+    const orderNumber = order?.order_number ?? orderId;
+    setDestructiveModal({
+      title: `환불 처리 — #${orderNumber}`,
+      description:
+        `주문 #${orderNumber}을(를) 환불 처리합니다.\n\n` +
+        `[자동 처리]\n` +
+        `· 정산 pending/approved → cancelled (송금 안 함)\n` +
+        `· 정산 completed → recovery_required (셀러로부터 회수 필요)\n` +
+        `· 적용된 쿠폰 → available 로 복구\n\n` +
+        `이 작업은 되돌릴 수 없습니다.`,
+      confirmPhrase: "환불",
+      reasonRequired: true,
+      reasonMinLength: 5,
+      reasonPlaceholder: "예) 단순 변심 / 상품 불량 / 배송 사고",
+      confirmLabel: "환불 진행",
+      run: async (reason) => {
+        setBusyOrderId(orderId);
+        const { data, error } = await supabase.rpc("admin_refund_order", {
+          p_order_id: orderId,
+          p_reason: reason,
+        });
+        setBusyOrderId(null);
 
-    const confirmMsg =
-      `주문 #${order?.order_number ?? orderId}을(를) 환불 처리하시겠습니까?\n` +
-      `사유: ${trimmedReason || "(없음)"}\n\n` +
-      `[자동 처리]\n` +
-      `- 정산 상태가 pending/approved → cancelled (송금 안 함)\n` +
-      `- 정산 상태가 completed → recovery_required (셀러로부터 회수 필요)\n` +
-      `- 적용된 쿠폰 → available 로 복구\n\n` +
-      `이 작업은 되돌릴 수 없습니다.`;
-    if (!window.confirm(confirmMsg)) return;
+        if (error) {
+          showToast(error.message || "환불 처리에 실패했습니다.", "error");
+          return;
+        }
 
-    setBusyOrderId(orderId);
-    const { data, error } = await supabase.rpc("admin_refund_order", {
-      p_order_id: orderId,
-      p_reason: trimmedReason || null,
+        const cancelled = data?.cancelled_settlements ?? 0;
+        const recovery = data?.recovery_required_settlements ?? 0;
+        showToast(
+          `환불 완료. 정산 자동 처리: 취소 ${cancelled}건 / 회수 필요 ${recovery}건${
+            recovery > 0 ? " (수동 회수 진행 필요)" : ""
+          }`,
+          "success",
+        );
+        setSelectedOrderId(null);
+        await loadOrders();
+      },
     });
-    setBusyOrderId(null);
-
-    if (error) {
-      showToast(error.message || "환불 처리에 실패했습니다.", "error");
-      return;
-    }
-
-    const cancelled = data?.cancelled_settlements ?? 0;
-    const recovery = data?.recovery_required_settlements ?? 0;
-    showToast(
-      `환불 완료. 정산 자동 처리: 취소 ${cancelled}건 / 회수 필요 ${recovery}건${recovery > 0 ? " (수동 회수 진행 필요)" : ""}`,
-      "success",
-    );
-    setSelectedOrderId(null);
-    await loadOrders();
   };
 
   // 송장 입력 모달 열기
@@ -1110,6 +1143,26 @@ function AdminOrdersPage() {
           {toast.message}
         </div>
       )}
+
+      <DestructiveConfirmModal
+        busy={bulkProcessing || busyOrderId != null}
+        cancelLabel="취소"
+        confirmLabel={destructiveModal?.confirmLabel}
+        confirmPhrase={destructiveModal?.confirmPhrase}
+        description={destructiveModal?.description ?? ""}
+        onCancel={() => setDestructiveModal(null)}
+        onConfirm={async (reason) => {
+          const current = destructiveModal;
+          if (!current) return;
+          setDestructiveModal(null);
+          await current.run(reason);
+        }}
+        open={!!destructiveModal}
+        reasonMinLength={destructiveModal?.reasonMinLength}
+        reasonPlaceholder={destructiveModal?.reasonPlaceholder}
+        reasonRequired={destructiveModal?.reasonRequired}
+        title={destructiveModal?.title ?? ""}
+      />
     </AdminShell>
   );
 }

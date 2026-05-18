@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AdminShell from "../components/AdminShell";
 import AdminPagination from "../components/AdminPagination";
+import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { formatCurrency, formatDate } from "@shared-domain/format";
 
@@ -65,6 +66,7 @@ function AdminProductMastersPage() {
   const [products, setProducts] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
+  const [destructiveModal, setDestructiveModal] = useState(null);
   const PRODUCTS_PAGE_SIZE = 50;
   const [summary, setSummary] = useState({ total: 0, selling: 0, sold_out: 0, hidden: 0 });
   const [search, setSearch] = useState("");
@@ -104,50 +106,71 @@ function AdminProductMastersPage() {
     });
   };
 
-  const handleBulkProductAction = async (action) => {
-    const ids = Array.from(selectedIds);
-    if (ids.length === 0) return;
-
-    if (action === "delete") {
-      if (!window.confirm(
-        `선택한 ${ids.length}개 상품을 삭제할까요?\n\n` +
-        `(연결된 책이 있는 상품은 자동 skip됩니다.)\n\n이 작업은 되돌릴 수 없습니다.`,
-      )) return;
-    } else {
-      const label = { selling: "공개(판매중)", hidden: "숨김", sold_out: "품절" }[action] ?? action;
-      if (!window.confirm(`선택한 ${ids.length}개 상품을 '${label}' 상태로 일괄 변경할까요?`)) return;
-    }
-
+  const runBulkProductDelete = async (ids) => {
     setBulkProcessing(true);
     try {
-      if (action === "delete") {
-        const { data, error } = await supabase.rpc("admin_bulk_delete_products", { p_ids: ids });
-        if (error) {
-          showToast(error.message || "삭제에 실패했습니다.", "error");
-        } else {
-          const deleted = data?.deleted_count ?? 0;
-          const blocked = data?.blocked_count ?? 0;
-          showToast(
-            `삭제 ${deleted}건 완료${blocked > 0 ? ` / 차단 ${blocked}건 (연결된 책 존재)` : ""}`,
-            blocked > 0 ? "info" : "success",
-          );
-        }
+      const { data, error } = await supabase.rpc("admin_bulk_delete_products", { p_ids: ids });
+      if (error) {
+        showToast(error.message || "삭제에 실패했습니다.", "error");
       } else {
-        const { data, error } = await supabase.rpc("admin_bulk_update_product_status", {
-          p_ids: ids,
-          p_status: action,
-        });
-        if (error) {
-          showToast(error.message || "일괄 변경에 실패했습니다.", "error");
-        } else {
-          showToast(`${data?.updated_count ?? 0}개 상품 상태 변경 완료`, "success");
-        }
+        const deleted = data?.deleted_count ?? 0;
+        const blocked = data?.blocked_count ?? 0;
+        showToast(
+          `삭제 ${deleted}건 완료${blocked > 0 ? ` / 차단 ${blocked}건 (연결된 책 존재)` : ""}`,
+          blocked > 0 ? "info" : "success",
+        );
       }
       setSelectedIds(new Set());
       await loadProducts();
     } finally {
       setBulkProcessing(false);
     }
+  };
+
+  const runBulkProductStatus = async (action, ids) => {
+    setBulkProcessing(true);
+    try {
+      const { data, error } = await supabase.rpc("admin_bulk_update_product_status", {
+        p_ids: ids,
+        p_status: action,
+      });
+      if (error) {
+        showToast(error.message || "일괄 변경에 실패했습니다.", "error");
+      } else {
+        showToast(`${data?.updated_count ?? 0}개 상품 상태 변경 완료`, "success");
+      }
+      setSelectedIds(new Set());
+      await loadProducts();
+    } finally {
+      setBulkProcessing(false);
+    }
+  };
+
+  const handleBulkProductAction = (action) => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+
+    if (action === "delete") {
+      setDestructiveModal({
+        title: `상품 일괄 삭제 — ${ids.length}건`,
+        description:
+          `선택한 ${ids.length}개 상품을 삭제합니다.\n\n` +
+          `· 연결된 책이 있는 상품은 자동 skip됩니다.\n` +
+          `· 이미 등록된 주문 이력에는 영향이 없습니다.\n\n` +
+          `이 작업은 되돌릴 수 없습니다.`,
+        confirmPhrase: String(ids.length),
+        reasonRequired: false,
+        confirmLabel: `${ids.length}건 삭제`,
+        run: async () => {
+          await runBulkProductDelete(ids);
+        },
+      });
+      return;
+    }
+
+    const label = { selling: "공개(판매중)", hidden: "숨김", sold_out: "품절" }[action] ?? action;
+    if (!window.confirm(`선택한 ${ids.length}개 상품을 '${label}' 상태로 일괄 변경할까요?`)) return;
+    void runBulkProductStatus(action, ids);
   };
 
   // products 목록이 갱신되면 선택 초기화
@@ -936,6 +959,26 @@ function AdminProductMastersPage() {
           {toast.message}
         </div>
       ) : null}
+
+      <DestructiveConfirmModal
+        busy={bulkProcessing}
+        cancelLabel="취소"
+        confirmLabel={destructiveModal?.confirmLabel}
+        confirmPhrase={destructiveModal?.confirmPhrase}
+        description={destructiveModal?.description ?? ""}
+        onCancel={() => setDestructiveModal(null)}
+        onConfirm={async (reason) => {
+          const current = destructiveModal;
+          if (!current) return;
+          setDestructiveModal(null);
+          await current.run(reason);
+        }}
+        open={!!destructiveModal}
+        reasonMinLength={destructiveModal?.reasonMinLength}
+        reasonPlaceholder={destructiveModal?.reasonPlaceholder}
+        reasonRequired={destructiveModal?.reasonRequired}
+        title={destructiveModal?.title ?? ""}
+      />
     </AdminShell>
   );
 }
