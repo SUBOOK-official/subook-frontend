@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import AdminShell from "../components/AdminShell";
+import AdminPagination from "../components/AdminPagination";
 import { formatCurrency, formatDate } from "@shared-domain/format";
 import { pickupRequestStatusLabel, shipmentStatusLabel } from "@shared-domain/status";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
@@ -110,6 +111,7 @@ function AdminMembersPage() {
   const [memberDetail, setMemberDetail] = useState(null);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [toast, setToast] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
   const requestIdRef = useRef(0);
 
   const showToast = useCallback((message, tone = "info") => {
@@ -131,7 +133,7 @@ function AdminMembersPage() {
 
     const params = {
       p_limit: PAGE_SIZE,
-      p_offset: 0,
+      p_offset: (currentPage - 1) * PAGE_SIZE,
     };
 
     if (search.trim()) {
@@ -181,7 +183,7 @@ function AdminMembersPage() {
     setSummary(normalizedData.summary);
     setTotalCount(normalizedData.totalCount);
     setIsLoading(false);
-  }, [search, showToast]);
+  }, [currentPage, search, showToast]);
 
   useEffect(() => {
     const timerId = window.setTimeout(() => {
@@ -308,7 +310,10 @@ function AdminMembersPage() {
             <span className="text-xs font-bold text-slate-500">회원 검색</span>
             <input
               className="input-base"
-              onChange={(event) => setSearch(event.target.value)}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setCurrentPage(1);
+              }}
               placeholder="이름, 이메일, 연락처로 검색"
               type="search"
               value={search}
@@ -318,6 +323,7 @@ function AdminMembersPage() {
             className="btn-secondary !w-auto !px-4 !py-3 text-sm"
             onClick={() => {
               setSearch("");
+              setCurrentPage(1);
             }}
             type="button"
           >
@@ -410,6 +416,13 @@ function AdminMembersPage() {
             </table>
           </div>
         )}
+        <AdminPagination
+          currentPage={currentPage}
+          isLoading={isLoading}
+          onPageChange={setCurrentPage}
+          pageSize={PAGE_SIZE}
+          totalCount={totalCount}
+        />
       </section>
 
       {selectedMember ? (

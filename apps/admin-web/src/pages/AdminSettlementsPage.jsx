@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AdminShell from "../components/AdminShell";
+import AdminPagination from "../components/AdminPagination";
 import { notifySettlementDone } from "../lib/adminNotification";
 import { exportRowsToXlsx } from "../lib/excelFile";
 import { formatCurrency, formatDate } from "@shared-domain/format";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 
-const PAGE_SIZE = 200;
+const PAGE_SIZE = 50;
 
 const STATUS_OPTIONS = [
   { value: "pending", label: "정산 대기" },
@@ -85,6 +86,7 @@ function AdminSettlementsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [busyAction, setBusyAction] = useState("");
   const [toast, setToast] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
   const requestIdRef = useRef(0);
 
   const selectedRows = useMemo(
@@ -146,7 +148,7 @@ function AdminSettlementsPage() {
 
     const params = {
       p_limit: PAGE_SIZE,
-      p_offset: 0,
+      p_offset: (currentPage - 1) * PAGE_SIZE,
     };
 
     if (statusFilter !== "all") {
@@ -185,7 +187,7 @@ function AdminSettlementsPage() {
       currentIds.filter((id) => normalizedData.rows.some((row) => row.id === id)),
     );
     setIsLoading(false);
-  }, [fromDate, search, showToast, statusFilter, toDate]);
+  }, [currentPage, fromDate, search, showToast, statusFilter, toDate]);
 
   useEffect(() => {
     const timerId = window.setTimeout(() => {
@@ -334,6 +336,7 @@ function AdminSettlementsPage() {
               onClick={() => {
                 setStatusFilter(option.value);
                 setSelectedIds([]);
+                setCurrentPage(1);
               }}
               type="button"
             >
@@ -345,21 +348,30 @@ function AdminSettlementsPage() {
         <div className="flex flex-wrap items-end gap-3">
           <input
             className="input-base !w-auto min-w-[220px] flex-1"
-            onChange={(event) => setSearch(event.target.value)}
+            onChange={(event) => {
+              setSearch(event.target.value);
+              setCurrentPage(1);
+            }}
             placeholder="판매자, 주문번호, 교재명 검색"
             type="search"
             value={search}
           />
           <input
             className="input-base !w-auto"
-            onChange={(event) => setFromDate(event.target.value)}
+            onChange={(event) => {
+              setFromDate(event.target.value);
+              setCurrentPage(1);
+            }}
             type="date"
             value={fromDate}
           />
           <span className="pb-3 text-sm font-semibold text-slate-400">~</span>
           <input
             className="input-base !w-auto"
-            onChange={(event) => setToDate(event.target.value)}
+            onChange={(event) => {
+              setToDate(event.target.value);
+              setCurrentPage(1);
+            }}
             type="date"
             value={toDate}
           />
@@ -498,6 +510,13 @@ function AdminSettlementsPage() {
             </table>
           </div>
         )}
+        <AdminPagination
+          currentPage={currentPage}
+          isLoading={isLoading}
+          onPageChange={setCurrentPage}
+          pageSize={PAGE_SIZE}
+          totalCount={totalCount}
+        />
       </section>
 
       {toast ? (
