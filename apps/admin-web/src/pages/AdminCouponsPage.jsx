@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AdminShell from "../components/AdminShell";
 import AdminPagination from "../components/AdminPagination";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
+import StatusBadge from "@shared-domain/StatusBadge";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { formatCurrency } from "@shared-domain/format";
 
@@ -87,18 +88,6 @@ function describeValidity(coupon) {
   const from = fmt(coupon.valid_from) || "즉시";
   const until = fmt(coupon.valid_until) || "무기한";
   return `${from} ~ ${until}`;
-}
-
-function StatusBadge({ active }) {
-  return (
-    <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-bold ${
-        active ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-500"
-      }`}
-    >
-      {active ? "활성" : "비활성"}
-    </span>
-  );
 }
 
 function AdminCouponsPage() {
@@ -455,7 +444,7 @@ function AdminCouponsPage() {
                       {coupon.total_quantity ? ` / ${coupon.total_quantity}` : ""}
                     </td>
                     <td className="px-4 py-3">
-                      <StatusBadge active={coupon.is_active} />
+                      <StatusBadge status={coupon.is_active ? "active" : "inactive"} type="coupon" />
                     </td>
                     <td className="px-4 py-3 text-right">
                       <button

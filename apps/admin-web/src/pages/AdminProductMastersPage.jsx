@@ -173,10 +173,21 @@ function AdminProductMastersPage() {
     void runBulkProductStatus(action, ids);
   };
 
-  // products 목록이 갱신되면 선택 초기화
+  // products 갱신 시에는 살아남은 id만 유지 (입력 변경에 의한 초기화는 별도 effect).
+  useEffect(() => {
+    setSelectedIds((prev) => {
+      if (prev.size === 0) return prev;
+      const surviving = new Set();
+      products.forEach((p) => {
+        if (prev.has(p.id)) surviving.add(p.id);
+      });
+      return surviving.size === prev.size ? prev : surviving;
+    });
+  }, [products]);
+
   useEffect(() => {
     setSelectedIds(new Set());
-  }, [products]);
+  }, [search, filters, currentPage]);
 
   const showToast = useCallback((message, tone = "info") => {
     setToast({ message, tone });

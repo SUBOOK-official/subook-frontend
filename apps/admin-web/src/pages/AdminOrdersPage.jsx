@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AdminShell from "../components/AdminShell";
 import AdminPagination from "../components/AdminPagination";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
+import StatusBadge from "@shared-domain/StatusBadge";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { formatCurrency, formatDate } from "@shared-domain/format";
 import { notifyOrderConfirmed, notifyShippingStarted, notifyDeliveryDone } from "../lib/adminNotification";
@@ -18,17 +19,6 @@ const ORDER_STATUS_OPTIONS = [
   { value: "cancelled", label: "주문취소" },
   { value: "refunded", label: "환불" },
 ];
-
-const STATUS_BADGE_STYLE = {
-  pending: "bg-yellow-100 text-yellow-800",
-  paid: "bg-blue-100 text-blue-800",
-  preparing: "bg-purple-100 text-purple-800",
-  shipping: "bg-indigo-100 text-indigo-800",
-  delivered: "bg-green-100 text-green-800",
-  confirmed: "bg-slate-200 text-slate-700",
-  cancelled: "bg-red-100 text-red-700",
-  refunded: "bg-red-100 text-red-700",
-};
 
 const CARRIER_OPTIONS = [
   "CJ대한통운",
@@ -205,10 +195,23 @@ function AdminOrdersPage() {
     });
   };
 
-  // 페이지 이동/필터 변경 시 선택 초기화
+  // 필터/페이지 변경 시 선택 초기화. orders 배열 자체에 의존하면 단순 데이터 재로딩
+  // (다른 운영자의 변경, 폴링 등)에도 선택이 사라져 일괄 작업 도중 재선택을 반복하게 된다.
+  // 대신 orders 갱신 시에는 살아남은 id만 유지하고, 입력 변경에서는 명시적으로 초기화한다.
+  useEffect(() => {
+    setSelectedIds((prev) => {
+      if (prev.size === 0) return prev;
+      const surviving = new Set();
+      orders.forEach((o) => {
+        if (prev.has(o.id)) surviving.add(o.id);
+      });
+      return surviving.size === prev.size ? prev : surviving;
+    });
+  }, [orders]);
+
   useEffect(() => {
     setSelectedIds(new Set());
-  }, [orders]);
+  }, [search, statusFilters, fromDate, toDate, currentPage]);
 
   const showToast = useCallback((message, tone = "info") => {
     setToast({ message, tone });
@@ -694,9 +697,7 @@ function AdminOrdersPage() {
                       {formatCurrency(order.total_amount)}
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`inline-block rounded-md px-2 py-1 text-xs font-bold ${STATUS_BADGE_STYLE[order.status] ?? "bg-slate-100 text-slate-600"}`}>
-                        {getStatusLabel(order.status)}
-                      </span>
+                      <StatusBadge status={order.status} type="order" />
                     </td>
                     <td className="px-4 py-3 text-xs text-slate-500">
                       {order.payment_method === "bank_transfer" ? "계좌이체" : order.payment_method}
@@ -772,9 +773,7 @@ function AdminOrdersPage() {
                 {formatDate(selectedOrder.created_at)} · {selectedOrder.buyer_name} ({selectedOrder.buyer_email})
               </p>
             </div>
-            <span className={`rounded-md px-3 py-1.5 text-xs font-bold ${STATUS_BADGE_STYLE[selectedOrder.status] ?? ""}`}>
-              {getStatusLabel(selectedOrder.status)}
-            </span>
+            <StatusBadge status={selectedOrder.status} type="order" />
           </div>
 
           {/* 주문 상품 */}

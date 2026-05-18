@@ -34,3 +34,34 @@ export const bookConditionLabel = {
   A: "A(사용감 있음)",
   DISCARD: "폐기(판매 불가)",
 };
+
+export const orderStatusLabel = {
+  pending: "입금대기",
+  paid: "결제완료",
+  preparing: "준비중",
+  shipping: "배송중",
+  delivered: "배송완료",
+  confirmed: "구매확정",
+  cancelled: "취소",
+  refunded: "환불완료",
+};
+
+export const settlementStatusLabel = {
+  pending: "정산대기",
+  approved: "승인",
+  completed: "정산완료",
+  cancelled: "취소",
+  recovery_required: "회수필요",
+};
+
+export const memberStatusLabel = {
+  active: "정상",
+  blocked: "차단",
+  dormant: "휴면",
+  withdrawn: "탈퇴",
+};
+
+export const couponStatusLabel = {
+  active: "활성",
+  inactive: "비활성",
+};
