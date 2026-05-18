@@ -50,7 +50,7 @@ function maskAccountNumber(accountNumber, accountLast4) {
     return "계좌 미등록";
   }
 
-  return `${"*".repeat(Math.max(0, digits.length - 4))}${last4}`;
+  return `****-****-${last4}`;
 }
 
 function buildExportRows(rows) {
@@ -280,6 +280,14 @@ function AdminSettlementsPage() {
       showToast("내보낼 정산 데이터가 없습니다.", "error");
       return;
     }
+
+    const confirmed = window.confirm(
+      "정산 엑셀에는 판매자의 평문 계좌번호와 연락처가 포함됩니다.\n\n" +
+        "・외부 메신저, 이메일, 클라우드에 업로드하거나 공유하지 마세요.\n" +
+        "・송금이 끝나면 즉시 PC에서 파일을 삭제하는 것을 권장합니다.\n\n" +
+        "계속 진행하시겠습니까?",
+    );
+    if (!confirmed) return;
 
     const exportRows = buildExportRows(rows);
     const columnWidths = [12, 12, 20, 14, 16, 18, 32, 14, 12, 10, 12, 12, 12, 22, 12];
