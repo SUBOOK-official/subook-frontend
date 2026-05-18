@@ -720,13 +720,6 @@ export function mapOrderToDisplayOrder(order) {
     quantity: item.quantity ?? 1,
     price: item.total_price ?? item.unit_price ?? 0,
     coverImageUrl: item.cover_image_url ?? null,
-    reviewId: item.review_id ?? null,
-    reviewRating: item.review_rating ?? null,
-    reviewCreatedAt: item.review_created_at ?? null,
-    canReview:
-      order.status === "confirmed" &&
-      !item.review_id &&
-      Boolean(item.product_id),
   }));
 
   const autoConfirmAt = order.auto_confirm_at ? new Date(order.auto_confirm_at) : null;
@@ -746,7 +739,6 @@ export function mapOrderToDisplayOrder(order) {
     !refundRequestedAt &&
     order.status !== "refunded";
   const canReturn = order.status === "delivered" && !order.confirmed_at;
-  const canReview = items.some((item) => item.canReview);
 
   return {
     id: order.id,
@@ -765,7 +757,6 @@ export function mapOrderToDisplayOrder(order) {
     canCancel,
     canRequestRefund,
     canReturn,
-    canReview,
     refundRequestedAt,
     refundRequestReason: order.refund_request_reason ?? null,
     items,

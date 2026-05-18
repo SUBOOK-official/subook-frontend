@@ -23,7 +23,6 @@ test("confirmPortalOrder confirms only the requested order", () => {
   assert.equal(changed, true);
   assert.equal(orders[0].status, "confirmed");
   assert.equal(orders[0].canConfirm, false);
-  assert.equal(orders[0].canReview, true);
   assert.equal(orders[1].status, "confirmed");
 });
 

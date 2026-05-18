@@ -137,7 +137,6 @@ export function createDemoPortalSeed(profileOverride = {}) {
         totalAmount: 23500,
         canConfirm: true,
         canReturn: true,
-        canReview: false,
         autoConfirmDaysRemaining: 3,
       },
       {
@@ -161,7 +160,6 @@ export function createDemoPortalSeed(profileOverride = {}) {
         totalAmount: 4000,
         canConfirm: false,
         canReturn: false,
-        canReview: true,
         autoConfirmDaysRemaining: null,
       },
     ],
@@ -339,7 +337,6 @@ export function confirmPortalOrder(orders = [], orderId) {
       status: "confirmed",
       canConfirm: false,
       canReturn: false,
-      canReview: true,
       autoConfirmDaysRemaining: null,
       confirmedAt: new Date().toISOString(),
     };

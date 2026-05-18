@@ -9,7 +9,6 @@ import {
   mapOrderToDisplayOrder,
   mapPickupRequestToShipment,
 } from "./publicMypageUtils";
-import { mergeLocalReviewsIntoOrders } from "./publicReviews";
 
 const MEMBER_PORTAL_STORAGE_PREFIX = "subook.public.member-portal.v2";
 const SHIPPING_ADDRESSES_TABLE = "member_shipping_addresses";
@@ -954,7 +953,7 @@ async function loadMemberPortalSnapshot({ user, profile, demoMode = false }) {
 
   if (demoMode) {
     const demoState = mergePortalDemoState(storedState, fallbackProfile);
-    const demoOrders = mergeLocalReviewsIntoOrders(demoState.orders);
+    const demoOrders = demoState.orders;
 
     writeStoredPortalState(user.id, {
       profile: demoState.profile,
@@ -1032,7 +1031,7 @@ async function loadMemberPortalSnapshot({ user, profile, demoMode = false }) {
   const orders =
     ordersResult.source !== "local"
       ? ordersResult.orders.map(mapOrderToDisplayOrder)
-      : mergeLocalReviewsIntoOrders(storedState.orders);
+      : storedState.orders;
   const hasRemoteSettlements = settlementsResult.source === "supabase";
   const remoteSettlements = hasRemoteSettlements
     ? settlementsResult.rows.map(mapSettlementRow)

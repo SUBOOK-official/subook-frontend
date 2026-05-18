@@ -51,7 +51,6 @@ import {
   filterShipmentsByStatus,
   findSidebarItem,
   formatCompactDate,
-  formatOrderReference,
   formatShipmentReference,
   getOrderStatusLabel,
   getOrderStatusTone,
@@ -70,10 +69,6 @@ import {
   maskAccountNumber,
   sanitizeAccountNumberInput,
 } from "../lib/publicMypageUtils";
-import {
-  REVIEW_RATING_LABELS,
-  submitProductReview,
-} from "../lib/publicReviews";
 import { formatPhoneNumber, hasValidPhoneNumber } from "../lib/publicAuthFormUtils";
 import { fetchWishlistProducts } from "../lib/publicWishlist";
 import "./PublicMypagePage.css";
@@ -141,18 +136,6 @@ const initialConfirmState = {
   reasonMinLength: 4,
 };
 
-const initialReviewComposerState = {
-  open: false,
-  orderId: null,
-  selectedItemId: null,
-};
-
-const initialReviewFormState = {
-  rating: 0,
-  content: "",
-  files: [],
-};
-
 function PublicMypagePage() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -202,10 +185,6 @@ function PublicMypagePage() {
   const [confirmState, setConfirmState] = useState(initialConfirmState);
   const [confirmReason, setConfirmReason] = useState("");
   const [isConfirmBusy, setIsConfirmBusy] = useState(false);
-  const [reviewComposerState, setReviewComposerState] = useState(initialReviewComposerState);
-  const [reviewForm, setReviewForm] = useState(initialReviewFormState);
-  const [reviewError, setReviewError] = useState("");
-  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [wishlistProducts, setWishlistProducts] = useState([]);
   const [wishlistError, setWishlistError] = useState("");
   const [isWishlistProductsLoading, setIsWishlistProductsLoading] = useState(false);
@@ -220,26 +199,6 @@ function PublicMypagePage() {
   const isPortalPending = tabPhases[dataKey] === "loading" && !portalState.profile;
   const currentNickname = (profileSnapshot?.nickname ?? profileSnapshot?.name ?? "").trim();
   const activeSidebarItem = findSidebarItem(activeTabKey);
-  const reviewTargetOrder = useMemo(
-    () =>
-      portalState.orders.find((order) => String(order.id) === String(reviewComposerState.orderId)) ??
-      null,
-    [portalState.orders, reviewComposerState.orderId],
-  );
-  const selectedReviewItem = useMemo(() => {
-    if (!reviewTargetOrder?.items?.length) {
-      return null;
-    }
-
-    return (
-      reviewTargetOrder.items.find(
-        (item) => String(item.id) === String(reviewComposerState.selectedItemId),
-      ) ??
-      reviewTargetOrder.items.find((item) => item.canReview) ??
-      reviewTargetOrder.items[0] ??
-      null
-    );
-  }, [reviewComposerState.selectedItemId, reviewTargetOrder]);
 
   useEffect(() => {
     setActiveTabKey(getTabKeyFromHash(location.hash));
@@ -414,26 +373,10 @@ function PublicMypagePage() {
     };
   }, [currentNickname, effectiveUser, isProfileEditing, profileForm.nickname]);
 
-  useEffect(() => {
-    if (!reviewComposerState.open) {
-      return;
-    }
-
-    setReviewForm(initialReviewFormState);
-    setReviewError("");
-  }, [reviewComposerState.open, reviewComposerState.selectedItemId]);
-
   const closeConfirmDialog = () => {
     setConfirmState(initialConfirmState);
     setConfirmReason("");
     setIsConfirmBusy(false);
-  };
-
-  const closeReviewComposer = () => {
-    setReviewComposerState(initialReviewComposerState);
-    setReviewForm(initialReviewFormState);
-    setReviewError("");
-    setIsSubmittingReview(false);
   };
 
   const syncPortalState = async (nextToast = null) => {
@@ -1084,82 +1027,6 @@ function PublicMypagePage() {
     window.open(trackingUrl, "_blank", "noopener,noreferrer");
   };
 
-  const handleReviewRatingChange = (rating) => {
-    setReviewForm((currentValue) => ({
-      ...currentValue,
-      rating,
-    }));
-    setReviewError("");
-  };
-
-  const handleReviewContentChange = (event) => {
-    const nextValue = event.target.value.slice(0, 200);
-    setReviewForm((currentValue) => ({
-      ...currentValue,
-      content: nextValue,
-    }));
-    setReviewError("");
-  };
-
-  const handleReviewFilesChange = (event) => {
-    const nextFiles = Array.from(event.target.files ?? []).slice(0, 3);
-    setReviewForm((currentValue) => ({
-      ...currentValue,
-      files: nextFiles,
-    }));
-    setReviewError("");
-  };
-
-  const handleRemoveReviewFile = (targetIndex) => {
-    setReviewForm((currentValue) => ({
-      ...currentValue,
-      files: currentValue.files.filter((_, index) => index !== targetIndex),
-    }));
-  };
-
-  const handleSelectReviewItem = (itemId) => {
-    setReviewComposerState((currentValue) => ({
-      ...currentValue,
-      selectedItemId: itemId,
-    }));
-  };
-
-  const handleSubmitReview = async () => {
-    if (!effectiveUser || !reviewTargetOrder || !selectedReviewItem) {
-      setReviewError("리뷰 대상 상품을 다시 선택해 주세요.");
-      return;
-    }
-
-    if (!selectedReviewItem.canReview) {
-      setReviewError("이미 리뷰를 작성했거나 작성할 수 없는 상품입니다.");
-      return;
-    }
-
-    setIsSubmittingReview(true);
-    const result = await submitProductReview({
-      user: effectiveUser,
-      profile: profileSnapshot,
-      order: reviewTargetOrder,
-      orderItem: selectedReviewItem,
-      rating: reviewForm.rating,
-      content: reviewForm.content,
-      files: reviewForm.files,
-      demoMode: isDemoPreview,
-    });
-    setIsSubmittingReview(false);
-
-    if (result.error) {
-      setReviewError(result.error.message || "리뷰를 등록하지 못했습니다.");
-      return;
-    }
-
-    closeReviewComposer();
-    await syncPortalState({
-      message: result.source === "supabase" ? "리뷰가 등록되었습니다." : "리뷰가 임시 저장되었습니다.",
-      tone: result.source === "supabase" ? "success" : "info",
-    });
-  };
-
   const handlePickupRequest = () => {
     if (!requireMember("pickupRequest", "/pickup/new")) {
       return;
@@ -1597,24 +1464,6 @@ function PublicMypagePage() {
         isSavingAccount={isSavingAccount}
       />
 
-      <ReviewComposerSheet
-        form={reviewForm}
-        isSubmitting={isSubmittingReview}
-        onClose={closeReviewComposer}
-        onContentChange={handleReviewContentChange}
-        onFilesChange={handleReviewFilesChange}
-        onRatingChange={handleReviewRatingChange}
-        onRemoveFile={handleRemoveReviewFile}
-        onSelectItem={handleSelectReviewItem}
-        onSubmit={() => {
-          void handleSubmitReview();
-        }}
-        open={reviewComposerState.open}
-        order={reviewTargetOrder}
-        reviewError={reviewError}
-        selectedItem={selectedReviewItem}
-      />
-
       <ConfirmDialog
         body={confirmState.body}
         busy={isConfirmBusy}
@@ -1647,208 +1496,6 @@ function MypageOverviewGrid({ items }) {
         </div>
       ))}
     </div>
-  );
-}
-
-function ReviewComposerSheet({
-  form,
-  isSubmitting,
-  onClose,
-  onContentChange,
-  onFilesChange,
-  onRatingChange,
-  onRemoveFile,
-  onSelectItem,
-  onSubmit,
-  open,
-  order,
-  reviewError,
-  selectedItem,
-}) {
-  const previewItems = useMemo(
-    () =>
-      (form.files ?? []).map((file) => ({
-        name: file.name,
-        url: URL.createObjectURL(file),
-      })),
-    [form.files],
-  );
-
-  useEffect(
-    () => () => {
-      previewItems.forEach((item) => {
-        URL.revokeObjectURL(item.url);
-      });
-    },
-    [previewItems],
-  );
-
-  const reviewableItems = useMemo(
-    () => order?.items?.filter((item) => item.canReview || item.reviewId) ?? [],
-    [order?.items],
-  );
-  const hasExistingReview = Boolean(selectedItem?.reviewId);
-  const ratingLabel = REVIEW_RATING_LABELS[form.rating] ?? "별점을 선택해 주세요";
-
-  return (
-    <ResponsiveSheet
-      actions={
-        hasExistingReview ? (
-          <button className="public-auth-button public-auth-button--secondary" onClick={onClose} type="button">
-            닫기
-          </button>
-        ) : (
-          <>
-            <button className="public-auth-button public-auth-button--secondary" onClick={onClose} type="button">
-              취소
-            </button>
-            <button className="public-auth-button public-auth-button--primary" disabled={isSubmitting} onClick={onSubmit} type="button">
-              {isSubmitting ? "등록 중..." : "등록하기"}
-            </button>
-          </>
-        )
-      }
-      eyebrow={order ? `주문 #${formatOrderReference(order.reference)}` : "리뷰"}
-      onClose={onClose}
-      open={open}
-      title="리뷰 작성"
-    >
-      {!order || !selectedItem ? (
-        <p className="public-mypage-confirm__body">리뷰 대상 상품을 찾지 못했습니다.</p>
-      ) : (
-        <div className="public-review-sheet">
-          {reviewableItems.length > 1 ? (
-            <div className="public-review-sheet__item-list">
-              {reviewableItems.map((item) => {
-                const isSelected = String(item.id) === String(selectedItem.id);
-                const isReviewed = Boolean(item.reviewId);
-
-                return (
-                  <button
-                    className={`public-review-sheet__item-button${isSelected ? " is-active" : ""}`}
-                    key={item.id}
-                    onClick={() => onSelectItem(item.id)}
-                    type="button"
-                  >
-                    <div>
-                      <strong>{item.title}</strong>
-                      <p>
-                        {item.gradeLabel} · {item.quantity}권
-                      </p>
-                    </div>
-                    <span className={`public-mypage-chip public-mypage-chip--${isReviewed ? "neutral" : "accent"}`}>
-                      {isReviewed ? "작성완료" : "작성가능"}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          ) : null}
-
-          <div className="public-review-sheet__target">
-            <div className="public-review-sheet__target-copy">
-              <span className="public-review-sheet__emoji" aria-hidden="true">
-                📚
-              </span>
-              <div>
-                <strong>{selectedItem.title}</strong>
-                <p>
-                  {selectedItem.gradeLabel} · {selectedItem.quantity}권
-                  {selectedItem.reviewCreatedAt ? ` · ${formatCompactDate(selectedItem.reviewCreatedAt)} 작성` : ""}
-                </p>
-              </div>
-            </div>
-            {hasExistingReview ? (
-              <span className="public-mypage-chip public-mypage-chip--neutral">
-                리뷰 완료{selectedItem.reviewRating ? ` · ${selectedItem.reviewRating}점` : ""}
-              </span>
-            ) : null}
-          </div>
-
-          {hasExistingReview ? (
-            <div className="public-review-sheet__completed">
-              <p className="public-review-sheet__completed-title">이 상품은 이미 리뷰를 작성했어요.</p>
-              <p className="public-review-sheet__completed-body">
-                다른 상품이 남아 있다면 위 목록에서 선택해서 이어서 작성할 수 있습니다.
-              </p>
-            </div>
-          ) : (
-            <>
-              <div className="public-review-sheet__section">
-                <div className="public-review-sheet__section-header">
-                  <strong>별점</strong>
-                  <span>{ratingLabel}</span>
-                </div>
-                <div className="public-review-sheet__stars" role="radiogroup" aria-label="별점 선택">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <button
-                      aria-checked={form.rating === star}
-                      className={`public-review-sheet__star${form.rating >= star ? " is-active" : ""}`}
-                      key={star}
-                      onClick={() => onRatingChange(star)}
-                      role="radio"
-                      type="button"
-                    >
-                      ★
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="public-review-sheet__section">
-                <div className="public-review-sheet__section-header">
-                  <strong>한줄 리뷰</strong>
-                  <span>{form.content.length}/200자</span>
-                </div>
-                <textarea
-                  className="public-review-sheet__textarea"
-                  onChange={onContentChange}
-                  placeholder="상태가 설명보다 좋았어요!"
-                  rows={4}
-                  value={form.content}
-                />
-              </div>
-
-              <div className="public-review-sheet__section">
-                <div className="public-review-sheet__section-header">
-                  <strong>사진 첨부</strong>
-                  <span>선택, 최대 3장</span>
-                </div>
-                <div className="public-review-sheet__photos">
-                  {previewItems.map((item, index) => (
-                    <div className="public-review-sheet__photo-card" key={`${item.url}-${index}`}>
-                      <img alt={`리뷰 첨부 사진 ${index + 1}`} src={item.url} />
-                      <button
-                        aria-label={`첨부 사진 ${index + 1} 삭제`}
-                        className="public-review-sheet__photo-remove"
-                        onClick={() => onRemoveFile(index)}
-                        type="button"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
-
-                  {previewItems.length < 3 ? (
-                    <label className="public-review-sheet__photo-input">
-                      <span>+</span>
-                      <small>{previewItems.length}/3</small>
-                      <input accept="image/png,image/jpeg,image/webp" multiple onChange={onFilesChange} type="file" />
-                    </label>
-                  ) : null}
-                </div>
-              </div>
-            </>
-          )}
-
-          {reviewError ? (
-            <p className="public-auth-inline-message public-auth-inline-message--error">
-              {reviewError}
-            </p>
-          ) : null}
-        </div>
-      )}
-    </ResponsiveSheet>
   );
 }
 

@@ -4,7 +4,6 @@ import {
   buildMemberDashboardSummarySnapshot,
   filterOrdersByStatus,
   filterShipmentsByStatus,
-  mapOrderToDisplayOrder,
   mapPickupRequestToShipment,
 } from "./publicMypageUtils.js";
 
@@ -123,41 +122,4 @@ test("mapPickupRequestToShipment adds richer summary labels for completed pickup
   assert.equal(shipment.summaryLabel, "교재 2권 · 정산완료");
   assert.equal(shipment.items[0].statusLabel, "정산완료");
   assert.equal(shipment.items[0].tone, "neutral");
-});
-
-test("mapOrderToDisplayOrder keeps item-level review availability in sync", () => {
-  const order = mapOrderToDisplayOrder({
-    id: 31,
-    order_number: "ORD-2604-0009",
-    status: "confirmed",
-    total_amount: 16000,
-    shipping_fee: 3500,
-    items: [
-      {
-        id: 101,
-        product_id: 9001,
-        title: "수학 N제",
-        condition_grade: "A+",
-        quantity: 1,
-        total_price: 8000,
-        review_id: null,
-      },
-      {
-        id: 102,
-        product_id: 9002,
-        title: "영어 모의고사",
-        condition_grade: "S",
-        quantity: 1,
-        total_price: 8000,
-        review_id: 501,
-        review_rating: 5,
-        review_created_at: "2026-04-12T15:00:00+09:00",
-      },
-    ],
-  });
-
-  assert.equal(order.canReview, true);
-  assert.equal(order.items[0].canReview, true);
-  assert.equal(order.items[1].canReview, false);
-  assert.equal(order.items[1].reviewId, 501);
 });
