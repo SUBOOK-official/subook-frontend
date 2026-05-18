@@ -116,7 +116,6 @@ function PublicOrderPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const inFlightRef = useRef(false); // 더블 클릭으로 RPC 두 번 발사 방지 (state 비동기 보완)
   const [toast, setToast] = useState(null);
-  const [pgToast, setPgToast] = useState(false);
   // 쿠폰
   const [applicableCoupons, setApplicableCoupons] = useState([]);
   const [selectedCouponId, setSelectedCouponId] = useState(null);
@@ -282,11 +281,7 @@ function PublicOrderPage() {
 
   const handlePaymentSelect = (methodId) => {
     const method = PAYMENT_METHODS.find((m) => m.id === methodId);
-    if (!method.available) {
-      setPgToast(true);
-      setTimeout(() => setPgToast(false), 2500);
-      return;
-    }
+    if (!method?.available) return;
     setPaymentMethod(methodId);
   };
 
@@ -490,18 +485,24 @@ function PublicOrderPage() {
                 <div className="order-payment-methods">
                   {PAYMENT_METHODS.map((method) => (
                     <button
+                      aria-disabled={!method.available || undefined}
                       className={`order-payment-btn${method.id === paymentMethod ? " is-active" : ""}${!method.available ? " is-disabled" : ""}`}
+                      disabled={!method.available}
                       key={method.id}
                       onClick={() => handlePaymentSelect(method.id)}
+                      title={!method.available ? "사업자 등록 완료 후 오픈 예정입니다." : undefined}
                       type="button"
                     >
                       <span className="order-payment-btn__label">{method.label}</span>
                       {!method.available && (
-                        <span className="order-payment-btn__badge">준비 중</span>
+                        <span className="order-payment-btn__badge">추후 오픈</span>
                       )}
                     </button>
                   ))}
                 </div>
+                <p className="order-payment-notice">
+                  현재는 계좌이체만 가능합니다. 카드·간편결제는 사업자 등록 절차가 완료된 후 순차적으로 열립니다.
+                </p>
 
                 {paymentMethod === "bank_transfer" && (
                   <div className="order-bank-info">
@@ -600,12 +601,6 @@ function PublicOrderPage() {
         {toast && (
           <div className={`order-toast order-toast--${toast.type}`} role="alert">
             {toast.message}
-          </div>
-        )}
-
-        {pgToast && (
-          <div className="order-toast order-toast--pg" role="alert">
-            추후 업데이트 예정입니다. 현재는 계좌이체만 가능합니다.
           </div>
         )}
 
