@@ -12,41 +12,33 @@ import {
   deleteCartItem,
   deleteCartItems,
   getCartItems,
-  updateCartItemQuantity,
 } from "../lib/cart";
 import "./PublicCartPage.css";
 
-function CartItemRow({ item, isSelected, onToggle, onQuantityChange, onDelete }) {
+function CartItemRow({ item, isSelected, onToggle, onDelete }) {
   const [updating, setUpdating] = useState(false);
-
-  const handleDecrease = async () => {
-    if (item.quantity <= 1 || updating) return;
-    setUpdating(true);
-    await onQuantityChange(item.id, item.quantity - 1);
-    setUpdating(false);
-  };
-
-  const handleIncrease = async () => {
-    if (item.quantity >= 1 || updating) return;
-    setUpdating(true);
-    await onQuantityChange(item.id, item.quantity + 1);
-    setUpdating(false);
-  };
 
   const handleDelete = async () => {
     setUpdating(true);
     await onDelete(item.id);
   };
 
+  // 중고 단일재고 정책: 권당 1권 고정. quantity stepper는 노출하지 않는다.
   const lineTotal = (item.price ?? 0) * item.quantity;
+  const isPriceMissing = item.price === null || item.price === undefined;
+  const isCheckboxDisabled = item.is_sold_out || isPriceMissing;
 
   return (
-    <div className={`cart-item${item.is_sold_out ? " cart-item--sold-out" : ""}`}>
+    <div
+      className={`cart-item${item.is_sold_out ? " cart-item--sold-out" : ""}${
+        isPriceMissing && !item.is_sold_out ? " cart-item--price-missing" : ""
+      }`}
+    >
       <div className="cart-item__check">
         <input
           aria-label={`${item.title} 선택`}
           checked={isSelected}
-          disabled={item.is_sold_out}
+          disabled={isCheckboxDisabled}
           onChange={() => onToggle(item.id)}
           type="checkbox"
         />
@@ -70,33 +62,16 @@ function CartItemRow({ item, isSelected, onToggle, onQuantityChange, onDelete })
             .join(" · ")}
         </div>
         {item.is_sold_out && <span className="cart-item__sold-out-badge">품절</span>}
+        {isPriceMissing && !item.is_sold_out && (
+          <span className="cart-item__sold-out-badge">가격 확인 중</span>
+        )}
 
         <div className="cart-item__price-mobile">
-          {item.price !== null ? formatCurrency(item.price) : "가격 미등록"}
+          {!isPriceMissing ? formatCurrency(item.price) : "가격 미등록"}
         </div>
 
         <div className="cart-item__actions">
-          <div className="cart-item__qty">
-            <button
-              aria-label="수량 줄이기"
-              className="cart-item__qty-btn"
-              disabled={item.quantity <= 1 || updating || item.is_sold_out}
-              onClick={handleDecrease}
-              type="button"
-            >
-              −
-            </button>
-            <span className="cart-item__qty-value">{item.quantity}</span>
-            <button
-              aria-label="수량 늘리기"
-              className="cart-item__qty-btn"
-              disabled={item.quantity >= 1 || updating || item.is_sold_out}
-              onClick={handleIncrease}
-              type="button"
-            >
-              +
-            </button>
-          </div>
+          <span className="cart-item__qty-fixed">1권</span>
           <button
             className="cart-item__delete-btn"
             disabled={updating}
@@ -110,10 +85,10 @@ function CartItemRow({ item, isSelected, onToggle, onQuantityChange, onDelete })
 
       <div className="cart-item__price-col">
         <span className="cart-item__unit-price">
-          {item.price !== null ? formatCurrency(item.price) : "—"}
+          {!isPriceMissing ? formatCurrency(item.price) : "—"}
         </span>
         <span className="cart-item__line-total">
-          {item.price !== null ? formatCurrency(lineTotal) : "—"}
+          {!isPriceMissing ? formatCurrency(lineTotal) : "—"}
         </span>
       </div>
     </div>
@@ -166,23 +141,14 @@ function PublicCartPage() {
   };
 
   const handleToggleAll = () => {
-    const availableItems = items.filter((i) => !i.is_sold_out);
+    const availableItems = items.filter(
+      (i) => !i.is_sold_out && i.price !== null && i.price !== undefined,
+    );
     if (selectedIds.size === availableItems.length) {
       setSelectedIds(new Set());
     } else {
       setSelectedIds(new Set(availableItems.map((i) => i.id)));
     }
-  };
-
-  const handleQuantityChange = async (id, quantity) => {
-    const { error } = await updateCartItemQuantity(id, quantity);
-    if (error) {
-      showToast("수량 변경에 실패했습니다.", "error");
-      return;
-    }
-    setItems((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, quantity } : item)),
-    );
   };
 
   const handleDelete = async (id) => {
@@ -232,14 +198,19 @@ function PublicCartPage() {
     navigate("/order", { state: { items: orderPayload } });
   };
 
-  const selectedItems = items.filter((i) => selectedIds.has(i.id) && !i.is_sold_out);
+  const selectedItems = items.filter(
+    (i) =>
+      selectedIds.has(i.id) && !i.is_sold_out && i.price !== null && i.price !== undefined,
+  );
   const subtotal = selectedItems.reduce(
     (sum, i) => sum + (i.price ?? 0) * i.quantity,
     0,
   );
   const shippingFee = selectedItems.length > 0 ? calculateShippingFee(subtotal) : 0;
   const totalAmount = subtotal + shippingFee;
-  const availableItems = items.filter((i) => !i.is_sold_out);
+  const availableItems = items.filter(
+    (i) => !i.is_sold_out && i.price !== null && i.price !== undefined,
+  );
   const allSelected = availableItems.length > 0 && selectedIds.size === availableItems.length;
 
   return (
@@ -297,7 +268,6 @@ function PublicCartPage() {
                     item={item}
                     key={item.id}
                     onDelete={handleDelete}
-                    onQuantityChange={handleQuantityChange}
                     onToggle={handleToggle}
                   />
                 ))}
