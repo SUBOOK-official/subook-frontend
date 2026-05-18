@@ -155,9 +155,21 @@ function PublicOrderCompletePage() {
     };
   }, [authLoading, hasSession, orderId]);
 
-  // RPC 결과도 fallback도 없는 비로그인이고 orderId도 없으면 홈으로
+  // 비로그인 + 주문 정보도 못 가져온 케이스: 결제 직후 세션이 만료된 사용자가
+  // 입금 안내(계좌번호/입금자명)를 못 보면 입금만 보내고 매칭 실패 → 24시간 자동 취소
+  // 위험이 있다. 로그인 화면으로 보내되 anwendung notice로 다음 동선을 명시한다.
   if (!authLoading && !hasSession && !order.orderNumber) {
-    return <Navigate replace to="/login" />;
+    return (
+      <Navigate
+        replace
+        state={{
+          from: { pathname: `/order/complete/${orderId ?? ""}` },
+          notice:
+            "주문 정보를 확인하려면 로그인이 필요합니다. 로그인 후 마이페이지 > 주문내역에서 입금 계좌와 주문번호를 확인할 수 있습니다.",
+        }}
+        to="/login"
+      />
+    );
   }
 
   const { orderNumber, totalAmount, itemCount, recipientName, status, paymentStatus, createdAt } = order;
