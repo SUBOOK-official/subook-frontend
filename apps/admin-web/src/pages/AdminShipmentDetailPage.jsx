@@ -910,11 +910,13 @@ function AdminShipmentDetailPage() {
     }
 
     const optionValues = splitOptionValues(bookForm.option);
+    // status는 books 테이블의 default('on_sale')에 맡긴다.
+    // is_public 기본값은 false이며, books_enforce_public_storefront_rules 트리거가
+    // condition_grade/inspected_at 없이 is_public=true 전환을 차단한다.
     const payload = optionValues.map((optionValue) => ({
       shipment_id: shipment.id,
       title,
       option: optionValue,
-      status: "on_sale",
       price: parsedPrice,
     }));
 
@@ -935,7 +937,9 @@ function AdminShipmentDetailPage() {
 
     setBooks((prev) => [...prev, ...(data ?? [])]);
     setBookForm(initialBookForm);
-    setNotice(`${payload.length}권의 책이 추가되었습니다.`);
+    setNotice(
+      `${payload.length}권의 책이 추가되었습니다. 검수 등급과 사진을 입력하기 전까지는 스토어에 노출되지 않습니다.`,
+    );
     setActionLoading(false);
   };
 
@@ -988,11 +992,11 @@ function AdminShipmentDetailPage() {
 
         const optionValues = splitOptionValues(row.Option ?? row.option ?? row.OPTION);
         for (const optionValue of optionValues) {
+          // status는 default('on_sale')에 맡기고 is_public 전환은 트리거가 검증.
           payload.push({
             shipment_id: shipment.id,
             title,
             option: optionValue,
-            status: "on_sale",
             price: parsedPrice,
           });
         }
