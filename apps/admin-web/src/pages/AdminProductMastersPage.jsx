@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AdminShell from "../components/AdminShell";
+import AdminPagination from "../components/AdminPagination";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { formatCurrency, formatDate } from "@shared-domain/format";
 
@@ -62,6 +63,9 @@ function priceRangeLabel(min, max) {
 
 function AdminProductMastersPage() {
   const [products, setProducts] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const PRODUCTS_PAGE_SIZE = 50;
   const [summary, setSummary] = useState({ total: 0, selling: 0, sold_out: 0, hidden: 0 });
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState({ brand: "", subject: "", book_type: "", status: "" });
@@ -161,7 +165,10 @@ function AdminProductMastersPage() {
     const currentRequestId = ++requestIdRef.current;
     setIsLoading(true);
 
-    const params = { p_limit: 200 };
+    const params = {
+      p_limit: PRODUCTS_PAGE_SIZE,
+      p_offset: (currentPage - 1) * PRODUCTS_PAGE_SIZE,
+    };
     if (search.trim()) params.p_search = search.trim();
     if (filters.brand) params.p_brand = filters.brand;
     if (filters.subject) params.p_subject = filters.subject;
@@ -177,14 +184,25 @@ function AdminProductMastersPage() {
     if (listRes.error) {
       showToast(listRes.error.message || "상품 목록을 불러오지 못했습니다.", "error");
       setProducts([]);
+      setTotalCount(0);
     } else {
-      setProducts(Array.isArray(listRes.data) ? listRes.data : []);
+      const raw = listRes.data;
+      if (Array.isArray(raw)) {
+        setProducts(raw);
+        setTotalCount(raw.length < PRODUCTS_PAGE_SIZE ? (currentPage - 1) * PRODUCTS_PAGE_SIZE + raw.length : 0);
+      } else if (raw && typeof raw === "object") {
+        setProducts(Array.isArray(raw.items) ? raw.items : []);
+        setTotalCount(Number(raw.total_count) || 0);
+      } else {
+        setProducts([]);
+        setTotalCount(0);
+      }
     }
     if (!summaryRes.error && summaryRes.data) {
       setSummary(summaryRes.data);
     }
     setIsLoading(false);
-  }, [search, filters, showToast]);
+  }, [search, filters, showToast, currentPage]);
 
   useEffect(() => {
     const timerId = window.setTimeout(() => {
@@ -369,7 +387,10 @@ function AdminProductMastersPage() {
               <button
                 key={card.key || "all"}
                 type="button"
-                onClick={() => setFilters((f) => ({ ...f, status: card.key }))}
+                onClick={() => {
+                  setFilters((f) => ({ ...f, status: card.key }));
+                  setCurrentPage(1);
+                }}
                 className={`rounded-md border px-4 py-3 text-left transition ${
                   isActive
                     ? "border-slate-900 bg-slate-900 text-white"
@@ -390,13 +411,19 @@ function AdminProductMastersPage() {
           <input
             type="search"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setCurrentPage(1);
+            }}
             placeholder="상품명, 강사명, 옵션으로 검색"
             className="w-72 rounded-md border border-slate-300 px-3 py-2"
           />
           <select
             value={filters.brand}
-            onChange={(e) => setFilters((f) => ({ ...f, brand: e.target.value }))}
+            onChange={(e) => {
+              setFilters((f) => ({ ...f, brand: e.target.value }));
+              setCurrentPage(1);
+            }}
             className="rounded-md border border-slate-300 px-3 py-2"
           >
             <option value="">전체 브랜드</option>
@@ -406,7 +433,10 @@ function AdminProductMastersPage() {
           </select>
           <select
             value={filters.subject}
-            onChange={(e) => setFilters((f) => ({ ...f, subject: e.target.value }))}
+            onChange={(e) => {
+              setFilters((f) => ({ ...f, subject: e.target.value }));
+              setCurrentPage(1);
+            }}
             className="rounded-md border border-slate-300 px-3 py-2"
           >
             <option value="">전체 과목</option>
@@ -416,7 +446,10 @@ function AdminProductMastersPage() {
           </select>
           <select
             value={filters.book_type}
-            onChange={(e) => setFilters((f) => ({ ...f, book_type: e.target.value }))}
+            onChange={(e) => {
+              setFilters((f) => ({ ...f, book_type: e.target.value }));
+              setCurrentPage(1);
+            }}
             className="rounded-md border border-slate-300 px-3 py-2"
           >
             <option value="">전체 타입</option>
@@ -587,6 +620,13 @@ function AdminProductMastersPage() {
             </table>
           )}
         </div>
+        <AdminPagination
+          currentPage={currentPage}
+          isLoading={isLoading}
+          onPageChange={setCurrentPage}
+          pageSize={PRODUCTS_PAGE_SIZE}
+          totalCount={totalCount}
+        />
       </div>
 
       {/* 새 상품 모달 */}

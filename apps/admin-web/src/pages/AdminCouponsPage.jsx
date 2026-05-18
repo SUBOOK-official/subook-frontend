@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AdminShell from "../components/AdminShell";
+import AdminPagination from "../components/AdminPagination";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { formatCurrency } from "@shared-domain/format";
 
@@ -104,6 +105,9 @@ function AdminCouponsPage() {
   const [search, setSearch] = useState("");
   const [onlyActive, setOnlyActive] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const COUPONS_PAGE_SIZE = 50;
   const [toast, setToast] = useState(null);
   const [form, setForm] = useState(initialForm);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -133,7 +137,11 @@ function AdminCouponsPage() {
     const currentRequestId = ++requestIdRef.current;
     setIsLoading(true);
 
-    const params = { p_only_active: onlyActive, p_limit: 200 };
+    const params = {
+      p_only_active: onlyActive,
+      p_limit: COUPONS_PAGE_SIZE,
+      p_offset: (currentPage - 1) * COUPONS_PAGE_SIZE,
+    };
     if (search.trim()) params.p_search = search.trim();
 
     const { data, error } = await supabase.rpc("admin_list_coupons", params);
@@ -142,11 +150,19 @@ function AdminCouponsPage() {
     if (error) {
       showToast(error.message || "쿠폰 목록을 불러오지 못했습니다.", "error");
       setCoupons([]);
+      setTotalCount(0);
+    } else if (Array.isArray(data)) {
+      setCoupons(data);
+      setTotalCount(data.length < COUPONS_PAGE_SIZE ? (currentPage - 1) * COUPONS_PAGE_SIZE + data.length : 0);
+    } else if (data && typeof data === "object") {
+      setCoupons(Array.isArray(data.items) ? data.items : []);
+      setTotalCount(Number(data.total_count) || 0);
     } else {
-      setCoupons(Array.isArray(data) ? data : []);
+      setCoupons([]);
+      setTotalCount(0);
     }
     setIsLoading(false);
-  }, [search, onlyActive, showToast]);
+  }, [search, onlyActive, showToast, currentPage]);
 
   useEffect(() => {
     const timerId = window.setTimeout(() => {
@@ -356,14 +372,20 @@ function AdminCouponsPage() {
             type="search"
             placeholder="쿠폰 이름 또는 코드로 검색"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setCurrentPage(1);
+            }}
             className="w-64 rounded-md border border-slate-300 px-3 py-2"
           />
           <label className="flex items-center gap-2 text-slate-600">
             <input
               type="checkbox"
               checked={onlyActive}
-              onChange={(e) => setOnlyActive(e.target.checked)}
+              onChange={(e) => {
+                setOnlyActive(e.target.checked);
+                setCurrentPage(1);
+              }}
             />
             활성만 보기
           </label>
@@ -461,6 +483,13 @@ function AdminCouponsPage() {
             </table>
           )}
         </div>
+        <AdminPagination
+          currentPage={currentPage}
+          isLoading={isLoading}
+          onPageChange={setCurrentPage}
+          pageSize={COUPONS_PAGE_SIZE}
+          totalCount={totalCount}
+        />
       </div>
 
       {isFormOpen ? (

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AdminShell from "../components/AdminShell";
+import AdminPagination from "../components/AdminPagination";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { formatCurrency, formatDate } from "@shared-domain/format";
 import { notifyOrderConfirmed, notifyShippingStarted, notifyDeliveryDone } from "../lib/adminNotification";
@@ -122,6 +123,10 @@ function AdminOrdersPage() {
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [bulkProcessing, setBulkProcessing] = useState(false);
 
+  // 페이지네이션
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+
   // 일괄 작업 실행
   const handleBulkAction = async (action) => {
     const ids = Array.from(selectedIds);
@@ -189,7 +194,7 @@ function AdminOrdersPage() {
 
     const params = {
       p_limit: PAGE_SIZE,
-      p_offset: 0,
+      p_offset: (currentPage - 1) * PAGE_SIZE,
     };
     if (search.trim()) params.p_search = search.trim();
     if (statusFilters.length > 0) params.p_statuses = statusFilters;
@@ -204,14 +209,25 @@ function AdminOrdersPage() {
     if (currentRequestId !== requestIdRef.current) return;
 
     if (!ordersResult.error) {
-      setOrders(Array.isArray(ordersResult.data) ? ordersResult.data : []);
+      // RPC 응답이 배열(레거시) 또는 { items, total_count }(신규) 모두 호환
+      const raw = ordersResult.data;
+      if (Array.isArray(raw)) {
+        setOrders(raw);
+        setTotalCount(raw.length < PAGE_SIZE ? (currentPage - 1) * PAGE_SIZE + raw.length : 0);
+      } else if (raw && typeof raw === "object") {
+        setOrders(Array.isArray(raw.items) ? raw.items : []);
+        setTotalCount(Number(raw.total_count) || 0);
+      } else {
+        setOrders([]);
+        setTotalCount(0);
+      }
     }
     if (!summaryResult.error && summaryResult.data) {
       setSummary(summaryResult.data);
     }
 
     setIsLoading(false);
-  }, [search, statusFilters, fromDate, toDate]);
+  }, [search, statusFilters, fromDate, toDate, currentPage]);
 
   useEffect(() => {
     const timerId = setTimeout(() => {
@@ -224,6 +240,7 @@ function AdminOrdersPage() {
     setStatusFilters((prev) =>
       prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value],
     );
+    setCurrentPage(1);
   };
 
   const handleUpdateStatus = async (orderId, newStatus, trackingNumber = null, carrier = "CJ대한통운") => {
@@ -488,21 +505,30 @@ function AdminOrdersPage() {
         <div className="flex flex-wrap gap-2 items-center">
           <input
             className="input-base !w-auto flex-1 min-w-[200px]"
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setCurrentPage(1);
+            }}
             placeholder="주문번호, 구매자, 수령인 검색"
             type="search"
             value={search}
           />
           <input
             className="input-base !w-auto"
-            onChange={(e) => setFromDate(e.target.value)}
+            onChange={(e) => {
+              setFromDate(e.target.value);
+              setCurrentPage(1);
+            }}
             type="date"
             value={fromDate}
           />
           <span className="text-slate-400 text-sm">~</span>
           <input
             className="input-base !w-auto"
-            onChange={(e) => setToDate(e.target.value)}
+            onChange={(e) => {
+              setToDate(e.target.value);
+              setCurrentPage(1);
+            }}
             type="date"
             value={toDate}
           />
@@ -526,7 +552,10 @@ function AdminOrdersPage() {
           {statusFilters.length > 0 && (
             <button
               className="text-xs text-slate-400 underline ml-1"
-              onClick={() => setStatusFilters([])}
+              onClick={() => {
+                setStatusFilters([]);
+                setCurrentPage(1);
+              }}
               type="button"
             >
               초기화
@@ -673,6 +702,13 @@ function AdminOrdersPage() {
             </table>
           </div>
         )}
+        <AdminPagination
+          currentPage={currentPage}
+          isLoading={isLoading}
+          onPageChange={setCurrentPage}
+          pageSize={PAGE_SIZE}
+          totalCount={totalCount}
+        />
       </div>
 
       {/* 결제완료 건 CSV 일괄 송장 입력 안내 */}
