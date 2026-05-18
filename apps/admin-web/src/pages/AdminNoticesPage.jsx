@@ -118,7 +118,7 @@ function AdminNoticesPage() {
   };
 
   return (
-    <AdminShell title="공지사항 관리" subtitle="사이트 /notices에 표시 · 핀 공지는 상단 노출">
+    <AdminShell activeModule="notices" description="사이트 /notices에 표시 · 핀 공지는 상단 노출" title="공지사항 관리">
       <div className="flex items-center justify-between mb-4">
         <p className="text-sm text-slate-500">
           전체 {notices.length}건 · 게시 {notices.filter((n) => n.is_published).length}건 · 핀 {notices.filter((n) => n.is_pinned && n.is_published).length}건

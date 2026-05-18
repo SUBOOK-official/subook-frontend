@@ -140,7 +140,7 @@ function AdminAnalyticsPage() {
   );
 
   return (
-    <AdminShell title="대시보드" subtitle="매출/주문/검수 KPI와 트렌드 한눈에 확인">
+    <AdminShell activeModule="analytics" description="매출/주문/검수 KPI와 트렌드 한눈에 확인" title="대시보드">
       {/* 기간 선택 */}
       <div className="flex items-center gap-2 mb-5">
         {PRESETS.map((preset) => (

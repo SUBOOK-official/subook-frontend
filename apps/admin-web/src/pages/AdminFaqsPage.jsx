@@ -78,7 +78,7 @@ function AdminFaqsPage() {
   };
 
   return (
-    <AdminShell title="FAQ 관리" subtitle="자주 묻는 질문 — 사이트의 /faq에 즉시 반영됩니다">
+    <AdminShell activeModule="faqs" description="자주 묻는 질문 — 사이트의 /faq에 즉시 반영됩니다" title="FAQ 관리">
       <div className="flex items-center justify-between mb-4">
         <p className="text-sm text-slate-500">
           전체 {faqs.length}건 · 게시 {faqs.filter((f) => f.is_published).length}건
