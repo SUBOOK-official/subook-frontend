@@ -2,7 +2,14 @@ import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { getSellerLookupOrigin } from "../lib/portalLinks";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
+import { useAdminBadgeCounts } from "../lib/useAdminBadgeCounts";
 import { adminNavigationItems, resolveActiveAdminModule } from "./adminNavigation";
+
+function formatBadgeValue(value) {
+  if (!Number.isFinite(value) || value <= 0) return null;
+  if (value > 99) return "99+";
+  return String(value);
+}
 
 function AdminShell({ title, description = "", activeModule, actions = null, summaryCards = [], children }) {
   const location = useLocation();
@@ -14,6 +21,8 @@ function AdminShell({ title, description = "", activeModule, actions = null, sum
     pathname: location.pathname,
     explicitModule: activeModule,
   });
+
+  const badgeCounts = useAdminBadgeCounts();
 
   const handleSignOut = async () => {
     if (!isSupabaseConfigured || !supabase) {
@@ -39,6 +48,7 @@ function AdminShell({ title, description = "", activeModule, actions = null, sum
           <nav className="space-y-1" aria-label="관리자 메뉴">
             {adminNavigationItems.map((item) => {
               const isActive = item.key === resolvedModuleKey;
+              const badgeValue = formatBadgeValue(badgeCounts[item.key]);
 
               return (
                 <Link
@@ -51,7 +61,17 @@ function AdminShell({ title, description = "", activeModule, actions = null, sum
                   to={item.to}
                 >
                   <span aria-hidden="true" className="text-base leading-none">{item.icon}</span>
-                  <span>{item.label}</span>
+                  <span className="flex-1">{item.label}</span>
+                  {badgeValue ? (
+                    <span
+                      aria-label={`처리 대기 ${badgeValue}건`}
+                      className={`inline-flex min-w-[20px] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                        isActive ? "bg-white/20 text-white" : "bg-rose-600 text-white"
+                      }`}
+                    >
+                      {badgeValue}
+                    </span>
+                  ) : null}
                 </Link>
               );
             })}

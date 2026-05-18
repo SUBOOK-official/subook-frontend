@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useFocusTrap } from "../lib/useFocusTrap";
 
 function DestructiveConfirmModal({
   open,
@@ -17,6 +18,9 @@ function DestructiveConfirmModal({
   const [phraseInput, setPhraseInput] = useState("");
   const [reason, setReason] = useState("");
   const phraseRef = useRef(null);
+  const dialogRef = useRef(null);
+
+  useFocusTrap(dialogRef, open);
 
   useEffect(() => {
     if (open) {
@@ -52,10 +56,14 @@ function DestructiveConfirmModal({
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4"
       onClick={busy ? undefined : onCancel}
+      role="presentation"
     >
       <div
+        aria-modal="true"
         className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
         onClick={(event) => event.stopPropagation()}
+        ref={dialogRef}
+        role="dialog"
       >
         <h2 className="text-lg font-black text-rose-700">{title}</h2>
         <p className="mt-2 whitespace-pre-line text-sm text-slate-700">{description}</p>

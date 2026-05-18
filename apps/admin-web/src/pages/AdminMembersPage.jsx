@@ -271,19 +271,31 @@ function AdminMembersPage() {
     });
   };
 
-  const handleUnblockMember = async (member) => {
+  const handleUnblockMember = (member) => {
     if (!member?.user_id) return;
-    if (!window.confirm(`'${member.display_name || member.email}' 회원 차단을 해제하시겠습니까?`)) return;
-    const { error } = await supabase.rpc("admin_unblock_member", { p_user_id: member.user_id });
-    if (error) {
-      showToast(error.message || "차단 해제에 실패했습니다.", "error");
-      return;
-    }
-    showToast("차단을 해제했습니다.", "success");
-    await loadMembers();
-    if (selectedMember?.user_id === member.user_id) {
-      await openMemberDetail({ ...member, is_blocked: false });
-    }
+    const displayName = member.display_name || member.email;
+    setDestructiveModal({
+      title: "회원 차단 해제",
+      description:
+        `'${displayName}' 회원의 차단을 해제합니다.\n\n` +
+        `· 해제 즉시 해당 회원이 다시 로그인·구매·판매 활동을 할 수 있습니다.\n` +
+        `· 차단 시 기록한 사유는 그대로 남아 있습니다.`,
+      confirmPhrase: null,
+      reasonRequired: false,
+      confirmLabel: "차단 해제",
+      run: async () => {
+        const { error } = await supabase.rpc("admin_unblock_member", { p_user_id: member.user_id });
+        if (error) {
+          showToast(error.message || "차단 해제에 실패했습니다.", "error");
+          return;
+        }
+        showToast("차단을 해제했습니다.", "success");
+        await loadMembers();
+        if (selectedMember?.user_id === member.user_id) {
+          await openMemberDetail({ ...member, is_blocked: false });
+        }
+      },
+    });
   };
 
   const summaryCards = [

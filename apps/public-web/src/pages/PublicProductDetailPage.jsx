@@ -10,12 +10,131 @@ import { usePublicWishlist } from "../contexts/PublicWishlistContext";
 import { addToCart } from "../lib/cart";
 import usePublicMemberGate from "../lib/publicMemberGate";
 import { usePageMeta } from "../lib/usePageMeta";
+import { fetchProductReviews } from "../lib/publicReviews";
 import {
   fetchStorefrontProductDetail,
   fetchStorefrontProducts,
   sortStorefrontProducts,
 } from "../lib/storefront";
 import "./PublicProductDetailPage.css";
+
+function ProductReviewsSection({ productId }) {
+  const [data, setData] = useState({
+    summary: { averageRating: 0, totalCount: 0 },
+    reviews: [],
+    loading: true,
+  });
+
+  useEffect(() => {
+    let isActive = true;
+    if (!productId) return undefined;
+
+    fetchProductReviews({ productId, sort: "latest", limit: 3, offset: 0 })
+      .then((result) => {
+        if (!isActive) return;
+        setData({
+          summary: result.summary,
+          reviews: result.reviews,
+          loading: false,
+        });
+      })
+      .catch(() => {
+        if (!isActive) return;
+        setData({
+          summary: { averageRating: 0, totalCount: 0 },
+          reviews: [],
+          loading: false,
+        });
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [productId]);
+
+  if (data.loading) {
+    return null;
+  }
+
+  const { summary, reviews } = data;
+  const hasReviews = summary.totalCount > 0;
+
+  return (
+    <section
+      aria-label="구매 후기"
+      className="public-detail-reviews"
+      style={{
+        marginTop: "32px",
+        padding: "20px",
+        borderRadius: "12px",
+        background: "#fafafa",
+        border: "1px solid #e5e7eb",
+      }}
+    >
+      <header style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "12px" }}>
+        <h2 style={{ fontSize: "18px", fontWeight: 800, margin: 0, color: "#111827" }}>
+          구매 후기
+          {hasReviews ? (
+            <span style={{ marginLeft: "8px", fontSize: "14px", fontWeight: 600, color: "#6b7280" }}>
+              {summary.totalCount}건
+            </span>
+          ) : null}
+        </h2>
+        {hasReviews ? (
+          <p style={{ margin: 0, fontSize: "20px", fontWeight: 800, color: "#1B3A5C" }}>
+            <span aria-hidden="true" style={{ color: "#f59e0b" }}>
+              ★
+            </span>{" "}
+            {summary.averageRating.toFixed(1)}
+            <span style={{ fontSize: "13px", fontWeight: 600, color: "#6b7280", marginLeft: "4px" }}>/ 5</span>
+          </p>
+        ) : null}
+      </header>
+
+      {hasReviews ? (
+        <ul style={{ listStyle: "none", margin: "16px 0 0", padding: 0, display: "grid", gap: "10px" }}>
+          {reviews.map((review) => (
+            <li
+              key={review.id}
+              style={{
+                padding: "12px 14px",
+                borderRadius: "8px",
+                background: "#ffffff",
+                border: "1px solid #e5e7eb",
+              }}
+            >
+              <p style={{ margin: 0, fontSize: "13px", fontWeight: 700, color: "#1B3A5C" }}>
+                <span aria-hidden="true" style={{ color: "#f59e0b" }}>
+                  {"★".repeat(review.rating)}
+                  {"☆".repeat(5 - review.rating)}
+                </span>{" "}
+                <span style={{ color: "#6b7280", fontWeight: 600 }}>{review.authorName}</span>
+              </p>
+              <p style={{ margin: "6px 0 0", fontSize: "14px", color: "#111827", lineHeight: 1.6 }}>
+                {review.content}
+              </p>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p
+          style={{
+            margin: "12px 0 0",
+            padding: "16px",
+            textAlign: "center",
+            fontSize: "14px",
+            color: "#6b7280",
+            background: "#ffffff",
+            borderRadius: "8px",
+            border: "1px dashed #d1d5db",
+          }}
+        >
+          아직 이 교재의 후기가 없어요. 구매 후 마이페이지에서 첫 후기의 주인공이 되어주세요.
+        </p>
+      )}
+    </section>
+  );
+}
 
 // 단일재고 모델(1 books row = 1 physical book)이므로 사용자가 1권만 살 수 있다.
 // 추후 다중 재고 도입 시 이 상수만 풀면 된다.
@@ -836,6 +955,9 @@ function PublicProductDetailPage() {
             </div>
 
             <DetailTabPanel activeKey={activeTabKey} activeDisplay={activeDisplay} product={product} />
+
+            {/* 구매 후기 (리뷰 평균 + 상위 3개) */}
+            <ProductReviewsSection productId={product.id} />
 
             {/* 비슷한 교재 추천 (가로 스크롤) */}
             <RelatedProductsRail

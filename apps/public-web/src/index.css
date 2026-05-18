@@ -5,9 +5,11 @@
 @tailwind utilities;
 
 :root {
-  --public-primary: #080f47;
+  /* 브랜드 primary 단일화: admin/public-header/public-store/OG 이미지/meta theme-color 모두 #1B3A5C로 통일 */
+  --public-primary: #1B3A5C;
   --public-text: #3b3b3b;
-  --public-text-muted: #cbcbcb;
+  /* WCAG AA: muted text는 흰 배경 위 4.5:1 이상 대비 필수. #cbcbcb(1.85:1) → #6b7280(4.69:1) */
+  --public-text-muted: #6b7280;
   --public-border: #e5e5e5;
   --public-bg-soft: #f9f9f9;
   --public-card: #f4f4f4;
@@ -24,8 +26,8 @@
   --public-ds-primary: #1b3a5c;
   --public-ds-accent: #3b82f6;
   --public-ds-text: #111827;
-  --public-ds-text-secondary: #6b7280;
-  --public-ds-text-muted: #9ca3af;
+  --public-ds-text-secondary: #4b5563;
+  --public-ds-text-muted: #6b7280;
   --public-ds-background: #f8fafc;
   --public-ds-bg: #fafafa;
   --public-ds-card: #ffffff;
@@ -34,6 +36,17 @@
   --public-ds-danger: #ef4444;
   --public-ds-success: #059669;
   --public-ds-radius: 10px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 * {
@@ -3902,8 +3915,8 @@ img {
   --public-ds-background: #f8fafc;
   --public-ds-card: #ffffff;
   --public-ds-text: #1f2937;
-  --public-ds-text-secondary: #6b7280;
-  --public-ds-text-muted: #9ca3af;
+  --public-ds-text-secondary: #4b5563;
+  --public-ds-text-muted: #6b7280;
   --public-ds-border: #e5e7eb;
   --public-ds-divider: #f3f4f6;
   --public-ds-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);

@@ -169,8 +169,22 @@ function AdminProductMastersPage() {
     }
 
     const label = { selling: "공개(판매중)", hidden: "숨김", sold_out: "품절" }[action] ?? action;
-    if (!window.confirm(`선택한 ${ids.length}개 상품을 '${label}' 상태로 일괄 변경할까요?`)) return;
-    void runBulkProductStatus(action, ids);
+    setDestructiveModal({
+      title: `${ids.length}개 상품 상태 일괄 변경 — '${label}'`,
+      description:
+        `선택한 ${ids.length}개 상품을 '${label}' 상태로 일괄 변경합니다.\n\n` +
+        (action === "selling"
+          ? `· 즉시 스토어에 노출됩니다.\n· 검수가 완료되지 않은 상품이 공개되면 클레임이 발생할 수 있습니다.`
+          : action === "sold_out"
+            ? `· 즉시 '품절' 표시로 전환됩니다. 진행 중인 장바구니에 영향이 있을 수 있습니다.`
+            : `· 즉시 스토어에서 숨김 처리됩니다.`),
+      confirmPhrase: String(ids.length),
+      reasonRequired: false,
+      confirmLabel: `${ids.length}건 ${label}`,
+      run: async () => {
+        await runBulkProductStatus(action, ids);
+      },
+    });
   };
 
   // products 갱신 시에는 살아남은 id만 유지 (입력 변경에 의한 초기화는 별도 effect).

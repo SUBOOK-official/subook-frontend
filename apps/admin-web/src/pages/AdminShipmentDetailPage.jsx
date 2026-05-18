@@ -678,6 +678,97 @@ function AdminShipmentDetailPage() {
   const [selectedBookIds, setSelectedBookIds] = useState(() => new Set());
   const [bulkBookProcessing, setBulkBookProcessing] = useState(false);
 
+  // ─── 키보드 워크플로 (j/k 이동, x 선택, / 검색 포커스) ─────────────
+  // 운영자가 100권 단위 검수 시 마우스 클릭 횟수를 크게 줄이기 위한 단축키.
+  const [focusedBookId, setFocusedBookId] = useState(null);
+  const [keyboardHelpDismissed, setKeyboardHelpDismissed] = useState(() => {
+    try {
+      return window.localStorage.getItem("admin.shipmentDetail.keyboardHelpDismissed") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const dismissKeyboardHelp = () => {
+    setKeyboardHelpDismissed(true);
+    try {
+      window.localStorage.setItem("admin.shipmentDetail.keyboardHelpDismissed", "1");
+    } catch {
+      /* noop */
+    }
+  };
+
+  useEffect(() => {
+    if (pagedBooks.length === 0) {
+      if (focusedBookId !== null) setFocusedBookId(null);
+      return;
+    }
+    if (!focusedBookId || !pagedBooks.some((book) => book.id === focusedBookId)) {
+      setFocusedBookId(pagedBooks[0].id);
+    }
+  }, [pagedBooks, focusedBookId]);
+
+  useEffect(() => {
+    const isEditableTarget = (target) => {
+      if (!(target instanceof HTMLElement)) return false;
+      const tag = target.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+      if (target.isContentEditable) return true;
+      return false;
+    };
+
+    const handleKey = (event) => {
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      if (isEditableTarget(event.target)) return;
+
+      const currentIndex = pagedBooks.findIndex((book) => book.id === focusedBookId);
+      const moveTo = (nextIndex) => {
+        if (nextIndex < 0 || nextIndex >= pagedBooks.length) return;
+        const nextBook = pagedBooks[nextIndex];
+        setFocusedBookId(nextBook.id);
+        const el = document.querySelector(`[data-shipment-book-id="${nextBook.id}"]`);
+        if (el instanceof HTMLElement) {
+          el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        }
+      };
+
+      switch (event.key) {
+        case "j":
+        case "ArrowDown":
+          if (event.shiftKey) return;
+          event.preventDefault();
+          if (currentIndex === -1 && pagedBooks.length > 0) {
+            moveTo(0);
+          } else {
+            moveTo(currentIndex + 1);
+          }
+          break;
+        case "k":
+        case "ArrowUp":
+          if (event.shiftKey) return;
+          event.preventDefault();
+          moveTo(Math.max(0, currentIndex - 1));
+          break;
+        case "x":
+          if (!focusedBookId) return;
+          event.preventDefault();
+          toggleSelectBook(focusedBookId);
+          break;
+        case "/":
+          event.preventDefault();
+          {
+            const input = document.querySelector('input[data-shipment-book-search="true"]');
+            if (input instanceof HTMLElement) input.focus();
+          }
+          break;
+        default:
+          break;
+      }
+    };
+
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [pagedBooks, focusedBookId]);
+
   const toggleSelectBook = (id) => {
     setSelectedBookIds((current) => {
       const next = new Set(current);
@@ -731,10 +822,23 @@ function AdminShipmentDetailPage() {
 
     if (action === "visibility-show" || action === "visibility-hide") {
       const label = action === "visibility-show" ? "공개" : "숨김";
-      if (!window.confirm(`선택한 ${ids.length}권을 일괄 '${label}'으로 변경할까요?`)) return;
-      void runBulkBookRpc("admin_bulk_update_books_visibility", {
-        p_ids: ids,
-        p_is_public: action === "visibility-show",
+      const showLabel = action === "visibility-show";
+      setDestructiveModal({
+        title: `${ids.length}권 가시성 일괄 변경 — '${label}'`,
+        description:
+          `선택한 ${ids.length}권을 일괄 '${label}'으로 변경합니다.\n\n` +
+          (showLabel
+            ? `· '공개'로 바뀌는 책은 즉시 스토어에 노출됩니다.\n· 검수가 미완료된 책이 공개되면 구매자 클레임이 발생할 수 있습니다.`
+            : `· '숨김'으로 바뀌면 진행 중인 상세 페이지가 즉시 사라집니다.\n· 이미 장바구니에 담은 구매자에게 영향이 있을 수 있습니다.`),
+        confirmPhrase: String(ids.length),
+        reasonRequired: false,
+        confirmLabel: `${ids.length}권 ${label}`,
+        run: async () => {
+          await runBulkBookRpc("admin_bulk_update_books_visibility", {
+            p_ids: ids,
+            p_is_public: showLabel,
+          });
+        },
       });
       return;
     }
@@ -1056,14 +1160,26 @@ function AdminShipmentDetailPage() {
     }
 
     if (nextStatus === "settled") {
-      const confirmed = window.confirm(
-        `이 책을 정산완료로 저장하시겠습니까?\n${formatBookLabel(book)}`,
-      );
-      if (!confirmed) {
-        return;
-      }
+      setDestructiveModal({
+        title: "책 상태를 '정산 완료'로 변경",
+        description:
+          `${formatBookLabel(book)}\n\n` +
+          `· '정산 완료'로 마크하면 후속 정산 자동 처리 흐름에서 이 책이 제외됩니다.\n` +
+          `· 실제 셀러 송금이 끝났는지 다시 한 번 확인해 주세요.`,
+        confirmPhrase: "정산완료",
+        reasonRequired: false,
+        confirmLabel: "정산완료로 저장",
+        run: async () => {
+          await performBookStatusUpdate(book, nextStatus);
+        },
+      });
+      return;
     }
 
+    await performBookStatusUpdate(book, nextStatus);
+  };
+
+  const performBookStatusUpdate = async (book, nextStatus) => {
     setError("");
     setNotice("");
     setUpdatingBookStatusId(book.id);
@@ -1236,18 +1352,28 @@ function AdminShipmentDetailPage() {
     setUpdatingBookPriceId(null);
   };
 
-  const handleDeleteBook = async (book) => {
+  const handleDeleteBook = (book) => {
     if (!isSupabaseConfigured) {
       return;
     }
 
-    const confirmed = window.confirm(
-      `정말 이 책을 삭제하시겠습니까?\n${formatBookLabel(book)}`,
-    );
-    if (!confirmed) {
-      return;
-    }
+    setDestructiveModal({
+      title: "책 삭제",
+      description:
+        `${formatBookLabel(book)}\n\n` +
+        `· 이 책에 연결된 가격/검수 정보가 모두 사라집니다.\n` +
+        `· 진행 중인 주문이 있는 책은 삭제할 수 없습니다.\n` +
+        `· 이 작업은 되돌릴 수 없습니다.`,
+      confirmPhrase: "삭제",
+      reasonRequired: false,
+      confirmLabel: "책 삭제",
+      run: async () => {
+        await performDeleteBook(book);
+      },
+    });
+  };
 
+  const performDeleteBook = async (book) => {
     setError("");
     setNotice("");
     setDeletingBookId(book.id);
@@ -1507,12 +1633,33 @@ function AdminShipmentDetailPage() {
             <div className="card !p-3">
               <input
                 className="input-base !mt-0 !py-2.5 text-sm"
+                data-shipment-book-search="true"
                 onChange={(event) => setBookSearchQuery(event.target.value)}
-                placeholder="등록된 책 검색 (제목/옵션)"
+                placeholder="등록된 책 검색 (제목/옵션) — / 키로 빠르게 포커스"
                 type="text"
                 value={bookSearchQuery}
               />
               <p className="mt-2 text-xs font-semibold text-slate-500">페이지당 {BOOKS_PAGE_SIZE}권</p>
+              {!keyboardHelpDismissed ? (
+                <div className="mt-2 flex items-start justify-between gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
+                  <p className="text-xs font-semibold text-blue-900">
+                    <span className="font-bold">키보드 단축키</span>{" "}
+                    <kbd className="rounded bg-white px-1 font-mono text-[10px]">j</kbd>/
+                    <kbd className="rounded bg-white px-1 font-mono text-[10px]">k</kbd>{" "}
+                    다음/이전 행,{" "}
+                    <kbd className="rounded bg-white px-1 font-mono text-[10px]">x</kbd> 선택 토글,{" "}
+                    <kbd className="rounded bg-white px-1 font-mono text-[10px]">/</kbd> 검색 포커스
+                  </p>
+                  <button
+                    aria-label="단축키 안내 닫기"
+                    className="text-xs font-bold text-blue-700 hover:text-blue-900"
+                    onClick={dismissKeyboardHelp}
+                    type="button"
+                  >
+                    ×
+                  </button>
+                </div>
+              ) : null}
             </div>
           ) : null}
 
@@ -1539,7 +1686,16 @@ function AdminShipmentDetailPage() {
                     updatingBookPublicId === book.id;
 
                   return (
-                    <article className="card animate-rise" key={book.id}>
+                    <article
+                      className={`card animate-rise transition ${
+                        focusedBookId === book.id
+                          ? "ring-2 ring-brand/40 shadow-md"
+                          : ""
+                      }`}
+                      data-shipment-book-id={book.id}
+                      key={book.id}
+                      onClick={() => setFocusedBookId(book.id)}
+                    >
                       <div className="flex items-start justify-between gap-2">
                         <div>
                           <h3 className="text-base font-extrabold text-slate-900">{book.title}</h3>

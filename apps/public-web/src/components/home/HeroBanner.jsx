@@ -158,7 +158,11 @@ function HeroBanner({ onSlideAction, slides = [] }) {
               <ContentContainer className="public-home-hero-banner__slide-shell">
                 <div className="public-home-hero-banner__content">
                   <p className="public-home-hero-banner__eyebrow">{slide.eyebrow}</p>
-                  <h1 className="public-home-hero-banner__title">{renderLines(slide.titleLines)}</h1>
+                  {isActive ? (
+                    <h1 className="public-home-hero-banner__title">{renderLines(slide.titleLines)}</h1>
+                  ) : (
+                    <p className="public-home-hero-banner__title" aria-hidden="true">{renderLines(slide.titleLines)}</p>
+                  )}
                   <p className="public-home-hero-banner__description">{renderLines(slide.descriptionLines)}</p>
                   <button
                     className="public-home-hero-banner__cta"

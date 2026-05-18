@@ -1,9 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useFocusTrap } from "../lib/useFocusTrap";
 
 function PublicMemberGateDialog({ onClose, onLogin, onSignup, open }) {
   const [offsetY, setOffsetY] = useState(0);
   const startYRef = useRef(null);
+  const dialogRef = useRef(null);
+
+  useFocusTrap(dialogRef, open);
 
   useEffect(() => {
     if (!open) {
@@ -78,6 +82,7 @@ function PublicMemberGateDialog({ onClose, onLogin, onSignup, open }) {
         onTouchEnd={handleTouchEnd}
         onTouchMove={handleTouchMove}
         onTouchStart={handleTouchStart}
+        ref={dialogRef}
         role="dialog"
         style={
           isMobileViewport && offsetY > 0

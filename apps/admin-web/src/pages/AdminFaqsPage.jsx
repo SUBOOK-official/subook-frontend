@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import AdminShell from "../components/AdminShell";
+import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 
 const EMPTY_FORM = {
@@ -17,6 +18,8 @@ function AdminFaqsPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [editor, setEditor] = useState(null); // EMPTY_FORM | row
   const [isSaving, setIsSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const loadFaqs = useCallback(async () => {
     if (!isSupabaseConfigured || !supabase) {
@@ -67,13 +70,20 @@ function AdminFaqsPage() {
     await loadFaqs();
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm("이 FAQ를 삭제하시겠습니까? 되돌릴 수 없습니다.")) return;
-    const { error } = await supabase.rpc("admin_delete_faq", { p_id: id });
+  const handleDelete = (faq) => {
+    setDeleteTarget(faq);
+  };
+
+  const performDelete = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
+    const { error } = await supabase.rpc("admin_delete_faq", { p_id: deleteTarget.id });
+    setIsDeleting(false);
     if (error) {
       setErrorMessage(error.message || "삭제에 실패했습니다.");
       return;
     }
+    setDeleteTarget(null);
     await loadFaqs();
   };
 
@@ -129,7 +139,7 @@ function AdminFaqsPage() {
                 </button>
                 <button
                   className="px-3 py-1.5 rounded-lg text-sm text-rose-600 border border-rose-200 hover:bg-rose-50"
-                  onClick={() => handleDelete(row.id)}
+                  onClick={() => handleDelete(row)}
                   type="button"
                 >
                   삭제
@@ -219,6 +229,22 @@ function AdminFaqsPage() {
           </div>
         </div>
       ) : null}
+
+      <DestructiveConfirmModal
+        busy={isDeleting}
+        cancelLabel="취소"
+        confirmLabel="FAQ 삭제"
+        confirmPhrase="삭제"
+        description={
+          deleteTarget
+            ? `[${deleteTarget.category || "분류 없음"}] ${deleteTarget.question}\n\n· 이 작업은 되돌릴 수 없습니다.\n· 정말 삭제하려면 아래 문구를 입력하세요.`
+            : ""
+        }
+        onCancel={() => (isDeleting ? null : setDeleteTarget(null))}
+        onConfirm={performDelete}
+        open={Boolean(deleteTarget)}
+        title="FAQ 삭제"
+      />
     </AdminShell>
   );
 }

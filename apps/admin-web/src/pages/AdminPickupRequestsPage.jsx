@@ -296,7 +296,7 @@ function AdminPickupRequestsPage() {
     setSelectedIds(allEligibleSelected ? [] : eligiblePickupIds);
   };
 
-  const handleRegisterPickups = async (targetIds) => {
+  const handleRegisterPickups = (targetIds) => {
     const ids = targetIds.filter((id) => eligiblePickupIds.includes(id));
     if (ids.length === 0) {
       setError("CJ 접수 가능한 수거 요청을 선택해 주세요.");
@@ -304,11 +304,22 @@ function AdminPickupRequestsPage() {
       return;
     }
 
-    const confirmed = window.confirm(`선택한 ${ids.length}건을 CJ대한통운에 수거 접수할까요?`);
-    if (!confirmed) {
-      return;
-    }
+    setDestructiveModal({
+      title: `CJ 수거 접수 — ${ids.length}건`,
+      description:
+        `선택한 ${ids.length}건을 CJ대한통운에 수거 접수합니다.\n\n` +
+        `・접수 즉시 CJ 시스템으로 전송되며, 외부 시스템 취소·반환 절차가 필요합니다.\n` +
+        `・잘못 접수하면 셀러에게 알림톡이 발송되어 혼란이 발생할 수 있습니다.`,
+      confirmPhrase: String(ids.length),
+      reasonRequired: false,
+      confirmLabel: `${ids.length}건 접수`,
+      run: async () => {
+        await performRegisterPickups(ids);
+      },
+    });
+  };
 
+  const performRegisterPickups = async (ids) => {
     setError("");
     setNotice("");
     setRegisteringIds(ids);

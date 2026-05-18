@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
+import { useFocusTrap } from "../lib/useFocusTrap";
 
 function MypageEmptyState({ actionLabel, actionOnClick, actionTo, description, icon, title }) {
   return (
@@ -59,6 +60,9 @@ function MypageSummaryCard({ description, onClick, title, value }) {
 function ResponsiveSheet({ actions, children, eyebrow, onClose, open, title }) {
   const [offsetY, setOffsetY] = useState(0);
   const startYRef = useRef(null);
+  const dialogRef = useRef(null);
+
+  useFocusTrap(dialogRef, open);
 
   useEffect(() => {
     if (!open) {
@@ -132,6 +136,7 @@ function ResponsiveSheet({ actions, children, eyebrow, onClose, open, title }) {
         onTouchEnd={handleTouchEnd}
         onTouchMove={handleTouchMove}
         onTouchStart={handleTouchStart}
+        ref={dialogRef}
         role="dialog"
         style={
           isMobileViewport && offsetY > 0

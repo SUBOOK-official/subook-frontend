@@ -151,14 +151,19 @@ function AdminOrdersPage() {
     if (ids.length === 0) return;
 
     if (action === "preparing") {
-      if (
-        !window.confirm(
-          `선택한 ${ids.length}건을 '상품 준비 중'으로 일괄 전환할까요?\n(paid 상태만 처리되고, 다른 상태는 자동 skip됩니다.)`,
-        )
-      ) {
-        return;
-      }
-      void runBulkAction(action, ids);
+      setDestructiveModal({
+        title: `상품 준비 중 일괄 전환 — ${ids.length}건`,
+        description:
+          `선택한 ${ids.length}건의 주문을 '상품 준비 중'으로 일괄 전환합니다.\n` +
+          `(paid 상태만 처리되고, 다른 상태는 자동 skip됩니다.)\n\n` +
+          `셀러·구매자에게 발송 시작 알림으로 이어질 수 있으므로 잘못된 일괄 변경에 주의하세요.`,
+        confirmPhrase: String(ids.length),
+        reasonRequired: false,
+        confirmLabel: `${ids.length}건 전환`,
+        run: async () => {
+          await runBulkAction(action, ids);
+        },
+      });
       return;
     }
 

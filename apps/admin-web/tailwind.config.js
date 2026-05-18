@@ -9,8 +9,8 @@ export default {
   theme: {
     extend: {
       colors: {
-        brand: "#1F2837",
-        "brand-soft": "#2C3B52",
+        brand: "#1B3A5C",
+        "brand-soft": "#2A4D78",
       },
       boxShadow: {
         soft: "0 10px 24px rgba(15, 23, 42, 0.08)",

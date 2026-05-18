@@ -1,8 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/publicSupabaseClient";
 import PublicToastMessage from "../components/PublicToastMessage";
 import { clearSignupSuccessState, loadSignupSuccessState, saveSignupSuccessState } from "../lib/publicSignupSuccessState";
+
+const RESEND_COOLDOWN_SECONDS = 60;
 
 function normalizeVerificationCode(value) {
   return String(value || "").replace(/[^0-9]/g, "").slice(0, 6);
@@ -35,6 +37,25 @@ function PublicSignupSuccessPage() {
   const [verificationCode, setVerificationCode] = useState("");
   const [codeError, setCodeError] = useState("");
   const [pageNotice, setPageNotice] = useState("");
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const cooldownTimerRef = useRef(null);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) {
+      return undefined;
+    }
+
+    cooldownTimerRef.current = window.setTimeout(() => {
+      setResendCooldown((current) => Math.max(0, current - 1));
+    }, 1000);
+
+    return () => {
+      if (cooldownTimerRef.current !== null) {
+        window.clearTimeout(cooldownTimerRef.current);
+        cooldownTimerRef.current = null;
+      }
+    };
+  }, [resendCooldown]);
   const [toastState, setToastState] = useState({
     message: "",
     tone: "info",
@@ -122,6 +143,10 @@ function PublicSignupSuccessPage() {
       return;
     }
 
+    if (resendCooldown > 0) {
+      return;
+    }
+
     setIsResending(true);
 
     const { error } = await supabase.auth.resend({
@@ -145,6 +170,7 @@ function PublicSignupSuccessPage() {
       message: "인증코드를 다시 보내드렸어요. 메일함을 확인해주세요.",
       tone: "success",
     });
+    setResendCooldown(RESEND_COOLDOWN_SECONDS);
     setIsResending(false);
   };
 
@@ -239,7 +265,7 @@ function PublicSignupSuccessPage() {
               {!isVerified && requiresEmailConfirmation && email ? (
                 <button
                   className="public-auth-button public-auth-button--ghost"
-                  disabled={isResending}
+                  disabled={isResending || resendCooldown > 0}
                   onClick={handleResendEmail}
                   type="button"
                 >
@@ -248,6 +274,8 @@ function PublicSignupSuccessPage() {
                       <span aria-hidden="true" className="public-auth-spinner public-auth-spinner--button" />
                       <span>인증코드 재발송 중...</span>
                     </>
+                  ) : resendCooldown > 0 ? (
+                    `${resendCooldown}초 후 다시 보낼 수 있어요`
                   ) : (
                     "인증코드 다시 보내기"
                   )}

@@ -62,6 +62,7 @@ function PublicOAuthConsentPage() {
   const [activeAgreementKey, setActiveAgreementKey] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
   const isAllAgreed = agreementItems.every((item) => agreements[item.key]);
   const hasRequiredAgreements = agreementItems
@@ -125,10 +126,12 @@ function PublicOAuthConsentPage() {
     }
   };
 
-  const handleCancel = async () => {
-    if (!window.confirm("동의를 취소하고 로그아웃할까요? 동의 없이는 서비스 이용이 어려워요.")) {
-      return;
-    }
+  const handleCancel = () => {
+    setShowCancelConfirm(true);
+  };
+
+  const handleConfirmCancel = async () => {
+    setShowCancelConfirm(false);
     await signOut();
     navigate("/login", { replace: true });
   };
@@ -263,6 +266,62 @@ function PublicOAuthConsentPage() {
         onClose={() => setActiveAgreementKey("")}
         open={Boolean(activeAgreement)}
       />
+
+      {showCancelConfirm ? (
+        <div
+          className="public-sheet-backdrop"
+          onClick={() => setShowCancelConfirm(false)}
+          role="presentation"
+        >
+          <section
+            aria-labelledby="public-oauth-consent-cancel-title"
+            aria-modal="true"
+            className="public-sheet"
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+          >
+            <div className="public-sheet__drag-handle" />
+            <div className="public-sheet__header">
+              <div>
+                <p className="public-sheet__eyebrow">[확인]</p>
+                <h2 className="public-sheet__title" id="public-oauth-consent-cancel-title">
+                  동의를 취소할까요?
+                </h2>
+              </div>
+              <button
+                aria-label="닫기"
+                className="public-sheet__close"
+                onClick={() => setShowCancelConfirm(false)}
+                type="button"
+              >
+                ×
+              </button>
+            </div>
+            <div className="public-sheet__body">
+              <p className="public-sheet__paragraph">
+                동의를 취소하면 로그아웃 처리되며, 약관 동의 없이는 수북 서비스 이용이 어려워요.
+                다시 로그인하면 이 화면으로 돌아옵니다.
+              </p>
+            </div>
+            <div className="public-sheet__footer">
+              <button
+                className="public-auth-button public-auth-button--secondary"
+                onClick={() => setShowCancelConfirm(false)}
+                type="button"
+              >
+                돌아가기
+              </button>
+              <button
+                className="public-auth-button public-auth-button--primary"
+                onClick={handleConfirmCancel}
+                type="button"
+              >
+                동의 취소하고 로그아웃
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </>
   );
 }

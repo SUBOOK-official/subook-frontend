@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AdminShell from "../components/AdminShell";
 import AdminPagination from "../components/AdminPagination";
+import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
+import NotificationResultModal from "../components/NotificationResultModal";
 import StatusBadge from "@shared-domain/StatusBadge";
 import { notifySettlementDone } from "../lib/adminNotification";
 import { exportRowsToXlsx } from "../lib/excelFile";
@@ -82,6 +84,10 @@ function AdminSettlementsPage() {
   const [busyAction, setBusyAction] = useState("");
   const [toast, setToast] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [exportConfirmOpen, setExportConfirmOpen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [notificationResult, setNotificationResult] = useState(null);
+  const [isRetryingNotifications, setIsRetryingNotifications] = useState(false);
   const requestIdRef = useRef(0);
 
   const selectedRows = useMemo(
@@ -246,60 +252,145 @@ function AdminSettlementsPage() {
     }
 
     const completedRows = Array.isArray(data?.settlements) ? data.settlements : [];
-    await Promise.allSettled(
-      completedRows
-        .filter((row) => row.seller_phone)
-        .map((row) =>
-          notifySettlementDone({
-            sellerPhone: row.seller_phone,
-            sellerName: row.seller_name,
-            sellerUserId: row.seller_user_id,
-            amount: row.net_amount,
-            bankName: row.bank_name || "계좌",
-            accountLast4: row.account_last4,
-            settlementId: row.id,
-          }),
-        ),
+    const notificationTargets = completedRows.filter((row) => row.seller_phone);
+    const notificationOutcomes = await Promise.allSettled(
+      notificationTargets.map((row) =>
+        notifySettlementDone({
+          sellerPhone: row.seller_phone,
+          sellerName: row.seller_name,
+          sellerUserId: row.seller_user_id,
+          amount: row.net_amount,
+          bankName: row.bank_name || "계좌",
+          accountLast4: row.account_last4,
+          settlementId: row.id,
+        }),
+      ),
     );
 
     setBusyAction("");
+
+    const failures = [];
+    let successCount = 0;
+    notificationOutcomes.forEach((outcome, index) => {
+      const row = notificationTargets[index];
+      if (outcome.status === "fulfilled" && outcome.value?.success !== false) {
+        successCount += 1;
+        return;
+      }
+      const error =
+        outcome.status === "rejected"
+          ? outcome.reason?.message ?? "알 수 없는 오류"
+          : outcome.value?.error ?? "알 수 없는 오류";
+      failures.push({
+        id: row.id,
+        label: `${row.seller_name || "이름 미상"} (${row.seller_phone}) — ${formatCurrency(row.net_amount)}`,
+        error,
+        row,
+      });
+    });
 
     const skippedMessage =
       Number(data?.skipped_missing_account_count ?? 0) > 0
         ? ` 계좌 정보가 없는 ${data.skipped_missing_account_count}건은 제외했습니다.`
         : "";
     showToast(`${data?.updated_count ?? 0}건을 정산 완료 처리했습니다.${skippedMessage}`, "success");
+
+    if (failures.length > 0 || notificationTargets.length > 0) {
+      setNotificationResult({ successCount, failures });
+    }
+
     await loadSettlements();
   };
 
-  const exportCurrentRows = async () => {
+  const retryFailedSettlementNotifications = async () => {
+    if (!notificationResult?.failures?.length) return;
+
+    setIsRetryingNotifications(true);
+    const targets = notificationResult.failures;
+
+    const outcomes = await Promise.allSettled(
+      targets.map((failure) =>
+        notifySettlementDone({
+          sellerPhone: failure.row.seller_phone,
+          sellerName: failure.row.seller_name,
+          sellerUserId: failure.row.seller_user_id,
+          amount: failure.row.net_amount,
+          bankName: failure.row.bank_name || "계좌",
+          accountLast4: failure.row.account_last4,
+          settlementId: failure.row.id,
+        }),
+      ),
+    );
+
+    const remainingFailures = [];
+    let extraSuccess = 0;
+    outcomes.forEach((outcome, index) => {
+      const failure = targets[index];
+      if (outcome.status === "fulfilled" && outcome.value?.success !== false) {
+        extraSuccess += 1;
+        return;
+      }
+      const error =
+        outcome.status === "rejected"
+          ? outcome.reason?.message ?? "알 수 없는 오류"
+          : outcome.value?.error ?? "알 수 없는 오류";
+      remainingFailures.push({ ...failure, error });
+    });
+
+    setIsRetryingNotifications(false);
+    setNotificationResult({
+      successCount: (notificationResult.successCount ?? 0) + extraSuccess,
+      failures: remainingFailures,
+    });
+  };
+
+  const exportCurrentRows = () => {
     if (!rows.length) {
       showToast("내보낼 정산 데이터가 없습니다.", "error");
       return;
     }
 
-    const confirmed = window.confirm(
-      "정산 엑셀에는 판매자의 평문 계좌번호와 연락처가 포함됩니다.\n\n" +
-        "・외부 메신저, 이메일, 클라우드에 업로드하거나 공유하지 마세요.\n" +
-        "・송금이 끝나면 즉시 PC에서 파일을 삭제하는 것을 권장합니다.\n\n" +
-        "계속 진행하시겠습니까?",
-    );
-    if (!confirmed) return;
+    setExportConfirmOpen(true);
+  };
 
-    const exportRows = buildExportRows(rows);
-    const columnWidths = [12, 12, 20, 14, 16, 18, 32, 14, 12, 10, 12, 12, 12, 22, 12];
-    const columns = Object.keys(exportRows[0]).map((key, index) => ({
-      key,
-      header: key,
-      width: columnWidths[index],
-    }));
+  const handleExportConfirmed = async (reason) => {
+    setIsExporting(true);
 
-    await exportRowsToXlsx({
-      rows: exportRows,
-      columns,
-      fileName: `subook-settlements-${new Date().toISOString().slice(0, 10)}.xlsx`,
-      sheetName: "settlements",
-    });
+    try {
+      const exportRows = buildExportRows(rows);
+      const columnWidths = [12, 12, 20, 14, 16, 18, 32, 14, 12, 10, 12, 12, 12, 22, 12];
+      const columns = Object.keys(exportRows[0]).map((key, index) => ({
+        key,
+        header: key,
+        width: columnWidths[index],
+      }));
+
+      await exportRowsToXlsx({
+        rows: exportRows,
+        columns,
+        fileName: `subook-settlements-${new Date().toISOString().slice(0, 10)}.xlsx`,
+        sheetName: "settlements",
+      });
+
+      // 다운로드 사유를 로컬 audit log로 남김 (서버 audit RPC 도입 전까지의 임시 흔적)
+      try {
+        // eslint-disable-next-line no-console
+        console.info("[settlement-export]", {
+          at: new Date().toISOString(),
+          rowCount: rows.length,
+          reason,
+        });
+      } catch (_error) {
+        /* noop */
+      }
+
+      showToast(`정산 엑셀 ${rows.length}건을 다운로드했습니다.`, "success");
+    } catch (error) {
+      showToast(error?.message || "엑셀 다운로드에 실패했습니다.", "error");
+    } finally {
+      setIsExporting(false);
+      setExportConfirmOpen(false);
+    }
   };
 
   return (
@@ -522,6 +613,36 @@ function AdminSettlementsPage() {
           {toast.message}
         </div>
       ) : null}
+
+      <NotificationResultModal
+        busy={isRetryingNotifications}
+        failures={notificationResult?.failures ?? []}
+        onClose={() => (isRetryingNotifications ? null : setNotificationResult(null))}
+        onRetry={retryFailedSettlementNotifications}
+        open={Boolean(notificationResult)}
+        successCount={notificationResult?.successCount ?? 0}
+        title="정산 완료 알림톡 발송 결과"
+      />
+
+      <DestructiveConfirmModal
+        busy={isExporting}
+        cancelLabel="취소"
+        confirmLabel="다운로드"
+        confirmPhrase="정산엑셀"
+        description={
+          "정산 엑셀에는 판매자의 평문 계좌번호와 연락처가 포함됩니다.\n\n" +
+          "・외부 메신저, 이메일, 클라우드에 업로드하거나 공유하지 마세요.\n" +
+          "・송금이 끝나면 즉시 PC에서 파일을 삭제해 주세요.\n\n" +
+          `현재 ${rows.length}건이 포함됩니다. 다운로드 사유를 남겨주세요.`
+        }
+        onCancel={() => (isExporting ? null : setExportConfirmOpen(false))}
+        onConfirm={handleExportConfirmed}
+        open={exportConfirmOpen}
+        reasonMinLength={4}
+        reasonPlaceholder="예: 2026-05-19 정기 송금"
+        reasonRequired
+        title="정산 엑셀 다운로드 — 민감정보 포함"
+      />
     </AdminShell>
   );
 }

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useFocusTrap } from "../lib/useFocusTrap";
 
 const MIN_PERCENT = -50;
 const MAX_PERCENT = 50;
@@ -11,6 +12,9 @@ function formatKrw(value) {
 function BulkPriceDeltaModal({ open, books, selectedIds, busy = false, onCancel, onConfirm }) {
   const [percentInput, setPercentInput] = useState("");
   const inputRef = useRef(null);
+  const dialogRef = useRef(null);
+
+  useFocusTrap(dialogRef, open);
 
   useEffect(() => {
     if (open) {
@@ -64,10 +68,14 @@ function BulkPriceDeltaModal({ open, books, selectedIds, busy = false, onCancel,
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4"
       onClick={busy ? undefined : onCancel}
+      role="presentation"
     >
       <div
+        aria-modal="true"
         className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
         onClick={(event) => event.stopPropagation()}
+        ref={dialogRef}
+        role="dialog"
       >
         <h2 className="text-lg font-black text-slate-900">
           일괄 가격 변경 — {selectedBooks.length}권

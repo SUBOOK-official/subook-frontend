@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import AdminShell from "../components/AdminShell";
+import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { formatDate } from "@shared-domain/format";
 
@@ -41,6 +42,8 @@ function AdminNoticesPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [editor, setEditor] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const loadNotices = useCallback(async () => {
     if (!isSupabaseConfigured || !supabase) {
@@ -107,13 +110,20 @@ function AdminNoticesPage() {
     await loadNotices();
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm("이 공지를 삭제하시겠습니까? 되돌릴 수 없습니다.")) return;
-    const { error } = await supabase.rpc("admin_delete_notice", { p_id: id });
+  const handleDelete = (notice) => {
+    setDeleteTarget(notice);
+  };
+
+  const performDelete = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
+    const { error } = await supabase.rpc("admin_delete_notice", { p_id: deleteTarget.id });
+    setIsDeleting(false);
     if (error) {
       setErrorMessage(error.message || "삭제에 실패했습니다.");
       return;
     }
+    setDeleteTarget(null);
     await loadNotices();
   };
 
@@ -184,7 +194,7 @@ function AdminNoticesPage() {
                   </button>
                   <button
                     className="px-3 py-1.5 rounded-lg text-sm text-rose-600 border border-rose-200 hover:bg-rose-50"
-                    onClick={() => handleDelete(row.id)}
+                    onClick={() => handleDelete(row)}
                     type="button"
                   >
                     삭제
@@ -283,6 +293,22 @@ function AdminNoticesPage() {
           </div>
         </div>
       ) : null}
+
+      <DestructiveConfirmModal
+        busy={isDeleting}
+        cancelLabel="취소"
+        confirmLabel="공지 삭제"
+        confirmPhrase="삭제"
+        description={
+          deleteTarget
+            ? `${deleteTarget.title}\n\n· 공개된 공지가 즉시 사라집니다.\n· 이 작업은 되돌릴 수 없습니다.\n· 정말 삭제하려면 아래 문구를 입력하세요.`
+            : ""
+        }
+        onCancel={() => (isDeleting ? null : setDeleteTarget(null))}
+        onConfirm={performDelete}
+        open={Boolean(deleteTarget)}
+        title="공지 삭제"
+      />
     </AdminShell>
   );
 }

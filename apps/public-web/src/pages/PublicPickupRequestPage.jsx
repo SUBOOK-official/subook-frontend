@@ -566,9 +566,11 @@ function StepAddress({ address, setAddress, savedAddresses, onPrev, onNext, show
         <div className="pickup-form-field">
           <label className="pickup-field-label">공동현관 비밀번호 (선택)</label>
           <input
+            autoComplete="off"
             className="pickup-input"
             onChange={(e) => setAddress((p) => ({ ...p, entrance_password: e.target.value }))}
             placeholder="예: #1234*"
+            type="password"
             value={address.entrance_password}
           />
         </div>
@@ -813,7 +815,7 @@ function StepSettlement({ account, setAccount, savedAccounts, policyAgreed, setP
           <p className="pickup-policy-box__heading">정산 안내</p>
           <ul className="pickup-policy-box__list">
             <li>교재 판매 완료 + 구매자 확정 후 3영업일 이내 정산</li>
-            <li>유효 판매 수량 10권 미만 시 초기 수거 배송비 3,500원 차감</li>
+            <li>검수 통과 20권 미만 시 초기 수거 배송비 3,500원 차감</li>
           </ul>
         </div>
       </div>

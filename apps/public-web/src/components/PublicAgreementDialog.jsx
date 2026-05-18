@@ -1,7 +1,12 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { useFocusTrap } from "../lib/useFocusTrap";
 
 function PublicAgreementDialog({ documentItem, onClose, open }) {
+  const dialogRef = useRef(null);
+
+  useFocusTrap(dialogRef, open && Boolean(documentItem));
+
   useEffect(() => {
     if (!open) {
       return undefined;
@@ -35,6 +40,7 @@ function PublicAgreementDialog({ documentItem, onClose, open }) {
         aria-modal="true"
         className="public-sheet"
         onClick={(event) => event.stopPropagation()}
+        ref={dialogRef}
         role="dialog"
       >
         <div className="public-sheet__drag-handle" />

@@ -491,12 +491,12 @@ function PublicOrderPage() {
                       disabled={!method.available}
                       key={method.id}
                       onClick={() => handlePaymentSelect(method.id)}
-                      title={!method.available ? "사업자 등록 완료 후 오픈 예정입니다." : undefined}
+                      title={!method.available ? "준비 중인 결제 수단입니다." : undefined}
                       type="button"
                     >
                       <span className="order-payment-btn__label">{method.label}</span>
                       {!method.available && (
-                        <span className="order-payment-btn__badge">추후 오픈</span>
+                        <span className="order-payment-btn__badge">준비 중</span>
                       )}
                     </button>
                   ))}
@@ -507,12 +507,10 @@ function PublicOrderPage() {
 
                 {paymentMethod === "bank_transfer" && (
                   <div className="order-bank-info">
-                    <p className="order-bank-info__title">입금 계좌 안내</p>
-                    <p className="order-bank-info__account">카카오뱅크 3333-36-3268506</p>
-                    <p className="order-bank-info__holder">예금주: 박영제</p>
+                    <p className="order-bank-info__title">계좌이체로 결제하기</p>
                     <p className="order-bank-info__notice">
-                      주문 후 24시간 이내 입금해주세요. 미입금 시 자동 취소됩니다.<br />
-                      <strong>입금자명: 본인 성함 + 주문번호 마지막 4자리</strong> (예: 홍길동1234) — 매칭이 빨라집니다.
+                      <strong>주문 완료 후</strong> 입금 계좌·금액·입금자명을 안내해드립니다.<br />
+                      안내된 입금자명(본인 성함 + 주문번호 마지막 4자리)으로 24시간 이내 입금해주세요.
                     </p>
                   </div>
                 )}
