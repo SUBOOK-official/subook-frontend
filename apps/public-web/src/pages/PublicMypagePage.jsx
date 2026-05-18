@@ -2423,7 +2423,7 @@ function PurchasesView({
                         onClick={() => handleReorder(item)}
                         type="button"
                       >
-                        재구매
+                        같은 교재 다시 찾기
                       </button>
                       {order.canCancel ? (
                         <button

@@ -166,6 +166,11 @@ function PublicForgotPasswordPage() {
                     <p className="public-auth-state-card__description">
                       <strong>{submittedEmail}</strong> 메일함을 확인해주세요.
                     </p>
+                    <p className="public-auth-state-card__hint">
+                      메일이 도착하지 않는다면 스팸함을 확인하고, 가입 시 입력한 이름과
+                      이메일이 모두 정확한지 확인해 주세요. 5분 이내 도착하지 않으면
+                      고객센터(subook2025@gmail.com)로 문의해 주세요.
+                    </p>
                   </div>
                 </div>
 

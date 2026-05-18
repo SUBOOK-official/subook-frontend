@@ -398,8 +398,11 @@ function PublicSignupPage() {
           email: "이미 가입된 이메일입니다.",
         }));
       } else if (rawMessage.includes("database error saving new user")) {
+        // 내부 마이그레이션 상태 노출은 운영팀 콘솔/Sentry에만 남기고
+        // 사용자에게는 안전한 일반 메시지만 표시한다.
+        console.warn("[signup] member_profiles 트리거/스키마 적용 상태 확인 필요:", rawMessage);
         setToastState({
-          message: "회원가입 저장 중 서버 설정 오류가 발생했습니다. Supabase 마이그레이션 적용 상태를 확인해 주세요.",
+          message: "회원가입을 진행할 수 없습니다. 잠시 후 다시 시도하거나 고객센터(subook2025@gmail.com)로 문의해 주세요.",
           tone: "error",
         });
       } else {

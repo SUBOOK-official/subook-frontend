@@ -114,6 +114,7 @@ function PublicOrderPage() {
   const [selectedAddressId, setSelectedAddressId] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState("bank_transfer");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [agreementChecked, setAgreementChecked] = useState(false);
   const inFlightRef = useRef(false); // 더블 클릭으로 RPC 두 번 발사 방지 (state 비동기 보완)
   const [toast, setToast] = useState(null);
   // 쿠폰
@@ -362,7 +363,7 @@ function PublicOrderPage() {
           {priceDriftWarning ? (
             <div className="order-drift-warning" role="alert">
               <strong>주문 정보가 변경되었습니다.</strong>
-              <pre className="order-drift-warning__detail">{priceDriftWarning}</pre>
+              <div className="order-drift-warning__detail">{priceDriftWarning}</div>
               <button
                 type="button"
                 className="order-drift-warning__close"
@@ -579,18 +580,25 @@ function PublicOrderPage() {
                   <span>{formatCurrency(totalAmount)}</span>
                 </div>
 
+                <label className="order-sidebar__agreement-check">
+                  <input
+                    checked={agreementChecked}
+                    onChange={(e) => setAgreementChecked(e.target.checked)}
+                    type="checkbox"
+                  />
+                  <span>
+                    <strong>[필수]</strong> 주문 내용과 개인정보 제공·결제 진행에 동의합니다.
+                  </span>
+                </label>
+
                 <button
                   className="order-sidebar__submit-btn"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || !agreementChecked}
                   onClick={handleSubmit}
                   type="button"
                 >
                   {isSubmitting ? "주문 처리 중…" : `${formatCurrency(totalAmount)} 결제하기`}
                 </button>
-
-                <p className="order-sidebar__agreement">
-                  주문 내용을 확인했으며, 결제에 동의합니다.
-                </p>
               </div>
             </div>
           </div>

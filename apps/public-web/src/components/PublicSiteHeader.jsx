@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import ContentContainer from "./ContentContainer";
 import searchIconImage from "../assets/search-icon.svg";
 import { supabase } from "@shared-supabase/publicSupabaseClient";
@@ -10,12 +10,13 @@ import { createDisplayName } from "../lib/memberPortal";
 
 function PublicSiteHeader({ onCartClick, searchSlot }) {
   const navigate = useNavigate();
-  const location = useLocation();
   const { isAuthenticated, profile, user, signOut } = usePublicAuth();
   const { favoriteCount } = usePublicWishlist();
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
 
-  // 안 읽은 알림 카운트 폴링 (mount + 60s + 라우트 변경)
+  // 안 읽은 알림 카운트 폴링.
+  // - 라우트 변경 시 매번 fetch하면 페이지 이동마다 RPC가 호출되어 Supabase 비용 증가.
+  // - 인증 상태가 바뀔 때만 새 interval을 설정하고, 폴링 주기를 120초로 늘려 트래픽 절반으로.
   useEffect(() => {
     if (!isAuthenticated || !supabase) {
       setUnreadNotifCount(0);
@@ -28,12 +29,12 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
       setUnreadNotifCount(Number(data) || 0);
     };
     void fetchCount();
-    const interval = window.setInterval(fetchCount, 60_000);
+    const interval = window.setInterval(fetchCount, 120_000);
     return () => {
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [isAuthenticated, location.pathname]);
+  }, [isAuthenticated]);
 
   const handleWishlistClick = (event) => {
     if (!isAuthenticated) {

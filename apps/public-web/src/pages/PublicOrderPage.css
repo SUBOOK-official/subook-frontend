@@ -456,6 +456,31 @@
   margin-top: 10px;
 }
 
+.order-sidebar__agreement-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--public-ds-text);
+  cursor: pointer;
+}
+
+.order-sidebar__agreement-check input[type="checkbox"] {
+  margin-top: 2px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.order-sidebar__agreement-check strong {
+  color: #c2410c;
+}
+
 /* ── Toast ── */
 .order-toast {
   position: fixed;
@@ -762,6 +787,8 @@
   font-size: 13px;
   color: #92400e;
   white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
   font-family: inherit;
 }
 

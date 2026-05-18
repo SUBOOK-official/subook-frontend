@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import ContentContainer from "../ContentContainer";
 
-const AUTO_ROTATION_MS = 3000;
+// WCAG 2.2.2: 자동 회전은 사용자가 한 슬라이드를 읽을 충분한 시간이 필요.
+// 첫 인상 슬라이드로 3초는 짧아 텍스트를 읽기 전에 사라지는 사례가 있어 5초로 늘림.
+const AUTO_ROTATION_MS = 5000;
 const INTERACTION_PAUSE_MS = 10000;
 const SWIPE_THRESHOLD_PX = 50;
 

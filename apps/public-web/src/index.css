@@ -4368,6 +4368,16 @@ img {
   line-height: 1.6;
 }
 
+.public-auth-state-card__hint {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--public-ds-surface-2, #f8fafc);
+  color: var(--public-ds-text-secondary);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
 .public-auth-state-card__actions {
   display: flex;
   flex-wrap: wrap;
