@@ -38,6 +38,15 @@ function AdminPagination({ currentPage, totalCount, pageSize, isLoading = false,
   return (
     <nav aria-label="페이지 이동" className="flex items-center justify-center gap-1 pt-2">
       <button
+        aria-label="첫 페이지로"
+        className="btn-secondary !w-auto !px-2 !py-2 text-xs"
+        disabled={currentPage === 1 || isLoading}
+        onClick={() => goTo(1)}
+        type="button"
+      >
+        «
+      </button>
+      <button
         className="btn-secondary !w-auto !px-3 !py-2 text-xs"
         disabled={currentPage === 1 || isLoading}
         onClick={() => goTo(currentPage - 1)}
@@ -76,6 +85,15 @@ function AdminPagination({ currentPage, totalCount, pageSize, isLoading = false,
         type="button"
       >
         다음
+      </button>
+      <button
+        aria-label="마지막 페이지로"
+        className="btn-secondary !w-auto !px-2 !py-2 text-xs"
+        disabled={currentPage === totalPages || isLoading}
+        onClick={() => goTo(totalPages)}
+        type="button"
+      >
+        »
       </button>
     </nav>
   );

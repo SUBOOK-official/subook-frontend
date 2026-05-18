@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 
-const POLL_INTERVAL_MS = 60_000;
+// 30초 폴링. Realtime channel 도입은 코드량이 많아 일단 폴링 간격만 단축.
+// TODO: 추후 supabase.channel("admin-badges")로 INSERT/UPDATE 이벤트 구독으로 전환 검토.
+const POLL_INTERVAL_MS = 30_000;
 
 const EMPTY_COUNTS = {
   pickups: 0,

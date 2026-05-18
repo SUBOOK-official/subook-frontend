@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import AdminDialog from "../components/AdminDialog";
 import AdminShell from "../components/AdminShell";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
@@ -88,6 +89,22 @@ function AdminNoticesPage() {
     });
 
   const closeEditor = () => setEditor(null);
+
+  const editorDirty = useMemo(() => {
+    if (!editor) return false;
+    const baseline = editor.id ? notices.find((n) => n.id === editor.id) : null;
+    if (baseline) {
+      return (
+        editor.title !== baseline.title ||
+        editor.body !== baseline.body ||
+        Boolean(editor.is_pinned) !== Boolean(baseline.is_pinned) ||
+        Boolean(editor.is_published) !== Boolean(baseline.is_published) ||
+        editor.published_at !== toLocalInput(baseline.published_at) ||
+        editor.expires_at !== toLocalInput(baseline.expires_at)
+      );
+    }
+    return Boolean(editor.title?.trim() || editor.body?.trim() || editor.expires_at);
+  }, [editor, notices]);
 
   const handleSave = async () => {
     if (!editor) return;
@@ -206,16 +223,15 @@ function AdminNoticesPage() {
         </div>
       )}
 
-      {editor ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={closeEditor}>
-          <div
-            className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 p-6 space-y-4 max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-lg font-black text-slate-900">
-              {editor.id ? "공지 편집" : "공지 추가"}
-            </h3>
-
+      <AdminDialog
+        busy={isSaving}
+        dirty={editorDirty}
+        onClose={closeEditor}
+        open={Boolean(editor)}
+        title={editor?.id ? "공지 편집" : "공지 추가"}
+      >
+        {editor ? (
+          <div className="space-y-4 p-6">
             <div>
               <label className="text-xs font-semibold text-slate-600 block mb-1.5">제목 *</label>
               <input
@@ -291,8 +307,8 @@ function AdminNoticesPage() {
               </button>
             </div>
           </div>
-        </div>
-      ) : null}
+        ) : null}
+      </AdminDialog>
 
       <DestructiveConfirmModal
         busy={isDeleting}

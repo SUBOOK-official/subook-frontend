@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import AdminDialog from "../components/AdminDialog";
 import AdminShell from "../components/AdminShell";
 import AdminPagination from "../components/AdminPagination";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
@@ -154,11 +155,11 @@ function AdminProductMastersPage() {
       setDestructiveModal({
         title: `상품 일괄 삭제 — ${ids.length}건`,
         description:
-          `선택한 ${ids.length}개 상품을 삭제합니다.\n\n` +
+          `선택 ${ids.length}개 상품을 삭제합니다.\n\n` +
           `· 연결된 책이 있는 상품은 자동 skip됩니다.\n` +
           `· 이미 등록된 주문 이력에는 영향이 없습니다.\n\n` +
           `이 작업은 되돌릴 수 없습니다.`,
-        confirmPhrase: String(ids.length),
+        confirmPhrase: "삭제",
         reasonRequired: false,
         confirmLabel: `${ids.length}건 삭제`,
         run: async () => {
@@ -172,13 +173,13 @@ function AdminProductMastersPage() {
     setDestructiveModal({
       title: `${ids.length}개 상품 상태 일괄 변경 — '${label}'`,
       description:
-        `선택한 ${ids.length}개 상품을 '${label}' 상태로 일괄 변경합니다.\n\n` +
+        `선택 ${ids.length}개 상품을 '${label}' 상태로 일괄 변경합니다.\n\n` +
         (action === "selling"
           ? `· 즉시 스토어에 노출됩니다.\n· 검수가 완료되지 않은 상품이 공개되면 클레임이 발생할 수 있습니다.`
           : action === "sold_out"
             ? `· 즉시 '품절' 표시로 전환됩니다. 진행 중인 장바구니에 영향이 있을 수 있습니다.`
             : `· 즉시 스토어에서 숨김 처리됩니다.`),
-      confirmPhrase: String(ids.length),
+      confirmPhrase: action,
       reasonRequired: false,
       confirmLabel: `${ids.length}건 ${label}`,
       run: async () => {
@@ -670,12 +671,22 @@ function AdminProductMastersPage() {
       </div>
 
       {/* 새 상품 모달 */}
-      {isCreateOpen ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/50 p-4">
-          <form
-            onSubmit={handleCreateSubmit}
-            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-6 shadow-xl"
-          >
+      <AdminDialog
+        busy={isCreating || isUploadingImage}
+        dirty={Boolean(
+          createForm.title.trim() ||
+            createForm.subject ||
+            createForm.brand ||
+            createForm.book_type ||
+            createForm.option ||
+            createForm.cover_image_url,
+        )}
+        onClose={closeCreate}
+        open={isCreateOpen}
+        size="lg"
+      >
+        {isCreateOpen ? (
+          <form onSubmit={handleCreateSubmit} className="p-6">
             <header className="mb-4 flex items-center justify-between">
               <h2 className="text-xl font-black text-slate-900">새 상품 등록</h2>
               <button
@@ -852,13 +863,18 @@ function AdminProductMastersPage() {
               </button>
             </footer>
           </form>
-        </div>
-      ) : null}
+        ) : null}
+      </AdminDialog>
 
       {/* 상세 모달 */}
-      {detailTarget ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/50 p-4">
-          <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-lg bg-white shadow-xl">
+      <AdminDialog
+        bodyClassName="!p-0"
+        onClose={closeDetail}
+        open={Boolean(detailTarget)}
+        size="xl"
+      >
+        {detailTarget ? (
+          <>
             <header className="sticky top-0 flex items-start justify-between gap-4 border-b border-slate-200 bg-white p-6">
               <div className="flex items-start gap-4 min-w-0">
                 <div className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-md border border-slate-200 bg-slate-100">
@@ -959,9 +975,9 @@ function AdminProductMastersPage() {
                 </table>
               )}
             </div>
-          </div>
-        </div>
-      ) : null}
+          </>
+        ) : null}
+      </AdminDialog>
 
       {toast ? (
         <div

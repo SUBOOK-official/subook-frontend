@@ -51,24 +51,32 @@ function maskAccountNumber(accountNumber, accountLast4) {
   return `****-****-${last4}`;
 }
 
-function buildExportRows(rows) {
-  return rows.map((row) => ({
-    상태: getStatusLabel(row.status),
-    예정일: row.scheduled_date ?? "",
-    완료일: row.completed_at ?? "",
-    판매자: row.seller_name ?? "",
-    연락처: row.seller_phone ?? "",
-    주문번호: row.order_number ?? "",
-    교재명: row.book_title ?? "",
-    옵션: row.book_option ?? "",
-    판매가: row.sale_amount ?? 0,
-    수수료율: formatFeePercent(row.fee_percent),
-    수수료: row.fee_amount ?? 0,
-    정산금액: row.net_amount ?? 0,
-    은행: row.bank_name ?? "",
-    계좌번호: row.account_number ?? "",
-    예금주: row.account_holder ?? "",
-  }));
+function buildExportRows(rows, { plain = false } = {}) {
+  return rows.map((row) => {
+    const last4 = String(row.account_last4 ?? "").trim() || String(row.account_number ?? "").replace(/[^0-9]/g, "").slice(-4);
+    const accountValue = plain
+      ? row.account_number ?? ""
+      : last4
+        ? `****-${last4}`
+        : "(계좌 미등록)";
+    return {
+      상태: getStatusLabel(row.status),
+      예정일: row.scheduled_date ?? "",
+      완료일: row.completed_at ?? "",
+      판매자: row.seller_name ?? "",
+      연락처: row.seller_phone ?? "",
+      주문번호: row.order_number ?? "",
+      교재명: row.book_title ?? "",
+      옵션: row.book_option ?? "",
+      판매가: row.sale_amount ?? 0,
+      수수료율: formatFeePercent(row.fee_percent),
+      수수료: row.fee_amount ?? 0,
+      정산금액: row.net_amount ?? 0,
+      은행: row.bank_name ?? "",
+      계좌번호: accountValue,
+      예금주: row.account_holder ?? "",
+    };
+  });
 }
 
 function AdminSettlementsPage() {
@@ -85,6 +93,9 @@ function AdminSettlementsPage() {
   const [toast, setToast] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [exportConfirmOpen, setExportConfirmOpen] = useState(false);
+  // 평문 계좌번호 포함 여부 — 디폴트 OFF(마스킹). 운영자가 명시적으로 토글해야 풀린다.
+  const [exportPlainAccount, setExportPlainAccount] = useState(false);
+  const [exportPlainConfirmOpen, setExportPlainConfirmOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [notificationResult, setNotificationResult] = useState(null);
   const [isRetryingNotifications, setIsRetryingNotifications] = useState(false);
@@ -349,7 +360,11 @@ function AdminSettlementsPage() {
       showToast("내보낼 정산 데이터가 없습니다.", "error");
       return;
     }
-
+    // 평문 옵션이 켜져 있으면 한 번 더 명시적 confirm을 요구한다.
+    if (exportPlainAccount) {
+      setExportPlainConfirmOpen(true);
+      return;
+    }
     setExportConfirmOpen(true);
   };
 
@@ -357,7 +372,8 @@ function AdminSettlementsPage() {
     setIsExporting(true);
 
     try {
-      const exportRows = buildExportRows(rows);
+      const isPlain = exportPlainAccount;
+      const exportRows = buildExportRows(rows, { plain: isPlain });
       const columnWidths = [12, 12, 20, 14, 16, 18, 32, 14, 12, 10, 12, 12, 12, 22, 12];
       const columns = Object.keys(exportRows[0]).map((key, index) => ({
         key,
@@ -365,26 +381,58 @@ function AdminSettlementsPage() {
         width: columnWidths[index],
       }));
 
+      // 다운로더 식별자(이메일 prefix) — 파일명에 포함하여 추후 누가 받았는지 추적
+      const { data: { user } = {} } = await supabase.auth.getUser();
+      const adminEmail = user?.email ?? "unknown";
+      const adminTag = adminEmail.split("@")[0].replace(/[^a-zA-Z0-9-_]/g, "").slice(0, 16) || "anon";
+      const nowIso = new Date().toISOString();
+      const stamp = nowIso.replace(/[:.]/g, "-").slice(0, 19);
+      const maskTag = isPlain ? "plain" : "masked";
+      const fileName = `subook-settlements-${stamp}-${adminTag}-${maskTag}.xlsx`;
+
       await exportRowsToXlsx({
         rows: exportRows,
         columns,
-        fileName: `subook-settlements-${new Date().toISOString().slice(0, 10)}.xlsx`,
+        fileName,
         sheetName: "settlements",
       });
 
-      // 다운로드 사유를 로컬 audit log로 남김 (서버 audit RPC 도입 전까지의 임시 흔적)
+      // 서버 audit log RPC (없으면 fallback to console)
       try {
+        const { error: auditError } = await supabase.rpc("admin_log_settlement_export", {
+          p_reason: reason ?? null,
+          p_row_count: rows.length,
+          p_plain_account: isPlain,
+        });
+        if (auditError) {
+          // RPC 미존재 — 클라이언트 로그만 남김
+          // eslint-disable-next-line no-console
+          console.info("[settlement-export]", {
+            at: nowIso,
+            row_count: rows.length,
+            reason,
+            plain_account: isPlain,
+            admin_email: adminEmail,
+            audit_rpc_error: auditError.message,
+          });
+        }
+      } catch (_error) {
+        // TODO(backend): admin_log_settlement_export(p_reason text, p_row_count int, p_plain_account bool)
+        // RPC가 admin_users만 접근하는 audit 테이블에 insert.
         // eslint-disable-next-line no-console
         console.info("[settlement-export]", {
-          at: new Date().toISOString(),
-          rowCount: rows.length,
+          at: nowIso,
+          row_count: rows.length,
           reason,
+          plain_account: isPlain,
+          admin_email: adminEmail,
         });
-      } catch (_error) {
-        /* noop */
       }
 
-      showToast(`정산 엑셀 ${rows.length}건을 다운로드했습니다.`, "success");
+      showToast(
+        `정산 엑셀 ${rows.length}건을 다운로드했습니다.${isPlain ? " (평문 계좌 포함)" : ""}`,
+        "success",
+      );
     } catch (error) {
       showToast(error?.message || "엑셀 다운로드에 실패했습니다.", "error");
     } finally {
@@ -397,13 +445,23 @@ function AdminSettlementsPage() {
     <AdminShell
       activeModule="settlements"
       actions={
-        <button
-          className="btn-secondary !w-auto !px-3 !py-2 text-xs"
-          onClick={exportCurrentRows}
-          type="button"
-        >
-          XLSX 내보내기
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="flex items-center gap-1.5 rounded-md border border-rose-200 bg-rose-50 px-2 py-1.5 text-[11px] font-bold text-rose-700">
+            <input
+              checked={exportPlainAccount}
+              onChange={(event) => setExportPlainAccount(event.target.checked)}
+              type="checkbox"
+            />
+            평문 계좌
+          </label>
+          <button
+            className="btn-secondary !w-auto !px-3 !py-2 text-xs"
+            onClick={exportCurrentRows}
+            type="button"
+          >
+            XLSX 내보내기
+          </button>
+        </div>
       }
       description="구매확정 후 자동 생성된 정산 예정건을 승인하고 지급 완료까지 처리합니다."
       summaryCards={summaryCards}
@@ -492,7 +550,12 @@ function AdminSettlementsPage() {
         {isLoading ? (
           <div className="p-8 text-center text-sm font-semibold text-slate-400">정산 목록을 불러오는 중...</div>
         ) : rows.length === 0 ? (
-          <div className="p-8 text-center text-sm font-semibold text-slate-400">정산 데이터가 없습니다.</div>
+          <div className="p-8 text-center text-sm font-semibold text-slate-400">
+            정산 데이터가 없습니다.
+            <p className="mt-1 text-xs font-normal text-slate-400">
+              권한 문제가 의심되면 시스템 관리자에게 문의해 주세요.
+            </p>
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1160px] text-sm">
@@ -630,7 +693,8 @@ function AdminSettlementsPage() {
         confirmLabel="다운로드"
         confirmPhrase="정산엑셀"
         description={
-          "정산 엑셀에는 판매자의 평문 계좌번호와 연락처가 포함됩니다.\n\n" +
+          `정산 엑셀(${exportPlainAccount ? "평문 계좌 포함" : "계좌 마스킹"}) 다운로드입니다.\n\n` +
+          "・판매자 연락처가 포함됩니다.\n" +
           "・외부 메신저, 이메일, 클라우드에 업로드하거나 공유하지 마세요.\n" +
           "・송금이 끝나면 즉시 PC에서 파일을 삭제해 주세요.\n\n" +
           `현재 ${rows.length}건이 포함됩니다. 다운로드 사유를 남겨주세요.`
@@ -642,6 +706,30 @@ function AdminSettlementsPage() {
         reasonPlaceholder="예: 2026-05-19 정기 송금"
         reasonRequired
         title="정산 엑셀 다운로드 — 민감정보 포함"
+      />
+
+      <DestructiveConfirmModal
+        busy={isExporting}
+        cancelLabel="취소"
+        confirmLabel="평문 다운로드"
+        confirmPhrase="평문계좌"
+        description={
+          "평문 계좌번호가 포함된 정산 엑셀을 다운로드합니다.\n\n" +
+          "・평문 계좌번호는 유출 시 직접적인 금융 사고로 이어질 수 있습니다.\n" +
+          "・다운로드 사실은 audit log에 남고, 파일명에 다운로더 이메일이 박힙니다.\n" +
+          "・송금 외 용도로 보관/전송 시 보안 책임이 운영자에게 있습니다.\n\n" +
+          "정말 평문 계좌번호 포함으로 다운로드하시겠습니까?"
+        }
+        onCancel={() => (isExporting ? null : setExportPlainConfirmOpen(false))}
+        onConfirm={() => {
+          setExportPlainConfirmOpen(false);
+          setExportConfirmOpen(true);
+        }}
+        open={exportPlainConfirmOpen}
+        reasonMinLength={6}
+        reasonPlaceholder="예) 정기 송금 외 비상황 — 보안 책임 확인"
+        reasonRequired
+        title="평문 계좌번호 다운로드 — 최종 확인"
       />
     </AdminShell>
   );

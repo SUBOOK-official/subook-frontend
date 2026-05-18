@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import AdminDialog from "../components/AdminDialog";
 import AdminShell from "../components/AdminShell";
 import AdminPagination from "../components/AdminPagination";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
@@ -65,6 +66,24 @@ function getStatusLabel(status) {
   return ORDER_STATUS_OPTIONS.find((o) => o.value === status)?.label ?? status;
 }
 
+// 택배사별 송장번호 패턴 검증.
+// CJ대한통운: 10~12자리 숫자 (12자리가 신규 표준이지만 10자리 구건도 호환)
+// 한진택배: 10~12자리 숫자
+// 롯데/우체국/로젠: 10~13자리 숫자 (택배사별 자릿수 변형 허용)
+const TRACKING_PATTERNS = {
+  CJ대한통운: /^\d{10,12}$/,
+  한진택배: /^\d{10,12}$/,
+  롯데택배: /^\d{10,13}$/,
+  우체국택배: /^\d{10,13}$/,
+  로젠택배: /^\d{10,13}$/,
+};
+
+function validateTrackingNumber(carrier, trackingNumber) {
+  const cleaned = String(trackingNumber ?? "").replace(/[\s-]/g, "");
+  const pattern = TRACKING_PATTERNS[carrier] ?? /^\d{8,16}$/;
+  return pattern.test(cleaned);
+}
+
 function parseCsvText(text) {
   const lines = text.trim().split("\n").filter(Boolean);
   const rows = [];
@@ -72,11 +91,17 @@ function parseCsvText(text) {
     const parts = lines[i].split(",").map((s) => s.trim().replace(/^["']|["']$/g, ""));
     if (parts.length < 2) continue;
     // 형식: 주문번호, 택배사, 송장번호 또는 주문번호, 송장번호
+    let row;
     if (parts.length >= 3) {
-      rows.push({ orderNumber: parts[0], carrier: parts[1], trackingNumber: parts[2] });
+      row = { orderNumber: parts[0], carrier: parts[1], trackingNumber: parts[2] };
     } else {
-      rows.push({ orderNumber: parts[0], carrier: "CJ대한통운", trackingNumber: parts[1] });
+      row = { orderNumber: parts[0], carrier: "CJ대한통운", trackingNumber: parts[1] };
     }
+    row.isValid = validateTrackingNumber(row.carrier, row.trackingNumber);
+    row.validationError = row.isValid
+      ? ""
+      : `송장번호 형식 오류 (${row.carrier}: ${TRACKING_PATTERNS[row.carrier]?.source ?? "10~12자리 숫자"})`;
+    rows.push(row);
   }
   return rows;
 }
@@ -157,7 +182,7 @@ function AdminOrdersPage() {
           `선택한 ${ids.length}건의 주문을 '상품 준비 중'으로 일괄 전환합니다.\n` +
           `(paid 상태만 처리되고, 다른 상태는 자동 skip됩니다.)\n\n` +
           `셀러·구매자에게 발송 시작 알림으로 이어질 수 있으므로 잘못된 일괄 변경에 주의하세요.`,
-        confirmPhrase: String(ids.length),
+        confirmPhrase: "상품준비",
         reasonRequired: false,
         confirmLabel: `${ids.length}건 전환`,
         run: async () => {
@@ -174,7 +199,7 @@ function AdminOrdersPage() {
           `선택한 ${ids.length}건의 주문을 일괄 취소합니다.\n` +
           `(pending/paid/preparing 상태의 주문만 처리됩니다.)\n\n` +
           `이 작업은 되돌릴 수 없습니다.`,
-        confirmPhrase: String(ids.length),
+        confirmPhrase: "취소",
         reasonRequired: false,
         confirmLabel: `${ids.length}건 취소`,
         run: async () => {
@@ -238,10 +263,7 @@ function AdminOrdersPage() {
     if (fromDate) params.p_from_date = fromDate;
     if (toDate) params.p_to_date = toDate;
 
-    const [ordersResult, summaryResult] = await Promise.all([
-      supabase.rpc("list_admin_orders", params),
-      supabase.rpc("get_admin_order_summary"),
-    ]);
+    const ordersResult = await supabase.rpc("list_admin_orders", params);
 
     if (currentRequestId !== requestIdRef.current) return;
 
@@ -259,12 +281,19 @@ function AdminOrdersPage() {
         setTotalCount(0);
       }
     }
-    if (!summaryResult.error && summaryResult.data) {
-      setSummary(summaryResult.data);
-    }
 
     setIsLoading(false);
   }, [search, statusFilters, fromDate, toDate, currentPage]);
+
+  // summary는 filter/page와 무관하게 별도 fetch — 검색 키 입력마다 호출되지 않도록 분리.
+  // 일괄 처리/상태 변경 후 명시적으로 호출하지 않고, orders 로드 직후에만 동기화.
+  const loadSummary = useCallback(async () => {
+    if (!isSupabaseConfigured || !supabase) return;
+    const { data, error } = await supabase.rpc("get_admin_order_summary");
+    if (!error && data) {
+      setSummary(data);
+    }
+  }, []);
 
   useEffect(() => {
     const timerId = setTimeout(() => {
@@ -272,6 +301,17 @@ function AdminOrdersPage() {
     }, 200);
     return () => clearTimeout(timerId);
   }, [loadOrders]);
+
+  // summary는 최초 마운트와 일정 간격(30초)으로만 갱신 — 검색 키 입력 때마다 호출 X.
+  useEffect(() => {
+    void loadSummary();
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void loadSummary();
+      }
+    }, 30_000);
+    return () => window.clearInterval(intervalId);
+  }, [loadSummary]);
 
   const handleStatusFilterToggle = (value) => {
     setStatusFilters((prev) =>
@@ -448,12 +488,45 @@ function AdminOrdersPage() {
     reader.readAsText(file, "UTF-8");
   };
 
-  const handleCsvBulkProcess = async () => {
+  // 검증 통과 행만 처리. 알림톡 발송 전 모달로 한 번 더 확인.
+  const handleCsvBulkProcess = () => {
     if (csvRows.length === 0) return;
+    const validRows = csvRows.filter((r) => r.isValid !== false);
+    if (validRows.length === 0) {
+      showToast("검증 통과한 송장이 없습니다. 형식을 확인해주세요.", "error");
+      return;
+    }
+
+    setDestructiveModal({
+      title: `송장 일괄 발송 — ${validRows.length}건`,
+      description:
+        `검증 통과한 ${validRows.length}건의 송장을 일괄 처리합니다.\n` +
+        `각 주문 구매자에게 배송 시작 알림톡이 발송됩니다.\n\n` +
+        (csvRows.length - validRows.length > 0
+          ? `검증 실패 ${csvRows.length - validRows.length}건은 자동 skip됩니다.\n`
+          : "") +
+        `진행하시겠습니까?`,
+      confirmPhrase: "발송",
+      reasonRequired: false,
+      confirmLabel: `${validRows.length}건 처리`,
+      run: async () => {
+        await performCsvBulkProcess(validRows);
+      },
+    });
+  };
+
+  const performCsvBulkProcess = async (validRows) => {
     setCsvProcessing(true);
 
     const results = [];
+    // 검증 실패 행도 결과에 미리 포함 (스킵 사유)
     for (const row of csvRows) {
+      if (row.isValid === false) {
+        results.push({ ...row, success: false, message: row.validationError || "검증 실패" });
+      }
+    }
+
+    for (const row of validRows) {
       // 현재 페이지 메모리에 없는 주문도 처리 가능하도록 supabase에서 직접 조회
       let order = orders.find((o) => o.order_number === row.orderNumber);
       if (!order) {
@@ -643,7 +716,12 @@ function AdminOrdersPage() {
         {isLoading ? (
           <div className="p-8 text-center text-sm text-slate-400">불러오는 중...</div>
         ) : orders.length === 0 ? (
-          <div className="p-8 text-center text-sm text-slate-400">주문이 없습니다.</div>
+          <div className="p-8 text-center text-sm text-slate-400">
+            주문이 없습니다.
+            <p className="mt-1 text-xs text-slate-400">
+              권한 문제가 의심되면 시스템 관리자에게 문의해 주세요.
+            </p>
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -896,13 +974,16 @@ function AdminOrdersPage() {
       )}
 
       {/* 입금확인 모달 (금액 검증) */}
-      {paymentModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={closePaymentModal}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6 space-y-5" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-black text-slate-950">
-              입금확인 — {paymentModal.order_number}
-            </h3>
-
+      <AdminDialog
+        busy={paymentModal ? busyOrderId === paymentModal.id : false}
+        dirty={Boolean(paymentInput.trim())}
+        onClose={closePaymentModal}
+        open={Boolean(paymentModal)}
+        size="md"
+        title={paymentModal ? `입금확인 — ${paymentModal.order_number}` : ""}
+      >
+        {paymentModal ? (
+          <div className="p-6 space-y-5">
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-slate-500">주문 금액</span>
@@ -952,17 +1033,26 @@ function AdminOrdersPage() {
               </button>
             </div>
           </div>
-        </div>
-      )}
+        ) : null}
+      </AdminDialog>
 
-      {/* 송장 입력 모달 */}
-      {trackingModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={closeTrackingModal}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6 space-y-5" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-black text-slate-950">
-              송장 입력 — {trackingModal.order_number}
-            </h3>
-
+      {/* 송장 입력 모달 — form 으로 감싸 Enter 키로도 제출 가능 */}
+      <AdminDialog
+        busy={trackingModal ? busyOrderId === trackingModal.id : false}
+        dirty={Boolean(trackingInput.trim())}
+        onClose={closeTrackingModal}
+        open={Boolean(trackingModal)}
+        size="md"
+        title={trackingModal ? `송장 입력 — ${trackingModal.order_number}` : ""}
+      >
+        {trackingModal ? (
+          <form
+            className="p-6 space-y-5"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void handleTrackingSubmit();
+            }}
+          >
             <div className="space-y-4">
               <div>
                 <label className="text-xs font-semibold text-slate-600 block mb-1.5">택배사 *</label>
@@ -983,7 +1073,7 @@ function AdminOrdersPage() {
                   autoFocus
                   className="input-base"
                   onChange={(e) => setTrackingInput(e.target.value)}
-                  placeholder="송장번호를 입력하세요"
+                  placeholder="송장번호를 입력하세요 (Enter로 제출)"
                   type="text"
                   value={trackingInput}
                 />
@@ -1001,22 +1091,26 @@ function AdminOrdersPage() {
               <button
                 className="btn-primary !w-auto !px-5 !py-2.5 text-sm"
                 disabled={busyOrderId === trackingModal.id || !trackingInput.trim()}
-                onClick={handleTrackingSubmit}
-                type="button"
+                type="submit"
               >
                 {busyOrderId === trackingModal.id ? "처리 중..." : "배송 처리"}
               </button>
             </div>
-          </div>
-        </div>
-      )}
+          </form>
+        ) : null}
+      </AdminDialog>
 
       {/* CSV 일괄 송장 입력 모달 */}
-      {csvModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={closeCsvModal}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 p-6 space-y-5 max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-black text-slate-950">일괄 송장 입력</h3>
-
+      <AdminDialog
+        busy={csvProcessing}
+        dirty={csvRows.length > 0 && !csvResults}
+        onClose={closeCsvModal}
+        open={csvModalOpen}
+        size="md"
+        title="일괄 송장 입력"
+      >
+        {csvModalOpen ? (
+          <div className="p-6 space-y-5">
             {!csvResults ? (
               <>
                 <div className="space-y-3">
@@ -1060,20 +1154,41 @@ function AdminOrdersPage() {
                             <th className="py-2 px-2">주문번호</th>
                             <th className="py-2 px-2">택배사</th>
                             <th className="py-2 px-2">송장번호</th>
+                            <th className="py-2 px-2">검증</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {csvRows.map((row, i) => (
-                            <tr className="border-b border-slate-50" key={i}>
-                              <td className="py-1.5 px-2 font-mono">{row.orderNumber}</td>
-                              <td className="py-1.5 px-2">{row.carrier}</td>
-                              <td className="py-1.5 px-2 font-mono">{row.trackingNumber}</td>
-                            </tr>
-                          ))}
+                          {csvRows.map((row, i) => {
+                            const invalid = row.isValid === false;
+                            return (
+                              <tr
+                                className={`border-b border-slate-50 ${invalid ? "bg-rose-50" : ""}`}
+                                key={i}
+                              >
+                                <td className="py-1.5 px-2 font-mono">{row.orderNumber}</td>
+                                <td className="py-1.5 px-2">{row.carrier}</td>
+                                <td className={`py-1.5 px-2 font-mono ${invalid ? "text-rose-700 font-bold" : ""}`}>
+                                  {row.trackingNumber}
+                                </td>
+                                <td className={`py-1.5 px-2 font-semibold ${invalid ? "text-rose-600" : "text-emerald-600"}`}>
+                                  {invalid ? "형식 오류" : "OK"}
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
-                    <p className="text-xs text-slate-500">{csvRows.length}건 확인됨</p>
+                    <p className="text-xs text-slate-500">
+                      총 {csvRows.length}건 · 검증 통과{" "}
+                      <strong className="text-emerald-700">
+                        {csvRows.filter((r) => r.isValid !== false).length}건
+                      </strong>{" "}
+                      · 검증 실패{" "}
+                      <strong className="text-rose-700">
+                        {csvRows.filter((r) => r.isValid === false).length}건
+                      </strong>
+                    </p>
                   </div>
                 )}
 
@@ -1129,8 +1244,8 @@ function AdminOrdersPage() {
               </>
             )}
           </div>
-        </div>
-      )}
+        ) : null}
+      </AdminDialog>
 
       {/* 토스트 */}
       {toast && (

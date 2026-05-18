@@ -1,5 +1,5 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import AdminShell from "../components/AdminShell";
 import BulkPriceDeltaModal from "../components/BulkPriceDeltaModal";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
@@ -620,6 +620,8 @@ function BookPublicStoreEditor({
 function AdminShipmentDetailPage() {
   const { shipmentId } = useParams();
   const fileInputRef = useRef(null);
+  // 검색어와 현재 페이지를 URL에 반영 → 뒤로가기 회복 가능.
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [shipment, setShipment] = useState(null);
   const [books, setBooks] = useState([]);
@@ -634,12 +636,34 @@ function AdminShipmentDetailPage() {
   const [updatingBookStatusId, setUpdatingBookStatusId] = useState(null);
   const [updatingBookPriceId, setUpdatingBookPriceId] = useState(null);
   const [deletingBookId, setDeletingBookId] = useState(null);
-  const [bookSearchQuery, setBookSearchQuery] = useState("");
-  const [bookListPage, setBookListPage] = useState(1);
+  const [bookSearchQuery, setBookSearchQuery] = useState(() => searchParams.get("q") ?? "");
+  const [bookListPage, setBookListPage] = useState(() => {
+    const raw = Number(searchParams.get("page"));
+    return Number.isFinite(raw) && raw >= 1 ? Math.trunc(raw) : 1;
+  });
   const [bookPriceDrafts, setBookPriceDrafts] = useState({});
   const [bookStatusDrafts, setBookStatusDrafts] = useState({});
   const [bookPublicDrafts, setBookPublicDrafts] = useState({});
   const [updatingBookPublicId, setUpdatingBookPublicId] = useState(null);
+
+  // URL ↔ state 동기화. 검색어/페이지 변경 시 URL 갱신 (replace 모드 — 뒤로가기 스택 오염 방지).
+  useEffect(() => {
+    const next = new URLSearchParams(searchParams);
+    if (bookSearchQuery) {
+      next.set("q", bookSearchQuery);
+    } else {
+      next.delete("q");
+    }
+    if (bookListPage > 1) {
+      next.set("page", String(bookListPage));
+    } else {
+      next.delete("page");
+    }
+    if (next.toString() !== searchParams.toString()) {
+      setSearchParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookSearchQuery, bookListPage]);
 
   const parsedShipmentId = useMemo(() => Number(shipmentId), [shipmentId]);
   const isScheduled = shipment?.status === "scheduled";
@@ -718,9 +742,11 @@ function AdminShipmentDetailPage() {
 
     const handleKey = (event) => {
       if (event.ctrlKey || event.metaKey || event.altKey) return;
-      if (isEditableTarget(event.target)) return;
+      // 입력 필드 안에서는 Enter만 row save 단축키로 허용. 나머지는 무시.
+      const isEditable = isEditableTarget(event.target);
 
       const currentIndex = pagedBooks.findIndex((book) => book.id === focusedBookId);
+      const focusedBook = currentIndex >= 0 ? pagedBooks[currentIndex] : null;
       const moveTo = (nextIndex) => {
         if (nextIndex < 0 || nextIndex >= pagedBooks.length) return;
         const nextBook = pagedBooks[nextIndex];
@@ -730,6 +756,92 @@ function AdminShipmentDetailPage() {
           el.scrollIntoView({ block: "nearest", behavior: "smooth" });
         }
       };
+
+      // 등급 적용 + 즉시 저장. <details>가 닫혀 있어도 draft + supabase update.
+      const applyGradeAndSave = async (grade) => {
+        if (!focusedBook) return;
+        handleBookPublicDraftChange(focusedBook, "condition_grade", grade);
+        // immediate save — 직접 supabase update (draft 우회)
+        if (!isSupabaseConfigured) return;
+        const currentDraft = getBookPublicDraftValue(focusedBook);
+        const nextPayload = buildPublicStorePayload({ ...currentDraft, condition_grade: grade });
+        setUpdatingBookPublicId(focusedBook.id);
+        const { data, error: updateError } = await supabase
+          .from("books")
+          .update(nextPayload)
+          .eq("id", focusedBook.id)
+          .select("*")
+          .maybeSingle();
+        if (!updateError) {
+          setBooks((prev) =>
+            prev.map((item) =>
+              item.id === focusedBook.id ? { ...item, ...(data ?? nextPayload) } : item,
+            ),
+          );
+          resetBookPublicDraft(focusedBook.id);
+          setNotice(`등급 ${grade} 저장`);
+        } else {
+          setError(updateError.message || "등급 저장에 실패했습니다.");
+        }
+        setUpdatingBookPublicId(null);
+      };
+
+      const focusPriceInput = () => {
+        if (!focusedBook) return;
+        const row = document.querySelector(
+          `[data-shipment-book-id="${focusedBook.id}"]`,
+        );
+        const input = row?.querySelector('input[type="number"][placeholder*="12000"]')
+          ?? row?.querySelector('input[type="number"]');
+        if (input instanceof HTMLElement) {
+          input.focus();
+          input.scrollIntoView({ block: "nearest" });
+        }
+      };
+
+      const togglePublic = async () => {
+        if (!focusedBook) return;
+        const currentDraft = getBookPublicDraftValue(focusedBook);
+        const nextValue = !Boolean(currentDraft.is_public);
+        handleBookPublicDraftChange(focusedBook, "is_public", nextValue);
+        if (!isSupabaseConfigured) return;
+        const nextPayload = buildPublicStorePayload({ ...currentDraft, is_public: nextValue });
+        setUpdatingBookPublicId(focusedBook.id);
+        const { data, error: updateError } = await supabase
+          .from("books")
+          .update(nextPayload)
+          .eq("id", focusedBook.id)
+          .select("*")
+          .maybeSingle();
+        if (!updateError) {
+          setBooks((prev) =>
+            prev.map((item) =>
+              item.id === focusedBook.id ? { ...item, ...(data ?? nextPayload) } : item,
+            ),
+          );
+          resetBookPublicDraft(focusedBook.id);
+          setNotice(nextValue ? "공개 처리" : "비노출 처리");
+        } else {
+          setError(updateError.message || "공개 토글 실패");
+        }
+        setUpdatingBookPublicId(null);
+      };
+
+      // Enter는 입력 필드 안에서도 작동(현재 행의 dirty draft를 모두 저장).
+      if (event.key === "Enter" && focusedBook) {
+        if (hasBookPriceChange(focusedBook)) {
+          event.preventDefault();
+          void handleSaveBookPrice(focusedBook);
+          return;
+        }
+        if (hasBookPublicDraftChange(focusedBook) && !getPublicStoreValidationMessage(focusedBook, getBookPublicDraftValue(focusedBook))) {
+          event.preventDefault();
+          void handleSaveBookPublicDraft(focusedBook);
+          return;
+        }
+      }
+
+      if (isEditable) return;
 
       switch (event.key) {
         case "j":
@@ -760,6 +872,39 @@ function AdminShipmentDetailPage() {
             if (input instanceof HTMLElement) input.focus();
           }
           break;
+        case "s":
+        case "S":
+          if (event.shiftKey) return;
+          event.preventDefault();
+          void applyGradeAndSave("S");
+          break;
+        case "a":
+          event.preventDefault();
+          void applyGradeAndSave("A");
+          break;
+        case "A":
+          // Shift+A = A+ 등급
+          event.preventDefault();
+          void applyGradeAndSave("A_PLUS");
+          break;
+        case "d":
+        case "D":
+          if (event.shiftKey) return;
+          event.preventDefault();
+          void applyGradeAndSave("DISCARD");
+          break;
+        case "p":
+        case "P":
+          if (event.shiftKey) return;
+          event.preventDefault();
+          focusPriceInput();
+          break;
+        case "u":
+        case "U":
+          if (event.shiftKey) return;
+          event.preventDefault();
+          void togglePublic();
+          break;
         default:
           break;
       }
@@ -767,7 +912,8 @@ function AdminShipmentDetailPage() {
 
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [pagedBooks, focusedBookId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pagedBooks, focusedBookId, bookPriceDrafts, bookPublicDrafts]);
 
   const toggleSelectBook = (id) => {
     setSelectedBookIds((current) => {
@@ -826,11 +972,11 @@ function AdminShipmentDetailPage() {
       setDestructiveModal({
         title: `${ids.length}권 가시성 일괄 변경 — '${label}'`,
         description:
-          `선택한 ${ids.length}권을 일괄 '${label}'으로 변경합니다.\n\n` +
+          `선택 ${ids.length}권을 일괄 '${label}'으로 변경합니다.\n\n` +
           (showLabel
             ? `· '공개'로 바뀌는 책은 즉시 스토어에 노출됩니다.\n· 검수가 미완료된 책이 공개되면 구매자 클레임이 발생할 수 있습니다.`
             : `· '숨김'으로 바뀌면 진행 중인 상세 페이지가 즉시 사라집니다.\n· 이미 장바구니에 담은 구매자에게 영향이 있을 수 있습니다.`),
-        confirmPhrase: String(ids.length),
+        confirmPhrase: label,
         reasonRequired: false,
         confirmLabel: `${ids.length}권 ${label}`,
         run: async () => {
@@ -847,11 +993,11 @@ function AdminShipmentDetailPage() {
       setDestructiveModal({
         title: `책 일괄 폐기 — ${ids.length}권`,
         description:
-          `선택한 ${ids.length}권을 일괄 '폐기'로 변경합니다.\n\n` +
+          `선택 ${ids.length}권을 일괄 '폐기'로 변경합니다.\n\n` +
           `· active 주문이 있는 책은 자동 reject됩니다.\n` +
           `· 폐기 상태의 책은 더 이상 노출되지 않습니다.\n\n` +
           `이 작업은 되돌릴 수 없습니다.`,
-        confirmPhrase: String(ids.length),
+        confirmPhrase: "폐기",
         reasonRequired: true,
         reasonMinLength: 3,
         reasonPlaceholder: "예) 파손 / 오염 / 검수 불합격 / 분실",
@@ -953,7 +1099,7 @@ function AdminShipmentDetailPage() {
     fetchDetail();
   }, [parsedShipmentId]);
 
-  const handleUpdateShipmentStatus = async ({ nextStatus, successMessage }) => {
+  const performUpdateShipmentStatus = async ({ nextStatus, successMessage }) => {
     if (!isSupabaseConfigured || !shipment) {
       return;
     }
@@ -987,6 +1133,51 @@ function AdminShipmentDetailPage() {
     } catch {
       console.warn("알림톡 발송 실패 (상태 변경은 정상 처리됨)");
     }
+  };
+
+  // 검수 완료 전환 시 미등급 책이 1권이라도 있으면 destructive confirm 모달로 차단.
+  // 운영자가 폐기/미등급 책을 인지하고 명시적으로 강행하도록 강제.
+  const handleUpdateShipmentStatus = ({ nextStatus, successMessage }) => {
+    if (nextStatus === "inspected") {
+      const discardedCount = books.filter((book) => book.condition_grade === "DISCARD").length;
+      const ungradedCount = books.filter(
+        (book) => !book.condition_grade || book.condition_grade === "",
+      ).length;
+
+      if (ungradedCount > 0) {
+        setDestructiveModal({
+          title: "미등급 책이 있습니다",
+          description:
+            `폐기 ${discardedCount}권, 미등급 ${ungradedCount}권이 있습니다.\n\n` +
+            `미등급 책은 셀러에게 알림톡이 전송될 때 등급 정보가 누락됩니다.\n` +
+            `모든 책에 등급을 입력한 뒤 전환하는 것을 권장합니다.\n\n` +
+            `그래도 강행하시겠습니까?`,
+          confirmPhrase: "강행",
+          reasonRequired: false,
+          confirmLabel: "강행하여 검수 완료",
+          run: async () => {
+            await performUpdateShipmentStatus({ nextStatus, successMessage });
+          },
+        });
+        return;
+      }
+
+      if (discardedCount > 0) {
+        setDestructiveModal({
+          title: "검수 완료로 전환",
+          description: `폐기 ${discardedCount}권을 포함하여 검수 완료로 전환합니다.\n셀러에게 검수 결과 알림톡이 발송됩니다.`,
+          confirmPhrase: "완료",
+          reasonRequired: false,
+          confirmLabel: "검수 완료 전환",
+          run: async () => {
+            await performUpdateShipmentStatus({ nextStatus, successMessage });
+          },
+        });
+        return;
+      }
+    }
+
+    void performUpdateShipmentStatus({ nextStatus, successMessage });
   };
 
   const handleBookFormChange = (event) => {
@@ -1642,13 +1833,19 @@ function AdminShipmentDetailPage() {
               <p className="mt-2 text-xs font-semibold text-slate-500">페이지당 {BOOKS_PAGE_SIZE}권</p>
               {!keyboardHelpDismissed ? (
                 <div className="mt-2 flex items-start justify-between gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
-                  <p className="text-xs font-semibold text-blue-900">
+                  <p className="text-xs font-semibold text-blue-900 leading-relaxed">
                     <span className="font-bold">키보드 단축키</span>{" "}
                     <kbd className="rounded bg-white px-1 font-mono text-[10px]">j</kbd>/
-                    <kbd className="rounded bg-white px-1 font-mono text-[10px]">k</kbd>{" "}
-                    다음/이전 행,{" "}
-                    <kbd className="rounded bg-white px-1 font-mono text-[10px]">x</kbd> 선택 토글,{" "}
-                    <kbd className="rounded bg-white px-1 font-mono text-[10px]">/</kbd> 검색 포커스
+                    <kbd className="rounded bg-white px-1 font-mono text-[10px]">k</kbd> 이동 ·{" "}
+                    <kbd className="rounded bg-white px-1 font-mono text-[10px]">x</kbd> 선택 ·{" "}
+                    <kbd className="rounded bg-white px-1 font-mono text-[10px]">/</kbd> 검색 ·{" "}
+                    <kbd className="rounded bg-white px-1 font-mono text-[10px]">s</kbd>/
+                    <kbd className="rounded bg-white px-1 font-mono text-[10px]">a</kbd>/
+                    <kbd className="rounded bg-white px-1 font-mono text-[10px]">Shift+A</kbd>/
+                    <kbd className="rounded bg-white px-1 font-mono text-[10px]">d</kbd> 등급(S/A/A+/폐기) ·{" "}
+                    <kbd className="rounded bg-white px-1 font-mono text-[10px]">p</kbd> 가격 포커스 ·{" "}
+                    <kbd className="rounded bg-white px-1 font-mono text-[10px]">Enter</kbd> 행 저장 ·{" "}
+                    <kbd className="rounded bg-white px-1 font-mono text-[10px]">u</kbd> 공개 토글
                   </p>
                   <button
                     aria-label="단축키 안내 닫기"

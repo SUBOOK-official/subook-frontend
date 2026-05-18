@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import AdminDialog from "../components/AdminDialog";
 import AdminShell from "../components/AdminShell";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
@@ -49,6 +50,24 @@ function AdminFaqsPage() {
   const openNew = () => setEditor({ ...EMPTY_FORM });
   const openEdit = (row) => setEditor({ ...row });
   const closeEditor = () => setEditor(null);
+
+  const editorDirty = useMemo(() => {
+    if (!editor) return false;
+    const baseline = editor.id ? faqs.find((f) => f.id === editor.id) : null;
+    if (baseline) {
+      return (
+        (editor.category || "") !== (baseline.category || "") ||
+        editor.question !== baseline.question ||
+        editor.answer !== baseline.answer ||
+        Number(editor.display_order) !== Number(baseline.display_order) ||
+        Boolean(editor.is_published) !== Boolean(baseline.is_published)
+      );
+    }
+    // 새 FAQ — 어느 한 필드라도 입력되어 있으면 dirty 취급.
+    return Boolean(
+      editor.category?.trim() || editor.question?.trim() || editor.answer?.trim(),
+    );
+  }, [editor, faqs]);
 
   const handleSave = async () => {
     if (!editor) return;
@@ -150,16 +169,15 @@ function AdminFaqsPage() {
         </div>
       )}
 
-      {editor ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={closeEditor}>
-          <div
-            className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 p-6 space-y-4 max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-lg font-black text-slate-900">
-              {editor.id ? "FAQ 편집" : "FAQ 추가"}
-            </h3>
-
+      <AdminDialog
+        busy={isSaving}
+        dirty={editorDirty}
+        onClose={closeEditor}
+        open={Boolean(editor)}
+        title={editor?.id ? "FAQ 편집" : "FAQ 추가"}
+      >
+        {editor ? (
+          <div className="space-y-4 p-6">
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-semibold text-slate-600 block mb-1.5">카테고리 (선택)</label>
@@ -227,8 +245,8 @@ function AdminFaqsPage() {
               </button>
             </div>
           </div>
-        </div>
-      ) : null}
+        ) : null}
+      </AdminDialog>
 
       <DestructiveConfirmModal
         busy={isDeleting}

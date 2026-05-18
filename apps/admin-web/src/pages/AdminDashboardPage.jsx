@@ -7,6 +7,7 @@ import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseCl
 import { formatDate } from "@shared-domain/format";
 import { shipmentStatusLabel } from "@shared-domain/status";
 import StatusBadge from "@shared-domain/StatusBadge";
+import { useAdminBadgeCounts } from "../lib/useAdminBadgeCounts";
 
 const PAGE_SIZE = 20;
 const SHIPMENT_INDEX_PAGE_SIZE = 1000;
@@ -567,6 +568,7 @@ function AdminDashboardPage({ view = "overview" }) {
   const bulkSettlementInputRef = useRef(null);
   const shipmentFetchRequestRef = useRef(0);
   const shipmentOverviewRequestRef = useRef(0);
+  const badgeCounts = useAdminBadgeCounts();
 
   const [form, setForm] = useState(initialForm);
   const [shipments, setShipments] = useState([]);
@@ -925,13 +927,16 @@ function AdminDashboardPage({ view = "overview" }) {
   }, [appliedPickupDateFrom, appliedPickupDateTo, appliedSearch, appliedStatuses, currentPage]);
 
   useEffect(() => {
+    // settlements view에서는 overview 데이터가 필요 없으므로 skip
+    if (view === "settlements") return;
     void fetchShipmentOverview({
       searchKeyword: appliedSearch,
       statuses: appliedStatuses,
       fromDate: appliedPickupDateFrom,
       toDate: appliedPickupDateTo,
     });
-  }, [appliedPickupDateFrom, appliedPickupDateTo, appliedSearch, appliedStatuses]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appliedPickupDateFrom, appliedPickupDateTo, appliedSearch, appliedStatuses, view]);
 
   useEffect(
     () => () => {
@@ -1690,21 +1695,44 @@ function AdminDashboardPage({ view = "overview" }) {
       {view === "overview" ? (
         <>
           <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-            <Link className="card" to="/admin/pickups">
-              <p className="text-sm font-bold text-slate-900">수거</p>
-            </Link>
-            <Link className="card" to="/admin/inspections">
-              <p className="text-sm font-bold text-slate-900">검수</p>
-            </Link>
-            <Link className="card" to="/admin/catalog">
-              <p className="text-sm font-bold text-slate-900">상품</p>
-            </Link>
-            <Link className="card" to="/admin/settlements">
-              <p className="text-sm font-bold text-slate-900">정산</p>
-            </Link>
-            <Link className="card" to="/admin/studio">
-              <p className="text-sm font-bold text-slate-900">스튜디오</p>
-            </Link>
+            {[
+              { key: "pickups", label: "수거", to: "/admin/pickups", count: badgeCounts.pickups },
+              { key: "inspection", label: "검수", to: "/admin/inspections", count: badgeCounts.inspection },
+              { key: "orders", label: "주문", to: "/admin/orders", count: badgeCounts.orders },
+              { key: "settlements", label: "정산", to: "/admin/settlements", count: badgeCounts.settlements },
+              { key: "studio", label: "스튜디오", to: "/admin/studio", count: 0 },
+            ].map((card) => {
+              const numeric = Number.isFinite(card.count) ? card.count : 0;
+              const accent = numeric > 0;
+              return (
+                <Link
+                  className={`card flex items-center justify-between transition hover:shadow-md ${
+                    accent ? "ring-2 ring-rose-500/40" : ""
+                  }`}
+                  key={card.key}
+                  to={card.to}
+                >
+                  <div>
+                    <p className="text-sm font-bold text-slate-900">{card.label}</p>
+                    <p
+                      className={`mt-1 text-xs font-semibold ${
+                        accent ? "text-rose-600" : "text-slate-400"
+                      }`}
+                    >
+                      {card.key === "studio"
+                        ? "촬영 작업"
+                        : `처리 대기 ${numeric.toLocaleString("ko-KR")}건`}
+                    </p>
+                  </div>
+                  <span
+                    aria-hidden="true"
+                    className={`text-lg font-black ${accent ? "text-rose-500" : "text-slate-300"}`}
+                  >
+                    →
+                  </span>
+                </Link>
+              );
+            })}
           </section>
 
           <section className="card">
@@ -1836,8 +1864,10 @@ function AdminDashboardPage({ view = "overview" }) {
         </>
       ) : null}
 
-      <div className={`admin-dashboard-view admin-dashboard-view-${view}`}>
-      <section className="admin-section-anchor admin-overview-view space-y-4" id="overview">
+      {/* 4-view 분리: view 별로 필요한 섹션만 렌더. 거대 display:none 매트릭스 제거됨. */}
+      {/* Hero overview banner — pickups view에서는 표시 안 함 (구 .admin-overview-view 동작 보존). 현재는 어떤 view에서도 렌더되지 않음. */}
+      {false ? (
+      <section className="admin-section-anchor space-y-4" id="overview">
         <div className="grid gap-4 xl:grid-cols-[1.25fr_0.95fr]">
           <div className="overflow-hidden rounded-[32px] border border-slate-900 bg-slate-950 p-6 text-white shadow-soft">
             <p className="text-xs font-black uppercase tracking-[0.22em] text-sky-200">
@@ -1955,8 +1985,10 @@ function AdminDashboardPage({ view = "overview" }) {
           </div>
         </div>
       </section>
+      ) : null}
 
-      <section className="admin-section-anchor admin-pickup-view space-y-4" id="pickup-operations">
+      {view === "pickups" ? (
+      <section className="admin-section-anchor space-y-4" id="pickup-operations">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
@@ -2110,8 +2142,12 @@ function AdminDashboardPage({ view = "overview" }) {
         </section>
       </div>
       </section>
+      ) : null}
 
-      <section className="admin-section-anchor admin-inspection-view space-y-4" id="inspection-workspace">
+      {/* 구 inspection/catalog/settlement-view 섹션: /admin 라우트의 하위 view에서는 더 이상 렌더되지 않음. 별도 라우트로 이관됨. 코드는 영향도 검토 후 따로 정리 예정. */}
+      {false ? (
+      <>
+      <section className="admin-section-anchor space-y-4" id="inspection-workspace">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
@@ -2197,7 +2233,7 @@ function AdminDashboardPage({ view = "overview" }) {
         </div>
       </section>
 
-      <section className="admin-section-anchor admin-catalog-view space-y-4" id="catalog-workspace">
+      <section className="admin-section-anchor space-y-4" id="catalog-workspace">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
@@ -2239,7 +2275,7 @@ function AdminDashboardPage({ view = "overview" }) {
 
       </section>
 
-      <section className="admin-section-anchor admin-settlement-view space-y-4" id="settlement-workspace">
+      <section className="admin-section-anchor space-y-4" id="settlement-workspace">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
@@ -2366,8 +2402,11 @@ function AdminDashboardPage({ view = "overview" }) {
       </section>
 
       </section>
+      </>
+      ) : null}
 
-      <section className="admin-pickup-list space-y-3">
+      {view === "pickups" ? (
+      <section className="space-y-3">
         <div className="flex items-end justify-between">
           <h2 className="section-title">수거 목록</h2>
           <p className="text-xs font-semibold text-slate-500">총 {totalCount}건</p>
@@ -2572,8 +2611,11 @@ function AdminDashboardPage({ view = "overview" }) {
           </div>
         </div>
       </section>
+      ) : null}
 
-      <section className="admin-roadmap grid gap-4 xl:grid-cols-3">
+      {/* 구 admin-roadmap 섹션 — 4-view 분리 후 더 이상 렌더되지 않음. */}
+      {false ? (
+      <section className="grid gap-4 xl:grid-cols-3">
         <article className="card animate-rise admin-section-anchor" id="order-roadmap">
           <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
             Planned Module
@@ -2616,9 +2658,10 @@ function AdminDashboardPage({ view = "overview" }) {
           </div>
         </article>
       </section>
+      ) : null}
 
-      {totalPages > 1 ? (
-        <nav className="admin-pickup-pagination mt-5 flex items-center justify-center gap-1">
+      {view === "pickups" && totalPages > 1 ? (
+        <nav className="mt-5 flex items-center justify-center gap-1">
           <button
             className="btn-secondary !w-auto !px-3 !py-2 text-xs"
             disabled={currentPage === 1}
@@ -2659,7 +2702,6 @@ function AdminDashboardPage({ view = "overview" }) {
           </button>
         </nav>
       ) : null}
-      </div>
     </AdminShell>
   );
 }

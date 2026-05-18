@@ -87,45 +87,6 @@ body {
   scroll-margin-top: 24px;
 }
 
-.admin-dashboard-view-overview .admin-overview-view,
-.admin-dashboard-view-overview .admin-pickup-view,
-.admin-dashboard-view-overview .admin-inspection-view,
-.admin-dashboard-view-overview .admin-catalog-view,
-.admin-dashboard-view-overview .admin-settlement-view,
-.admin-dashboard-view-overview .admin-pickup-list,
-.admin-dashboard-view-overview .admin-roadmap,
-.admin-dashboard-view-overview .admin-pickup-pagination,
-.admin-dashboard-view-inspection .admin-overview-view,
-.admin-dashboard-view-inspection .admin-pickup-view,
-.admin-dashboard-view-inspection .admin-inspection-view,
-.admin-dashboard-view-inspection .admin-catalog-view,
-.admin-dashboard-view-inspection .admin-settlement-view,
-.admin-dashboard-view-inspection .admin-pickup-list,
-.admin-dashboard-view-inspection .admin-roadmap,
-.admin-dashboard-view-inspection .admin-pickup-pagination,
-.admin-dashboard-view-catalog .admin-overview-view,
-.admin-dashboard-view-catalog .admin-pickup-view,
-.admin-dashboard-view-catalog .admin-inspection-view,
-.admin-dashboard-view-catalog .admin-catalog-view,
-.admin-dashboard-view-catalog .admin-settlement-view,
-.admin-dashboard-view-catalog .admin-pickup-list,
-.admin-dashboard-view-catalog .admin-roadmap,
-.admin-dashboard-view-catalog .admin-pickup-pagination,
-.admin-dashboard-view-settlements .admin-overview-view,
-.admin-dashboard-view-settlements .admin-pickup-view,
-.admin-dashboard-view-settlements .admin-inspection-view,
-.admin-dashboard-view-settlements .admin-catalog-view,
-.admin-dashboard-view-settlements .admin-pickup-list,
-.admin-dashboard-view-settlements .admin-roadmap,
-.admin-dashboard-view-settlements .admin-pickup-pagination,
-.admin-dashboard-view-pickups .admin-overview-view,
-.admin-dashboard-view-pickups .admin-inspection-view,
-.admin-dashboard-view-pickups .admin-catalog-view,
-.admin-dashboard-view-pickups .admin-settlement-view,
-.admin-dashboard-view-pickups .admin-roadmap {
-  display: none;
-}
-
 @keyframes rise {
   0% {
     opacity: 0;

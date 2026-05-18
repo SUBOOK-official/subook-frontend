@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { getSellerLookupOrigin } from "../lib/portalLinks";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";

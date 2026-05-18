@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import AdminDialog from "../components/AdminDialog";
 import AdminShell from "../components/AdminShell";
 import AdminPagination from "../components/AdminPagination";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
@@ -115,6 +116,8 @@ function AdminMembersPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [destructiveModal, setDestructiveModal] = useState(null);
   const [destructiveBusy, setDestructiveBusy] = useState(false);
+  // 회원 차단 시 통지 토글 (디폴트 OFF — 사용자에게는 차단 사실을 알리지 않음)
+  const [notifyOnBlock, setNotifyOnBlock] = useState(false);
   const requestIdRef = useRef(0);
 
   const showToast = useCallback((message, tone = "info") => {
@@ -245,7 +248,9 @@ function AdminMembersPage() {
       description:
         `이 회원의 로그인과 신규 활동을 즉시 차단합니다.\n\n` +
         `· 사유는 회원에게는 표시되지 않으며 내부 기록용입니다.\n` +
-        `· 차단 후에는 "차단 해제" 버튼으로 복구할 수 있습니다.`,
+        `· 차단 후에는 "차단 해제" 버튼으로 복구할 수 있습니다.\n` +
+        `· 회원 통지 발송 여부는 모달 닫기 전 좌측 토글로 설정하세요.\n` +
+        `  (현재 설정: 통지 ${notifyOnBlock ? "ON" : "OFF"})`,
       confirmPhrase: "차단",
       reasonRequired: true,
       reasonMinLength: 5,
@@ -253,16 +258,37 @@ function AdminMembersPage() {
       confirmLabel: "차단 실행",
       run: async (reason) => {
         setDestructiveBusy(true);
+        // TODO(backend): admin_block_member RPC 시그니처에 p_admin_email/p_admin_user_id 파라미터
+        // 추가 필요 + member_profiles에 blocked_by_email/blocked_at 컬럼 + 차단 이력 테이블
+        // (member_block_history) 도입. 현재는 기존 RPC 그대로 호출하고 audit 정보는 클라이언트에서만 기록.
+        const { data: { user: currentAdmin } = {} } = await supabase.auth.getUser();
         const { error } = await supabase.rpc("admin_block_member", {
           p_user_id: member.user_id,
           p_reason: reason || null,
         });
+        // 클라이언트 로컬 audit (서버 audit 테이블 도입 전까지 임시)
+        try {
+          // eslint-disable-next-line no-console
+          console.info("[member-block]", {
+            at: new Date().toISOString(),
+            target_user_id: member.user_id,
+            target_label: label,
+            admin_email: currentAdmin?.email ?? null,
+            reason,
+            notify_member: notifyOnBlock,
+          });
+        } catch (_e) { /* noop */ }
         setDestructiveBusy(false);
         if (error) {
           showToast(error.message || "회원 차단에 실패했습니다.", "error");
           return;
         }
-        showToast("회원을 차단했습니다.", "success");
+        if (notifyOnBlock) {
+          // TODO(backend): 통지 채널이 정해지면 send-notification 호출 추가
+          showToast("회원을 차단했습니다. (통지 발송은 백엔드 미구현)", "success");
+        } else {
+          showToast("회원을 차단했습니다.", "success");
+        }
         await loadMembers();
         if (selectedMember?.user_id === member.user_id) {
           await openMemberDetail({ ...member, is_blocked: true });
@@ -455,12 +481,15 @@ function AdminMembersPage() {
         />
       </section>
 
-      {selectedMember ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-6" onClick={closeMemberDetail}>
-          <div
-            className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl"
-            onClick={(event) => event.stopPropagation()}
-          >
+      <AdminDialog
+        bodyClassName="p-6"
+        busy={destructiveBusy}
+        onClose={closeMemberDetail}
+        open={Boolean(selectedMember)}
+        size="2xl"
+      >
+        {selectedMember ? (
+          <>
             <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-5">
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Member Detail</p>
@@ -480,6 +509,16 @@ function AdminMembersPage() {
                 ) : null}
               </div>
               <div className="flex flex-wrap items-center gap-2">
+                {!detailMember?.is_blocked ? (
+                  <label className="flex items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs font-semibold text-slate-600">
+                    <input
+                      checked={notifyOnBlock}
+                      onChange={(event) => setNotifyOnBlock(event.target.checked)}
+                      type="checkbox"
+                    />
+                    회원에게 통지
+                  </label>
+                ) : null}
                 {detailMember?.is_blocked ? (
                   <button
                     className="!w-auto rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
@@ -502,6 +541,26 @@ function AdminMembersPage() {
                 </button>
               </div>
             </div>
+
+            {/* 차단 audit / 이력 — 백엔드 컬럼 도입 전까지 placeholder */}
+            {detailMember?.is_blocked ? (
+              <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-800">
+                <p className="font-bold">차단 정보</p>
+                <p className="mt-1">
+                  차단 시각: {formatDate(detailMember?.blocked_at) || "(기록 없음)"}
+                </p>
+                <p>
+                  차단 사유: {detailMember?.block_reason || "(기록 없음)"}
+                </p>
+                <p>
+                  차단자: {detailMember?.blocked_by_email || "(백엔드 컬럼 미구현)"}
+                </p>
+                <p className="mt-2 text-[11px] text-rose-600">
+                  TODO: backend `member_profiles.blocked_by_email` 컬럼과 차단 이력 테이블
+                  (`member_block_history`) 도입 후 이력 타임라인 표시.
+                </p>
+              </div>
+            ) : null}
 
             {isDetailLoading ? (
               <div className="p-10 text-center text-sm font-semibold text-slate-400">회원 상세를 불러오는 중...</div>
@@ -725,9 +784,9 @@ function AdminMembersPage() {
                 </DetailSection>
               </div>
             ) : null}
-          </div>
-        </div>
-      ) : null}
+          </>
+        ) : null}
+      </AdminDialog>
 
       {toast ? (
         <div

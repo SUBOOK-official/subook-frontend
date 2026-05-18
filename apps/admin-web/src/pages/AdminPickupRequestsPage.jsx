@@ -310,7 +310,7 @@ function AdminPickupRequestsPage() {
         `선택한 ${ids.length}건을 CJ대한통운에 수거 접수합니다.\n\n` +
         `・접수 즉시 CJ 시스템으로 전송되며, 외부 시스템 취소·반환 절차가 필요합니다.\n` +
         `・잘못 접수하면 셀러에게 알림톡이 발송되어 혼란이 발생할 수 있습니다.`,
-      confirmPhrase: String(ids.length),
+      confirmPhrase: "접수",
       reasonRequired: false,
       confirmLabel: `${ids.length}건 접수`,
       run: async () => {
@@ -398,7 +398,7 @@ function AdminPickupRequestsPage() {
         `(pending / pickup_assigned 상태만 처리됩니다.\n` +
         `이미 CJ 접수된 건은 별도 처리 필요.)\n\n` +
         `이 작업은 되돌릴 수 없습니다.`,
-      confirmPhrase: String(targetIds.length),
+      confirmPhrase: "취소",
       reasonRequired: true,
       reasonMinLength: 3,
       reasonPlaceholder: "예) 셀러 변심 / 중복 요청 / 운영 판단",
@@ -629,6 +629,9 @@ function AdminPickupRequestsPage() {
                 <tr>
                   <td className="px-4 py-8 text-center text-sm font-semibold text-slate-500" colSpan={8}>
                     수거 요청이 없습니다.
+                    <p className="mt-1 text-xs font-normal text-slate-400">
+                      권한 문제가 의심되면 시스템 관리자에게 문의해 주세요.
+                    </p>
                   </td>
                 </tr>
               ) : null}

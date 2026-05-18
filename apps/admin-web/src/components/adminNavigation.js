@@ -1,17 +1,18 @@
+// 사용 빈도 순으로 정렬 (운영자 일과: 수거 → 검수 → 주문 → 정산 → 상품 마스터 → 회원 ...).
+// catalog(/admin/catalog) 라우트는 거의 빈 화면이라 사이드바에서 제외했지만 라우트 자체는 App.jsx에 유지.
 export const adminNavigationItems = [
   { key: "overview", label: "개요", to: "/admin", icon: "📊" },
-  { key: "analytics", label: "대시보드", to: "/admin/analytics", icon: "📈" },
   { key: "pickups", label: "수거", to: "/admin/pickups", icon: "📦" },
   { key: "inspection", label: "검수", to: "/admin/inspections", icon: "🔍" },
-  { key: "catalog", label: "상품", to: "/admin/catalog", icon: "📚" },
-  { key: "products", label: "상품 마스터", to: "/admin/products", icon: "🗂" },
   { key: "orders", label: "주문", to: "/admin/orders", icon: "🛒" },
   { key: "settlements", label: "정산", to: "/admin/settlements", icon: "💰" },
-  { key: "coupons", label: "쿠폰", to: "/admin/coupons", icon: "🎟" },
+  { key: "products", label: "상품 마스터", to: "/admin/products", icon: "🗂" },
   { key: "members", label: "회원", to: "/admin/members", icon: "👤" },
   { key: "studio", label: "스튜디오", to: "/admin/studio", icon: "📷" },
-  { key: "faqs", label: "FAQ", to: "/admin/faqs", icon: "❓" },
+  { key: "coupons", label: "쿠폰", to: "/admin/coupons", icon: "🎟" },
   { key: "notices", label: "공지사항", to: "/admin/notices", icon: "📣" },
+  { key: "faqs", label: "FAQ", to: "/admin/faqs", icon: "❓" },
+  { key: "analytics", label: "분석", to: "/admin/analytics", icon: "📈" },
 ];
 
 export function resolveActiveAdminModule({ pathname, explicitModule }) {
