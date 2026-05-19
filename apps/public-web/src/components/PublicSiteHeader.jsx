@@ -5,7 +5,6 @@ import ContentContainer from "./ContentContainer";
 import searchIconImage from "../assets/search-icon.svg";
 import { supabase } from "@shared-supabase/publicSupabaseClient";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
-import { usePublicWishlist } from "../contexts/PublicWishlistContext";
 import { createDisplayName } from "../lib/memberPortal";
 import { getCartItems } from "../lib/cart";
 import { fetchStorefrontProducts } from "../lib/storefront";
@@ -187,7 +186,6 @@ function SearchSuggestionsPanel({
 function PublicSiteHeader({ onCartClick, searchSlot }) {
   const navigate = useNavigate();
   const { isAuthenticated, profile, user, signOut } = usePublicAuth();
-  const { favoriteCount } = usePublicWishlist();
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
   const [cartItemCount, setCartItemCount] = useState(0);
 
@@ -237,19 +235,8 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
     };
   }, [isAuthenticated]);
 
-  const handleWishlistClick = (event) => {
-    if (!isAuthenticated) {
-      event?.preventDefault?.();
-      navigate("/login", { state: { notice: "찜한 교재를 보려면 로그인이 필요해요." } });
-    }
-  };
-
-  const handleNotificationsClick = (event) => {
-    if (!isAuthenticated) {
-      event?.preventDefault?.();
-      navigate("/login", { state: { notice: "알림함을 보려면 로그인이 필요해요." } });
-    }
-  };
+  // 알림/장바구니/마이페이지는 isAuthenticated 일 때만 렌더되므로 클릭 가드는 불필요.
+  // 비로그인 사용자는 헤더에서 해당 메뉴 자체가 보이지 않는다.
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const accountMenuRef = useRef(null);
@@ -568,70 +555,59 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
         </div>
 
         <nav aria-label="유틸리티 메뉴" className="public-nav-actions">
-          <Link
-            aria-label={`알림 ${unreadNotifCount}개`}
-            className="public-nav-link public-nav-link--wishlist"
-            onClick={handleNotificationsClick}
-            to="/notifications"
-          >
-            <span aria-hidden="true" className="public-nav-link__icon" style={{ color: "#3B82F6" }}>🔔</span>
-            <span>알림</span>
-            {unreadNotifCount > 0 ? (
-              <span className="public-nav-link__badge">{unreadNotifCount > 99 ? "99+" : unreadNotifCount}</span>
-            ) : null}
-          </Link>
-          <Link
-            aria-label={`찜한 교재 ${favoriteCount}개`}
-            className="public-nav-link public-nav-link--wishlist"
-            onClick={handleWishlistClick}
-            to="/mypage#wishlist"
-          >
-            <span aria-hidden="true" className="public-nav-link__icon">♥</span>
-            <span>찜</span>
-            {favoriteCount > 0 ? (
-              <span className="public-nav-link__badge">{favoriteCount > 99 ? "99+" : favoriteCount}</span>
-            ) : null}
-          </Link>
-          <button
-            aria-label={`장바구니 ${cartItemCount}개`}
-            className="public-nav-link public-nav-link--cart"
-            onClick={handleCartClick}
-            type="button"
-          >
-            <span aria-hidden="true" className="public-nav-link__icon">🛒</span>
-            <span>장바구니</span>
-            {cartBadge !== null ? (
-              <span className="public-nav-link__badge">{cartBadge}</span>
-            ) : null}
-          </button>
-          <Link className="public-nav-link" to="/mypage">
-            마이페이지
-          </Link>
           {isAuthenticated ? (
-            <div className="public-nav-account" ref={accountMenuRef}>
+            <>
+              <Link
+                aria-label={`알림 ${unreadNotifCount}개`}
+                className="public-nav-link public-nav-link--wishlist"
+                to="/notifications"
+              >
+                <span aria-hidden="true" className="public-nav-link__icon" style={{ color: "#3B82F6" }}>🔔</span>
+                <span>알림</span>
+                {unreadNotifCount > 0 ? (
+                  <span className="public-nav-link__badge">{unreadNotifCount > 99 ? "99+" : unreadNotifCount}</span>
+                ) : null}
+              </Link>
               <button
-                aria-expanded={isAccountMenuOpen}
-                aria-haspopup="menu"
-                className="public-nav-link public-nav-button public-nav-account__trigger"
-                onClick={() => setIsAccountMenuOpen((open) => !open)}
+                aria-label={`장바구니 ${cartItemCount}개`}
+                className="public-nav-link public-nav-link--cart"
+                onClick={handleCartClick}
                 type="button"
               >
-                <span>{displayName}님</span>
-                <span aria-hidden="true" className="public-nav-account__caret">▾</span>
+                <span aria-hidden="true" className="public-nav-link__icon">🛒</span>
+                <span>장바구니</span>
+                {cartBadge !== null ? (
+                  <span className="public-nav-link__badge">{cartBadge}</span>
+                ) : null}
               </button>
-              {isAccountMenuOpen ? (
-                <div className="public-nav-account__menu" role="menu">
-                  <button
-                    className="public-nav-account__item public-nav-account__item--danger"
-                    onClick={handleSignOut}
-                    role="menuitem"
-                    type="button"
-                  >
-                    로그아웃
-                  </button>
-                </div>
-              ) : null}
-            </div>
+              <Link className="public-nav-link" to="/mypage">
+                마이페이지
+              </Link>
+              <div className="public-nav-account" ref={accountMenuRef}>
+                <button
+                  aria-expanded={isAccountMenuOpen}
+                  aria-haspopup="menu"
+                  className="public-nav-link public-nav-button public-nav-account__trigger"
+                  onClick={() => setIsAccountMenuOpen((open) => !open)}
+                  type="button"
+                >
+                  <span>{displayName}님</span>
+                  <span aria-hidden="true" className="public-nav-account__caret">▾</span>
+                </button>
+                {isAccountMenuOpen ? (
+                  <div className="public-nav-account__menu" role="menu">
+                    <button
+                      className="public-nav-account__item public-nav-account__item--danger"
+                      onClick={handleSignOut}
+                      role="menuitem"
+                      type="button"
+                    >
+                      로그아웃
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            </>
           ) : (
             <Link className="public-nav-link public-nav-button" to="/login">
               로그인/회원가입
@@ -639,19 +615,21 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
           )}
         </nav>
 
-        {/* 모바일 헤더 우측: 장바구니 + 햄버거 (768px 미만) */}
+        {/* 모바일 헤더 우측 (768px 미만): 비로그인 = 햄버거만, 로그인 = 장바구니 + 햄버거 */}
         <div className="public-nav-mobile-actions">
-          <button
-            aria-label={`장바구니 ${cartItemCount}개`}
-            className="public-nav-mobile-cart"
-            onClick={handleCartClick}
-            type="button"
-          >
-            <span aria-hidden="true">🛒</span>
-            {cartBadge !== null ? (
-              <span className="public-nav-mobile-cart__badge">{cartBadge}</span>
-            ) : null}
-          </button>
+          {isAuthenticated ? (
+            <button
+              aria-label={`장바구니 ${cartItemCount}개`}
+              className="public-nav-mobile-cart"
+              onClick={handleCartClick}
+              type="button"
+            >
+              <span aria-hidden="true">🛒</span>
+              {cartBadge !== null ? (
+                <span className="public-nav-mobile-cart__badge">{cartBadge}</span>
+              ) : null}
+            </button>
+          ) : null}
           <button
             aria-expanded={isMobileMenuOpen}
             aria-label={isMobileMenuOpen ? "메뉴 닫기" : "메뉴 열기"}
@@ -711,52 +689,37 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
                 </div>
               </div>
             ) : null}
-            <button
-              className="public-nav-drawer__item"
-              onClick={() => { setIsMobileMenuOpen(false); handleCartClick(); }}
-              type="button"
-            >
-              <span aria-hidden="true" style={{ marginRight: 8 }}>🛒</span>
-              장바구니
-              {cartBadge !== null ? (
-                <span className="public-nav-link__badge" style={{ marginLeft: 8 }}>{cartBadge}</span>
-              ) : null}
-            </button>
-            <Link
-              className="public-nav-drawer__item"
-              onClick={(event) => {
-                setIsMobileMenuOpen(false);
-                handleNotificationsClick(event);
-              }}
-              to="/notifications"
-            >
-              <span aria-hidden="true" style={{ marginRight: 8 }}>🔔</span>
-              알림함
-              {unreadNotifCount > 0 ? (
-                <span className="public-nav-link__badge" style={{ marginLeft: 8 }}>
-                  {unreadNotifCount > 99 ? "99+" : unreadNotifCount}
-                </span>
-              ) : null}
-            </Link>
-            <Link
-              className="public-nav-drawer__item"
-              onClick={(event) => {
-                setIsMobileMenuOpen(false);
-                handleWishlistClick(event);
-              }}
-              to="/mypage#wishlist"
-            >
-              <span aria-hidden="true" style={{ marginRight: 8 }}>♥</span>
-              찜한 교재
-              {favoriteCount > 0 ? (
-                <span className="public-nav-link__badge" style={{ marginLeft: 8 }}>
-                  {favoriteCount > 99 ? "99+" : favoriteCount}
-                </span>
-              ) : null}
-            </Link>
-            <Link className="public-nav-drawer__item" to="/mypage" onClick={() => setIsMobileMenuOpen(false)}>
-              마이페이지
-            </Link>
+            {isAuthenticated ? (
+              <>
+                <button
+                  className="public-nav-drawer__item"
+                  onClick={() => { setIsMobileMenuOpen(false); handleCartClick(); }}
+                  type="button"
+                >
+                  <span aria-hidden="true" style={{ marginRight: 8 }}>🛒</span>
+                  장바구니
+                  {cartBadge !== null ? (
+                    <span className="public-nav-link__badge" style={{ marginLeft: 8 }}>{cartBadge}</span>
+                  ) : null}
+                </button>
+                <Link
+                  className="public-nav-drawer__item"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  to="/notifications"
+                >
+                  <span aria-hidden="true" style={{ marginRight: 8 }}>🔔</span>
+                  알림함
+                  {unreadNotifCount > 0 ? (
+                    <span className="public-nav-link__badge" style={{ marginLeft: 8 }}>
+                      {unreadNotifCount > 99 ? "99+" : unreadNotifCount}
+                    </span>
+                  ) : null}
+                </Link>
+                <Link className="public-nav-drawer__item" to="/mypage" onClick={() => setIsMobileMenuOpen(false)}>
+                  마이페이지
+                </Link>
+              </>
+            ) : null}
             <Link className="public-nav-drawer__item" to="/pickup/new" onClick={() => setIsMobileMenuOpen(false)}>
               교재 판매하기
             </Link>
