@@ -304,38 +304,19 @@ img {
 .public-home-store-grid__sidebar {
   display: flex;
   flex-direction: column;
-  gap: 28px;
-  padding: 8px 0;
+  gap: 18px;
+  padding: 0;
   align-self: start;
-  /* CSS sticky: PublicPageFrame의 transform: scale 제거 이후 순수 CSS로 동작.
-     사이드바가 viewport보다 길면 내부 스크롤로 전체 노출. */
+  /* CSS sticky: 옵션을 칩 wrap으로 컴팩트화해 viewport 안에 전체가 들어오게 함.
+     내부 스크롤 없이도 모든 필터가 한 번에 보이도록 함. */
   position: sticky;
   top: 96px;
-  max-height: calc(100vh - 120px);
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(15, 23, 42, 0.18) transparent;
-}
-
-.public-home-store-grid__sidebar::-webkit-scrollbar {
-  width: 6px;
-}
-
-.public-home-store-grid__sidebar::-webkit-scrollbar-thumb {
-  background: rgba(15, 23, 42, 0.18);
-  border-radius: 3px;
-}
-
-.public-home-store-grid__sidebar::-webkit-scrollbar-track {
-  background: transparent;
 }
 
 @media (max-width: 1023px) {
   .public-home-store-grid__sidebar {
     position: static;
     top: auto;
-    max-height: none;
-    overflow-y: visible;
     flex-direction: row;
     flex-wrap: wrap;
     gap: 16px 24px;
@@ -348,7 +329,7 @@ img {
 .public-home-store-grid__sidebar-group {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .public-home-store-grid__sidebar-label {
@@ -363,17 +344,11 @@ img {
   list-style: none;
   margin: 0;
   padding: 0;
+  /* 데스크탑/모바일 공통: 칩을 가로로 wrap해서 사이드바 세로 길이 최소화. */
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-@media (max-width: 1023px) {
-  .public-home-store-grid__sidebar-list {
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 6px;
-  }
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .public-home-store-grid__sidebar-option {
@@ -381,9 +356,9 @@ img {
   align-items: center;
   border: 0;
   background: transparent;
-  padding: 5px 10px;
+  padding: 4px 10px;
   border-radius: 999px;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--public-text-muted, #64748b);
   cursor: pointer;
