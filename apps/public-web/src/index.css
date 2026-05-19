@@ -8814,13 +8814,17 @@ img {
 
 .public-search-suggestion__header {
   margin: 0;
-  padding: 10px 18px 4px;
+  padding: 12px 18px 8px;
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.06em;
   color: #6a728d;
   text-transform: uppercase;
   background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .public-search-suggestion__empty {
@@ -8831,12 +8835,16 @@ img {
   text-align: center;
 }
 
+/* 최근 검색어 행: 좌측에 시계+검색어 텍스트, 우측에 X 버튼.
+   base .public-search-suggestion 의 flex-direction: column 을 명시적으로 row 로 override. */
 .public-search-suggestion--recent {
   display: flex;
-  align-items: center;
+  flex-direction: row;
+  align-items: stretch;
   justify-content: space-between;
   padding: 0;
   gap: 0;
+  background: #ffffff;
 }
 
 .public-search-suggestion--recent + .public-search-suggestion {
@@ -8844,14 +8852,15 @@ img {
 }
 
 .public-search-suggestion__recent-button {
-  flex: 1;
+  flex: 1 1 auto;
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  padding: 12px 18px;
+  padding: 10px 16px;
   border: 0;
   background: transparent;
   font-size: 14px;
+  text-align: left;
   font-weight: 600;
   color: #171c32;
   text-align: left;
@@ -8864,12 +8873,23 @@ img {
 }
 
 .public-search-suggestion__recent-icon {
-  font-size: 14px;
+  flex: 0 0 auto;
+  font-size: 13px;
   line-height: 1;
-  opacity: 0.7;
+  opacity: 0.55;
+}
+
+/* 검색어 텍스트는 base span 룰(12px/회색)을 override 해서 14px/짙은색으로. */
+.public-search-suggestion__recent-button > span:not(.public-search-suggestion__recent-icon) {
+  font-size: 14px;
+  font-weight: 500;
+  color: #171c32;
+  line-height: 1.4;
 }
 
 .public-search-suggestion__recent-remove {
+  flex: 0 0 auto;
+  align-self: center;
   width: 32px;
   height: 32px;
   margin-right: 8px;
@@ -8878,6 +8898,9 @@ img {
   color: #94a3b8;
   font-size: 18px;
   border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
 }
 
@@ -8885,6 +8908,27 @@ img {
 .public-search-suggestion__recent-remove:focus-visible {
   background: #f1f5f9;
   color: #475569;
+}
+
+/* 헤더 우측 "전체 삭제" 링크 */
+.public-search-suggestion__header-action {
+  border: 0;
+  background: transparent;
+  color: #6a728d;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.public-search-suggestion__header-action:hover,
+.public-search-suggestion__header-action:focus-visible {
+  background: #f1f5f9;
+  color: #171c32;
 }
 
 /* ── ProductCard 메타라인 (year · teacher · subject) ───────────── */

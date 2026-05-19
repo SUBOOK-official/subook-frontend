@@ -84,6 +84,7 @@ function SearchSuggestionsPanel({
   autocomplete,
   hasKeyword,
   keyword,
+  onClearAllRecent,
   onPickAutocomplete,
   onPickRecent,
   onRemoveRecent,
@@ -158,7 +159,18 @@ function SearchSuggestionsPanel({
 
   return (
     <div className="public-search__suggestions" role="listbox">
-      <p className="public-search-suggestion__header">최근 검색어</p>
+      <p className="public-search-suggestion__header">
+        <span>최근 검색어</span>
+        {typeof onClearAllRecent === "function" ? (
+          <button
+            className="public-search-suggestion__header-action"
+            onClick={onClearAllRecent}
+            type="button"
+          >
+            전체 삭제
+          </button>
+        ) : null}
+      </p>
       {recentSearches.map((term) => (
         <div className="public-search-suggestion public-search-suggestion--recent" key={`recent-${term}`}>
           <button
@@ -451,6 +463,11 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
     writeRecentSearches(next);
   };
 
+  const handleClearAllRecent = () => {
+    setRecentSearches([]);
+    writeRecentSearches([]);
+  };
+
   // 모바일 드로어 안 검색 폼 (별도 controlled input 없이 form submit으로 처리)
   const handleMobileSearchSubmit = (event) => {
     event.preventDefault();
@@ -544,6 +561,7 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
                   autocomplete={autocomplete}
                   hasKeyword={hasKeyword}
                   keyword={debouncedKeyword}
+                  onClearAllRecent={handleClearAllRecent}
                   onPickAutocomplete={handlePickAutocomplete}
                   onPickRecent={handlePickRecent}
                   onRemoveRecent={handleRemoveRecent}
