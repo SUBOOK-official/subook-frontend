@@ -307,19 +307,41 @@ img {
   gap: 28px;
   padding: 8px 0;
   align-self: start;
-  /* JS sticky: HomeStoreGrid가 window scroll에 맞춰 translateY를 동적으로 설정 */
-  will-change: transform;
+  /* CSS sticky: PublicPageFrame의 transform: scale 제거 이후 순수 CSS로 동작.
+     사이드바가 viewport보다 길면 내부 스크롤로 전체 노출. */
+  position: sticky;
+  top: 96px;
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(15, 23, 42, 0.18) transparent;
+}
+
+.public-home-store-grid__sidebar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.public-home-store-grid__sidebar::-webkit-scrollbar-thumb {
+  background: rgba(15, 23, 42, 0.18);
+  border-radius: 3px;
+}
+
+.public-home-store-grid__sidebar::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 @media (max-width: 1023px) {
   .public-home-store-grid__sidebar {
+    position: static;
+    top: auto;
+    max-height: none;
+    overflow-y: visible;
     flex-direction: row;
     flex-wrap: wrap;
     gap: 16px 24px;
     background: var(--public-bg-soft);
     padding: 14px 16px;
     border-radius: 10px;
-    transform: none !important;
   }
 }
 

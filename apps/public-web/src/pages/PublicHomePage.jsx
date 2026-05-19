@@ -7,7 +7,6 @@ import HeroBanner from "../components/home/HeroBanner";
 import HomeStoreGrid from "../components/home/HomeStoreGrid";
 import LatestArrivalsSection from "../components/home/LatestArrivalsSection";
 import PickupCTA from "../components/home/PickupCTA";
-import SubjectGrid from "../components/home/SubjectGrid";
 import usePublicMemberGate from "../lib/publicMemberGate";
 import { usePublicWishlist } from "../contexts/PublicWishlistContext";
 import { usePageMeta } from "../lib/usePageMeta";
@@ -104,17 +103,16 @@ function PublicHomePage() {
       <h1 className="public-visually-hidden">수능 중고 교재 위탁판매 | 수북</h1>
 
       <HeroBanner onSlideAction={handleHeroAction} slides={HOME_HERO_SLIDES} />
-      <PickupCTA onRequestPickup={handlePickupRequest} />
       <BestBooksSection
         favoriteIds={favoriteIds}
         onToggleFavorite={handleToggleFavorite}
       />
-      <SubjectGrid />
       <LatestArrivalsSection
         favoriteIds={favoriteIds}
         onToggleFavorite={handleToggleFavorite}
       />
       <HomeStoreGrid favoriteIds={favoriteIds} onToggleFavorite={handleToggleFavorite} />
+      <PickupCTA onRequestPickup={handlePickupRequest} />
 
       <PublicFooter />
       {memberGateDialog}
