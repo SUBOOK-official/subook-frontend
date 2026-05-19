@@ -232,14 +232,12 @@ function DetailTabPanel({ activeKey, product, activeDisplay, onOpenLightbox }) {
       <div className="public-detail-tab-content">
         <h3 className="public-detail-tab-content__heading">상태 등급 안내</h3>
         <ul className="public-detail-tab-content__list">
-          <li><strong>NEW (새 책)</strong> · 비닐 개봉 여부와 무관하게 필기·형광펜이 전혀 없고 표지·내지가 양호한 미사용 교재. 2026년 5월 이후 신규 입고는 모두 NEW 등급입니다.</li>
-          <li><strong>S (거의 새 책)</strong> · 사용감이 거의 없는 새 책 수준 (필기 5% 이하) — 기존 재고만 운영</li>
-          <li><strong>A+ (사용감 적음)</strong> · 일부 페이지에 가벼운 필기/표시가 있으나 전반적으로 깨끗 (필기 6~20%) — 기존 재고만 운영</li>
-          <li><strong>A (사용감 있음)</strong> · 학습용 필기/체크가 있으나 학습에 무리 없음 (필기 21~50%) — 기존 재고만 운영</li>
+          <li><strong>S (새 책)</strong> · 필기·형광펜이 전혀 없고 표지·내지가 양호한 미사용 교재. 2026년 5월부터 신규 입고는 모두 S 등급으로 매입합니다. (비닐 개봉은 무관)</li>
+          <li><strong>A+ (사용감 적음)</strong> · 일부 페이지에 가벼운 필기/표시가 있으나 전반적으로 깨끗 (필기 10% 이하). 기존 재고 소진까지 운영.</li>
         </ul>
         <p className="public-detail-tab-content__note">
           모든 교재는 4단계 검수 (외관 · 내지 · 누락 · 훼손) 후 등급이 부여됩니다.
-          신규 입고는 NEW 기준 미달 시 즉시 폐기됩니다.
+          신규 입고는 S 기준 미달 시 즉시 폐기됩니다.
         </p>
       </div>
     );

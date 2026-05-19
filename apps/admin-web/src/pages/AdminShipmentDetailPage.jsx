@@ -23,13 +23,12 @@ const adminBookStatusOptions = [
   { value: "settled", label: bookStatusLabel.settled },
 ];
 
-// 2026-05-19 정책: 신규 입고는 모두 NEW. 기존 S/A+/A 등급은 재고 소진까지 유지.
+// 2026-05-19 정책: 신규 입고는 모두 S(새 책). 등급은 S / A+ 두 종류로 이원화.
+// A 등급은 신규 입력 옵션에서 제거 (기존 A 데이터는 화면에서 계속 노출, 재고 소진까지).
 const adminBookConditionOptions = [
   { value: "", label: "등급 선택" },
-  { value: "NEW", label: bookConditionLabel.NEW },
   { value: "S", label: bookConditionLabel.S },
   { value: "A_PLUS", label: bookConditionLabel.A_PLUS },
-  { value: "A", label: bookConditionLabel.A },
   { value: "DISCARD", label: bookConditionLabel.DISCARD },
 ];
 
@@ -876,20 +875,14 @@ function AdminShipmentDetailPage() {
           break;
         case "s":
         case "S":
+          // 2026-05-19 정책: 신규 입고는 모두 S(새 책) 디폴트. 단축키로 빠른 적용.
           if (event.shiftKey) return;
           event.preventDefault();
           void applyGradeAndSave("S");
           break;
-        case "n":
-        case "N":
-          // 2026-05 정책: 신규 입고는 NEW 등급이 디폴트. 단축키로 빠른 적용.
-          if (event.shiftKey) return;
-          event.preventDefault();
-          void applyGradeAndSave("NEW");
-          break;
         case "a":
+          // A 등급은 신규 입력 폐지. 'a' 단일은 더 이상 매핑 없음(무시).
           event.preventDefault();
-          void applyGradeAndSave("A");
           break;
         case "A":
           // Shift+A = A+ 등급
@@ -1848,11 +1841,9 @@ function AdminShipmentDetailPage() {
                     <kbd className="rounded bg-white px-1 font-mono text-[10px]">k</kbd> 이동 ·{" "}
                     <kbd className="rounded bg-white px-1 font-mono text-[10px]">x</kbd> 선택 ·{" "}
                     <kbd className="rounded bg-white px-1 font-mono text-[10px]">/</kbd> 검색 ·{" "}
-                    <kbd className="rounded bg-white px-1 font-mono text-[10px]">n</kbd>/
                     <kbd className="rounded bg-white px-1 font-mono text-[10px]">s</kbd>/
-                    <kbd className="rounded bg-white px-1 font-mono text-[10px]">a</kbd>/
                     <kbd className="rounded bg-white px-1 font-mono text-[10px]">Shift+A</kbd>/
-                    <kbd className="rounded bg-white px-1 font-mono text-[10px]">d</kbd> 등급(NEW/S/A/A+/폐기) ·{" "}
+                    <kbd className="rounded bg-white px-1 font-mono text-[10px]">d</kbd> 등급(S/A+/폐기) ·{" "}
                     <kbd className="rounded bg-white px-1 font-mono text-[10px]">p</kbd> 가격 포커스 ·{" "}
                     <kbd className="rounded bg-white px-1 font-mono text-[10px]">Enter</kbd> 행 저장 ·{" "}
                     <kbd className="rounded bg-white px-1 font-mono text-[10px]">u</kbd> 공개 토글

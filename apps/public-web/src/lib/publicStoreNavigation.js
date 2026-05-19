@@ -43,10 +43,8 @@ export const STORE_FILTER_GROUPS = [
     label: "상태",
     queryKey: "grade",
     options: [
-      { value: "NEW", label: "NEW(새 책)" },
-      { value: "S", label: "S(거의 새 책)" },
+      { value: "S", label: "S(새 책)" },
       { value: "A_PLUS", label: "A+(사용감 적음)" },
-      { value: "A", label: "A(사용감 있음)" },
     ],
   },
 ];

@@ -28,19 +28,18 @@ export const productStatusLabel = {
   settled: "정산완료",
 };
 
-// 2026-05-19 정책 전환: 신규 입고는 모두 "NEW(새 책)" 등급.
-// 기존 S/A+/A 재고는 라벨/데이터 유지 (재고 소진까지 같은 그리드에 노출).
+// 2026-05-19 정책: 신규 입고는 모두 S(새 책) 등급으로 매입. 등급은 S / A+ 두 종류로 이원화.
+// 기존 A 등급 데이터는 재고 소진까지 화면 노출 (admin 신규 입력 옵션에서는 제거).
+// 향후 A+ 재고도 소진되면 등급 제도 자체 폐지 예정 (디폴트 = 새 책).
 export const bookConditionLabel = {
-  NEW: "새 책",
-  S: "거의 새 책",
-  A_PLUS: "사용감 적음",
-  A: "사용감 있음",
+  S: "S (새 책)",
+  A_PLUS: "A+ (사용감 적음)",
+  A: "A (사용감 있음)",
   DISCARD: "폐기(판매 불가)",
 };
 
 // 정렬·우선 노출용 (높을수록 먼저).
 export const bookConditionPriority = {
-  NEW: 100,
   S: 80,
   A_PLUS: 60,
   A: 40,
@@ -49,7 +48,6 @@ export const bookConditionPriority = {
 
 // 등급별 시각 톤 (tailwind 호환). ProductCard / 상세 / admin 검수에서 공통 사용.
 export const bookConditionTone = {
-  NEW:     { badge: "bg-violet-100 text-violet-800",   dot: "bg-violet-500",  hex: "#7C3AED" },
   S:       { badge: "bg-emerald-100 text-emerald-800", dot: "bg-emerald-500", hex: "#059669" },
   A_PLUS:  { badge: "bg-sky-100 text-sky-800",         dot: "bg-sky-500",     hex: "#0284C7" },
   A:       { badge: "bg-slate-100 text-slate-700",     dot: "bg-slate-400",   hex: "#64748B" },

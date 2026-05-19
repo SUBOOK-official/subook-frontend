@@ -1057,10 +1057,10 @@ function StepSettlement({ account, setAccount, savedAccounts, policyAgreed, setP
             <div className="pickup-policy-box__section">
               <p className="pickup-policy-box__heading">검수 안내</p>
               <ul className="pickup-policy-box__list">
-                <li>신규 입고는 모두 <strong>NEW(새 책)</strong> 등급으로 매입합니다</li>
+                <li>신규 입고는 모두 <strong>S(새 책)</strong> 등급으로 매입합니다</li>
                 <li>새 책 기준: 비닐 개봉 OK, 필기·형광펜 0%, 표지·내지 양호</li>
                 <li>위 기준 미달 교재(필기·형광펜 있음, 표지·내지 손상 등)는 판매불가 → 자체 폐기</li>
-                <li>기존 S/A+/A 재고는 재고 소진까지만 운영</li>
+                <li>기존 A+·A 등급 재고는 재고 소진까지만 운영</li>
               </ul>
             </div>
             <div className="pickup-policy-box__section">

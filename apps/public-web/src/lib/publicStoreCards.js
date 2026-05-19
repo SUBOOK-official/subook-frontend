@@ -1,13 +1,12 @@
-// 2026-05-19 정책: 신규 입고는 모두 NEW(새 책). 기존 S/A+/A 라벨은 재고 소진까지 유지.
+// 2026-05-19 정책: 신규 입고는 모두 S(새 책). 등급은 S / A+ 두 종류로 이원화.
+// 기존 A 데이터는 재고 소진까지 화면 노출.
 const STORE_CARD_CONDITION_LABELS = Object.freeze({
-  NEW: "NEW",
   S: "S",
   A_PLUS: "A+",
   A: "A",
 });
 
 const STORE_CARD_CONDITION_TONES = Object.freeze({
-  NEW: "grade-new",
   S: "grade-s",
   A_PLUS: "grade-a-plus",
   A: "grade-a",

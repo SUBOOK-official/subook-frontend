@@ -6539,12 +6539,6 @@ img {
   color: #374151;
 }
 
-.public-product-card__tag--grade-new {
-  background: #ede9fe;
-  color: #6d28d9;
-  font-weight: 800;
-}
-
 .public-product-card__tag--grade-s {
   background: #d1fae5;
   color: #059669;
@@ -7828,12 +7822,6 @@ img {
 .public-home-best-books__tag--brand {
   background: #f3f4f6;
   color: #6b7280;
-}
-
-.public-home-best-books__tag--grade-new {
-  background: #ede9fe;
-  color: #6d28d9;
-  font-weight: 800;
 }
 
 .public-home-best-books__tag--grade-s {
