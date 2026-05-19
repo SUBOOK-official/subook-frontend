@@ -4468,14 +4468,18 @@ img {
 }
 
 .public-auth-social__button-brand {
-  width: 24px;
-  height: 24px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.24);
+  width: 20px;
+  height: 20px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  /* SVG가 자체 색을 가지므로 별도 배경/그라데이션 없음. */
+}
+
+.public-auth-social__button-brand svg {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .public-password-strength {
@@ -8692,11 +8696,7 @@ img {
   border-color: #dadce0;
 }
 
-.public-auth-social__button--google .public-auth-social__button-brand {
-  background: linear-gradient(135deg, #4285f4 0%, #34a853 33%, #fbbc05 66%, #ea4335 100%);
-  color: #ffffff;
-  font-weight: 800;
-}
+/* google: 4색 G 로고 SVG가 자체 컬러를 가지므로 그라데이션/색 덮어쓰기 없음. */
 
 /* 비번 강도 룰 — 필수/권장 시각 구분 */
 .public-password-strength__rule--required {
