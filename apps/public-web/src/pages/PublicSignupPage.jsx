@@ -794,12 +794,6 @@ function PublicSignupPage() {
                 )}
               </button>
             </form>
-
-            <div className="public-auth-link-row public-auth-link-row--single">
-              <Link className="public-auth-link-row__link" to="/login">
-                로그인하기
-              </Link>
-            </div>
           </section>
         </div>
       </main>
