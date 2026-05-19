@@ -23,8 +23,10 @@ const adminBookStatusOptions = [
   { value: "settled", label: bookStatusLabel.settled },
 ];
 
+// 2026-05-19 정책: 신규 입고는 모두 NEW. 기존 S/A+/A 등급은 재고 소진까지 유지.
 const adminBookConditionOptions = [
   { value: "", label: "등급 선택" },
+  { value: "NEW", label: bookConditionLabel.NEW },
   { value: "S", label: bookConditionLabel.S },
   { value: "A_PLUS", label: bookConditionLabel.A_PLUS },
   { value: "A", label: bookConditionLabel.A },
@@ -877,6 +879,13 @@ function AdminShipmentDetailPage() {
           if (event.shiftKey) return;
           event.preventDefault();
           void applyGradeAndSave("S");
+          break;
+        case "n":
+        case "N":
+          // 2026-05 정책: 신규 입고는 NEW 등급이 디폴트. 단축키로 빠른 적용.
+          if (event.shiftKey) return;
+          event.preventDefault();
+          void applyGradeAndSave("NEW");
           break;
         case "a":
           event.preventDefault();
@@ -1839,10 +1848,11 @@ function AdminShipmentDetailPage() {
                     <kbd className="rounded bg-white px-1 font-mono text-[10px]">k</kbd> 이동 ·{" "}
                     <kbd className="rounded bg-white px-1 font-mono text-[10px]">x</kbd> 선택 ·{" "}
                     <kbd className="rounded bg-white px-1 font-mono text-[10px]">/</kbd> 검색 ·{" "}
+                    <kbd className="rounded bg-white px-1 font-mono text-[10px]">n</kbd>/
                     <kbd className="rounded bg-white px-1 font-mono text-[10px]">s</kbd>/
                     <kbd className="rounded bg-white px-1 font-mono text-[10px]">a</kbd>/
                     <kbd className="rounded bg-white px-1 font-mono text-[10px]">Shift+A</kbd>/
-                    <kbd className="rounded bg-white px-1 font-mono text-[10px]">d</kbd> 등급(S/A/A+/폐기) ·{" "}
+                    <kbd className="rounded bg-white px-1 font-mono text-[10px]">d</kbd> 등급(NEW/S/A/A+/폐기) ·{" "}
                     <kbd className="rounded bg-white px-1 font-mono text-[10px]">p</kbd> 가격 포커스 ·{" "}
                     <kbd className="rounded bg-white px-1 font-mono text-[10px]">Enter</kbd> 행 저장 ·{" "}
                     <kbd className="rounded bg-white px-1 font-mono text-[10px]">u</kbd> 공개 토글

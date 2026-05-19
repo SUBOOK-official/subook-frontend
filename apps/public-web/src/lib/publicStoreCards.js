@@ -1,10 +1,13 @@
+// 2026-05-19 정책: 신규 입고는 모두 NEW(새 책). 기존 S/A+/A 라벨은 재고 소진까지 유지.
 const STORE_CARD_CONDITION_LABELS = Object.freeze({
+  NEW: "NEW",
   S: "S",
   A_PLUS: "A+",
   A: "A",
 });
 
 const STORE_CARD_CONDITION_TONES = Object.freeze({
+  NEW: "grade-new",
   S: "grade-s",
   A_PLUS: "grade-a-plus",
   A: "grade-a",
@@ -176,7 +179,7 @@ export function getProductCardTitle(product = {}) {
         candidate.bookTitle,
         candidate.book_title,
       ]),
-    ]) ?? "중고 교재"
+    ]) ?? "교재"
   );
 }
 

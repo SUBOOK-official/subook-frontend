@@ -37,8 +37,10 @@ const SUBJECT_OPTIONS = ["국어", "수학", "영어", "과학", "사회", "한�
 
 const BOOK_TYPE_OPTIONS = ["기출", "모의고사", "N제", "EBS", "주간지", "내신", "개념", "워크북"];
 
+// 2026-05-19 정책: 신규 입고는 모두 NEW. 기존 S/A+/A 라벨은 재고 소진까지 유지.
 const CONDITION_LABEL = {
-  S: "S (새책)",
+  NEW: "NEW (새 책)",
+  S: "S (거의 새 책)",
   A_PLUS: "A+ (사용감 적음)",
   A: "A (사용감 있음)",
 };

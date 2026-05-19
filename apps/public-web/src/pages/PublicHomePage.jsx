@@ -13,16 +13,15 @@ import { usePageMeta } from "../lib/usePageMeta";
 
 const PICKUP_REQUEST_PATH = "/pickup/new";
 
-// 첫 슬라이드는 구매자 가치 전달(수능 끝, 검수된 중고 교재 최대 60% 할인).
-// 두번째는 판매자 동기 부여. FAQ 슬라이드("정말 믿고 사도 되는걸까요?")는
-// negative framing이므로 제거했다 (2026-05-19).
+// 2026-05-19 사업 방향성 전환: 신규 입고는 모두 안 쓴(미사용) 교재 중심.
+// 기존 중고 재고는 재고 소진까지 함께 노출. 슬라이드 카피도 새 책 톤으로.
 const HOME_HERO_SLIDES = [
   {
     id: "shop-textbooks",
-    eyebrow: "BUY USED TEXTBOOKS",
-    titleLines: ["수능 끝, 검수된", "중고 교재를 합리적으로"],
+    eyebrow: "BUY UNUSED TEXTBOOKS",
+    titleLines: ["수능 끝, 안 쓴 교재를", "합리적인 가격에"],
     descriptionLines: [
-      "S·A+급 위주, 정가 대비 최대 60% 할인",
+      "검수 완료, 정가 대비 최대 60% 할인",
       "지금 바로 원하는 교재를 찾아보세요",
     ],
     ctaLabel: "교재 보러가기",
@@ -48,7 +47,7 @@ const HOME_HERO_SLIDES = [
 function PublicHomePage() {
   usePageMeta({
     description:
-      "수험생을 위한 안 쓰는 수능 교재 위탁판매. CJ 픽업, 검수, 안전결제까지 수북이 책임집니다. 시대인재·강남대성·이투스 등 인기 교재를 합리적인 가격에 만나보세요.",
+      "수험생을 위한 안 쓴(미사용) 수능 교재 위탁판매. CJ 픽업, 검수, 안전결제까지 수북이 책임집니다. 시대인재·강남대성·이투스 등 인기 교재를 합리적인 가격에 만나보세요.",
   });
   const navigate = useNavigate();
   const { requireMember, memberGateDialog } = usePublicMemberGate();
@@ -100,7 +99,7 @@ function PublicHomePage() {
       <PublicSiteHeader onCartClick={handleGoToCart} />
 
       {/* 시각적으로 숨겨진 단일 <h1>. SEO·스크린리더용 페이지 제목. */}
-      <h1 className="public-visually-hidden">수능 중고 교재 위탁판매 | 수북</h1>
+      <h1 className="public-visually-hidden">수능 교재 위탁판매 — 안 쓴 교재를 합리적인 가격에 | 수북</h1>
 
       <HeroBanner onSlideAction={handleHeroAction} slides={HOME_HERO_SLIDES} />
       <BestBooksSection

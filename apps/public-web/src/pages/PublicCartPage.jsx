@@ -62,7 +62,7 @@ function CartItemRow({ item, isSelected, onToggle, onDelete }) {
     await onDelete(item.id);
   };
 
-  // 중고 단일재고 정책: 권당 1권 고정. quantity stepper는 노출하지 않는다.
+  // 단일재고 정책: 권당 1권 고정 (NEW·S·A+·A 모두). quantity stepper 미노출.
   const lineTotal = (item.price ?? 0) * item.quantity;
   const isPriceMissing = item.price === null || item.price === undefined;
   const isCheckboxDisabled = item.is_sold_out || isPriceMissing;

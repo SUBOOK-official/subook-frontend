@@ -232,12 +232,14 @@ function DetailTabPanel({ activeKey, product, activeDisplay, onOpenLightbox }) {
       <div className="public-detail-tab-content">
         <h3 className="public-detail-tab-content__heading">상태 등급 안내</h3>
         <ul className="public-detail-tab-content__list">
-          <li><strong>S(새책)</strong> · 사용감이 거의 없는 새 책 수준의 상태 (필기 5% 이하)</li>
-          <li><strong>A+(극미한 사용감)</strong> · 일부 페이지에 가벼운 필기/표시는 있으나 전반적으로 깨끗 (필기 6~20%)</li>
-          <li><strong>A(보통 사용감)</strong> · 학습용 필기/체크가 있으나 학습에 무리 없음 (필기 21~50%)</li>
+          <li><strong>NEW (새 책)</strong> · 비닐 개봉 여부와 무관하게 필기·형광펜이 전혀 없고 표지·내지가 양호한 미사용 교재. 2026년 5월 이후 신규 입고는 모두 NEW 등급입니다.</li>
+          <li><strong>S (거의 새 책)</strong> · 사용감이 거의 없는 새 책 수준 (필기 5% 이하) — 기존 재고만 운영</li>
+          <li><strong>A+ (사용감 적음)</strong> · 일부 페이지에 가벼운 필기/표시가 있으나 전반적으로 깨끗 (필기 6~20%) — 기존 재고만 운영</li>
+          <li><strong>A (사용감 있음)</strong> · 학습용 필기/체크가 있으나 학습에 무리 없음 (필기 21~50%) — 기존 재고만 운영</li>
         </ul>
         <p className="public-detail-tab-content__note">
           모든 교재는 4단계 검수 (외관 · 내지 · 누락 · 훼손) 후 등급이 부여됩니다.
+          신규 입고는 NEW 기준 미달 시 즉시 폐기됩니다.
         </p>
       </div>
     );
@@ -268,7 +270,7 @@ function DetailTabPanel({ activeKey, product, activeDisplay, onOpenLightbox }) {
           <li>수령 후 7일 이내 단순 변심으로 교환·반품 가능 (왕복 배송비 고객 부담)</li>
           <li>교재의 상태가 검수 등급과 다르거나, 페이지 누락·심한 훼손이 발견된 경우 무료 교환·반품</li>
           <li>
-            <strong>포장을 개봉했거나 필기·표시가 추가된 경우</strong>에는 단순 변심에 의한 환불이 제한됩니다. (한국 중고서점 표준 정책)
+            <strong>포장을 개봉했거나 필기·표시가 추가된 경우</strong>에는 단순 변심에 의한 환불이 제한됩니다.
           </li>
           <li>주문 제작 / 사용 흔적이 더해진 교재는 교환·반품이 제한될 수 있습니다.</li>
           <li>마이페이지 &gt; 구매 내역에서 신청해 주세요.</li>
@@ -523,7 +525,7 @@ function PublicProductDetailPage() {
   usePageMeta({
     title: product?.title ? `${product.title}${product.subject ? ` · ${product.subject}` : ""}` : undefined,
     description: product?.title
-      ? `${product.title}${product.instructor_name ? ` (${product.instructor_name})` : ""} ${product.subject ?? ""} 위탁판매 — 검수 완료된 중고 교재를 합리적인 가격에.`
+      ? `${product.title}${product.instructor_name ? ` (${product.instructor_name})` : ""} ${product.subject ?? ""} 위탁판매 — 검수 완료된 새 책 수준의 교재를 합리적인 가격에.`
       : undefined,
   });
   const [relatedProducts, setRelatedProducts] = useState([]);

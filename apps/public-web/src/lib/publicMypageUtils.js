@@ -1,3 +1,12 @@
+import { bookConditionLabel } from "@shared-domain/status";
+
+// raw condition_grade (NEW/S/A_PLUS/A) → 사람이 읽는 한국어 라벨.
+// 매핑 없는 값은 그대로 반환 (option_label 같은 임의 텍스트 fallback).
+function toGradeLabel(rawGrade) {
+  if (rawGrade === null || rawGrade === undefined || rawGrade === "") return null;
+  return bookConditionLabel[rawGrade] ?? rawGrade;
+}
+
 export const DEFAULT_TAB_KEY = "purchases";
 export const MAX_SAVED_ITEMS = 5;
 
@@ -720,7 +729,7 @@ export function mapPickupRequestToShipment(pr) {
     return {
       id: item.id,
       title: item.title ?? "교재",
-      gradeLabel: item.grade ?? null,
+      gradeLabel: toGradeLabel(item.grade),
       price: item.original_price ?? null,
       rejectionReason,
       rejectionDetail,
@@ -761,7 +770,7 @@ export function mapOrderToDisplayOrder(order) {
     id: item.id,
     productId: item.product_id ?? null,
     title: item.title ?? "교재",
-    gradeLabel: item.condition_grade ?? item.option_label ?? "-",
+    gradeLabel: toGradeLabel(item.condition_grade) ?? item.option_label ?? "-",
     quantity: item.quantity ?? 1,
     price: item.total_price ?? item.unit_price ?? 0,
     coverImageUrl: item.cover_image_url ?? null,

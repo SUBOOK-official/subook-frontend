@@ -128,11 +128,19 @@ function Toast({ message, tone, onClose }) {
 }
 
 // ─── 신청 전 핵심 정책 카드 (Step 1 상단) ───
+// 2026-05-19 정책: 신규 입고는 모두 "안 쓴(미사용) 교재"만 수령.
 function PickupPolicyPreview() {
   return (
     <div className="pickup-policy-preview" role="region" aria-label="신청 전 꼭 알아두세요">
       <p className="pickup-policy-preview__title">📌 신청 전 꼭 알아두세요</p>
+      <div className="pickup-policy-preview__highlight">
+        <strong>안 쓴 교재(미사용)</strong>만 받습니다.
+        <span> 비닐 개봉은 괜찮지만 필기·형광펜이 있거나 표지·내지가 손상된 책은 판매불가입니다.</span>
+      </div>
       <ul className="pickup-policy-preview__list">
+        <li>
+          <strong>새 책 기준</strong> 필기·형광펜 0%, 표지·내지 양호 (개봉 OK)
+        </li>
         <li>
           <strong>수수료</strong> 1만원 초과 책은 40%, 1만원 이하·모의고사는 45%
         </li>
@@ -140,7 +148,7 @@ function PickupPolicyPreview() {
           <strong>정산</strong> 구매자 구매확정 후 <strong>3영업일 이내 계좌이체</strong>
         </li>
         <li>
-          <strong>검수 폐기</strong> 필기 10% 초과·심한 훼손은 판매불가 → 자체 폐기
+          <strong>검수 폐기</strong> 위 기준 미달 시 판매불가 → 자체 폐기
         </li>
         <li>
           <strong>최소 권수</strong> 검수 통과 20권 미만이면 수거 배송비 3,500원 차감
@@ -1023,7 +1031,7 @@ function StepSettlement({ account, setAccount, savedAccounts, policyAgreed, setP
                 onChange={togglePolicy("disposal")}
                 type="checkbox"
               />
-              <span>(필수) 판매불가 교재 자체 폐기 동의 — 필기 10% 초과·심한 훼손 시 폐기</span>
+              <span>(필수) 판매불가 교재 자체 폐기 동의 — 필기·형광펜이 있거나 표지·내지 손상 시 폐기</span>
             </label>
           </li>
         </ul>
@@ -1049,8 +1057,10 @@ function StepSettlement({ account, setAccount, savedAccounts, policyAgreed, setP
             <div className="pickup-policy-box__section">
               <p className="pickup-policy-box__heading">검수 안내</p>
               <ul className="pickup-policy-box__list">
-                <li>전문 검수원이 S/A+/A 등급 판정</li>
-                <li>필기 10% 초과·심한 훼손 교재는 판매불가 → 자체 폐기</li>
+                <li>신규 입고는 모두 <strong>NEW(새 책)</strong> 등급으로 매입합니다</li>
+                <li>새 책 기준: 비닐 개봉 OK, 필기·형광펜 0%, 표지·내지 양호</li>
+                <li>위 기준 미달 교재(필기·형광펜 있음, 표지·내지 손상 등)는 판매불가 → 자체 폐기</li>
+                <li>기존 S/A+/A 재고는 재고 소진까지만 운영</li>
               </ul>
             </div>
             <div className="pickup-policy-box__section">

@@ -240,6 +240,29 @@
   margin: 0 0 8px;
 }
 
+.pickup-policy-preview__highlight {
+  background: #fef3c7;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13.5px;
+  color: #78350f;
+  line-height: 1.55;
+  margin-bottom: 10px;
+}
+
+.pickup-policy-preview__highlight strong {
+  font-weight: 800;
+  color: #92400e;
+}
+
+.pickup-policy-preview__highlight span {
+  display: block;
+  margin-top: 4px;
+  font-size: 12.5px;
+  color: #92400e;
+  opacity: 0.85;
+}
+
 .pickup-policy-preview__list {
   margin: 0;
   padding: 0;
