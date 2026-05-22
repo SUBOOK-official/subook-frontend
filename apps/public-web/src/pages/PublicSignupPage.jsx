@@ -92,16 +92,14 @@ function PublicSignupPage() {
     privacy: false,
     marketing: false,
   });
-  // 2026-05-19: signUp 직후 navigate 대신 같은 페이지에서 verification 카드로 전환.
-  // phase: 'form' = 기존 가입 폼, 'verifying' = 6자리 인증코드 입력 단계.
-  // 인증 완료 시점에만 진짜 가입이 활성화되며, 인증 전 이탈 사용자는
-  // 같은 이메일로 재시도 시 자동으로 verifying 모드로 다시 진입.
-  const [phase, setPhase] = useState("form");
-  const [verificationEmail, setVerificationEmail] = useState("");
+  // 2026-05-19: 같은 화면에서 이메일 인증코드 입력 ~ 가입까지 한 번에 처리.
+  // 인증코드 받기(signInWithOtp) → 6자리 입력 + 자동 verify → 비번/이름/약관 → 가입(updateUser).
+  // verificationStatus: 'idle' = 아직 안 받음, 'sending' = 발송 중,
+  //   'sent' = 발송 완료 입력 대기, 'verifying' = 검증 중, 'verified' = 인증 완료.
+  const [verificationStatus, setVerificationStatus] = useState("idle");
   const [verificationCode, setVerificationCode] = useState("");
   const [codeError, setCodeError] = useState("");
-  const [isVerifying, setIsVerifying] = useState(false);
-  const [isResending, setIsResending] = useState(false);
+  const [verifiedEmail, setVerifiedEmail] = useState("");
   const [resendCooldown, setResendCooldown] = useState(0);
   const cooldownTimerRef = useRef(null);
 
@@ -118,18 +116,13 @@ function PublicSignupPage() {
     };
   }, [resendCooldown]);
 
-  // PublicLoginPage 등에서 "인증 진행 중" 사용자가 navigate('/signup', { state: {email, requiresEmailConfirmation: true}})로
-  // 전달되면 자동으로 verification 모드로 진입.
+  // PublicLoginPage 등에서 "인증 진행 중" 사용자가 navigate('/signup', { state: {email}})로
+  // 보내면 이메일을 폼에 prefill (verification은 사용자가 다시 "인증코드 받기" 누르면 됨).
   useEffect(() => {
     const stateEmail = location.state?.email;
-    if (location.state?.requiresEmailConfirmation && stateEmail) {
-      setVerificationEmail(stateEmail);
-      setVerificationCode("");
-      setCodeError("");
-      setPhase("verifying");
+    if (stateEmail) {
+      setFormValues((current) => ({ ...current, email: stateEmail }));
     }
-    // location.state 전체 변경을 deps에 — 한 번 진입 후 다시 trigger되지 않도록
-    // history.replaceState로 cleanup도 가능하지만, mount 시 1회만 동작해도 충분.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [fieldErrors, setFieldErrors] = useState({
@@ -339,16 +332,18 @@ function PublicSignupPage() {
   // 검증 통과한 첫 에러 필드를 찾아 scrollIntoView + focus.
   // 사용자가 "왜 가입이 안 눌리지?" 혼란 없이, 어떤 필드가 미충족인지 즉시 시각화.
   const focusFirstError = (errors) => {
-    const order = ["email", "password", "passwordConfirm", "name", "phone", "agreements"];
+    const order = ["email", "verification", "password", "passwordConfirm", "name", "phone", "agreements"];
     const firstKey = order.find((key) => errors[key]);
     if (!firstKey) return;
 
     const elementId =
       firstKey === "passwordConfirm"
         ? "public-signup-password-confirm"
-        : firstKey === "agreements"
-          ? null
-          : `public-signup-${firstKey}`;
+        : firstKey === "verification"
+          ? "public-signup-verify-code"
+          : firstKey === "agreements"
+            ? null
+            : `public-signup-${firstKey}`;
 
     // 약관은 별도 셀렉터로 (id 없음).
     const target = elementId
@@ -411,12 +406,20 @@ function PublicSignupPage() {
       nextErrors.agreements = "필수 약관 동의가 필요합니다.";
     }
 
+    // 이메일 인증은 별도 코드 input의 에러 메시지(codeError)로 처리하지만,
+    // validateFields의 시점에 인증 미완료면 codeError에 안내 + focusFirstError로 코드 input으로 스크롤.
     setFieldErrors(nextErrors);
     const isValid = Object.values(nextErrors).every((value) => !value);
     if (!isValid) {
       focusFirstError(nextErrors);
+      return false;
     }
-    return isValid;
+    if (verificationStatus !== "verified") {
+      setCodeError("이메일 인증을 먼저 완료해 주세요.");
+      focusFirstError({ verification: "이메일 인증을 먼저 완료해 주세요." });
+      return false;
+    }
+    return true;
   };
 
   const handleSubmit = async (event) => {
@@ -439,212 +442,162 @@ function PublicSignupPage() {
       return;
     }
 
+    // 2026-05-19: 이메일 인증은 폼 안에서 verifyOtp로 이미 완료된 상태여야 함.
+    // 인증 완료 시 세션이 발급되어 있으므로 updateUser로 비번 + 메타데이터를 설정해 가입 완성.
+    if (verificationStatus !== "verified") {
+      setCodeError("이메일 인증을 먼저 완료해 주세요. '인증코드 받기'를 누른 뒤 받은 코드를 입력하세요.");
+      focusFirstError({ verification: "이메일 인증을 먼저 완료해 주세요." });
+      return;
+    }
+
     setIsSubmitting(true);
 
-    const signupPayload = {
-      email: normalizedEmail,
-      name: formValues.name.trim(),
-      requiresEmailConfirmation: true,
-    };
-    const agreedAt = new Date().toISOString();
-
-    const { data, error: signupError } = await supabase.auth.signUp({
-      email: normalizedEmail,
-      password: formValues.password,
-      options: {
-        data: {
-          name: formValues.name.trim(),
-          nickname: formValues.name.trim(),
-          phone: formValues.phone.trim(),
-          marketing_opt_in: agreements.marketing,
-          terms_agreed_at: agreedAt,
-          privacy_agreed_at: agreedAt,
-          marketing_agreed_at: agreements.marketing ? agreedAt : null,
-        },
-      },
-    });
-
-    if (signupError) {
-      const rawMessage = signupError.message?.toLowerCase() ?? "";
-
-      if (rawMessage.includes("already registered")) {
-        // 인증 미완료 사용자가 같은 이메일로 재시도 시: resend로 코드 재발송하고 verification 모드로.
-        // 이미 인증된 사용자라면 resend가 자동 실패하고 안내 메시지가 표시됨.
-        const { error: resendError } = await supabase.auth.resend({
-          type: "signup",
-          email: normalizedEmail,
-        });
-        if (!resendError) {
-          setVerificationEmail(normalizedEmail);
-          setVerificationCode("");
-          setCodeError("");
-          setResendCooldown(RESEND_COOLDOWN_SECONDS);
-          setPhase("verifying");
-          setIsSubmitting(false);
-          setToastState({
-            message: "이미 가입 진행 중인 이메일이에요. 인증코드를 다시 보냈어요.",
-            tone: "info",
-          });
-          return;
-        }
-        // resend 실패 = 이미 완전히 가입된 계정. 기존 안내 유지.
-        setEmailStatus({
-          state: "duplicate",
-          email: normalizedEmail,
-          message: "이미 가입된 이메일입니다.",
-        });
-        setFieldErrors((currentValue) => ({
-          ...currentValue,
-          email: "이미 가입된 이메일입니다.",
-        }));
-      } else if (rawMessage.includes("database error saving new user")) {
-        // 내부 마이그레이션 상태 노출은 운영팀 콘솔/Sentry에만 남기고
-        // 사용자에게는 안전한 일반 메시지만 표시한다.
-        console.warn("[signup] member_profiles 트리거/스키마 적용 상태 확인 필요:", rawMessage);
-        setToastState({
-          message: "회원가입을 진행할 수 없습니다. 잠시 후 다시 시도하거나 고객센터(subook2025@gmail.com)로 문의해 주세요.",
-          tone: "error",
-        });
-      } else {
-        setToastState({
-          message: signupError.message || "회원가입에 실패했습니다. 잠시 후 다시 시도해 주세요.",
-          tone: "error",
-        });
-      }
-
+    // 인증된 user가 admin 이메일이면 차단.
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessState = await getPublicAccountAccessState(sessionData.session?.user ?? null);
+    if (accessState.accountRole === "admin") {
+      await supabase.auth.signOut();
+      setToastState({
+        message: "이 이메일은 운영자 계정으로 연결되어 있어 공개 회원가입에 사용할 수 없습니다.",
+        tone: "error",
+      });
       setIsSubmitting(false);
       return;
     }
 
-    // 가입 직후 세션이 자동 발급된 경우(이메일 인증이 비활성화된 Supabase 설정 등):
-    //   1) 비-회원 계정(어드민 등)이라면 곧바로 signOut + 가입 차단
-    //   2) 정상 회원이라면 이메일 인증 흐름과 일관성을 맞추기 위해 signOut 후
-    //      /signup-success 에서 인증 안내를 보여준다.
-    if (data.session) {
-      const accessState = await getPublicAccountAccessState(data.session.user);
+    const agreedAt = new Date().toISOString();
+    const { error: updateError } = await supabase.auth.updateUser({
+      password: formValues.password,
+      data: {
+        name: formValues.name.trim(),
+        nickname: formValues.name.trim(),
+        phone: formValues.phone.trim(),
+        marketing_opt_in: agreements.marketing,
+        terms_agreed_at: agreedAt,
+        privacy_agreed_at: agreedAt,
+        marketing_agreed_at: agreements.marketing ? agreedAt : null,
+      },
+    });
 
-      if (accessState.accountRole !== "member") {
-        await supabase.auth.signOut();
-        setToastState({
-          message:
-            accessState.accountRole === "admin"
-              ? "이 이메일은 운영자 계정으로 연결되어 있어 공개 회원가입에 사용할 수 없습니다."
-              : "회원 계정 정보를 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.",
-          tone: "error",
-        });
-        setIsSubmitting(false);
-        return;
-      }
-
-      await supabase.auth.signOut();
-      signupPayload.requiresEmailConfirmation = true;
+    if (updateError) {
+      setToastState({
+        message: updateError.message || "가입 정보 저장에 실패했어요. 잠시 후 다시 시도해 주세요.",
+        tone: "error",
+      });
+      setIsSubmitting(false);
+      return;
     }
 
-    // 가입 정보는 SuccessPage fallback 대비 localStorage에도 보관 (예전 흐름 유지).
-    saveSignupSuccessState(signupPayload);
-    // 같은 페이지에서 verification 모드로 전환. navigate 하지 않음.
-    setVerificationEmail(normalizedEmail);
-    setVerificationCode("");
-    setCodeError("");
-    setResendCooldown(RESEND_COOLDOWN_SECONDS);
-    setPhase("verifying");
+    // member_profiles.email_verified_at 마무리 처리 (트리거가 처리하지만 명시적으로 한 번 더 호출).
+    await supabase.rpc("complete_member_email_verification").catch(() => null);
+
+    saveSignupSuccessState({
+      email: normalizedEmail,
+      name: formValues.name.trim(),
+      isVerified: true,
+      requiresEmailConfirmation: false,
+    });
+    setToastState({
+      message: "회원가입이 완료되었어요. 환영합니다!",
+      tone: "success",
+    });
     setIsSubmitting(false);
+    navigate("/", { replace: true });
   };
 
-  // 6자리 코드 검증 → 인증 완료 + 세션 발급 → 홈으로.
-  const verifyCodeWithValue = async (codeValue) => {
+  // 이메일에 6자리 인증코드 발송. user는 임시 생성됨(비번 없음).
+  // 사용자는 인증 후 같은 화면에서 비번/이름/약관 등 나머지 입력 → "가입하기" → updateUser로 완성.
+  const handleSendOtp = async () => {
     setCodeError("");
 
-    if (!verificationEmail) {
-      setToastState({
-        message: "인증할 이메일 정보가 없어요. 회원가입을 다시 진행해 주세요.",
-        tone: "error",
-      });
-      return;
-    }
     if (!isSupabaseConfigured || !supabase) {
       setToastState({
-        message: "인증코드 확인 기능을 사용할 수 없어요. 잠시 후 다시 시도해 주세요.",
+        message: "인증코드를 보낼 수 없어요. 잠시 후 다시 시도해 주세요.",
         tone: "error",
       });
       return;
     }
+    if (!normalizedEmail || !isValidEmailFormat(normalizedEmail)) {
+      setFieldErrors((current) => ({
+        ...current,
+        email: !normalizedEmail ? "이메일을 입력해 주세요." : "유효한 이메일 형식인지 확인해 주세요.",
+      }));
+      return;
+    }
+    if (resendCooldown > 0 || verificationStatus === "sending") return;
 
-    const normalizedCode = normalizeVerificationCode(codeValue);
-    if (normalizedCode.length !== 6) {
-      setCodeError("숫자 6자리 인증코드를 입력해주세요.");
+    setVerificationStatus("sending");
+    const { error } = await supabase.auth.signInWithOtp({
+      email: normalizedEmail,
+      options: { shouldCreateUser: true },
+    });
+
+    if (error) {
+      setVerificationStatus("idle");
+      setCodeError(error.message || "인증코드 발송에 실패했어요. 잠시 후 다시 시도해 주세요.");
       return;
     }
 
-    setIsVerifying(true);
+    setVerificationStatus("sent");
+    setVerifiedEmail("");
+    setResendCooldown(RESEND_COOLDOWN_SECONDS);
+    setToastState({
+      message: "인증코드를 보냈어요. 메일함을 확인해 주세요.",
+      tone: "success",
+    });
+  };
 
-    const { error: verifyError } = await supabase.auth.verifyOtp({
-      email: verificationEmail,
+  // 6자리 코드 검증 → 인증 완료 + 세션 발급. 같은 화면에 머무름.
+  const verifyCodeWithValue = async (codeValue) => {
+    setCodeError("");
+    if (!isSupabaseConfigured || !supabase) return;
+
+    const normalizedCode = normalizeVerificationCode(codeValue);
+    if (normalizedCode.length !== 6) return;
+    if (verificationStatus === "verifying" || verificationStatus === "verified") return;
+
+    setVerificationStatus("verifying");
+    const { error } = await supabase.auth.verifyOtp({
+      email: normalizedEmail,
       token: normalizedCode,
       type: "email",
     });
 
-    if (verifyError) {
-      setCodeError(buildVerificationErrorMessage(verifyError));
-      setIsVerifying(false);
-      return;
-    }
-
-    const { error: completeError } = await supabase.rpc("complete_member_email_verification");
-    if (completeError) {
-      setToastState({
-        message: completeError.message || "이메일 인증 완료 처리를 마무리하지 못했습니다.",
-        tone: "error",
-      });
-      setIsVerifying(false);
-      return;
-    }
-
-    setIsVerifying(false);
-    setToastState({
-      message: "이메일 인증이 완료되었어요. 환영합니다!",
-      tone: "success",
-    });
-    navigate("/", { replace: true });
-  };
-
-  const handleVerifySubmit = async (event) => {
-    event.preventDefault();
-    await verifyCodeWithValue(verificationCode);
-  };
-
-  const handleResendCode = async () => {
-    if (!verificationEmail || !isSupabaseConfigured || !supabase) return;
-    if (resendCooldown > 0 || isResending) return;
-
-    setIsResending(true);
-    const { error } = await supabase.auth.resend({
-      type: "signup",
-      email: verificationEmail,
-    });
-    setIsResending(false);
-
     if (error) {
-      setToastState({
-        message: error.message || "인증코드 재발송에 실패했어요. 잠시 후 다시 시도해 주세요.",
-        tone: "error",
-      });
+      setVerificationStatus("sent");
+      setCodeError(buildVerificationErrorMessage(error));
       return;
     }
 
-    setResendCooldown(RESEND_COOLDOWN_SECONDS);
+    setVerificationStatus("verified");
+    setVerifiedEmail(normalizedEmail);
+    setCodeError("");
     setToastState({
-      message: "인증코드를 다시 보냈어요. 메일함을 확인해 주세요.",
+      message: "이메일 인증이 완료되었어요. 나머지 정보를 입력해 주세요.",
       tone: "success",
     });
   };
 
-  // verification 모드에서 "이메일 변경" 클릭 시 폼으로 복귀.
-  const handleResetToForm = () => {
-    setPhase("form");
-    setVerificationCode("");
+  // 사용자가 코드 input에 paste/타이핑 → 6자리 채우면 자동 검증.
+  const handleVerificationCodeChange = (event) => {
+    const nextCode = normalizeVerificationCode(event.target.value);
+    setVerificationCode(nextCode);
     setCodeError("");
+    if (nextCode.length === 6 && verificationStatus !== "verifying" && verificationStatus !== "verified") {
+      void verifyCodeWithValue(nextCode);
+    }
   };
+
+  // 이메일이 변경되면 인증 상태 리셋 (다른 이메일은 다시 받아야 함).
+  useEffect(() => {
+    if (verifiedEmail && normalizedEmail !== verifiedEmail) {
+      setVerificationStatus("idle");
+      setVerificationCode("");
+      setVerifiedEmail("");
+      setCodeError("");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [normalizedEmail]);
 
   return (
     <>
@@ -716,94 +669,12 @@ function PublicSignupPage() {
 
             {pageAlert ? <div className="public-auth-alert public-auth-alert--error">{pageAlert}</div> : null}
 
-            {phase === "verifying" ? (
-              <div className="public-auth-form-card public-auth-form-card--verifying">
-                <div className="public-auth-card__heading public-auth-card__heading--left">
-                  <h2 className="public-auth-card__title" style={{ fontSize: 20 }}>이메일 인증</h2>
-                  <p className="public-auth-card__description">
-                    <strong>{verificationEmail}</strong> 으로 보낸 <strong>6자리 인증코드</strong>를 입력해 주세요.
-                    인증 완료 전까지는 가입이 마무리되지 않아요.
-                  </p>
-                </div>
-
-                <form noValidate onSubmit={handleVerifySubmit}>
-                  <div className={`public-auth-field-row ${codeError ? "is-error" : ""}`}>
-                    <label className="public-auth-field-row__label" htmlFor="public-signup-verify-code">
-                      인증코드 <span className="public-auth-field-row__required">*</span>
-                    </label>
-                    <div className="public-auth-field-row__control">
-                      <input
-                        autoComplete="one-time-code"
-                        autoFocus
-                        className="public-auth-field-row__input"
-                        id="public-signup-verify-code"
-                        inputMode="numeric"
-                        maxLength={6}
-                        onChange={(event) => {
-                          const nextCode = normalizeVerificationCode(event.target.value);
-                          setVerificationCode(nextCode);
-                          setCodeError("");
-                          if (nextCode.length === 6 && !isVerifying) {
-                            void verifyCodeWithValue(nextCode);
-                          }
-                        }}
-                        placeholder="6자리 숫자"
-                        type="text"
-                        value={verificationCode}
-                      />
-                      {codeError ? (
-                        <p className="public-auth-inline-message public-auth-inline-message--error">{codeError}</p>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  <button
-                    className="public-auth-submit-button"
-                    disabled={isVerifying || verificationCode.length !== 6}
-                    type="submit"
-                  >
-                    {isVerifying ? (
-                      <>
-                        <span aria-hidden="true" className="public-auth-spinner public-auth-spinner--button" />
-                        <span>인증 중...</span>
-                      </>
-                    ) : (
-                      "인증 완료하고 가입 마치기"
-                    )}
-                  </button>
-                </form>
-
-                <div style={{ display: "flex", gap: 12, marginTop: 12, justifyContent: "space-between", alignItems: "center" }}>
-                  <button
-                    className="public-auth-link-row__link"
-                    disabled={isResending || resendCooldown > 0}
-                    onClick={handleResendCode}
-                    style={{ background: "none", border: 0, padding: 0, cursor: "pointer" }}
-                    type="button"
-                  >
-                    {isResending
-                      ? "재발송 중..."
-                      : resendCooldown > 0
-                        ? `${resendCooldown}초 후 다시 보낼 수 있어요`
-                        : "인증코드 다시 보내기"}
-                  </button>
-                  <button
-                    className="public-auth-link-row__link"
-                    onClick={handleResetToForm}
-                    style={{ background: "none", border: 0, padding: 0, cursor: "pointer", color: "#6a728d" }}
-                    type="button"
-                  >
-                    이메일 변경
-                  </button>
-                </div>
-              </div>
-            ) : (
             <form className="public-auth-form-card" noValidate onSubmit={handleSubmit}>
               <div className={`public-auth-field-row ${fieldErrors.email ? "is-error" : ""}`}>
                 <label className="public-auth-field-row__label" htmlFor="public-signup-email">
                   이메일 <span className="public-auth-field-row__required">*</span>
                 </label>
-                <div className="public-auth-field-row__control">
+                <div className="public-auth-field-row__control" style={{ display: "flex", gap: 8, alignItems: "stretch" }}>
                   <input
                     autoComplete="email"
                     className="public-auth-field-row__input"
@@ -811,9 +682,31 @@ function PublicSignupPage() {
                     onBlur={handleEmailBlur}
                     onChange={handleChangeValue("email")}
                     placeholder="example@email.com"
+                    style={{ flex: 1 }}
                     type="email"
                     value={formValues.email}
                   />
+                  <button
+                    className="public-auth-button"
+                    disabled={
+                      verificationStatus === "sending" ||
+                      verificationStatus === "verified" ||
+                      resendCooldown > 0
+                    }
+                    onClick={handleSendOtp}
+                    style={{ flex: "0 0 auto", padding: "0 14px", fontSize: 13, whiteSpace: "nowrap" }}
+                    type="button"
+                  >
+                    {verificationStatus === "sending"
+                      ? "전송 중..."
+                      : verificationStatus === "verified"
+                        ? "✓ 인증 완료"
+                        : resendCooldown > 0
+                          ? `${resendCooldown}초 후 재전송`
+                          : verificationStatus === "sent"
+                            ? "다시 받기"
+                            : "인증코드 받기"}
+                  </button>
                 </div>
                 {emailStatus.state === "duplicate" ? (
                   <p className="public-auth-inline-message public-auth-inline-message--error">
@@ -838,6 +731,46 @@ function PublicSignupPage() {
                   </p>
                 ) : null}
               </div>
+
+              {/* 인증코드 row: '인증코드 받기' 누른 후 노출. 6자리 자동 검증. */}
+              {(verificationStatus === "sent" || verificationStatus === "verifying" || verificationStatus === "verified" || codeError) ? (
+                <div className={`public-auth-field-row ${codeError ? "is-error" : ""}`}>
+                  <label className="public-auth-field-row__label" htmlFor="public-signup-verify-code">
+                    인증코드 <span className="public-auth-field-row__required">*</span>
+                  </label>
+                  <div className="public-auth-field-row__control" style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <input
+                      autoComplete="one-time-code"
+                      className="public-auth-field-row__input"
+                      disabled={verificationStatus === "verified"}
+                      id="public-signup-verify-code"
+                      inputMode="numeric"
+                      maxLength={6}
+                      onChange={handleVerificationCodeChange}
+                      placeholder="이메일로 받은 6자리 숫자"
+                      style={{ flex: 1, letterSpacing: verificationCode ? "0.3em" : "normal" }}
+                      type="text"
+                      value={verificationCode}
+                    />
+                    {verificationStatus === "verifying" ? (
+                      <span aria-hidden="true" className="public-auth-spinner public-auth-spinner--button" />
+                    ) : verificationStatus === "verified" ? (
+                      <span aria-hidden="true" style={{ color: "#059669", fontWeight: 800, fontSize: 18 }}>✓</span>
+                    ) : null}
+                  </div>
+                  {codeError ? (
+                    <p className="public-auth-inline-message public-auth-inline-message--error">{codeError}</p>
+                  ) : verificationStatus === "verified" ? (
+                    <p className="public-auth-inline-message public-auth-inline-message--success">
+                      이메일 인증이 완료되었어요. 나머지 정보를 입력해 주세요.
+                    </p>
+                  ) : verificationStatus === "sent" ? (
+                    <p className="public-auth-inline-message public-auth-inline-message--info">
+                      이메일로 보낸 6자리 코드를 입력하면 자동으로 확인돼요.
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
 
               <div className={`public-auth-field-row ${fieldErrors.password ? "is-error" : ""}`}>
                 <label className="public-auth-field-row__label" htmlFor="public-signup-password">
@@ -1083,7 +1016,6 @@ function PublicSignupPage() {
                 )}
               </button>
             </form>
-            )}
           </section>
         </div>
       </main>
