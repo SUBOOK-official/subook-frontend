@@ -63,7 +63,9 @@ function PublicLoginPage() {
     };
 
     saveSignupSuccessState(verificationState);
-    navigate("/signup-success", {
+    // 2026-05-19: verification UI는 PublicSignupPage 안으로 통합됨.
+    // 인증 진행 중 사용자가 로그인 시도 시 회원가입 페이지의 verifying 모드로 직행.
+    navigate("/signup", {
       replace: true,
       state: verificationState,
     });

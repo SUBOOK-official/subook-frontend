@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/publicSupabaseClient";
 import PublicAgreementDialog from "../components/PublicAgreementDialog";
 import PublicOAuthButtons from "../components/PublicOAuthButtons";
@@ -15,6 +15,20 @@ import {
   normalizeEmail,
 } from "../lib/publicAuthFormUtils";
 import { saveSignupSuccessState } from "../lib/publicSignupSuccessState";
+
+const RESEND_COOLDOWN_SECONDS = 60;
+
+function normalizeVerificationCode(value) {
+  return String(value || "").replace(/[^0-9]/g, "").slice(0, 6);
+}
+
+function buildVerificationErrorMessage(error) {
+  const rawMessage = error?.message?.toLowerCase?.() ?? "";
+  if (rawMessage.includes("expired") || rawMessage.includes("token")) {
+    return "인증코드가 만료되었거나 올바르지 않습니다. 다시 확인해주세요.";
+  }
+  return error?.message || "인증코드 확인에 실패했습니다. 다시 시도해주세요.";
+}
 
 const agreementItems = [
   {
@@ -57,6 +71,7 @@ const agreementItems = [
 
 function PublicSignupPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { hasSession, isAdminAccount, isAuthenticated, signOut } = usePublicAuth();
 
   useEffect(() => {
@@ -77,6 +92,46 @@ function PublicSignupPage() {
     privacy: false,
     marketing: false,
   });
+  // 2026-05-19: signUp 직후 navigate 대신 같은 페이지에서 verification 카드로 전환.
+  // phase: 'form' = 기존 가입 폼, 'verifying' = 6자리 인증코드 입력 단계.
+  // 인증 완료 시점에만 진짜 가입이 활성화되며, 인증 전 이탈 사용자는
+  // 같은 이메일로 재시도 시 자동으로 verifying 모드로 다시 진입.
+  const [phase, setPhase] = useState("form");
+  const [verificationEmail, setVerificationEmail] = useState("");
+  const [verificationCode, setVerificationCode] = useState("");
+  const [codeError, setCodeError] = useState("");
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const cooldownTimerRef = useRef(null);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return undefined;
+    cooldownTimerRef.current = window.setTimeout(() => {
+      setResendCooldown((current) => Math.max(0, current - 1));
+    }, 1000);
+    return () => {
+      if (cooldownTimerRef.current) {
+        window.clearTimeout(cooldownTimerRef.current);
+        cooldownTimerRef.current = null;
+      }
+    };
+  }, [resendCooldown]);
+
+  // PublicLoginPage 등에서 "인증 진행 중" 사용자가 navigate('/signup', { state: {email, requiresEmailConfirmation: true}})로
+  // 전달되면 자동으로 verification 모드로 진입.
+  useEffect(() => {
+    const stateEmail = location.state?.email;
+    if (location.state?.requiresEmailConfirmation && stateEmail) {
+      setVerificationEmail(stateEmail);
+      setVerificationCode("");
+      setCodeError("");
+      setPhase("verifying");
+    }
+    // location.state 전체 변경을 deps에 — 한 번 진입 후 다시 trigger되지 않도록
+    // history.replaceState로 cleanup도 가능하지만, mount 시 1회만 동작해도 충분.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [fieldErrors, setFieldErrors] = useState({
     email: "",
     password: "",
@@ -108,6 +163,8 @@ function PublicSignupPage() {
     .filter((item) => item.required)
     .every((item) => agreements[item.key]);
   const isRequiredAllAgreed = hasRequiredAgreements;
+  // "전체 동의" 체크박스 표시 상태 — 마케팅까지 모두 동의됐을 때만 체크 표시.
+  const isAllAgreed = agreements.terms && agreements.privacy && agreements.marketing;
   const isEmailAvailable = emailStatus.state === "available" && emailStatus.email === normalizedEmail;
   const canSubmit =
     !hasSession &&
@@ -265,13 +322,16 @@ function PublicSignupPage() {
     }));
   };
 
+  // 2026-05-19 정책: "전체 동의"는 마케팅 정보 수신까지 함께 동의되도록 통합.
+  // (사용자가 "전체 동의" 클릭 시 마케팅 동의율이 자연스럽게 올라감.
+  //  라벨에 "마케팅 정보 수신 포함"을 명시해 다크 패턴이 아닌 명시적 안내로 처리.)
   const handleToggleRequiredAgreements = () => {
-    const nextValue = !isRequiredAllAgreed;
-    setAgreements((currentValue) => ({
-      ...currentValue,
+    const nextValue = !isAllAgreed;
+    setAgreements({
       terms: nextValue,
       privacy: nextValue,
-    }));
+      marketing: nextValue,
+    });
     setFieldErrors((currentValue) => ({
       ...currentValue,
       agreements: "",
@@ -384,6 +444,26 @@ function PublicSignupPage() {
       const rawMessage = signupError.message?.toLowerCase() ?? "";
 
       if (rawMessage.includes("already registered")) {
+        // 인증 미완료 사용자가 같은 이메일로 재시도 시: resend로 코드 재발송하고 verification 모드로.
+        // 이미 인증된 사용자라면 resend가 자동 실패하고 안내 메시지가 표시됨.
+        const { error: resendError } = await supabase.auth.resend({
+          type: "signup",
+          email: normalizedEmail,
+        });
+        if (!resendError) {
+          setVerificationEmail(normalizedEmail);
+          setVerificationCode("");
+          setCodeError("");
+          setResendCooldown(RESEND_COOLDOWN_SECONDS);
+          setPhase("verifying");
+          setIsSubmitting(false);
+          setToastState({
+            message: "이미 가입 진행 중인 이메일이에요. 인증코드를 다시 보냈어요.",
+            tone: "info",
+          });
+          return;
+        }
+        // resend 실패 = 이미 완전히 가입된 계정. 기존 안내 유지.
         setEmailStatus({
           state: "duplicate",
           email: normalizedEmail,
@@ -436,12 +516,110 @@ function PublicSignupPage() {
       signupPayload.requiresEmailConfirmation = true;
     }
 
+    // 가입 정보는 SuccessPage fallback 대비 localStorage에도 보관 (예전 흐름 유지).
     saveSignupSuccessState(signupPayload);
+    // 같은 페이지에서 verification 모드로 전환. navigate 하지 않음.
+    setVerificationEmail(normalizedEmail);
+    setVerificationCode("");
+    setCodeError("");
+    setResendCooldown(RESEND_COOLDOWN_SECONDS);
+    setPhase("verifying");
     setIsSubmitting(false);
-    navigate("/signup-success", {
-      replace: true,
-      state: signupPayload,
+  };
+
+  // 6자리 코드 검증 → 인증 완료 + 세션 발급 → 홈으로.
+  const verifyCodeWithValue = async (codeValue) => {
+    setCodeError("");
+
+    if (!verificationEmail) {
+      setToastState({
+        message: "인증할 이메일 정보가 없어요. 회원가입을 다시 진행해 주세요.",
+        tone: "error",
+      });
+      return;
+    }
+    if (!isSupabaseConfigured || !supabase) {
+      setToastState({
+        message: "인증코드 확인 기능을 사용할 수 없어요. 잠시 후 다시 시도해 주세요.",
+        tone: "error",
+      });
+      return;
+    }
+
+    const normalizedCode = normalizeVerificationCode(codeValue);
+    if (normalizedCode.length !== 6) {
+      setCodeError("숫자 6자리 인증코드를 입력해주세요.");
+      return;
+    }
+
+    setIsVerifying(true);
+
+    const { error: verifyError } = await supabase.auth.verifyOtp({
+      email: verificationEmail,
+      token: normalizedCode,
+      type: "email",
     });
+
+    if (verifyError) {
+      setCodeError(buildVerificationErrorMessage(verifyError));
+      setIsVerifying(false);
+      return;
+    }
+
+    const { error: completeError } = await supabase.rpc("complete_member_email_verification");
+    if (completeError) {
+      setToastState({
+        message: completeError.message || "이메일 인증 완료 처리를 마무리하지 못했습니다.",
+        tone: "error",
+      });
+      setIsVerifying(false);
+      return;
+    }
+
+    setIsVerifying(false);
+    setToastState({
+      message: "이메일 인증이 완료되었어요. 환영합니다!",
+      tone: "success",
+    });
+    navigate("/", { replace: true });
+  };
+
+  const handleVerifySubmit = async (event) => {
+    event.preventDefault();
+    await verifyCodeWithValue(verificationCode);
+  };
+
+  const handleResendCode = async () => {
+    if (!verificationEmail || !isSupabaseConfigured || !supabase) return;
+    if (resendCooldown > 0 || isResending) return;
+
+    setIsResending(true);
+    const { error } = await supabase.auth.resend({
+      type: "signup",
+      email: verificationEmail,
+    });
+    setIsResending(false);
+
+    if (error) {
+      setToastState({
+        message: error.message || "인증코드 재발송에 실패했어요. 잠시 후 다시 시도해 주세요.",
+        tone: "error",
+      });
+      return;
+    }
+
+    setResendCooldown(RESEND_COOLDOWN_SECONDS);
+    setToastState({
+      message: "인증코드를 다시 보냈어요. 메일함을 확인해 주세요.",
+      tone: "success",
+    });
+  };
+
+  // verification 모드에서 "이메일 변경" 클릭 시 폼으로 복귀.
+  const handleResetToForm = () => {
+    setPhase("form");
+    setVerificationCode("");
+    setCodeError("");
   };
 
   return (
@@ -514,6 +692,88 @@ function PublicSignupPage() {
 
             {pageAlert ? <div className="public-auth-alert public-auth-alert--error">{pageAlert}</div> : null}
 
+            {phase === "verifying" ? (
+              <div className="public-auth-form-card public-auth-form-card--verifying">
+                <div className="public-auth-card__heading public-auth-card__heading--left">
+                  <h2 className="public-auth-card__title" style={{ fontSize: 20 }}>이메일 인증</h2>
+                  <p className="public-auth-card__description">
+                    <strong>{verificationEmail}</strong> 으로 보낸 <strong>6자리 인증코드</strong>를 입력해 주세요.
+                    인증 완료 전까지는 가입이 마무리되지 않아요.
+                  </p>
+                </div>
+
+                <form noValidate onSubmit={handleVerifySubmit}>
+                  <div className={`public-auth-field-row ${codeError ? "is-error" : ""}`}>
+                    <label className="public-auth-field-row__label" htmlFor="public-signup-verify-code">
+                      인증코드 <span className="public-auth-field-row__required">*</span>
+                    </label>
+                    <div className="public-auth-field-row__control">
+                      <input
+                        autoComplete="one-time-code"
+                        autoFocus
+                        className="public-auth-field-row__input"
+                        id="public-signup-verify-code"
+                        inputMode="numeric"
+                        maxLength={6}
+                        onChange={(event) => {
+                          const nextCode = normalizeVerificationCode(event.target.value);
+                          setVerificationCode(nextCode);
+                          setCodeError("");
+                          if (nextCode.length === 6 && !isVerifying) {
+                            void verifyCodeWithValue(nextCode);
+                          }
+                        }}
+                        placeholder="6자리 숫자"
+                        type="text"
+                        value={verificationCode}
+                      />
+                      {codeError ? (
+                        <p className="public-auth-inline-message public-auth-inline-message--error">{codeError}</p>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <button
+                    className="public-auth-submit-button"
+                    disabled={isVerifying || verificationCode.length !== 6}
+                    type="submit"
+                  >
+                    {isVerifying ? (
+                      <>
+                        <span aria-hidden="true" className="public-auth-spinner public-auth-spinner--button" />
+                        <span>인증 중...</span>
+                      </>
+                    ) : (
+                      "인증 완료하고 가입 마치기"
+                    )}
+                  </button>
+                </form>
+
+                <div style={{ display: "flex", gap: 12, marginTop: 12, justifyContent: "space-between", alignItems: "center" }}>
+                  <button
+                    className="public-auth-link-row__link"
+                    disabled={isResending || resendCooldown > 0}
+                    onClick={handleResendCode}
+                    style={{ background: "none", border: 0, padding: 0, cursor: "pointer" }}
+                    type="button"
+                  >
+                    {isResending
+                      ? "재발송 중..."
+                      : resendCooldown > 0
+                        ? `${resendCooldown}초 후 다시 보낼 수 있어요`
+                        : "인증코드 다시 보내기"}
+                  </button>
+                  <button
+                    className="public-auth-link-row__link"
+                    onClick={handleResetToForm}
+                    style={{ background: "none", border: 0, padding: 0, cursor: "pointer", color: "#6a728d" }}
+                    type="button"
+                  >
+                    이메일 변경
+                  </button>
+                </div>
+              </div>
+            ) : (
             <form className="public-auth-form-card" noValidate onSubmit={handleSubmit}>
               <div className={`public-auth-field-row ${fieldErrors.email ? "is-error" : ""}`}>
                 <label className="public-auth-field-row__label" htmlFor="public-signup-email">
@@ -699,19 +959,20 @@ function PublicSignupPage() {
 
               <div className={`public-auth-agreement-box ${fieldErrors.agreements ? "is-error" : ""}`}>
                 {/*
-                  다크 패턴 해소: "전체 동의" 토글은 필수 약관만 한 번에 켜고 끄도록 변경.
-                  마케팅 수신은 사용자가 명시적으로 선택해야 함 — 별도 그룹으로 분리.
+                  2026-05-19 정책: "전체 동의" 토글에 마케팅 정보 수신까지 함께 포함.
+                  라벨에 "(마케팅 정보 수신 포함)"을 명시해서 다크 패턴이 아닌
+                  사용자가 인지한 일괄 동의로 처리.
                 */}
                 <label className="public-auth-agreement-box__all">
                   <span className="public-auth-checkmark">
-                    <input checked={isRequiredAllAgreed} onChange={handleToggleRequiredAgreements} type="checkbox" />
+                    <input checked={isAllAgreed} onChange={handleToggleRequiredAgreements} type="checkbox" />
                     <span aria-hidden="true" className="public-auth-checkmark__indicator">
                       ✓
                     </span>
                   </span>
                   <span>
-                    필수 약관 전체 동의
-                    <span className="public-auth-agreement-box__all-hint"> (선택 항목 제외)</span>
+                    약관 전체 동의
+                    <span className="public-auth-agreement-box__all-hint"> (마케팅 정보 수신 포함)</span>
                   </span>
                 </label>
 
@@ -794,6 +1055,7 @@ function PublicSignupPage() {
                 )}
               </button>
             </form>
+            )}
           </section>
         </div>
       </main>
