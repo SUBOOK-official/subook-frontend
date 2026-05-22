@@ -166,16 +166,9 @@ function PublicSignupPage() {
   // "전체 동의" 체크박스 표시 상태 — 마케팅까지 모두 동의됐을 때만 체크 표시.
   const isAllAgreed = agreements.terms && agreements.privacy && agreements.marketing;
   const isEmailAvailable = emailStatus.state === "available" && emailStatus.email === normalizedEmail;
-  const canSubmit =
-    !hasSession &&
-    normalizedEmail &&
-    formValues.name.trim() &&
-    hasValidPhoneNumber(formValues.phone) &&
-    hasRequiredPasswordConditions(formValues.password) &&
-    isPasswordMatch &&
-    hasRequiredAgreements &&
-    isEmailAvailable &&
-    !isSubmitting;
+  // canSubmit은 더 이상 버튼 disabled 결정에 쓰지 않음 (handleSubmit이 validateFields로 책임).
+  // hasSession (이미 로그인된 상태)일 때만 별도로 차단.
+  const cannotSignupBecauseLoggedIn = Boolean(hasSession);
 
   useEffect(() => {
     if (!emailTouched) {
@@ -343,6 +336,33 @@ function PublicSignupPage() {
     await signOut();
   };
 
+  // 검증 통과한 첫 에러 필드를 찾아 scrollIntoView + focus.
+  // 사용자가 "왜 가입이 안 눌리지?" 혼란 없이, 어떤 필드가 미충족인지 즉시 시각화.
+  const focusFirstError = (errors) => {
+    const order = ["email", "password", "passwordConfirm", "name", "phone", "agreements"];
+    const firstKey = order.find((key) => errors[key]);
+    if (!firstKey) return;
+
+    const elementId =
+      firstKey === "passwordConfirm"
+        ? "public-signup-password-confirm"
+        : firstKey === "agreements"
+          ? null
+          : `public-signup-${firstKey}`;
+
+    // 약관은 별도 셀렉터로 (id 없음).
+    const target = elementId
+      ? document.getElementById(elementId)
+      : document.querySelector(".public-auth-agreement-box");
+    if (!target) return;
+
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (typeof target.focus === "function") {
+      // input의 경우 즉시 focus, 약관 div는 focus 안 됨 — scroll만으로 충분.
+      window.setTimeout(() => target.focus({ preventScroll: true }), 300);
+    }
+  };
+
   const validateFields = () => {
     const nextErrors = {
       email: "",
@@ -368,7 +388,7 @@ function PublicSignupPage() {
     if (!formValues.password) {
       nextErrors.password = "필수 항목입니다.";
     } else if (!hasRequiredPasswordConditions(formValues.password)) {
-      nextErrors.password = "비밀번호 조건을 확인해 주세요.";
+      nextErrors.password = "비밀번호 조건(8자 이상 · 영문 · 숫자)을 모두 충족해 주세요.";
     }
 
     if (!formValues.passwordConfirm) {
@@ -392,7 +412,11 @@ function PublicSignupPage() {
     }
 
     setFieldErrors(nextErrors);
-    return Object.values(nextErrors).every((value) => !value);
+    const isValid = Object.values(nextErrors).every((value) => !value);
+    if (!isValid) {
+      focusFirstError(nextErrors);
+    }
+    return isValid;
   };
 
   const handleSubmit = async (event) => {
@@ -1044,7 +1068,11 @@ function PublicSignupPage() {
                 <p className="public-auth-inline-message public-auth-inline-message--error">{fieldErrors.agreements}</p>
               ) : null}
 
-              <button className="public-auth-button public-auth-button--primary" disabled={!canSubmit} type="submit">
+              <button
+                className="public-auth-button public-auth-button--primary"
+                disabled={isSubmitting || cannotSignupBecauseLoggedIn}
+                type="submit"
+              >
                 {isSubmitting ? (
                   <>
                     <span aria-hidden="true" className="public-auth-spinner public-auth-spinner--button" />
