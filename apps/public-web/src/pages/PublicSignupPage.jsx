@@ -674,7 +674,7 @@ function PublicSignupPage() {
                 <label className="public-auth-field-row__label" htmlFor="public-signup-email">
                   이메일 <span className="public-auth-field-row__required">*</span>
                 </label>
-                <div className="public-auth-field-row__control" style={{ display: "flex", gap: 8, alignItems: "stretch" }}>
+                <div className="public-auth-field-row__control">
                   <input
                     autoComplete="email"
                     className="public-auth-field-row__input"
@@ -682,31 +682,9 @@ function PublicSignupPage() {
                     onBlur={handleEmailBlur}
                     onChange={handleChangeValue("email")}
                     placeholder="example@email.com"
-                    style={{ flex: 1 }}
                     type="email"
                     value={formValues.email}
                   />
-                  <button
-                    className="public-auth-button"
-                    disabled={
-                      verificationStatus === "sending" ||
-                      verificationStatus === "verified" ||
-                      resendCooldown > 0
-                    }
-                    onClick={handleSendOtp}
-                    style={{ flex: "0 0 auto", padding: "0 14px", fontSize: 13, whiteSpace: "nowrap" }}
-                    type="button"
-                  >
-                    {verificationStatus === "sending"
-                      ? "전송 중..."
-                      : verificationStatus === "verified"
-                        ? "✓ 인증 완료"
-                        : resendCooldown > 0
-                          ? `${resendCooldown}초 후 재전송`
-                          : verificationStatus === "sent"
-                            ? "다시 받기"
-                            : "인증코드 받기"}
-                  </button>
                 </div>
                 {emailStatus.state === "duplicate" ? (
                   <p className="public-auth-inline-message public-auth-inline-message--error">
@@ -731,6 +709,29 @@ function PublicSignupPage() {
                   </p>
                 ) : null}
               </div>
+
+              {/* 이메일이 '사용 가능' 으로 확인된 후에만 인증코드 받기 버튼 노출.
+                  - 인증 완료(verified) 후에는 row를 숨김 (인증코드 row 자체가 ✓ 표시).
+                  - sending / sent / verifying 중에는 버튼 라벨로 상태 안내. */}
+              {isEmailAvailable && verificationStatus !== "verified" ? (
+                <div className="public-auth-field-row" style={{ marginTop: -8 }}>
+                  <button
+                    className="public-auth-button"
+                    disabled={verificationStatus === "sending" || verificationStatus === "verifying" || resendCooldown > 0}
+                    onClick={handleSendOtp}
+                    style={{ width: "100%" }}
+                    type="button"
+                  >
+                    {verificationStatus === "sending"
+                      ? "인증코드 보내는 중..."
+                      : resendCooldown > 0
+                        ? `${resendCooldown}초 후 다시 받을 수 있어요`
+                        : verificationStatus === "sent" || verificationStatus === "verifying"
+                          ? "인증코드 다시 받기"
+                          : "인증코드 받기"}
+                  </button>
+                </div>
+              ) : null}
 
               {/* 인증코드 row: '인증코드 받기' 누른 후 노출. 6자리 자동 검증. */}
               {(verificationStatus === "sent" || verificationStatus === "verifying" || verificationStatus === "verified" || codeError) ? (
