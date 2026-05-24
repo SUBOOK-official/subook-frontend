@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AdminShell from "../components/AdminShell";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
+import NotificationResultModal from "../components/NotificationResultModal";
 import { notifyPickupAccepted } from "../lib/adminNotification";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { formatDate } from "@shared-domain/format";
@@ -147,6 +148,9 @@ function AdminPickupRequestsPage() {
   const [trackingLookupId, setTrackingLookupId] = useState(null);
   const [trackingModal, setTrackingModal] = useState(null);
   const [destructiveModal, setDestructiveModal] = useState(null);
+  // 알림톡/RPC 부분 실패를 전체 노출 — 이전엔 setError에 3건만 보여 4건 이후가 사라지는 P0 사고
+  const [cjFailureModal, setCjFailureModal] = useState(null);
+  const [notificationResult, setNotificationResult] = useState(null);
 
   const totalPages = useMemo(
     () => Math.max(1, Math.ceil(totalCount / PAGE_SIZE)),
@@ -368,13 +372,30 @@ function AdminPickupRequestsPage() {
       }
 
       setNotice(parts.join(" · ") || "CJ 수거 접수를 완료했습니다.");
+
+      // CJ 접수 부분 실패 — 전체 실패 건을 모달로 노출.
+      // 이전엔 3건까지만 setError로 노출돼 나머지 실패가 사라졌음.
       if (failedResults.length > 0) {
-        setError(
-          failedResults
-            .slice(0, 3)
-            .map((result) => `${result.requestNumber || result.pickupRequestId}: ${result.error}`)
-            .join("\n"),
-        );
+        setCjFailureModal({
+          total: payload.successCount + failedResults.length,
+          failures: failedResults.map((r) => ({
+            id: r.pickupRequestId,
+            requestNumber: r.requestNumber || `#${r.pickupRequestId}`,
+            error: r.error || "알 수 없는 오류",
+          })),
+        });
+      }
+
+      // 알림톡 결과는 N건 합계 모달로 (성공/실패 분리)
+      if (notificationFailCount > 0) {
+        setNotificationResult({
+          successCount: Math.max(0, registeredResults.length - notificationFailCount),
+          failures: Array.from({ length: notificationFailCount }, (_, i) => ({
+            id: `notif-${i}`,
+            label: `수거접수 알림 #${i + 1}`,
+            error: "알림톡 발송 실패 (수신 거부·번호 오류 등)",
+          })),
+        });
       }
 
       setSelectedIds([]);
@@ -857,6 +878,25 @@ function AdminPickupRequestsPage() {
           </section>
         </div>
       ) : null}
+
+      {/* CJ 부분 실패 — 전체 실패 건을 모달로 노출 */}
+      <NotificationResultModal
+        failures={cjFailureModal?.failures ?? []}
+        onClose={() => setCjFailureModal(null)}
+        onRetry={null}
+        open={Boolean(cjFailureModal)}
+        successCount={cjFailureModal ? (cjFailureModal.total - cjFailureModal.failures.length) : 0}
+        title="CJ 수거 접수 결과"
+      />
+
+      {/* 알림톡 발송 결과 (수거접수) */}
+      <NotificationResultModal
+        failures={notificationResult?.failures ?? []}
+        onClose={() => setNotificationResult(null)}
+        open={Boolean(notificationResult)}
+        successCount={notificationResult?.successCount ?? 0}
+        title="알림톡 발송 결과 (수거접수)"
+      />
 
       <DestructiveConfirmModal
         busy={registeringIds.length > 0}

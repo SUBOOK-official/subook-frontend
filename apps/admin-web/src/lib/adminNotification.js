@@ -156,3 +156,38 @@ export async function notifyDeliveryDone({ order }) {
     templateVariables: {},
   });
 }
+
+// 환불 완료 알림 (구매자) — admin_refund_order 호출 직후 발송.
+// 이전에는 환불 후 어떤 알림도 안 가서 사용자가 "왜 환불 안 됐냐" 문의가 폭주했음.
+export async function notifyRefundCompleted({ order, reason }) {
+  return callSendNotification({
+    notificationType: "refund_completed",
+    recipientPhone: order.shipping_recipient_phone || order.buyer_phone,
+    recipientName: order.shipping_recipient_name || order.buyer_name,
+    recipientUserId: order.user_id,
+    refType: "order",
+    refId: order.id,
+    templateVariables: {
+      orderNumber: order.order_number,
+      totalAmount: Number(order.total_amount ?? 0).toLocaleString("ko-KR"),
+      reason: reason || "환불 처리",
+    },
+  });
+}
+
+// 정산 회수 필요 알림 (셀러) — 환불로 인해 이미 송금된 정산을 회수해야 할 때.
+// 셀러에게 명시적 안내가 가야 회수 협조를 받을 수 있음.
+export async function notifySettlementRecoveryRequired({ sellerPhone, sellerName, sellerUserId, amount, settlementId, orderNumber }) {
+  return callSendNotification({
+    notificationType: "settlement_recovery_required",
+    recipientPhone: sellerPhone,
+    recipientName: sellerName,
+    recipientUserId: sellerUserId,
+    refType: "settlement",
+    refId: settlementId,
+    templateVariables: {
+      amount: Number(amount ?? 0).toLocaleString("ko-KR"),
+      orderNumber,
+    },
+  });
+}

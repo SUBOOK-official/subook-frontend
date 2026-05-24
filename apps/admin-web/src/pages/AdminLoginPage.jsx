@@ -158,7 +158,8 @@ function AdminLoginPage() {
                 className="input-base"
                 name="email"
                 onChange={handleChange}
-                placeholder="admin@subook.kr"
+                placeholder="이메일"
+                autoComplete="username"
                 type="email"
                 value={form.email}
               />

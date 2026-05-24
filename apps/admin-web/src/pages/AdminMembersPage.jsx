@@ -3,7 +3,7 @@ import AdminDialog from "../components/AdminDialog";
 import AdminShell from "../components/AdminShell";
 import AdminPagination from "../components/AdminPagination";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
-import { formatCurrency, formatDate } from "@shared-domain/format";
+import { formatCurrency, formatDate, maskEmail, maskPhone } from "@shared-domain/format";
 import { pickupRequestStatusLabel, shipmentStatusLabel } from "@shared-domain/status";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 
@@ -432,13 +432,18 @@ function AdminMembersPage() {
                         <p className="mt-1 text-xs text-slate-400">{member.name}</p>
                       ) : null}
                     </td>
+                    {/* 목록 화면 PII는 항상 마스킹. 풀스트링은 상세 모달에서만 노출. */}
                     <td className="px-4 py-3">
-                      <p className="font-semibold text-slate-700">{member.email}</p>
+                      <p className="font-semibold text-slate-700" title="상세 모달에서 원문 확인">
+                        {maskEmail(member.email)}
+                      </p>
                       <p className="mt-1 text-xs text-slate-400">
                         {member.email_verified_at ? "이메일 인증" : "이메일 미인증"}
                       </p>
                     </td>
-                    <td className="px-4 py-3 text-slate-600">{member.phone || "-"}</td>
+                    <td className="px-4 py-3 text-slate-600" title="상세 모달에서 원문 확인">
+                      {maskPhone(member.phone)}
+                    </td>
                     <td className="px-4 py-3 text-slate-500">{formatDate(member.joined_at)}</td>
                     <td className="px-4 py-3 text-right font-bold text-slate-900">
                       {formatCurrency(member.purchase_amount)}

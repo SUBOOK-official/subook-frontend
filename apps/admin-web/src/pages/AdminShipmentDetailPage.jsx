@@ -9,6 +9,7 @@ import { formatCurrency, formatDate } from "@shared-domain/format";
 import { bookConditionLabel, bookStatusLabel, shipmentStatusLabel } from "@shared-domain/status";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import StatusBadge from "@shared-domain/StatusBadge";
+import NotificationResultModal from "../components/NotificationResultModal";
 import { notifyArrived, notifyInspectionDone } from "../lib/adminNotification";
 
 const initialBookForm = {
@@ -633,6 +634,8 @@ function AdminShipmentDetailPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
+  // 상태 전이 시 발송된 알림톡 결과 모달 — console.warn 휘발 위험 제거
+  const [shipmentNotificationResult, setShipmentNotificationResult] = useState(null);
   const [isBulkUploading, setIsBulkUploading] = useState(false);
   const [updatingBookStatusId, setUpdatingBookStatusId] = useState(null);
   const [updatingBookPriceId, setUpdatingBookPriceId] = useState(null);
@@ -1125,15 +1128,39 @@ function AdminShipmentDetailPage() {
     setNotice(successMessage);
     setActionLoading(false);
 
-    // 알림톡 발송 (백그라운드 — 실패해도 상태 변경은 유지)
+    // 알림톡 발송 — 결과를 명시적으로 모달에 노출 (성공/실패 분리).
+    // 이전엔 console.warn으로만 끝나서 운영자가 "알림톡 갔다"고 잘못 인지하던 P0 사고.
     try {
+      let result = null;
+      let label = "알림톡";
       if (nextStatus === "inspecting") {
-        await notifyArrived({ shipment: { ...shipment, book_count: books.length } });
+        label = "입고 완료 알림";
+        result = await notifyArrived({ shipment: { ...shipment, book_count: books.length } });
       } else if (nextStatus === "inspected") {
-        await notifyInspectionDone({ shipment, books });
+        label = "검수 완료 알림";
+        result = await notifyInspectionDone({ shipment, books });
       }
-    } catch {
-      console.warn("알림톡 발송 실패 (상태 변경은 정상 처리됨)");
+      if (result && result.success === false) {
+        setShipmentNotificationResult({
+          title: `${label} 발송 결과`,
+          successCount: 0,
+          failures: [{
+            id: `notif-${nextStatus}`,
+            label: `${shipment.seller_name || "셀러"} (${shipment.seller_phone || "번호 없음"})`,
+            error: result.error || "알림톡 발송 실패",
+          }],
+        });
+      }
+    } catch (notifyErr) {
+      setShipmentNotificationResult({
+        title: "알림톡 발송 결과",
+        successCount: 0,
+        failures: [{
+          id: `notif-${nextStatus}-exception`,
+          label: `${shipment.seller_name || "셀러"} (${shipment.seller_phone || "번호 없음"})`,
+          error: notifyErr?.message || "알림톡 API 호출 실패",
+        }],
+      });
     }
   };
 
@@ -2187,6 +2214,15 @@ function AdminShipmentDetailPage() {
         }}
         open={priceDeltaOpen}
         selectedIds={selectedBookIds}
+      />
+
+      {/* 상태 전이 시 알림톡 결과 — 성공/실패 명시적 노출 */}
+      <NotificationResultModal
+        failures={shipmentNotificationResult?.failures ?? []}
+        onClose={() => setShipmentNotificationResult(null)}
+        open={Boolean(shipmentNotificationResult)}
+        successCount={shipmentNotificationResult?.successCount ?? 0}
+        title={shipmentNotificationResult?.title ?? "알림톡 발송 결과"}
       />
     </AdminShell>
   );

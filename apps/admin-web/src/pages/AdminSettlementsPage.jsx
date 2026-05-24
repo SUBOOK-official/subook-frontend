@@ -373,13 +373,7 @@ function AdminSettlementsPage() {
 
     try {
       const isPlain = exportPlainAccount;
-      const exportRows = buildExportRows(rows, { plain: isPlain });
-      const columnWidths = [12, 12, 20, 14, 16, 18, 32, 14, 12, 10, 12, 12, 12, 22, 12];
-      const columns = Object.keys(exportRows[0]).map((key, index) => ({
-        key,
-        header: key,
-        width: columnWidths[index],
-      }));
+      const settlementIds = rows.map((r) => Number(r.id)).filter((n) => Number.isFinite(n));
 
       // 다운로더 식별자(이메일 prefix) — 파일명에 포함하여 추후 누가 받았는지 추적
       const { data: { user } = {} } = await supabase.auth.getUser();
@@ -390,6 +384,34 @@ function AdminSettlementsPage() {
       const maskTag = isPlain ? "plain" : "masked";
       const fileName = `subook-settlements-${stamp}-${adminTag}-${maskTag}.xlsx`;
 
+      // 평문 계좌 다운로드는 audit 성공이 보장돼야 함. RPC 실패 시 다운로드 차단.
+      // 마스킹 다운로드는 audit 실패해도 진행하되 console.warn으로 알림.
+      if (isPlain) {
+        const { error: auditError } = await supabase.rpc("admin_log_settlement_export", {
+          p_settlement_ids: settlementIds,
+          p_is_plain_text: true,
+          p_file_name: fileName,
+          p_client_tag: reason ? `reason:${reason.slice(0, 100)}` : null,
+        });
+        if (auditError) {
+          showToast(
+            "audit 기록에 실패해 평문 계좌 다운로드를 중단합니다. 시스템 담당자에게 알려주세요.",
+            "error",
+          );
+          setIsExporting(false);
+          setExportConfirmOpen(false);
+          return;
+        }
+      }
+
+      const exportRows = buildExportRows(rows, { plain: isPlain });
+      const columnWidths = [12, 12, 20, 14, 16, 18, 32, 14, 12, 10, 12, 12, 12, 22, 12];
+      const columns = Object.keys(exportRows[0]).map((key, index) => ({
+        key,
+        header: key,
+        width: columnWidths[index],
+      }));
+
       await exportRowsToXlsx({
         rows: exportRows,
         columns,
@@ -397,40 +419,22 @@ function AdminSettlementsPage() {
         sheetName: "settlements",
       });
 
-      // 서버 audit log RPC (없으면 fallback to console)
-      try {
-        const { error: auditError } = await supabase.rpc("admin_log_settlement_export", {
-          p_reason: reason ?? null,
-          p_row_count: rows.length,
-          p_plain_account: isPlain,
-        });
-        if (auditError) {
-          // RPC 미존재 — 클라이언트 로그만 남김
-          // eslint-disable-next-line no-console
-          console.info("[settlement-export]", {
-            at: nowIso,
-            row_count: rows.length,
-            reason,
-            plain_account: isPlain,
-            admin_email: adminEmail,
-            audit_rpc_error: auditError.message,
+      // 마스킹 다운로드도 audit 기록은 시도 (실패해도 다운로드는 진행됨)
+      if (!isPlain) {
+        try {
+          await supabase.rpc("admin_log_settlement_export", {
+            p_settlement_ids: settlementIds,
+            p_is_plain_text: false,
+            p_file_name: fileName,
+            p_client_tag: reason ? `reason:${reason.slice(0, 100)}` : null,
           });
+        } catch (auditErr) {
+          console.warn("audit 기록 실패 (다운로드는 정상)", auditErr);
         }
-      } catch (_error) {
-        // TODO(backend): admin_log_settlement_export(p_reason text, p_row_count int, p_plain_account bool)
-        // RPC가 admin_users만 접근하는 audit 테이블에 insert.
-        // eslint-disable-next-line no-console
-        console.info("[settlement-export]", {
-          at: nowIso,
-          row_count: rows.length,
-          reason,
-          plain_account: isPlain,
-          admin_email: adminEmail,
-        });
       }
 
       showToast(
-        `정산 엑셀 ${rows.length}건을 다운로드했습니다.${isPlain ? " (평문 계좌 포함)" : ""}`,
+        `정산 엑셀 ${rows.length}건을 다운로드했습니다.${isPlain ? " (평문 계좌 포함 — audit 영구 기록됨)" : ""}`,
         "success",
       );
     } catch (error) {

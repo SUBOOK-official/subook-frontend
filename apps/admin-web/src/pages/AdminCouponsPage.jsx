@@ -4,7 +4,7 @@ import AdminPagination from "../components/AdminPagination";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import StatusBadge from "@shared-domain/StatusBadge";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
-import { formatCurrency } from "@shared-domain/format";
+import { formatCurrency, maskEmail, maskPhone } from "@shared-domain/format";
 
 const ISSUANCE_TYPE_LABEL = {
   admin_assigned: "어드민 발급",
@@ -24,6 +24,7 @@ const initialForm = {
   valid_until: "",
   usage_limit_per_user: "",
   total_quantity: "",
+  budget_cap_amount: "",
   issuance_type: "admin_assigned",
   code: "",
   is_active: true,
@@ -45,6 +46,7 @@ function buildPayload(form) {
       ? Number(form.usage_limit_per_user)
       : null,
     total_quantity: form.total_quantity ? Number(form.total_quantity) : null,
+    budget_cap_amount: form.budget_cap_amount ? Number(form.budget_cap_amount) : null,
     issuance_type: form.issuance_type,
     code: form.issuance_type === "code" ? form.code.trim() || null : null,
     is_active: Boolean(form.is_active),
@@ -65,6 +67,7 @@ function rowToForm(row) {
     valid_until: row.valid_until ? row.valid_until.slice(0, 16) : "",
     usage_limit_per_user: row.usage_limit_per_user != null ? String(row.usage_limit_per_user) : "",
     total_quantity: row.total_quantity != null ? String(row.total_quantity) : "",
+    budget_cap_amount: row.budget_cap_amount != null ? String(row.budget_cap_amount) : "",
     issuance_type: row.issuance_type || "admin_assigned",
     code: row.code || "",
     is_active: Boolean(row.is_active),
@@ -199,6 +202,11 @@ function AdminCouponsPage() {
         showToast("정률 할인은 1–100 사이의 값이어야 합니다.", "error");
         return;
       }
+      // 정률 + max_discount_amount 빈칸은 회사 손실 폭주 위험 — 저장 차단
+      if (!form.max_discount_amount || Number(form.max_discount_amount) <= 0) {
+        showToast("정률 쿠폰은 '할인 상한'이 반드시 필요합니다. (객단가에 비례한 손실 무제한 방지)", "error");
+        return;
+      }
     }
 
     setIsSaving(true);
@@ -272,18 +280,37 @@ function AdminCouponsPage() {
     await loadCoupons();
   };
 
-  const handleIssueToAll = () => {
+  const handleIssueToAll = async () => {
     if (!issueTarget) return;
+
+    // 사전 잠재 손실 시뮬레이션 — 회원 수 × 1인당 최대 할인을 미리 보여줘
+    // "혹시" 클릭으로 회사가 망하는 케이스 방지.
+    const { data: estimate, error: estError } = await supabase.rpc(
+      "admin_estimate_coupon_max_loss",
+      { p_coupon_id: issueTarget.id },
+    );
+
     const phrase = issueTarget.code || issueTarget.title || `coupon-${issueTarget.id}`;
+
+    const lossLine = estimate && !estError
+      ? `· 대상 회원 ${estimate.eligible_member_count?.toLocaleString("ko-KR") ?? "?"}명 × 1인당 최대 ${(estimate.per_user_max_amount ?? 0).toLocaleString("ko-KR")}원\n` +
+        `· 잠재 최대 손실: 약 ${(estimate.total_max_loss ?? 0).toLocaleString("ko-KR")}원${estimate.budget_cap_amount ? ` (cap ${estimate.budget_cap_amount.toLocaleString("ko-KR")}원)` : " (cap 없음)"}\n` +
+        (estimate.percentage_no_max_discount_warning ? `⚠️ 정률 쿠폰이지만 할인 상한이 비어 있습니다. 폼에서 상한을 먼저 설정하세요.\n` : "")
+      : `· 잠재 손실 시뮬레이션 RPC 호출 실패 (배포 점검 필요)\n`;
+
     setDestructiveModal({
       title: `전체 회원에 쿠폰 발급 — ${issueTarget.title}`,
       description:
         `전체 활성 회원에게 "${issueTarget.title}" 쿠폰을 일괄 발급합니다.\n\n` +
+        `[발급 영향 예측]\n` + lossLine + `\n` +
+        `[주의]\n` +
         `· 발급된 쿠폰은 시스템에서 일괄 회수할 수 없습니다.\n` +
         `· 회원당 1매 발급되며, 이미 보유한 회원은 자동 skip됩니다.\n` +
         `· 회원 수에 따라 수십 초가 걸릴 수 있습니다.`,
       confirmPhrase: phrase,
-      reasonRequired: false,
+      reasonRequired: true,
+      reasonMinLength: 5,
+      reasonPlaceholder: "발급 사유 (예: 신년 프로모션, 출석 이벤트 보상)",
       confirmLabel: "전체 발급",
       run: async () => {
         setIsIssuing(true);
@@ -568,17 +595,45 @@ function AdminCouponsPage() {
 
               {form.discount_type === "percentage" ? (
                 <label className="md:col-span-2">
-                  <span className="text-xs font-bold text-slate-700">할인 상한 (원, 선택)</span>
+                  <span className="text-xs font-bold text-slate-700">
+                    할인 상한 (원) <span className="text-rose-600">* 필수</span>
+                  </span>
                   <input
                     type="number"
                     min="0"
+                    required
                     value={form.max_discount_amount}
                     onChange={handleField("max_discount_amount")}
-                    placeholder="예: 5000 — 비워두면 상한 없음"
+                    placeholder="예: 5000 — 정률 쿠폰은 반드시 상한 필요"
                     className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
                   />
+                  {/* 정률 + max_discount 빈칸 + 전체 발급 조합은 회사가 망할 수 있음.
+                      저장 시점에 입력하지 않으면 차단. */}
+                  {!form.max_discount_amount ? (
+                    <p className="mt-1 text-xs font-semibold text-rose-600">
+                      정률 쿠폰은 상한 없이 사용하면 객단가에 비례해 회사 손실이 무제한이 됩니다. 반드시 입력하세요.
+                    </p>
+                  ) : null}
                 </label>
               ) : null}
+
+              {/* 누적 예산 cap — 누적 할인이 이 금액 도달 시 자동 비활성 (backend trigger 처리) */}
+              <label className="md:col-span-2">
+                <span className="text-xs font-bold text-slate-700">
+                  누적 예산 cap (원, 선택) — 안전장치
+                </span>
+                <input
+                  type="number"
+                  min="0"
+                  value={form.budget_cap_amount}
+                  onChange={handleField("budget_cap_amount")}
+                  placeholder="예: 5000000 — 누적 할인이 이 금액 초과 시 쿠폰 자동 비활성"
+                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                />
+                <p className="mt-1 text-xs text-slate-500">
+                  비워두면 무제한. 정률·전체 발급 쿠폰일수록 cap 권장.
+                </p>
+              </label>
 
               <label>
                 <span className="text-xs font-bold text-slate-700">최소 주문 금액 (원)</span>
@@ -761,8 +816,8 @@ function AdminCouponsPage() {
                           {member.display_name || member.name || member.email}
                         </div>
                         <div className="truncate text-xs text-slate-500">
-                          {member.email}
-                          {member.phone ? ` · ${member.phone}` : ""}
+                          {maskEmail(member.email)}
+                          {member.phone ? ` · ${maskPhone(member.phone)}` : ""}
                         </div>
                       </div>
                       <button

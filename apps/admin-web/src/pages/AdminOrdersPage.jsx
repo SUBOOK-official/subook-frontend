@@ -6,7 +6,12 @@ import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import StatusBadge from "@shared-domain/StatusBadge";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { formatCurrency, formatDate } from "@shared-domain/format";
-import { notifyOrderConfirmed, notifyShippingStarted, notifyDeliveryDone } from "../lib/adminNotification";
+import {
+  notifyDeliveryDone,
+  notifyOrderConfirmed,
+  notifyRefundCompleted,
+  notifyShippingStarted,
+} from "../lib/adminNotification";
 
 const PAGE_SIZE = 30;
 
@@ -126,6 +131,7 @@ function AdminOrdersPage() {
 
   // 입금확인 모달 (금액 검증)
   const [paymentModal, setPaymentModal] = useState(null);
+  const [paymentDepositorInput, setPaymentDepositorInput] = useState("");
   const [paymentInput, setPaymentInput] = useState("");
 
   // CSV 일괄 송장 입력 모달
@@ -363,15 +369,18 @@ function AdminOrdersPage() {
     return true;
   };
 
-  // 입금확인 모달 열기: 금액 검증을 위해 입력 모달
+  // 입금확인 모달 열기 — 빈 값으로 시작 (운영자가 통장 보고 직접 입력).
+  // 과거에는 total_amount가 value로 미리 채워져 검증이 무력화되는 P0 사고 위험이 있었음.
   const openPaymentModal = (order) => {
     setPaymentModal(order);
-    setPaymentInput(String(order.total_amount ?? ""));
+    setPaymentInput("");
+    setPaymentDepositorInput("");
   };
 
   const closePaymentModal = () => {
     setPaymentModal(null);
     setPaymentInput("");
+    setPaymentDepositorInput("");
   };
 
   // 입금확인 처리: admin_confirm_payment RPC (금액 일치 + 동일 책 paid 재검증)
@@ -421,7 +430,8 @@ function AdminOrdersPage() {
         `[자동 처리]\n` +
         `· 정산 pending/approved → cancelled (송금 안 함)\n` +
         `· 정산 completed → recovery_required (셀러로부터 회수 필요)\n` +
-        `· 적용된 쿠폰 → available 로 복구\n\n` +
+        `· 적용된 쿠폰 → available 로 복구\n` +
+        `· 구매자에게 환불 안내 알림톡 발송\n\n` +
         `이 작업은 되돌릴 수 없습니다.`,
       confirmPhrase: "환불",
       reasonRequired: true,
@@ -443,10 +453,18 @@ function AdminOrdersPage() {
 
         const cancelled = data?.cancelled_settlements ?? 0;
         const recovery = data?.recovery_required_settlements ?? 0;
+
+        // 환불 완료 알림톡 발송 — 이전엔 토스트만 떠서 사용자가 "왜 환불 안 됐냐" 문의 폭주.
+        try {
+          await notifyRefundCompleted({ order, reason });
+        } catch (notifyErr) {
+          console.warn("환불 알림톡 발송 실패", notifyErr);
+        }
+
         showToast(
           `환불 완료. 정산 자동 처리: 취소 ${cancelled}건 / 회수 필요 ${recovery}건${
             recovery > 0 ? " (수동 회수 진행 필요)" : ""
-          }`,
+          }. 구매자에게 환불 안내 알림톡 발송.`,
           "success",
         );
         setSelectedOrderId(null);
@@ -470,6 +488,12 @@ function AdminOrdersPage() {
 
   const handleTrackingSubmit = async () => {
     if (!trackingModal || !trackingInput.trim()) return;
+    // 단일 입력에도 형식 검증 — 이전엔 CSV 일괄에만 있었고 모달은 무검증 통과해
+    // 잘못된 운송장이 배송 시작 알림톡과 함께 발송되는 P0 사고 위험이 있었음.
+    if (!validateTrackingNumber(trackingCarrier, trackingInput.trim())) {
+      showToast(`운송장 형식이 맞지 않습니다 (${trackingCarrier}). 다시 확인해주세요.`, "error");
+      return;
+    }
     await handleUpdateStatus(trackingModal.id, "shipping", trackingInput.trim(), trackingCarrier);
   };
 
@@ -1010,13 +1034,47 @@ function AdminOrdersPage() {
                 className="input-base font-mono"
                 inputMode="numeric"
                 onChange={(e) => setPaymentInput(e.target.value)}
-                placeholder="입금된 금액"
+                placeholder={`예: ${Number(paymentModal.total_amount ?? 0).toLocaleString("ko-KR")}`}
                 type="text"
                 value={paymentInput}
               />
               <p className="text-xs text-slate-400 mt-1">
-                금액이 다르면 입금확인이 거부됩니다. 입금 내역을 다시 확인 후 입력해주세요.
+                통장 내역을 보고 직접 입력하세요. 금액이 다르면 입금확인이 거부됩니다.
               </p>
+              <button
+                className="text-xs font-semibold text-blue-600 hover:underline mt-1"
+                onClick={() => setPaymentInput(String(paymentModal.total_amount ?? ""))}
+                type="button"
+              >
+                주문 금액과 동일하게 채우기
+              </button>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-slate-600 block mb-1.5">
+                통장에 찍힌 입금자명 * (예상값과 다르면 경고 표시)
+              </label>
+              <input
+                autoComplete="off"
+                className="input-base"
+                onChange={(e) => setPaymentDepositorInput(e.target.value)}
+                placeholder="통장 내역의 입금자명 그대로"
+                type="text"
+                value={paymentDepositorInput}
+              />
+              {(() => {
+                const expected = `${paymentModal.shipping_recipient_name ?? ""}${String(paymentModal.order_number ?? "").replace(/\D/g, "").slice(-4)}`;
+                const input = paymentDepositorInput.trim();
+                if (input.length === 0) return null;
+                const matches = input === expected;
+                return (
+                  <p className={`text-xs mt-1 ${matches ? "text-emerald-700" : "text-amber-700 font-semibold"}`}>
+                    {matches
+                      ? "✓ 예상 입금자명과 일치합니다."
+                      : `⚠️ 예상값 "${expected}"과 다릅니다. 본인 입금이 확실한지 한 번 더 확인해주세요.`}
+                  </p>
+                );
+              })()}
             </div>
 
             <div className="flex gap-2">
@@ -1025,7 +1083,11 @@ function AdminOrdersPage() {
               </button>
               <button
                 className="btn-primary flex-1"
-                disabled={busyOrderId === paymentModal.id || !paymentInput.trim()}
+                disabled={
+                  busyOrderId === paymentModal.id
+                  || !paymentInput.trim()
+                  || !paymentDepositorInput.trim()
+                }
                 onClick={handleConfirmPayment}
                 type="button"
               >

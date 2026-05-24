@@ -47,3 +47,35 @@ export function formatDisplayEmail(email) {
   if (isPlaceholderEmail(email)) return "(이메일 미등록)";
   return String(email);
 }
+
+/**
+ * 어드민 목록 화면 PII 마스킹 — 화면 캡처/공유 사고에 대비해 기본은 마스킹,
+ * 상세 모달 등 사용자가 명시적으로 본 행에서만 풀스트링을 노출하는 패턴 권장.
+ * 이메일: 앞 2-3자 + ***@도메인 (도메인은 보존해야 운영 식별 가능)
+ */
+export function maskEmail(email) {
+  if (!email) return "-";
+  if (isPlaceholderEmail(email)) return "(이메일 미등록)";
+  const raw = String(email);
+  const atIdx = raw.indexOf("@");
+  if (atIdx <= 0) return raw;
+  const local = raw.slice(0, atIdx);
+  const domain = raw.slice(atIdx);
+  if (local.length <= 2) return `${local[0] ?? "*"}*${domain}`;
+  if (local.length <= 4) return `${local.slice(0, 2)}**${domain}`;
+  return `${local.slice(0, 3)}***${domain}`;
+}
+
+/**
+ * 전화번호 마스킹 — 한국 휴대폰 패턴 010-1234-5678 → 010-****-5678
+ * (앞자리 + 끝 4자리는 유지해 운영 식별성 보존)
+ */
+export function maskPhone(phone) {
+  if (!phone) return "-";
+  const raw = String(phone).trim();
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length < 7) return "*".repeat(Math.max(1, digits.length));
+  const head = digits.slice(0, 3);
+  const tail = digits.slice(-4);
+  return `${head}-****-${tail}`;
+}
