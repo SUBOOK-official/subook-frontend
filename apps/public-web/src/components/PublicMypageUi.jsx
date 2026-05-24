@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
-import { useFocusTrap } from "../lib/useFocusTrap";
+import { useFocusTrap } from "@shared-domain/useFocusTrap";
+import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
 
 function MypageEmptyState({ actionLabel, actionOnClick, actionTo, description, icon, title }) {
   return (
@@ -63,14 +64,12 @@ function ResponsiveSheet({ actions, children, eyebrow, onClose, open, title }) {
   const dialogRef = useRef(null);
 
   useFocusTrap(dialogRef, open);
+  useBodyScrollLock(open);
 
   useEffect(() => {
     if (!open) {
       return undefined;
     }
-
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
 
     const handleKeyDown = (event) => {
       if (event.key === "Escape") {
@@ -81,7 +80,6 @@ function ResponsiveSheet({ actions, children, eyebrow, onClose, open, title }) {
     window.addEventListener("keydown", handleKeyDown);
 
     return () => {
-      document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", handleKeyDown);
       setOffsetY(0);
       startYRef.current = null;

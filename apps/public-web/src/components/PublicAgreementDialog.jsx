@@ -1,19 +1,19 @@
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { useFocusTrap } from "../lib/useFocusTrap";
+import { useFocusTrap } from "@shared-domain/useFocusTrap";
+import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
 
 function PublicAgreementDialog({ documentItem, onClose, open }) {
   const dialogRef = useRef(null);
+  const active = open && Boolean(documentItem);
 
-  useFocusTrap(dialogRef, open && Boolean(documentItem));
+  useFocusTrap(dialogRef, active);
+  useBodyScrollLock(active);
 
   useEffect(() => {
     if (!open) {
       return undefined;
     }
-
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
 
     const handleKeyDown = (event) => {
       if (event.key === "Escape") {
@@ -24,7 +24,6 @@ function PublicAgreementDialog({ documentItem, onClose, open }) {
     window.addEventListener("keydown", handleKeyDown);
 
     return () => {
-      document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [onClose, open]);

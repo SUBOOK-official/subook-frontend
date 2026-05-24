@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { Link, useNavigate } from "react-router-dom";
 import ContentContainer from "./ContentContainer";
 import searchIconImage from "../assets/search-icon.svg";
+import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
 import { supabase } from "@shared-supabase/publicSupabaseClient";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { createDisplayName } from "../lib/memberPortal";
@@ -225,9 +226,15 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
 
   // 카트 카운트는 인증 상태가 바뀔 때 + 라우트 진입 직후에만 한 번씩 가져온다.
   // 카트 페이지에서의 수정은 자기 페이지에서 재계산하므로 헤더는 진입 시 fetch면 충분.
-  // 비로그인 사용자는 로컬 카트도 보여주기 위해 동일 함수 사용 (localStorage 기반).
   useEffect(() => {
     let cancelled = false;
+    if (!isAuthenticated) {
+      setCartItemCount(0);
+      return () => {
+        cancelled = true;
+      };
+    }
+
     const fetchCartCount = async () => {
       try {
         // getCartItems는 { items, error } 형태로 반환. Supabase 미설정 시 localStorage fallback.
@@ -294,18 +301,8 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
     };
   }, [debouncedKeyword]);
 
-  // 모바일 메뉴 열려있을 때 body scroll lock
-  useEffect(() => {
-    if (typeof document === "undefined") return undefined;
-    if (isMobileMenuOpen) {
-      const previous = document.body.style.overflow;
-      document.body.style.overflow = "hidden";
-      return () => {
-        document.body.style.overflow = previous;
-      };
-    }
-    return undefined;
-  }, [isMobileMenuOpen]);
+  // 모바일 메뉴 열려있을 때 body scroll lock — 중첩 모달과 안전하게 동작하는 공용 훅 사용
+  useBodyScrollLock(isMobileMenuOpen);
 
   // ESC 키로 모바일 메뉴 닫기
   useEffect(() => {

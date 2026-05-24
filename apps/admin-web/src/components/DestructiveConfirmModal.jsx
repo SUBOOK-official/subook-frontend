@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState } from "react";
-import { useFocusTrap } from "../lib/useFocusTrap";
+import { useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { useFocusTrap } from "@shared-domain/useFocusTrap";
+import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
 
 function DestructiveConfirmModal({
   open,
@@ -19,8 +21,10 @@ function DestructiveConfirmModal({
   const [reason, setReason] = useState("");
   const phraseRef = useRef(null);
   const dialogRef = useRef(null);
+  const titleId = useId();
 
   useFocusTrap(dialogRef, open);
+  useBodyScrollLock(open);
 
   useEffect(() => {
     if (open) {
@@ -42,6 +46,7 @@ function DestructiveConfirmModal({
   }, [open, busy, onCancel]);
 
   if (!open) return null;
+  if (typeof document === "undefined") return null;
 
   const phraseOk = !confirmPhrase || phraseInput.trim() === confirmPhrase;
   const reasonOk = !reasonRequired || reason.trim().length >= reasonMinLength;
@@ -52,20 +57,21 @@ function DestructiveConfirmModal({
     onConfirm(reasonRequired ? reason.trim() : undefined);
   };
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4"
       onClick={busy ? undefined : onCancel}
       role="presentation"
     >
       <div
+        aria-labelledby={titleId}
         aria-modal="true"
         className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
         onClick={(event) => event.stopPropagation()}
         ref={dialogRef}
         role="dialog"
       >
-        <h2 className="text-lg font-black text-rose-700">{title}</h2>
+        <h2 className="text-lg font-black text-rose-700" id={titleId}>{title}</h2>
         <p className="mt-2 whitespace-pre-line text-sm text-slate-700">{description}</p>
 
         {confirmPhrase ? (
@@ -122,7 +128,8 @@ function DestructiveConfirmModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

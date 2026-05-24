@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useFocusTrap } from "../lib/useFocusTrap";
+import { useFocusTrap } from "@shared-domain/useFocusTrap";
+import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
 
 function PublicMemberGateDialog({ onClose, onLogin, onSignup, open }) {
   const [offsetY, setOffsetY] = useState(0);
@@ -8,14 +9,12 @@ function PublicMemberGateDialog({ onClose, onLogin, onSignup, open }) {
   const dialogRef = useRef(null);
 
   useFocusTrap(dialogRef, open);
+  useBodyScrollLock(open);
 
   useEffect(() => {
     if (!open) {
       return undefined;
     }
-
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
 
     const handleKeyDown = (event) => {
       if (event.key === "Escape") {
@@ -26,7 +25,6 @@ function PublicMemberGateDialog({ onClose, onLogin, onSignup, open }) {
     window.addEventListener("keydown", handleKeyDown);
 
     return () => {
-      document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", handleKeyDown);
       setOffsetY(0);
       startYRef.current = null;

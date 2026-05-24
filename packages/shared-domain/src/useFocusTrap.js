@@ -48,8 +48,14 @@ export function useFocusTrap(containerRef, active) {
     return () => {
       container.removeEventListener("keydown", handleTab);
       if (previouslyFocused instanceof HTMLElement) {
-        previouslyFocused.focus();
+        try {
+          previouslyFocused.focus({ preventScroll: true });
+        } catch {
+          previouslyFocused.focus();
+        }
       }
     };
   }, [containerRef, active]);
 }
+
+export default useFocusTrap;

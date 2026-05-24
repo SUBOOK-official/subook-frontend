@@ -1,5 +1,7 @@
-import { useEffect, useRef } from "react";
-import { useFocusTrap } from "../lib/useFocusTrap";
+import { useEffect, useId, useRef } from "react";
+import { createPortal } from "react-dom";
+import { useFocusTrap } from "@shared-domain/useFocusTrap";
+import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
 
 /**
  * 알림톡 발송 결과를 사용자에게 보여주는 모달.
@@ -18,8 +20,10 @@ function NotificationResultModal({
   busy = false,
 }) {
   const dialogRef = useRef(null);
+  const titleId = useId();
 
   useFocusTrap(dialogRef, open);
+  useBodyScrollLock(open);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -33,23 +37,25 @@ function NotificationResultModal({
   }, [open, busy, onClose]);
 
   if (!open) return null;
+  if (typeof document === "undefined") return null;
 
   const hasFailures = failures.length > 0;
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4"
       onClick={busy ? undefined : onClose}
       role="presentation"
     >
       <div
+        aria-labelledby={titleId}
         aria-modal="true"
         className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl"
         onClick={(event) => event.stopPropagation()}
         ref={dialogRef}
         role="dialog"
       >
-        <h2 className="text-lg font-black text-slate-950">{title}</h2>
+        <h2 className="text-lg font-black text-slate-950" id={titleId}>{title}</h2>
         <p className="mt-2 text-sm text-slate-700">
           성공{" "}
           <strong className="font-bold text-emerald-700">{successCount}건</strong>
@@ -105,7 +111,8 @@ function NotificationResultModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

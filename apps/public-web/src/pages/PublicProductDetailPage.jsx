@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { formatCurrency, formatDate } from "@shared-domain/format";
+import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
 import ContentContainer from "../components/ContentContainer";
 import ProductCard from "../components/ProductCard";
 import PublicFooter from "../components/PublicFooter";
@@ -344,6 +345,9 @@ function ProductImageLightbox({ images, initialIndex, captionPrefix, onClose }) 
     setCurrentIndex(Math.min(Math.max(0, initialIndex), Math.max(0, total - 1)));
   }, [initialIndex, total]);
 
+  // 모달 열린 동안 body 스크롤 잠금 (모바일에서 배경 스크롤 방지) — 공용 훅으로 중첩 모달 안전
+  useBodyScrollLock(true);
+
   useEffect(() => {
     const handleKey = (event) => {
       if (event.key === "Escape") {
@@ -355,12 +359,8 @@ function ProductImageLightbox({ images, initialIndex, captionPrefix, onClose }) 
       }
     };
     window.addEventListener("keydown", handleKey);
-    // 모달 열린 동안 body 스크롤 잠금 (모바일에서 배경 스크롤 방지)
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
     return () => {
       window.removeEventListener("keydown", handleKey);
-      document.body.style.overflow = previousOverflow;
     };
   }, [onClose, total]);
 

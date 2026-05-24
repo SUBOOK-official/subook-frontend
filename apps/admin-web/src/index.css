@@ -32,6 +32,13 @@ body {
   background: #f5f7fa;
 }
 
+input,
+textarea,
+select,
+button {
+  font: inherit;
+}
+
 @layer components {
   .app-shell {
     @apply mx-auto min-h-screen w-full max-w-md px-4 pb-12 pt-6;

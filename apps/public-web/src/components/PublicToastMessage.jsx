@@ -19,8 +19,14 @@ function PublicToastMessage({ actionLabel, message, onAction, onClose, tone = "i
     return null;
   }
 
+  const isError = tone === "error";
   return (
-    <div className={`public-toast public-toast--${tone}`} role="status">
+    <div
+      className={`public-toast public-toast--${tone}`}
+      role={isError ? "alert" : "status"}
+      aria-live={isError ? "assertive" : "polite"}
+      aria-atomic="true"
+    >
       <div className="public-toast__body">
         <span aria-hidden="true" className="public-toast__icon">
           {tone === "success" ? "✓" : tone === "error" ? "!" : "i"}

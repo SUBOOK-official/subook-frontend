@@ -1,13 +1,16 @@
-import { useEffect, useRef } from "react";
-import { useFocusTrap } from "../lib/useFocusTrap";
+import { useEffect, useId, useRef } from "react";
+import { createPortal } from "react-dom";
+import { useFocusTrap } from "@shared-domain/useFocusTrap";
+import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
 
 /**
  * 공용 어드민 모달 컨테이너.
  *
- * - 포커스 트랩 + ESC 닫기 + 백드롭 클릭 닫기를 한 곳에서 처리한다.
+ * - 포커스 트랩 + ESC 닫기 + 백드롭 클릭 닫기 + body scroll lock을 한 곳에서 처리.
  * - `dirty` + `confirmDirtyMessage`를 함께 넘기면 닫기/ESC/백드롭 클릭 시
  *   confirm 다이얼로그로 사용자에게 한 번 더 물어본다.
  * - `busy`가 true면 모든 닫기 동작이 무시된다 (저장 중 우발적 닫힘 방지).
+ * - body에 portal로 렌더해 sidebar/header의 stacking context와 분리.
  */
 function AdminDialog({
   open,
@@ -21,8 +24,10 @@ function AdminDialog({
   children,
 }) {
   const dialogRef = useRef(null);
+  const titleId = useId();
 
   useFocusTrap(dialogRef, open);
+  useBodyScrollLock(open);
 
   const sizeClass =
     size === "sm"
@@ -35,13 +40,12 @@ function AdminDialog({
             ? "max-w-4xl"
             : size === "2xl"
               ? "max-w-5xl"
-              : size; // 직접 tailwind class 넘기는 escape hatch
+              : size;
 
   const requestClose = (event) => {
     if (busy) return;
     if (event) event.stopPropagation();
     if (dirty && confirmDirtyMessage) {
-      // window.confirm은 동기 — focus trap과도 충돌 없음.
       // eslint-disable-next-line no-alert
       const ok = typeof window !== "undefined" ? window.confirm(confirmDirtyMessage) : true;
       if (!ok) return;
@@ -63,14 +67,16 @@ function AdminDialog({
   }, [open, busy, dirty, confirmDirtyMessage, onClose]);
 
   if (!open) return null;
+  if (typeof document === "undefined") return null;
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4"
       onClick={requestClose}
       role="presentation"
     >
       <div
+        aria-labelledby={title ? titleId : undefined}
         aria-modal="true"
         className={`w-full ${sizeClass} rounded-2xl bg-white shadow-2xl max-h-[90vh] overflow-y-auto ${bodyClassName}`}
         onClick={(event) => event.stopPropagation()}
@@ -79,12 +85,13 @@ function AdminDialog({
       >
         {title ? (
           <div className="border-b border-slate-200 px-6 py-4">
-            <h3 className="text-lg font-black text-slate-950">{title}</h3>
+            <h2 className="text-lg font-black text-slate-950" id={titleId}>{title}</h2>
           </div>
         ) : null}
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

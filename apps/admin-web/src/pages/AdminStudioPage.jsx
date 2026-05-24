@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import AdminShell from "../components/AdminShell";
 import { useAdminStudio } from "../contexts/AdminStudioContext";
+import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
 import { isSupabaseConfigured } from "@shared-supabase/adminSupabaseClient";
 
 function formatEstimatedTime(ms) {
@@ -119,13 +120,13 @@ function AdminStudioPage() {
     closeSelectModeModal();
   };
 
+  useBodyScrollLock(isSelectModeModalOpen);
+
   useEffect(() => {
     if (!isSelectModeModalOpen) {
       return;
     }
 
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
     const focusFrameId = window.requestAnimationFrame(() => {
       appendActionButtonRef.current?.focus();
     });
@@ -163,7 +164,6 @@ function AdminStudioPage() {
     document.addEventListener("keydown", handleKeyDown);
 
     return () => {
-      document.body.style.overflow = previousOverflow;
       window.cancelAnimationFrame(focusFrameId);
       document.removeEventListener("keydown", handleKeyDown);
     };

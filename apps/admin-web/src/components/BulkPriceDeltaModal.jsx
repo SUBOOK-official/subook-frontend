@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useFocusTrap } from "../lib/useFocusTrap";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { useFocusTrap } from "@shared-domain/useFocusTrap";
+import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
 
 const MIN_PERCENT = -50;
 const MAX_PERCENT = 50;
@@ -13,8 +15,10 @@ function BulkPriceDeltaModal({ open, books, selectedIds, busy = false, onCancel,
   const [percentInput, setPercentInput] = useState("");
   const inputRef = useRef(null);
   const dialogRef = useRef(null);
+  const titleId = useId();
 
   useFocusTrap(dialogRef, open);
+  useBodyScrollLock(open);
 
   useEffect(() => {
     if (open) {
@@ -55,6 +59,7 @@ function BulkPriceDeltaModal({ open, books, selectedIds, busy = false, onCancel,
   };
 
   if (!open) return null;
+  if (typeof document === "undefined") return null;
 
   const errorMessage = !isNumber
     ? null
@@ -64,20 +69,21 @@ function BulkPriceDeltaModal({ open, books, selectedIds, busy = false, onCancel,
         ? "0%는 변경 효과가 없습니다."
         : null;
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4"
       onClick={busy ? undefined : onCancel}
       role="presentation"
     >
       <div
+        aria-labelledby={titleId}
         aria-modal="true"
         className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
         onClick={(event) => event.stopPropagation()}
         ref={dialogRef}
         role="dialog"
       >
-        <h2 className="text-lg font-black text-slate-900">
+        <h2 className="text-lg font-black text-slate-900" id={titleId}>
           일괄 가격 변경 — {selectedBooks.length}권
         </h2>
         <p className="mt-2 text-sm text-slate-700">
@@ -154,7 +160,8 @@ function BulkPriceDeltaModal({ open, books, selectedIds, busy = false, onCancel,
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
