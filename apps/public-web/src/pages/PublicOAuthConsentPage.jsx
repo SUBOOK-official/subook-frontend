@@ -194,16 +194,17 @@ function PublicOAuthConsentPage() {
 
     setIsSubmitting(true);
     try {
-      // TODO(backend): complete_oauth_signup RPC 시그니처에 p_name, p_phone 추가 필요.
-      //   현재 RPC가 두 인자를 받지 않으면 PGRST202(missing parameter)로 실패할 수 있음 →
-      //   그 경우 fallback으로 인자 없이 재호출하여 약관 동의만 처리.
-      let { error } = await supabase.rpc("complete_oauth_signup", {
+      // complete_oauth_signup RPC는 항상 p_name/p_phone을 받는 새 시그니처로 호출.
+      // 과거에는 RPC 시그니처 미지원 시 인자 없이 재호출하는 fallback이 있었으나,
+      // 그 경우 사용자가 입력한 이름·연락처가 silently drop되어 마이페이지/픽업/정산
+      // 단계에서 빈 값으로 인지되는 사고를 만들었다. 더 이상 fallback하지 않는다.
+      // RPC 시그니처가 새 형식이 아니면 명시적으로 실패하고, backend 배포를 강제한다.
+      const { error } = await supabase.rpc("complete_oauth_signup", {
         p_marketing_opt_in: agreements.marketing,
         p_name: formValues.name.trim(),
         p_phone: formValues.phone.trim(),
       });
 
-      // RPC가 아직 새 시그니처 미지원이면 (PGRST202 등) 기존 호출로 fallback.
       if (error) {
         const rawCode = error.code ?? "";
         const rawMessage = error.message?.toLowerCase?.() ?? "";
@@ -213,16 +214,11 @@ function PublicOAuthConsentPage() {
           rawMessage.includes("p_phone") ||
           rawMessage.includes("function complete_oauth_signup");
 
-        if (isSignatureMissing) {
-          const fallback = await supabase.rpc("complete_oauth_signup", {
-            p_marketing_opt_in: agreements.marketing,
-          });
-          error = fallback.error;
-        }
-      }
-
-      if (error) {
-        setErrorMessage(`동의 처리에 실패했어요. ${error.message ?? ""}`);
+        setErrorMessage(
+          isSignatureMissing
+            ? "약관 동의 처리가 일시적으로 중단되었습니다. 잠시 후 다시 시도해 주세요. (시스템 업데이트 중)"
+            : `동의 처리에 실패했어요. ${error.message ?? ""}`,
+        );
         setIsSubmitting(false);
         return;
       }

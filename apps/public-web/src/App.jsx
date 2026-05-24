@@ -30,6 +30,13 @@ function PageLoadingFallback() {
   );
 }
 
+// /store?... 외부 SEO 링크와 SubjectGrid 카드 링크가 통째로 홈으로 튕기는 걸 방지.
+// 쿼리스트링·해시를 보존한 채 홈(HomeStoreGrid가 search params를 읽음)으로 리다이렉트.
+function RedirectStoreToHome() {
+  const location = useLocation();
+  return <Navigate replace to={{ pathname: "/", search: location.search, hash: location.hash }} />;
+}
+
 // OAuth 신규 가입자가 약관 동의 안 한 채 다른 페이지를 떠돌면 자동으로 동의 페이지로 보낸다.
 // 콜백 페이지나 동의 페이지 자체에서는 동작 안 함 (loop 방지).
 function OAuthConsentGate() {
@@ -72,7 +79,7 @@ function App() {
           <Route element={<PublicProductDetailPage />} path="/store/:productId" />
           <Route element={<PublicSignupPage />} path="/signup" />
           <Route element={<PublicSignupSuccessPage />} path="/signup-success" />
-          <Route element={<Navigate replace to="/" />} path="/store" />
+          <Route element={<RedirectStoreToHome />} path="/store" />
           <Route element={<PublicPolicyPage type="terms" />} path="/terms" />
           <Route element={<PublicNotFoundPage />} path="*" />
         </Routes>

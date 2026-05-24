@@ -426,6 +426,34 @@
   background: var(--public-ds-danger);
 }
 
+.cart-toast {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cart-toast__message {
+  display: inline-block;
+}
+
+.cart-toast__action {
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  min-height: 32px;
+}
+
+.cart-toast__action:hover,
+.cart-toast__action:focus-visible {
+  background: rgba(255, 255, 255, 0.32);
+}
+
 @keyframes cart-toast-in {
   from {
     opacity: 0;

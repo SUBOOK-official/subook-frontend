@@ -937,11 +937,12 @@ function PublicProductDetailPage() {
                   priceValue={priceValue}
                 />
 
-                {/* P0: 단일재고(1권) 시급성 신호 + 방금 다른 분이 구매했어요 인라인 메시지 */}
+                {/* 단일재고 정책 정보 — 시급성 톤이 아닌 사실 톤. */}
+                {/* 모든 상품에 같은 "단 1권" 시급성을 붙이면 cried-wolf가 되어 학생들이 무시한다. */}
                 {!activeAvailability.isSoldOut ? (
-                  <div className="public-detail-urgency-badge" role="status">
-                    <span aria-hidden="true">⚡</span>
-                    <span>단 1권 — 결제 순서대로 판매</span>
+                  <div className="public-detail-urgency-badge public-detail-urgency-badge--info" role="status">
+                    <span aria-hidden="true">📦</span>
+                    <span>단일 재고 — 결제 순서대로 발송</span>
                   </div>
                 ) : justSoldOut ? (
                   <div className="public-detail-soldout-flash" role="status">

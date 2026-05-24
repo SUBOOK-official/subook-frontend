@@ -155,9 +155,9 @@ function PublicSignupPage() {
   const hasRequiredAgreements = agreementItems
     .filter((item) => item.required)
     .every((item) => agreements[item.key]);
-  const isRequiredAllAgreed = hasRequiredAgreements;
-  // "전체 동의" 체크박스 표시 상태 — 마케팅까지 모두 동의됐을 때만 체크 표시.
-  const isAllAgreed = agreements.terms && agreements.privacy && agreements.marketing;
+  // "필수 약관 전체 동의" 체크박스 표시 상태 — 필수 약관 모두 동의됐을 때만 체크.
+  // 마케팅(선택)은 별도 체크박스로 분리. 한 번에 묶어 처리하는 패턴은 방통위 권고에 어긋남.
+  const isAllAgreed = agreements.terms && agreements.privacy;
   const isEmailAvailable = emailStatus.state === "available" && emailStatus.email === normalizedEmail;
   // canSubmit은 더 이상 버튼 disabled 결정에 쓰지 않음 (handleSubmit이 validateFields로 책임).
   // hasSession (이미 로그인된 상태)일 때만 별도로 차단.
@@ -308,16 +308,16 @@ function PublicSignupPage() {
     }));
   };
 
-  // 2026-05-19 정책: "전체 동의"는 마케팅 정보 수신까지 함께 동의되도록 통합.
-  // (사용자가 "전체 동의" 클릭 시 마케팅 동의율이 자연스럽게 올라감.
-  //  라벨에 "마케팅 정보 수신 포함"을 명시해 다크 패턴이 아닌 명시적 안내로 처리.)
+  // 2026-05-25 정책 변경: "필수 약관 전체 동의"는 필수 약관만 일괄 처리.
+  // 마케팅(선택)은 사용자가 별도 체크박스에서 의식적으로 선택해야 함.
+  // (필수 + 선택을 한 번에 묶어 처리하면 방통위 다크 패턴 권고 위반)
   const handleToggleRequiredAgreements = () => {
     const nextValue = !isAllAgreed;
-    setAgreements({
+    setAgreements((current) => ({
+      ...current,
       terms: nextValue,
       privacy: nextValue,
-      marketing: nextValue,
-    });
+    }));
     setFieldErrors((currentValue) => ({
       ...currentValue,
       agreements: "",
@@ -916,11 +916,7 @@ function PublicSignupPage() {
               </div>
 
               <div className={`public-auth-agreement-box ${fieldErrors.agreements ? "is-error" : ""}`}>
-                {/*
-                  2026-05-19 정책: "전체 동의" 토글에 마케팅 정보 수신까지 함께 포함.
-                  라벨에 "(마케팅 정보 수신 포함)"을 명시해서 다크 패턴이 아닌
-                  사용자가 인지한 일괄 동의로 처리.
-                */}
+                {/* 2026-05-25 정책: 필수 약관만 일괄 처리. 마케팅(선택)은 별도 체크박스. */}
                 <label className="public-auth-agreement-box__all">
                   <span className="public-auth-checkmark">
                     <input checked={isAllAgreed} onChange={handleToggleRequiredAgreements} type="checkbox" />
@@ -928,10 +924,7 @@ function PublicSignupPage() {
                       ✓
                     </span>
                   </span>
-                  <span>
-                    약관 전체 동의
-                    <span className="public-auth-agreement-box__all-hint"> (마케팅 정보 수신 포함)</span>
-                  </span>
+                  <span>필수 약관 전체 동의</span>
                 </label>
 
                 <div aria-hidden="true" className="public-auth-agreement-box__divider" />

@@ -50,6 +50,34 @@ function formatDeadline(createdAtIso) {
   }
 }
 
+// 입금 마감까지 남은 시간을 1초마다 재계산해 "H시간 MM분 SS초 남음" 형태로 반환.
+// 마감이 지나면 null. createdAt이 없거나 이미 결제완료/취소면 동작 안 함.
+function usePaymentCountdown(createdAtIso, active) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!active || !createdAtIso) return undefined;
+    const tick = () => setNow(Date.now());
+    tick();
+    const intervalId = window.setInterval(tick, 1000);
+    return () => window.clearInterval(intervalId);
+  }, [createdAtIso, active]);
+  if (!active || !createdAtIso) return null;
+  try {
+    const deadlineMs = new Date(createdAtIso).getTime() + PAYMENT_DEADLINE_HOURS * 60 * 60 * 1000;
+    const remainingMs = deadlineMs - now;
+    if (remainingMs <= 0) return { expired: true, label: "" };
+    const totalSeconds = Math.floor(remainingMs / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    const pad = (n) => String(n).padStart(2, "0");
+    const label = hours > 0 ? `${hours}시간 ${pad(minutes)}분 ${pad(seconds)}초 남음` : `${pad(minutes)}분 ${pad(seconds)}초 남음`;
+    return { expired: false, label, urgent: hours === 0 && minutes < 30 };
+  } catch {
+    return null;
+  }
+}
+
 function CopyButton({ value, ariaLabel }) {
   const [copied, setCopied] = useState(false);
 
@@ -103,6 +131,13 @@ function PublicOrderCompletePage() {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+
+  // 카운트다운은 early return 이전에 호출해야 rules-of-hooks 준수. 활성화는 결제 미완료일 때만.
+  const isPaid =
+    order.paymentStatus === "paid" ||
+    (order.status && order.status !== "pending" && order.status !== "cancelled");
+  const isCancelled = order.status === "cancelled";
+  const countdown = usePaymentCountdown(order.createdAt, !isPaid && !isCancelled);
 
   useEffect(() => {
     if (authLoading) return;
@@ -174,12 +209,10 @@ function PublicOrderCompletePage() {
     );
   }
 
-  const { orderNumber, totalAmount, itemCount, recipientName, status, paymentStatus, createdAt } = order;
+  const { orderNumber, totalAmount, itemCount, recipientName, createdAt } = order;
   const depositorName = buildDepositorName(recipientName, orderNumber);
   const bankAccountPlain = BANK_ACCOUNT.replace(/-/g, "");
   const deadlineLabel = formatDeadline(createdAt);
-  const isPaid = paymentStatus === "paid" || (status && status !== "pending" && status !== "cancelled");
-  const isCancelled = status === "cancelled";
 
   return (
     <PublicPageFrame>
@@ -276,8 +309,21 @@ function PublicOrderCompletePage() {
                       </div>
                     )}
 
-                    <p className="order-complete-card__bank-notice">
-                      ⏰ {deadlineLabel ? (
+                    <p
+                      aria-live="polite"
+                      className={`order-complete-card__bank-notice ${
+                        countdown?.urgent ? "order-complete-card__bank-notice--urgent" : ""
+                      }`}
+                    >
+                      ⏰ {countdown && !countdown.expired ? (
+                        <>
+                          <strong>{countdown.label}</strong>
+                          {deadlineLabel ? <> · {deadlineLabel}까지</> : null}
+                          . 미입금 시 주문이 자동 취소됩니다.
+                        </>
+                      ) : countdown?.expired ? (
+                        <strong>입금 시간이 지났습니다. 주문이 곧 자동 취소돼요.</strong>
+                      ) : deadlineLabel ? (
                         <>
                           <strong>{deadlineLabel}까지</strong> 입금해주세요. 미입금 시 주문이 자동 취소됩니다.
                         </>

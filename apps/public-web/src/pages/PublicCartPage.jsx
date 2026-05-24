@@ -9,6 +9,7 @@ import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { usePublicWishlist } from "../contexts/PublicWishlistContext";
 import {
   FREE_SHIPPING_THRESHOLD,
+  addToCart,
   calculateShippingFee,
   deleteCartItem,
   deleteCartItems,
@@ -150,9 +151,11 @@ function PublicCartPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [toast, setToast] = useState(null);
 
-  const showToast = useCallback((message, type = "info") => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3000);
+  const showToast = useCallback((message, type = "info", options = null) => {
+    setToast({ message, type, options });
+    // action 있는 토스트는 사용자에게 누를 시간이 더 필요 — 5초
+    const duration = options?.onAction ? 5000 : 3000;
+    setTimeout(() => setToast(null), duration);
   }, []);
 
   const loadCart = useCallback(async () => {
@@ -191,7 +194,8 @@ function PublicCartPage() {
   useEffect(() => {
     if (authLoading) return;
     if (!isAuthenticated) {
-      navigate("/login", { state: { from: "/cart" } });
+      // location 객체 형식으로 통일 — 로그인 후 search/hash까지 보존.
+      navigate("/login", { state: { from: { pathname: "/cart" } } });
       return;
     }
     void loadCart();
@@ -218,6 +222,8 @@ function PublicCartPage() {
   };
 
   const handleDelete = async (id) => {
+    const target = items.find((item) => item.id === id);
+    const wasSelected = selectedIds.has(id);
     const { error } = await deleteCartItem(id);
     if (error) {
       showToast("삭제에 실패했습니다.", "error");
@@ -229,12 +235,35 @@ function PublicCartPage() {
       next.delete(id);
       return next;
     });
-    showToast("삭제되었습니다.");
+    if (target) {
+      // 5초 안에 되돌리기 가능. 실수로 누른 경우 복구 동선.
+      showToast("삭제되었습니다.", "info", {
+        actionLabel: "되돌리기",
+        onAction: async () => {
+          const { error: restoreError } = await addToCart({
+            productId: target.product_id,
+            quantity: target.quantity ?? 1,
+          });
+          if (restoreError) {
+            showToast("되돌리기에 실패했어요. 다시 담아주세요.", "error");
+            return;
+          }
+          if (wasSelected) {
+            setSelectedIds((prev) => new Set(prev).add(target.id));
+          }
+          await loadCart();
+          showToast("다시 담았어요.");
+        },
+      });
+    } else {
+      showToast("삭제되었습니다.");
+    }
   };
 
   const handleDeleteSelected = async () => {
     if (selectedIds.size === 0) return;
     const ids = Array.from(selectedIds);
+    const snapshot = items.filter((item) => selectedIds.has(item.id));
     const { error } = await deleteCartItems(ids);
     if (error) {
       showToast("삭제에 실패했습니다.", "error");
@@ -242,7 +271,30 @@ function PublicCartPage() {
     }
     setItems((prev) => prev.filter((item) => !selectedIds.has(item.id)));
     setSelectedIds(new Set());
-    showToast(`${ids.length}개 상품이 삭제되었습니다.`);
+    showToast(`${ids.length}개 상품이 삭제되었습니다.`, "info", {
+      actionLabel: "되돌리기",
+      onAction: async () => {
+        let failed = 0;
+        for (const item of snapshot) {
+          const { error: restoreError } = await addToCart({
+            productId: item.product_id,
+            quantity: item.quantity ?? 1,
+          });
+          if (restoreError) failed += 1;
+        }
+        if (failed === snapshot.length) {
+          showToast("되돌리기에 실패했어요. 다시 담아주세요.", "error");
+          return;
+        }
+        setSelectedIds(new Set(snapshot.map((item) => item.id)));
+        await loadCart();
+        showToast(
+          failed === 0
+            ? `${snapshot.length}개 상품을 다시 담았어요.`
+            : `${snapshot.length - failed}개 다시 담았어요. ${failed}개는 재고가 변경됐어요.`,
+        );
+      },
+    });
   };
 
   const handleOrder = () => {
@@ -391,7 +443,20 @@ function PublicCartPage() {
 
         {toast && (
           <div className={`cart-toast cart-toast--${toast.type}`} role="alert">
-            {toast.message}
+            <span className="cart-toast__message">{toast.message}</span>
+            {toast.options?.actionLabel && toast.options?.onAction ? (
+              <button
+                className="cart-toast__action"
+                onClick={() => {
+                  const action = toast.options.onAction;
+                  setToast(null);
+                  action();
+                }}
+                type="button"
+              >
+                {toast.options.actionLabel}
+              </button>
+            ) : null}
           </div>
         )}
       </div>

@@ -192,6 +192,12 @@
   border-top: 1px solid #fde68a;
 }
 
+/* 마감 30분 전부터 강조 — 입금 매칭률 끌어올리기 위해 시각적으로 도드라지게 */
+.order-complete-card__bank-notice--urgent {
+  color: var(--public-ds-danger, #ef4444);
+  font-weight: 700;
+}
+
 /* P0-6: 비로그인/state 소실 회복 안내 */
 .order-complete-card__bank-recovery {
   font-size: 12px;

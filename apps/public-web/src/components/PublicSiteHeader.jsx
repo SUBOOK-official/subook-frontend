@@ -98,8 +98,14 @@ function SearchSuggestionsPanel({
       return (
         <div className="public-search__suggestions" role="listbox">
           <p className="public-search-suggestion__empty">
-            "{keyword}"에 맞는 추천을 찾지 못했어요. 그대로 검색해 보세요.
+            "{keyword}"에 맞는 추천을 찾지 못했어요. 그대로 검색하거나, 원하는 교재가 들어오면 알려드릴게요.
           </p>
+          <Link
+            className="public-search-suggestion__cta"
+            to="/notifications"
+          >
+            🔔 입고 알림 설정하기
+          </Link>
         </div>
       );
     }
@@ -740,6 +746,15 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
             </Link>
             <Link className="public-nav-drawer__item" to="/faq" onClick={() => setIsMobileMenuOpen(false)}>
               자주 묻는 질문
+            </Link>
+            <Link className="public-nav-drawer__item" to="/notices" onClick={() => setIsMobileMenuOpen(false)}>
+              공지사항
+            </Link>
+            <Link className="public-nav-drawer__item" to="/terms" onClick={() => setIsMobileMenuOpen(false)}>
+              이용약관
+            </Link>
+            <Link className="public-nav-drawer__item" to="/refund" onClick={() => setIsMobileMenuOpen(false)}>
+              환불정책
             </Link>
             <div className="public-nav-drawer__divider" />
             {isAuthenticated ? (

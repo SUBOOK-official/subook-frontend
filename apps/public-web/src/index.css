@@ -8713,6 +8713,27 @@ img {
   text-align: center;
 }
 
+/* 빈 검색 후속 동선 — 검색했다는 강한 의도 신호를 잃지 않도록 입고 알림 CTA로 연결 */
+.public-search-suggestion__cta {
+  display: block;
+  margin: 0 12px 12px;
+  padding: 10px 14px;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  border-radius: 8px;
+  color: #92400e;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  text-align: center;
+  transition: background 0.15s ease;
+}
+
+.public-search-suggestion__cta:hover,
+.public-search-suggestion__cta:focus-visible {
+  background: #fde68a;
+}
+
 /* 최근 검색어 행: 좌측에 시계+검색어 텍스트, 우측에 X 버튼.
    base .public-search-suggestion 의 flex-direction: column 을 명시적으로 row 로 override. */
 .public-search-suggestion--recent {

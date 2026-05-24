@@ -190,7 +190,7 @@ function PublicOrderPage() {
   useEffect(() => {
     if (authLoading) return;
     if (!isAuthenticated) {
-      navigate("/login", { state: { from: "/order" } });
+      navigate("/login", { state: { from: { pathname: "/order" } } });
       return;
     }
     if (!orderItems || orderItems.length === 0) {
@@ -636,31 +636,31 @@ function PublicOrderPage() {
                   </p>
                 )}
 
-                {/* 쿠폰 적용 */}
-                <div className="order-sidebar__coupon-row">
-                  <button
-                    type="button"
-                    className="order-sidebar__coupon-button"
-                    onClick={() => setIsCouponPickerOpen(true)}
-                    disabled={applicableCoupons.length === 0}
-                  >
-                    {selectedCoupon
-                      ? `🎟 ${selectedCoupon.title}`
-                      : applicableCoupons.length === 0
-                        ? "사용 가능한 쿠폰이 없습니다"
-                        : `쿠폰 적용 (${applicableCoupons.length}장 사용 가능)`}
-                    {selectedCoupon ? <span className="order-sidebar__coupon-change">변경</span> : null}
-                  </button>
-                  {selectedCoupon ? (
+                {/* 쿠폰 적용 — 보유 쿠폰이 0장이면 row 자체를 숨김. */}
+                {/* "사용 가능한 쿠폰이 없습니다"는 결제 직전 시점 좌절감을 키우는 카피라 노출하지 않는다. */}
+                {applicableCoupons.length > 0 || selectedCoupon ? (
+                  <div className="order-sidebar__coupon-row">
                     <button
                       type="button"
-                      className="order-sidebar__coupon-clear"
-                      onClick={() => setSelectedCouponId(null)}
+                      className="order-sidebar__coupon-button"
+                      onClick={() => setIsCouponPickerOpen(true)}
                     >
-                      해제
+                      {selectedCoupon
+                        ? `🎟 ${selectedCoupon.title}`
+                        : `쿠폰 적용 (${applicableCoupons.length}장 사용 가능)`}
+                      {selectedCoupon ? <span className="order-sidebar__coupon-change">변경</span> : null}
                     </button>
-                  ) : null}
-                </div>
+                    {selectedCoupon ? (
+                      <button
+                        type="button"
+                        className="order-sidebar__coupon-clear"
+                        onClick={() => setSelectedCouponId(null)}
+                      >
+                        해제
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
 
                 {selectedCoupon ? (
                   <div className="order-sidebar__row order-sidebar__row--discount">

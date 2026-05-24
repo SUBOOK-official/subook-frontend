@@ -17,9 +17,16 @@ function PublicLoginPage() {
   const navigate = useNavigate();
   const passwordInputRef = useRef(null);
   const { hasSession, isAdminAccount, isAuthenticated, signOut } = usePublicAuth();
-  const nextPath = location.state?.from?.pathname
-    ? `${location.state.from.pathname}${location.state.from.search ?? ""}${location.state.from.hash ?? ""}`
-    : "/";
+  // from은 두 형태 모두 받는다:
+  // - object: { pathname, search?, hash? } (publicMemberGate 등 권장 형식)
+  // - string: "/cart" 같은 단순 경로 (legacy 호출자 호환 — 사라지면 안 됨)
+  const fromState = location.state?.from;
+  const nextPath =
+    typeof fromState === "string" && fromState.startsWith("/")
+      ? fromState
+      : fromState?.pathname
+        ? `${fromState.pathname}${fromState.search ?? ""}${fromState.hash ?? ""}`
+        : "/";
 
   useEffect(() => {
     if (isAuthenticated) {
