@@ -3,6 +3,7 @@ import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import PublicSiteHeader from "../components/PublicSiteHeader";
 import PublicFooter from "../components/PublicFooter";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
+import { getSettlementInfo } from "@shared-domain/settlement";
 import {
   BANK_LIST,
   BOOK_TYPES,
@@ -129,7 +130,23 @@ function Toast({ message, tone, onClose }) {
 
 // ─── 신청 전 핵심 정책 카드 (Step 1 상단) ───
 // 2026-05-19 정책: 신규 입고는 모두 "안 쓴(미사용) 교재"만 수령.
-function PickupPolicyPreview() {
+// 2026-05-25 톤 변경: "수수료 N%" 대신 "정가의 M% 받으세요" — 셀러 관점 직관적 카피.
+function PickupPolicyPreview({ items = [] }) {
+  // 라이브 정산 계산기: 등록된 책의 original_price 합 × 책별 수수료 적용한 예상 수령액.
+  // 책 1권당 정가 1만원 초과 → 60% 수령 / 1만원 이하 → 55% 수령.
+  const validItems = items.filter((item) => Number.isFinite(Number(item.original_price)) && Number(item.original_price) > 0);
+  const totals = validItems.reduce(
+    (acc, item) => {
+      const info = getSettlementInfo(item.original_price);
+      if (!info) return acc;
+      return {
+        gross: acc.gross + Number(item.original_price),
+        net: acc.net + info.netAmount,
+      };
+    },
+    { gross: 0, net: 0 },
+  );
+
   return (
     <div className="pickup-policy-preview" role="region" aria-label="신청 전 꼭 알아두세요">
       <p className="pickup-policy-preview__title">📌 신청 전 꼭 알아두세요</p>
@@ -142,7 +159,7 @@ function PickupPolicyPreview() {
           <strong>새 책 기준</strong> 필기·형광펜 0%, 표지·내지 양호 (개봉 OK)
         </li>
         <li>
-          <strong>수수료</strong> 1만원 초과 책은 40%, 1만원 이하·모의고사는 45%
+          <strong>받는 금액</strong> 정가 1만원 넘는 책은 <strong>정가의 60%</strong>, 1만원 이하·모의고사는 <strong>정가의 55%</strong>를 받으세요.
         </li>
         <li>
           <strong>정산</strong> 구매자 구매확정 후 <strong>3영업일 이내 계좌이체</strong>
@@ -154,6 +171,18 @@ function PickupPolicyPreview() {
           <strong>최소 권수</strong> 검수 통과 20권 미만이면 수거 배송비 3,500원 차감
         </li>
       </ul>
+
+      {validItems.length > 0 ? (
+        <div className="pickup-policy-preview__estimate" aria-live="polite">
+          <p className="pickup-policy-preview__estimate-title">
+            지금 등록하신 {validItems.length}권 · 정가 합계 약 {totals.gross.toLocaleString("ko-KR")}원 →
+            <strong> 예상 수령액 약 {totals.net.toLocaleString("ko-KR")}원</strong>
+          </p>
+          <p className="pickup-policy-preview__estimate-hint">
+            ※ 정가 기준 예상치예요. 실제 금액은 검수 후 등급·판매가에 따라 달라집니다.
+          </p>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -254,7 +283,7 @@ function StepBooks({ items, setItems, onNext, showToast }) {
         <p className="pickup-step__subtitle">교재 DB에서 검색하거나, 직접 입력할 수 있어요.</p>
       </div>
 
-      <PickupPolicyPreview />
+      <PickupPolicyPreview items={items} />
 
       {/* 교재 검색 */}
       <div className="pickup-search">
@@ -672,6 +701,7 @@ function StepAddress({ address, setAddress, savedAddresses, itemCount, onPrev, o
             <div className="pickup-form-field">
               <label className="pickup-field-label">수령인 *</label>
               <input
+                autoComplete="name"
                 className="pickup-input"
                 onChange={(e) => setAddress((p) => ({ ...p, recipient_name: e.target.value }))}
                 placeholder="홍길동"
@@ -681,7 +711,9 @@ function StepAddress({ address, setAddress, savedAddresses, itemCount, onPrev, o
             <div className="pickup-form-field">
               <label className="pickup-field-label">연락처 *</label>
               <input
+                autoComplete="tel"
                 className="pickup-input"
+                inputMode="tel"
                 onChange={(e) => {
                   const digits = e.target.value.replace(/\D/g, "").slice(0, 11);
                   const formatted = digits.length > 7
@@ -692,6 +724,7 @@ function StepAddress({ address, setAddress, savedAddresses, itemCount, onPrev, o
                   setAddress((p) => ({ ...p, recipient_phone: formatted }));
                 }}
                 placeholder="010-1234-5678"
+                type="tel"
                 value={address.recipient_phone}
               />
             </div>
@@ -778,6 +811,18 @@ function StepAddress({ address, setAddress, savedAddresses, itemCount, onPrev, o
           {countDiffHint && (
             <span className="pickup-field-hint pickup-field-hint--warn">{countDiffHint}</span>
           )}
+          {/* 20권 미만이면 수거 배송비 차감 inline 경고 — Step 4 확인까지 가서야 알게 되면 늦음 */}
+          {(() => {
+            const expected = Number(address.expected_book_count) || itemCount;
+            if (expected > 0 && expected < 20) {
+              return (
+                <span className="pickup-field-hint pickup-field-hint--warning">
+                  💡 검수 통과 20권 이상이면 <strong>수거 배송비 무료</strong>예요. 지금 기준 {expected}권이라 {20 - expected}권만 더 보내면 됩니다.
+                </span>
+              );
+            }
+            return null;
+          })()}
         </div>
         <div className="pickup-form-field">
           <label className="pickup-field-label">박스 개수</label>
@@ -849,7 +894,7 @@ function StepAddress({ address, setAddress, savedAddresses, itemCount, onPrev, o
 }
 
 // ─── Step 3: 정산 정보 ───
-function StepSettlement({ account, setAccount, savedAccounts, policyAgreed, setPolicyAgreed, onPrev, onNext }) {
+function StepSettlement({ account, setAccount, savedAccounts, memberProfileName = "", policyAgreed, setPolicyAgreed, onPrev, onNext }) {
   const [selectedSavedId, setSelectedSavedId] = useState(null);
   const [useNewAccount, setUseNewAccount] = useState(savedAccounts.length === 0);
   const [showPolicyDetail, setShowPolicyDetail] = useState(false);
@@ -978,11 +1023,22 @@ function StepSettlement({ account, setAccount, savedAccounts, policyAgreed, setP
             <div className="pickup-form-field">
               <label className="pickup-field-label">예금주 *</label>
               <input
+                autoComplete="name"
                 className="pickup-input"
                 onChange={(e) => setAccount((p) => ({ ...p, account_id: null, account_holder: e.target.value }))}
                 placeholder="홍길동"
                 value={account.account_holder}
               />
+              {/* 본인명 검증 경고 — 정산 사고 1순위는 "예금주 다르게 적어 정산금 분쟁".
+                  강제 차단은 미성년자가 부모 계좌 쓰는 케이스가 있어 안 함. 명시적 경고로 의식적 선택 유도. */}
+              {memberProfileName
+                && account.account_holder.trim().length > 0
+                && account.account_holder.trim() !== memberProfileName ? (
+                <p className="pickup-field-hint pickup-field-hint--warning">
+                  ⚠️ 예금주 "{account.account_holder.trim()}"가 가입자명 "{memberProfileName}"과 달라요.
+                  가족 계좌가 맞다면 그대로 진행하셔도 됩니다. 본인 계좌라면 다시 확인해주세요.
+                </p>
+              ) : null}
             </div>
           </div>
         </div>
@@ -1203,8 +1259,30 @@ function PickupSuccess({ result, itemCount }) {
         <p>교재 {itemCount}권</p>
       </div>
       <div className="pickup-success__guide">
-        <p>📦 교재를 박스에 포장하여 문 앞에 놓아주세요.</p>
-        <p>1~2일 내 택배기사가 수거합니다.</p>
+        <p className="pickup-success__guide-step">
+          <strong>1. 운송장은 택배기사가 가져옵니다.</strong>
+          <span> 별도로 인쇄하지 않으셔도 돼요.</span>
+        </p>
+        <p className="pickup-success__guide-step">
+          <strong>2. 박스 겉면에 신청번호 ({result.request_number})와 셀러 이름을 매직으로 적어주세요.</strong>
+          <span> 다른 셀러 박스와 섞이는 사고를 막아요.</span>
+        </p>
+        <p className="pickup-success__guide-step">
+          <strong>3. 비 오는 날에는 비닐로 한 번 더 감싸 문 안쪽이나 경비실에 두세요.</strong>
+          <span> 책 습기로 인한 폐기 판정을 줄여요.</span>
+        </p>
+        <p className="pickup-success__guide-hint">
+          1~2일 내 CJ대한통운 택배기사가 수거합니다. 문제가 생기면{" "}
+          <a
+            className="pickup-success__guide-link"
+            href="https://pf.kakao.com/_subook"
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            카카오톡 채널
+          </a>
+          로 문의해주세요.
+        </p>
       </div>
       <div className="pickup-success__actions">
         <button className="pickup-btn pickup-btn--primary" onClick={() => navigate("/mypage#sales")} type="button">
@@ -1257,6 +1335,7 @@ function PublicPickupRequestPage() {
   const [policyAgreed, setPolicyAgreed] = useState({ consignment: false, privacy: false, disposal: false });
   const [savedAddresses, setSavedAddresses] = useState([]);
   const [savedAccounts, setSavedAccounts] = useState([]);
+  const [memberProfileName, setMemberProfileName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitResult, setSubmitResult] = useState(null);
   const [toast, setToast] = useState(null);
@@ -1285,6 +1364,7 @@ function PublicPickupRequestPage() {
 
         // 프로필에서 이름/전화번호 기본값 설정
         if (snapshot.profile) {
+          setMemberProfileName(String(snapshot.profile.name ?? "").trim());
           setAddress((prev) => ({
             ...prev,
             recipient_name: prev.recipient_name || snapshot.profile.name || "",
@@ -1506,6 +1586,7 @@ function PublicPickupRequestPage() {
                   {currentStep === 2 && (
                     <StepSettlement
                       account={account}
+                      memberProfileName={memberProfileName}
                       onNext={() => goToStep(3)}
                       onPrev={() => goToStep(1)}
                       policyAgreed={policyAgreed}

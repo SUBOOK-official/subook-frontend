@@ -190,6 +190,20 @@
   font-weight: 600;
 }
 
+/* 본인명 미일치 등 셀러 사고 직결 경고. warn보다 한 단계 강하게. */
+.pickup-field-hint--warning {
+  display: block;
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  border-radius: 8px;
+  color: #92400e;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
 /* ─── 작성 중 신청서 복구 배너 ─── */
 .pickup-draft-banner {
   display: flex;
@@ -278,6 +292,34 @@
 .pickup-policy-preview__list strong {
   color: #b45309;
   margin-right: 4px;
+}
+
+/* 라이브 정산 계산기 — 셀러가 "총 얼마 받을지" 즉답 */
+.pickup-policy-preview__estimate {
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: #ecfdf5;
+  border: 1px solid #6ee7b7;
+  border-radius: 10px;
+}
+
+.pickup-policy-preview__estimate-title {
+  margin: 0;
+  font-size: 13px;
+  color: #065f46;
+  line-height: 1.55;
+}
+
+.pickup-policy-preview__estimate-title strong {
+  color: #047857;
+  font-weight: 800;
+}
+
+.pickup-policy-preview__estimate-hint {
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: #047857;
+  line-height: 1.5;
 }
 
 /* ─── 약관 동의 (sub) ─── */
@@ -1107,10 +1149,43 @@
   font-size: 14px;
   color: var(--public-ds-text-secondary);
   line-height: 1.6;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: left;
 }
 
 .pickup-success__guide p {
   margin: 0;
+}
+
+.pickup-success__guide-step {
+  display: block;
+}
+
+.pickup-success__guide-step strong {
+  color: var(--public-ds-text);
+  display: block;
+  margin-bottom: 2px;
+}
+
+.pickup-success__guide-step span {
+  color: var(--public-ds-text-secondary);
+  font-size: 13px;
+}
+
+.pickup-success__guide-hint {
+  margin-top: 6px;
+  padding-top: 12px;
+  border-top: 1px dashed #93c5fd;
+  font-size: 13px;
+  color: var(--public-ds-text-secondary);
+}
+
+.pickup-success__guide-link {
+  color: var(--public-ds-primary);
+  font-weight: 700;
+  text-decoration: underline;
 }
 
 .pickup-success__actions {
