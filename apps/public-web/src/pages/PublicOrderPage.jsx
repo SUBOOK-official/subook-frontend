@@ -592,9 +592,6 @@ function PublicOrderPage() {
                     </button>
                   ))}
                 </div>
-                <p className="order-payment-notice">
-                  현재는 계좌이체만 가능합니다. 카드·간편결제는 사업자 등록 절차가 완료된 후 순차적으로 열립니다.
-                </p>
 
                 {paymentMethod === "bank_transfer" && (
                   <div className="order-bank-info">
