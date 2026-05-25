@@ -105,6 +105,10 @@ function PublicSignupPage() {
       navigate("/", { replace: true });
     }
   }, [isAuthenticated, navigate, verificationStatus]);
+
+  // 가입 버튼 disabled 가드: 이미 로그인된 사용자만 차단. OTP 인증 직후(verifyOtp가 세션 발급)에는
+  // hasSession=true가 되지만 verificationStatus="verified"인 mid-signup 상태이므로 가입 진행 허용.
+  const cannotSignupBecauseLoggedIn = Boolean(hasSession) && verificationStatus !== "verified";
   const cooldownTimerRef = useRef(null);
 
   useEffect(() => {
@@ -164,8 +168,8 @@ function PublicSignupPage() {
   const isAllAgreed = agreements.terms && agreements.privacy;
   const isEmailAvailable = emailStatus.state === "available" && emailStatus.email === normalizedEmail;
   // canSubmit은 더 이상 버튼 disabled 결정에 쓰지 않음 (handleSubmit이 validateFields로 책임).
-  // hasSession (이미 로그인된 상태)일 때만 별도로 차단.
-  const cannotSignupBecauseLoggedIn = Boolean(hasSession);
+  // hasSession (이미 로그인된 상태)일 때만 별도로 차단. 단, OTP 인증 직후에는 verifyOtp가 세션을 발급하므로
+  // verificationStatus는 아직 useState 선언 전 — 이 const는 아래(verificationStatus 선언 후)에 둔다.
 
   useEffect(() => {
     if (!emailTouched) {
