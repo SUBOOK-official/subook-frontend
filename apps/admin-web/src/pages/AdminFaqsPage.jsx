@@ -9,7 +9,8 @@ const EMPTY_FORM = {
   category: "",
   question: "",
   answer: "",
-  display_order: 0,
+  // 표시 순서는 1 이상만 허용 (DB CHECK constraint와 일치). 0/음수는 차단.
+  display_order: 1,
   is_published: true,
 };
 
@@ -71,13 +72,19 @@ function AdminFaqsPage() {
 
   const handleSave = async () => {
     if (!editor) return;
+    // 표시 순서는 1 이상만 허용 — DB CHECK constraint와 일치.
+    const orderNum = Number(editor.display_order);
+    if (!Number.isFinite(orderNum) || orderNum < 1) {
+      setErrorMessage("표시 순서는 1 이상의 숫자를 입력해주세요.");
+      return;
+    }
     setIsSaving(true);
     const { error } = await supabase.rpc("admin_upsert_faq", {
       p_id: editor.id,
       p_category: editor.category || null,
       p_question: editor.question,
       p_answer: editor.answer,
-      p_display_order: Number(editor.display_order) || 0,
+      p_display_order: Math.trunc(orderNum),
       p_is_published: editor.is_published,
     });
     setIsSaving(false);
@@ -190,11 +197,15 @@ function AdminFaqsPage() {
                 />
               </div>
               <div>
-                <label className="text-xs font-semibold text-slate-600 block mb-1.5">표시 순서</label>
+                <label className="text-xs font-semibold text-slate-600 block mb-1.5">
+                  표시 순서 <span className="text-slate-400 font-normal">(1 이상)</span>
+                </label>
                 <input
                   className="input-base"
                   inputMode="numeric"
+                  min={1}
                   onChange={(e) => setEditor((p) => ({ ...p, display_order: e.target.value }))}
+                  step={1}
                   type="number"
                   value={editor.display_order}
                 />

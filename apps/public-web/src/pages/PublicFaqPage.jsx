@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/publicSupabaseClient";
 import ContentContainer from "../components/ContentContainer";
@@ -7,29 +7,6 @@ import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
 import { usePageMeta } from "../lib/usePageMeta";
 import "./PublicFaqPage.css";
-
-// 답변 도움 피드백 저장 키. value는 { [faqId]: "up" | "down" } 객체.
-const FAQ_FEEDBACK_STORAGE_KEY = "subook.faq.feedback.v1";
-
-function readFaqFeedback() {
-  if (typeof window === "undefined" || !window.localStorage) return {};
-  try {
-    const raw = window.localStorage.getItem(FAQ_FEEDBACK_STORAGE_KEY);
-    const parsed = raw ? JSON.parse(raw) : {};
-    return parsed && typeof parsed === "object" ? parsed : {};
-  } catch {
-    return {};
-  }
-}
-
-function writeFaqFeedback(feedback) {
-  if (typeof window === "undefined" || !window.localStorage) return;
-  try {
-    window.localStorage.setItem(FAQ_FEEDBACK_STORAGE_KEY, JSON.stringify(feedback));
-  } catch {
-    // ignore quota / private mode failures
-  }
-}
 
 const FAQ_ITEMS = [
   {
@@ -153,17 +130,18 @@ function renderAnswerLine(line, index) {
 }
 
 // DB row를 기존 FAQ_ITEMS 형식으로 정규화. answer 텍스트의 줄바꿈을 paragraph로 분리.
+// ⚠ renderAnswerLine은 typeof === "string"이거나 {type:'subheading'|'note'}만 처리한다.
+//   기존엔 {type:'text'} 객체를 만들어 본문이 통째 null로 렌더됐던 버그. string으로 반환해야 함.
 function normalizeDbFaq(row) {
   const lines = (row.answer || "")
     .split(/\n+/)
     .map((s) => s.trim())
-    .filter(Boolean)
-    .map((text) => ({ type: "text", text }));
+    .filter(Boolean);
   return {
     id: `db-${row.id}`,
     category: row.category || "기타",
     question: row.question,
-    answer: lines.length > 0 ? lines : [{ type: "text", text: row.answer || "" }],
+    answer: lines.length > 0 ? lines : [row.answer || ""],
   };
 }
 
@@ -175,15 +153,6 @@ function PublicFaqPage() {
   // DB에서 받은 FAQ. 비어있으면 기존 하드코딩 FAQ_ITEMS fallback.
   const [dbFaqs, setDbFaqs] = useState(null); // null=로딩, []=DB비어있음
   const [openIds, setOpenIds] = useState(() => new Set([FAQ_ITEMS[0]?.id]));
-  const [feedback, setFeedback] = useState(() => readFaqFeedback());
-
-  const handleFeedback = useCallback((id, value) => {
-    setFeedback((current) => {
-      const next = { ...current, [id]: value };
-      writeFaqFeedback(next);
-      return next;
-    });
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -290,44 +259,6 @@ function PublicFaqPage() {
                     role="region"
                   >
                     {item.answer.map((line, index) => renderAnswerLine(line, index))}
-
-                    <div className="public-faq-item__feedback">
-                      {feedback[item.id] ? (
-                        <span className="public-faq-item__feedback-thanks">
-                          {feedback[item.id] === "up"
-                            ? "도움이 되었다고 알려주셔서 감사해요!"
-                            : "더 잘 안내드릴 수 있도록 개선할게요."}
-                        </span>
-                      ) : (
-                        <>
-                          <span className="public-faq-item__feedback-label">이 답변이 도움이 됐어요?</span>
-                          <button
-                            aria-label="도움이 됐어요"
-                            className="public-faq-item__feedback-button"
-                            onClick={() => handleFeedback(item.id, "up")}
-                            type="button"
-                          >
-                            <span aria-hidden="true">👍</span> 도움됐어요
-                          </button>
-                          <button
-                            aria-label="도움이 안 됐어요"
-                            className="public-faq-item__feedback-button"
-                            onClick={() => handleFeedback(item.id, "down")}
-                            type="button"
-                          >
-                            <span aria-hidden="true">👎</span> 아쉬워요
-                          </button>
-                        </>
-                      )}
-                      <a
-                        className="public-faq-item__feedback-cta"
-                        href="https://pf.kakao.com/_subook"
-                        rel="noopener noreferrer"
-                        target="_blank"
-                      >
-                        다른 질문 보기 →
-                      </a>
-                    </div>
                   </div>
                 ) : null}
               </li>
