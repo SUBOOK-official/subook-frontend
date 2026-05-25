@@ -717,8 +717,18 @@
   scroll-snap-type: x mandatory;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
-  margin: 0 -24px;
-  padding: 4px 24px 12px;
+  /* 모바일에서 가로 오버플로 방지: bleed 마진을 viewport 단위로 묶고
+     overflow가 body로 새지 않도록 정렬. (이전 margin: 0 -24px + 220px 카드 조합으로
+     390px viewport에서 scrollWidth 399px 발생) */
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+  padding-left: max(24px, calc(50vw - 50%));
+  padding-right: max(24px, calc(50vw - 50%));
+  padding-top: 4px;
+  padding-bottom: 12px;
+  /* 부모가 가로 overflow를 흘리지 못하게 잡아둠 */
+  max-width: 100vw;
+  box-sizing: border-box;
 }
 
 .public-detail-related-rail::-webkit-scrollbar {
@@ -726,9 +736,17 @@
 }
 
 .public-detail-related-rail__item {
-  flex: 0 0 220px;
-  min-width: 220px;
+  /* 모바일에서 220px이 viewport 절반보다 커서 가로 스크롤 불편 — 작게 */
+  flex: 0 0 180px;
+  min-width: 180px;
   scroll-snap-align: start;
+}
+
+@media (min-width: 768px) {
+  .public-detail-related-rail__item {
+    flex: 0 0 220px;
+    min-width: 220px;
+  }
 }
 
 .public-detail-related-empty {

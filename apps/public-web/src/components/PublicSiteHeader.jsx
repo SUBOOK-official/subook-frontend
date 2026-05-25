@@ -586,6 +586,11 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
         </div>
 
         <nav aria-label="유틸리티 메뉴" className="public-nav-actions">
+          {/* 셀러 전환 동선 — 로그인/비로그인 무관하게 항상 노출. 모바일 드로어에만
+              있던 메뉴를 데스크톱 헤더에 primary CTA로 고정. */}
+          <Link className="public-nav-link public-nav-link--cta" to="/pickup-request">
+            교재 판매하기
+          </Link>
           {isAuthenticated ? (
             <>
               <Link

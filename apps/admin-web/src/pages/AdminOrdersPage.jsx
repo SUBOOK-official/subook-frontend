@@ -642,38 +642,76 @@ function AdminOrdersPage() {
       summaryCards={summaryCards}
       title="주문 관리"
     >
-      {/* 필터 영역 */}
+      {/* 필터 영역 — 운영툴이라 label·preset 명시 */}
       <div className="card p-4 space-y-3">
-        <div className="flex flex-wrap gap-2 items-center">
-          <input
-            className="input-base !w-auto flex-1 min-w-[200px]"
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setCurrentPage(1);
-            }}
-            placeholder="주문번호, 구매자, 수령인 검색"
-            type="search"
-            value={search}
-          />
-          <input
-            className="input-base !w-auto"
-            onChange={(e) => {
-              setFromDate(e.target.value);
-              setCurrentPage(1);
-            }}
-            type="date"
-            value={fromDate}
-          />
-          <span className="text-slate-400 text-sm">~</span>
-          <input
-            className="input-base !w-auto"
-            onChange={(e) => {
-              setToDate(e.target.value);
-              setCurrentPage(1);
-            }}
-            type="date"
-            value={toDate}
-          />
+        <div className="flex flex-wrap gap-3 items-end">
+          <label className="flex-1 min-w-[220px]">
+            <span className="block text-xs font-semibold text-slate-600 mb-1.5">검색어</span>
+            <input
+              className="input-base !w-full"
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setCurrentPage(1);
+              }}
+              placeholder="주문번호, 구매자, 수령인"
+              type="search"
+              value={search}
+            />
+          </label>
+          <label>
+            <span className="block text-xs font-semibold text-slate-600 mb-1.5">시작일</span>
+            <input
+              className="input-base !w-auto"
+              onChange={(e) => {
+                setFromDate(e.target.value);
+                setCurrentPage(1);
+              }}
+              type="date"
+              value={fromDate}
+            />
+          </label>
+          <span className="pb-3 text-slate-400 text-sm">~</span>
+          <label>
+            <span className="block text-xs font-semibold text-slate-600 mb-1.5">종료일</span>
+            <input
+              className="input-base !w-auto"
+              onChange={(e) => {
+                setToDate(e.target.value);
+                setCurrentPage(1);
+              }}
+              type="date"
+              value={toDate}
+            />
+          </label>
+          {/* 빠른 기간 preset — 운영자 반복 작업 줄이기 위해 */}
+          <div className="flex flex-wrap gap-1 pb-1">
+            {[
+              { label: "오늘", days: 0 },
+              { label: "7일", days: 7 },
+              { label: "30일", days: 30 },
+              { label: "전체", days: null },
+            ].map((preset) => (
+              <button
+                className="text-xs font-semibold text-slate-600 border border-slate-200 rounded-md px-2.5 py-1.5 hover:border-slate-400"
+                key={preset.label}
+                onClick={() => {
+                  if (preset.days === null) {
+                    setFromDate("");
+                    setToDate("");
+                  } else {
+                    const today = new Date();
+                    const from = new Date(today.getTime() - preset.days * 86400000);
+                    setFromDate(from.toISOString().slice(0, 10));
+                    setToDate(today.toISOString().slice(0, 10));
+                  }
+                  setCurrentPage(1);
+                }}
+                type="button"
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="flex flex-wrap gap-1.5">

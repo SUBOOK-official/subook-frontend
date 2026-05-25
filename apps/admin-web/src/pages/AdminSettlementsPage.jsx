@@ -493,36 +493,75 @@ function AdminSettlementsPage() {
           ))}
         </div>
 
+        {/* 필터 영역 — 운영툴이라 label·preset 명시 (AdminOrdersPage와 동일 패턴) */}
         <div className="flex flex-wrap items-end gap-3">
-          <input
-            className="input-base !w-auto min-w-[220px] flex-1"
-            onChange={(event) => {
-              setSearch(event.target.value);
-              setCurrentPage(1);
-            }}
-            placeholder="판매자, 주문번호, 교재명 검색"
-            type="search"
-            value={search}
-          />
-          <input
-            className="input-base !w-auto"
-            onChange={(event) => {
-              setFromDate(event.target.value);
-              setCurrentPage(1);
-            }}
-            type="date"
-            value={fromDate}
-          />
+          <label className="flex-1 min-w-[220px]">
+            <span className="block text-xs font-semibold text-slate-600 mb-1.5">검색어</span>
+            <input
+              className="input-base !w-full"
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setCurrentPage(1);
+              }}
+              placeholder="판매자, 주문번호, 교재명"
+              type="search"
+              value={search}
+            />
+          </label>
+          <label>
+            <span className="block text-xs font-semibold text-slate-600 mb-1.5">시작일</span>
+            <input
+              className="input-base !w-auto"
+              onChange={(event) => {
+                setFromDate(event.target.value);
+                setCurrentPage(1);
+              }}
+              type="date"
+              value={fromDate}
+            />
+          </label>
           <span className="pb-3 text-sm font-semibold text-slate-400">~</span>
-          <input
-            className="input-base !w-auto"
-            onChange={(event) => {
-              setToDate(event.target.value);
-              setCurrentPage(1);
-            }}
-            type="date"
-            value={toDate}
-          />
+          <label>
+            <span className="block text-xs font-semibold text-slate-600 mb-1.5">종료일</span>
+            <input
+              className="input-base !w-auto"
+              onChange={(event) => {
+                setToDate(event.target.value);
+                setCurrentPage(1);
+              }}
+              type="date"
+              value={toDate}
+            />
+          </label>
+          {/* 빠른 기간 preset */}
+          <div className="flex flex-wrap gap-1 pb-1">
+            {[
+              { label: "오늘", days: 0 },
+              { label: "7일", days: 7 },
+              { label: "30일", days: 30 },
+              { label: "전체", days: null },
+            ].map((preset) => (
+              <button
+                className="text-xs font-semibold text-slate-600 border border-slate-200 rounded-md px-2.5 py-1.5 hover:border-slate-400"
+                key={preset.label}
+                onClick={() => {
+                  if (preset.days === null) {
+                    setFromDate("");
+                    setToDate("");
+                  } else {
+                    const today = new Date();
+                    const from = new Date(today.getTime() - preset.days * 86400000);
+                    setFromDate(from.toISOString().slice(0, 10));
+                    setToDate(today.toISOString().slice(0, 10));
+                  }
+                  setCurrentPage(1);
+                }}
+                type="button"
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">

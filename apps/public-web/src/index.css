@@ -736,6 +736,24 @@ img {
   background: #ffffff;
 }
 
+/* 셀러 전환 primary CTA — 비로그인일 때도 "교재 판매하기" 동선을 강조한다 */
+.public-nav-link--cta {
+  min-height: 36px;
+  padding: 6px 16px;
+  border: 1px solid var(--public-primary, #1B3A5C);
+  border-radius: 8px;
+  background: var(--public-primary, #1B3A5C);
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.public-nav-link--cta:hover,
+.public-nav-link--cta:focus-visible {
+  background: #142d49;
+  border-color: #142d49;
+  color: #ffffff;
+}
+
 /* ── Shared site header (brand + search + nav) ── */
 
 .public-site-header {
