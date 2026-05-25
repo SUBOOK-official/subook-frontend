@@ -74,13 +74,16 @@ function PublicSignupPage() {
   const location = useLocation();
   const { hasSession, isAdminAccount, isAuthenticated, signOut } = usePublicAuth();
 
-  const [formValues, setFormValues] = useState({
-    email: "",
+  const [formValues, setFormValues] = useState(() => ({
+    // location.state.prefillEmail 로 넘어온 경우(로그인 페이지에서 legacy 안내 → 회원가입 CTA) 자동 입력
+    email: (location?.state?.prefillEmail ?? "").toString(),
     password: "",
     passwordConfirm: "",
     name: "",
     phone: "",
-  });
+  }));
+  // 이전 수북(식스샵) 회원 hint
+  const [isLegacyEmail, setIsLegacyEmail] = useState(false);
   const [agreements, setAgreements] = useState({
     terms: false,
     privacy: false,
@@ -236,8 +239,17 @@ function PublicSignupPage() {
           email: normalizedEmail,
           message: "사용 가능한 이메일입니다.",
         });
+        // 이전 수북(식스샵) 회원 안내용 boolean 체크 — PII 노출 X
+        try {
+          const { data: legacyData } = await supabase.rpc("is_legacy_sixshop_email", { p_email: normalizedEmail });
+          if (isMounted) setIsLegacyEmail(Boolean(legacyData));
+        } catch {
+          if (isMounted) setIsLegacyEmail(false);
+        }
         return;
       }
+      // available 아니면 hint 끔
+      setIsLegacyEmail(false);
 
       if (row?.account_role === "member") {
         setEmailStatus({
@@ -704,17 +716,24 @@ function PublicSignupPage() {
                 ) : fieldErrors.email ? (
                   <p className="public-auth-inline-message public-auth-inline-message--error">{fieldErrors.email}</p>
                 ) : emailStatus.message ? (
-                  <p
-                    className={`public-auth-inline-message public-auth-inline-message--${
-                      emailStatus.state === "available"
-                        ? "success"
-                        : emailStatus.state === "checking"
-                          ? "info"
-                          : "error"
-                    }`}
-                  >
-                    {emailStatus.message}
-                  </p>
+                  <>
+                    <p
+                      className={`public-auth-inline-message public-auth-inline-message--${
+                        emailStatus.state === "available"
+                          ? "success"
+                          : emailStatus.state === "checking"
+                            ? "info"
+                            : "error"
+                      }`}
+                    >
+                      {emailStatus.message}
+                    </p>
+                    {isLegacyEmail && emailStatus.state === "available" ? (
+                      <p className="public-auth-inline-message public-auth-inline-message--info">
+                        ✨ 이전 수북(식스샵) 회원이시네요! 회원가입 완료 시 기존 배송지·연락처가 자동으로 연결돼요.
+                      </p>
+                    ) : null}
+                  </>
                 ) : null}
               </div>
 

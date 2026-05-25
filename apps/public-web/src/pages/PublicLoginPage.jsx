@@ -47,6 +47,8 @@ function PublicLoginPage() {
   const [pageError, setPageError] = useState("");
   const [withdrawalRecoveryEmail, setWithdrawalRecoveryEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // 이전 수북(식스샵) 회원 hint — 매칭 이메일이면 가입 유도 안내 표시
+  const [legacyHint, setLegacyHint] = useState("");
 
   const handlePasswordKeyEvent = (event) => {
     if (typeof event.getModifierState === "function") {
@@ -162,6 +164,17 @@ function PublicLoginPage() {
           ...currentValue,
           password: "이메일 또는 비밀번호가 일치하지 않습니다.",
         }));
+
+        // 이전 수북(식스샵 버전) 회원 안내 — 같은 이메일이면 친절히 가입 유도.
+        // RPC는 boolean만 반환 (PII 노출 X).
+        try {
+          const { data: isLegacy } = await supabase.rpc("is_legacy_sixshop_email", { p_email: normalized });
+          if (isLegacy) {
+            setLegacyHint(normalized);
+          }
+        } catch {
+          /* RPC 실패는 무시 — 일반 안내만 노출 */
+        }
       } else {
         setPageError(loginError.message || "로그인에 실패했습니다. 잠시 후 다시 시도해주세요.");
       }
@@ -239,6 +252,23 @@ function PublicLoginPage() {
             ) : null}
 
             {pageNotice ? <div className="public-auth-alert public-auth-alert--success">{pageNotice}</div> : null}
+            {legacyHint ? (
+              <div className="public-auth-alert public-auth-alert--info">
+                <p>
+                  <strong>이전 수북 회원이시네요!</strong> 새 사이트로 옮기면서 보안상 비밀번호는 가져오지 못했어요.
+                  같은 이메일로 회원가입을 다시 해주시면 <strong>기존 배송지·연락처가 자동으로 연결</strong>됩니다.
+                </p>
+                <div className="public-auth-alert__actions">
+                  <Link
+                    className="public-auth-inline-button public-auth-inline-button--cta"
+                    state={{ prefillEmail: legacyHint }}
+                    to="/signup"
+                  >
+                    회원가입 (이메일 자동 입력) →
+                  </Link>
+                </div>
+              </div>
+            ) : null}
             {pageError ? (
               <div className="public-auth-alert public-auth-alert--error">
                 <p>{pageError}</p>

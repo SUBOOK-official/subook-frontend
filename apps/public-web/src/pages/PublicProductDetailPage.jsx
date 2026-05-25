@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { formatCurrency, formatDate } from "@shared-domain/format";
+import { formatCurrency } from "@shared-domain/format";
 import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
 import ContentContainer from "../components/ContentContainer";
 import ProductCard from "../components/ProductCard";
