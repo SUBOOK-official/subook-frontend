@@ -9,7 +9,7 @@ import { Sentry } from "../lib/sentryInit";
 class ErrorBoundary extends Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, eventId: null };
   }
 
   static getDerivedStateFromError(error) {
@@ -19,10 +19,13 @@ class ErrorBoundary extends Component {
   componentDidCatch(error, errorInfo) {
     console.error("[Admin ErrorBoundary] 렌더링 에러:", error, errorInfo);
     try {
-      Sentry?.captureException?.(error, {
+      const eventId = Sentry?.captureException?.(error, {
         contexts: { react: { componentStack: errorInfo?.componentStack } },
         tags: { surface: "admin-web" },
       });
+      if (eventId) {
+        this.setState({ eventId: String(eventId).slice(0, 8) });
+      }
     } catch {
       /* noop */
     }
@@ -30,6 +33,15 @@ class ErrorBoundary extends Component {
 
   handleReload = () => {
     window.location.assign("/admin");
+  };
+
+  handleCopyEventId = async () => {
+    if (!this.state.eventId) return;
+    try {
+      await navigator.clipboard.writeText(this.state.eventId);
+    } catch {
+      /* noop */
+    }
   };
 
   render() {
@@ -45,6 +57,20 @@ class ErrorBoundary extends Component {
             어드민 화면을 불러오는 중 문제가 발생했습니다.<br />
             잠시 후 다시 시도하거나 개발팀에 문의해 주세요.
           </p>
+          {this.state.eventId ? (
+            <div className="text-xs text-slate-500 space-y-1">
+              <p>
+                오류 ID: <code className="font-mono font-bold text-slate-700">{this.state.eventId}</code>
+              </p>
+              <button
+                type="button"
+                onClick={this.handleCopyEventId}
+                className="text-xs font-semibold text-blue-600 hover:underline"
+              >
+                오류 ID 복사 (슬랙 신고 시 첨부)
+              </button>
+            </div>
+          ) : null}
           <button
             type="button"
             onClick={this.handleReload}

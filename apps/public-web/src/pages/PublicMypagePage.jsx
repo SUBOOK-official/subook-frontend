@@ -17,6 +17,7 @@ import { supabase as publicSupabase } from "@shared-supabase/publicSupabaseClien
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { usePublicWishlist } from "../contexts/PublicWishlistContext";
 import usePublicMemberGate from "../lib/publicMemberGate";
+import { usePageMeta } from "../lib/usePageMeta";
 import { DEMO_MEMBER_PROFILE, DEMO_MEMBER_USER } from "../lib/publicMypageDemo";
 import {
   cancelMemberOrder,
@@ -138,6 +139,8 @@ const initialConfirmState = {
 };
 
 function PublicMypagePage() {
+  usePageMeta({ title: "마이페이지", noindex: true });
+
   const location = useLocation();
   const navigate = useNavigate();
   const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);

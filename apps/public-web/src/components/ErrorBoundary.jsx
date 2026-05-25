@@ -9,7 +9,7 @@ import { Sentry } from "../lib/sentryInit";
 class ErrorBoundary extends Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, eventId: null };
   }
 
   static getDerivedStateFromError(error) {
@@ -19,9 +19,12 @@ class ErrorBoundary extends Component {
   componentDidCatch(error, errorInfo) {
     console.error("[ErrorBoundary] 렌더링 에러 발생:", error, errorInfo);
     try {
-      Sentry?.captureException?.(error, {
+      const eventId = Sentry?.captureException?.(error, {
         contexts: { react: { componentStack: errorInfo?.componentStack } },
       });
+      if (eventId) {
+        this.setState({ eventId: String(eventId).slice(0, 8) });
+      }
     } catch {
       /* noop */
     }
@@ -53,6 +56,9 @@ class ErrorBoundary extends Component {
           </button>
           <p className="error-boundary__hint">
             문제가 계속되면 <a href="mailto:subook2025@gmail.com">subook2025@gmail.com</a>으로 문의해 주세요.
+            {this.state.eventId ? (
+              <> (오류 ID: <code>{this.state.eventId}</code>)</>
+            ) : null}
           </p>
         </div>
       </div>

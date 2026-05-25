@@ -7,6 +7,7 @@ import PublicFooter from "../components/PublicFooter";
 import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
+import { usePageMeta } from "../lib/usePageMeta";
 import {
   BANK_ACCOUNT,
   BANK_HOLDER,
@@ -114,6 +115,7 @@ function CopyButton({ value, ariaLabel }) {
 }
 
 function PublicOrderCompletePage() {
+  usePageMeta({ title: "주문 완료", noindex: true });
   const location = useLocation();
   const { orderId } = useParams();
   const { hasSession, isLoading: authLoading } = usePublicAuth();

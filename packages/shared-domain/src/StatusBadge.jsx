@@ -76,6 +76,40 @@ const LABEL_MAP_BY_TYPE = {
   coupon: couponStatusLabel,
 };
 
+// 위험·주의 상태에 색상 외 redundant signal (icon) 추가 — 색약 8% 운영자도 안전하게 구분.
+// 같은 톤(rose/amber) 안에서 의미가 다른 상태들을 구분하기 위한 보조 시각 신호.
+const DANGER_STATUSES = new Set([
+  "cancelled",
+  "refunded",
+  "recovery_required",
+  "blocked",
+  "withdrawn",
+  "rejected",
+]);
+const WARN_STATUSES = new Set([
+  "pending",
+  "scheduled",
+  "inspecting",
+  "sold_out",
+]);
+const SUCCESS_STATUSES = new Set([
+  "completed",
+  "confirmed",
+  "delivered",
+  "settled",
+  "active",
+  "selling",
+  "on_sale",
+  "arrived",
+]);
+
+function getStatusIcon(status) {
+  if (DANGER_STATUSES.has(status)) return "⚠";
+  if (WARN_STATUSES.has(status)) return "●";
+  if (SUCCESS_STATUSES.has(status)) return "✓";
+  return null;
+}
+
 function StatusBadge({ type = "book", status }) {
   const labelMap = LABEL_MAP_BY_TYPE[type] || bookStatusLabel;
   const colorMap = COLOR_MAP_BY_TYPE[type] || COLOR_MAP_BY_TYPE.book;
@@ -90,10 +124,13 @@ function StatusBadge({ type = "book", status }) {
       ? colorMap[status] ?? COLOR_MAP_BY_TYPE.book[status] ?? "bg-slate-100 text-slate-700"
       : colorMap[status] ?? "bg-slate-100 text-slate-700";
 
+  const icon = getStatusIcon(status);
+
   return (
     <span
-      className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-extrabold leading-none tracking-wide ${colorClass}`}
+      className={`inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-3 py-1 text-xs font-extrabold leading-none tracking-wide ${colorClass}`}
     >
+      {icon ? <span aria-hidden="true" className="text-[10px] leading-none">{icon}</span> : null}
       {label}
     </span>
   );

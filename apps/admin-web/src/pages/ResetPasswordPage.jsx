@@ -166,8 +166,19 @@ function ResetPasswordPage() {
     const password = form.password || "";
     const confirm = form.confirmPassword || "";
 
-    if (password.length < 8) {
-      setError("비밀번호는 8자 이상으로 입력해 주세요.");
+    // 어드민 비번은 일반 회원보다 강해야 함 — 12자 이상 + 영문 대소문자/숫자/특수문자 중 3종 이상.
+    if (password.length < 12) {
+      setError("어드민 비밀번호는 12자 이상이어야 합니다.");
+      return;
+    }
+    const categories = [
+      /[a-z]/.test(password),
+      /[A-Z]/.test(password),
+      /[0-9]/.test(password),
+      /[^a-zA-Z0-9]/.test(password),
+    ].filter(Boolean).length;
+    if (categories < 3) {
+      setError("어드민 비밀번호는 영문 대소문자·숫자·특수문자 중 3종류 이상을 포함해야 합니다.");
       return;
     }
 

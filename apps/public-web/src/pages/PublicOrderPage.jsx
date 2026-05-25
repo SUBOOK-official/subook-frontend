@@ -9,6 +9,7 @@ import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { supabase as publicSupabase } from "@shared-supabase/publicSupabaseClient";
 import { FREE_SHIPPING_THRESHOLD, calculateShippingFee, createOrder } from "../lib/cart";
 import { loadMemberPortalSnapshot } from "../lib/memberPortal";
+import { usePageMeta } from "../lib/usePageMeta";
 import {
   BANK_ACCOUNT,
   BANK_HOLDER,
@@ -129,6 +130,8 @@ function OrderItemRow({ item }) {
 }
 
 function PublicOrderPage() {
+  usePageMeta({ title: "주문/결제", noindex: true });
+
   const { isAuthenticated, isLoading: authLoading, user, profile } = usePublicAuth();
   const navigate = useNavigate();
   const location = useLocation();

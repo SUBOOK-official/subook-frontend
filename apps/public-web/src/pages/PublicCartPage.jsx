@@ -7,6 +7,7 @@ import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { usePublicWishlist } from "../contexts/PublicWishlistContext";
+import { usePageMeta } from "../lib/usePageMeta";
 import {
   FREE_SHIPPING_THRESHOLD,
   addToCart,
@@ -143,6 +144,8 @@ function CartItemRow({ item, isSelected, onToggle, onDelete }) {
 }
 
 function PublicCartPage() {
+  usePageMeta({ title: "장바구니", noindex: true });
+
   const { isAuthenticated, isLoading: authLoading } = usePublicAuth();
   const { favoriteCount } = usePublicWishlist();
   const navigate = useNavigate();
