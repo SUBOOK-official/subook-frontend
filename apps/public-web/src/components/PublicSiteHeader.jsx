@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import ContentContainer from "./ContentContainer";
 import searchIconImage from "../assets/search-icon.svg";
 import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
@@ -204,6 +204,7 @@ function SearchSuggestionsPanel({
 
 function PublicSiteHeader({ onCartClick, searchSlot }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { isAuthenticated, profile, user, signOut } = usePublicAuth();
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
   const [cartItemCount, setCartItemCount] = useState(0);
@@ -230,8 +231,10 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
     };
   }, [isAuthenticated]);
 
-  // 카트 카운트는 인증 상태가 바뀔 때 + 라우트 진입 직후에만 한 번씩 가져온다.
-  // 카트 페이지에서의 수정은 자기 페이지에서 재계산하므로 헤더는 진입 시 fetch면 충분.
+  // 카트 카운트 갱신 트리거 3가지:
+  //   1) 인증 상태 변화 (로그인/로그아웃)
+  //   2) 라우트 변경 (다른 페이지로 이동할 때마다 헤더 카운트 freshen)
+  //   3) 'cart-updated' window event — 같은 페이지에서 카트에 추가/삭제했을 때 명시적 트리거
   useEffect(() => {
     let cancelled = false;
     if (!isAuthenticated) {
@@ -255,10 +258,17 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
       }
     };
     void fetchCartCount();
+
+    const handleCartUpdated = () => {
+      void fetchCartCount();
+    };
+    window.addEventListener("cart-updated", handleCartUpdated);
+
     return () => {
       cancelled = true;
+      window.removeEventListener("cart-updated", handleCartUpdated);
     };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, location.pathname]);
 
   // 알림/장바구니/마이페이지는 isAuthenticated 일 때만 렌더되므로 클릭 가드는 불필요.
   // 비로그인 사용자는 헤더에서 해당 메뉴 자체가 보이지 않는다.

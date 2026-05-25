@@ -47,6 +47,8 @@ function writeLocalCart(items) {
   if (typeof window === "undefined" || !window.localStorage) return;
   try {
     window.localStorage.setItem(LOCAL_CART_STORAGE_KEY, JSON.stringify(items));
+    // 헤더 등 카트 카운트 구독자에게 변경 알림
+    try { window.dispatchEvent(new Event("cart-updated")); } catch { /* noop */ }
   } catch {
     // ignore quota / private mode failures
   }
@@ -117,6 +119,17 @@ function deleteLocalCartItems(cartItemIds) {
   return { error: null };
 }
 
+// 헤더의 카트 카운트 등이 즉시 갱신되도록 mutation 성공 후 발화.
+// 같은 페이지에서 카트 변경하면 라우트 변경이 없어 헤더가 모르기 때문.
+function emitCartUpdated() {
+  if (typeof window === "undefined") return;
+  try {
+    window.dispatchEvent(new Event("cart-updated"));
+  } catch {
+    /* noop */
+  }
+}
+
 // ── 공개 API ────────────────────────────────────────────────
 async function addToCart({ bookId, productId = null, quantity = 1, productMeta = null }) {
   // mock / 데모 데이터: localStorage 카트로 fallback
@@ -149,6 +162,7 @@ async function addToCart({ bookId, productId = null, quantity = 1, productMeta =
     return { data: null, error };
   }
 
+  emitCartUpdated();
   return { data, error: null };
 }
 
@@ -182,6 +196,7 @@ async function updateCartItemQuantity(cartItemId, quantity) {
     .update({ quantity, updated_at: new Date().toISOString() })
     .eq("id", cartItemId);
 
+  if (!error) emitCartUpdated();
   return { error: error ?? null };
 }
 
@@ -199,6 +214,7 @@ async function deleteCartItem(cartItemId) {
     .delete()
     .eq("id", cartItemId);
 
+  if (!error) emitCartUpdated();
   return { error: error ?? null };
 }
 
@@ -211,6 +227,7 @@ async function deleteCartItems(cartItemIds) {
   }
 
   if (remoteIds.length === 0) {
+    emitCartUpdated();
     return { error: null };
   }
 
@@ -223,6 +240,7 @@ async function deleteCartItems(cartItemIds) {
     .delete()
     .in("id", remoteIds);
 
+  if (!error) emitCartUpdated();
   return { error: error ?? null };
 }
 
