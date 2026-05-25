@@ -288,23 +288,6 @@ function DetailTabPanel({ activeKey, product, activeDisplay, onOpenLightbox }) {
         <div><dt>유형</dt><dd>{product.bookType || "미등록"}</dd></div>
         <div><dt>연도</dt><dd>{product.publishedYear || "미등록"}</dd></div>
         <div><dt>강사명</dt><dd>{product.instructorName || "미등록"}</dd></div>
-        <div><dt>검수일</dt><dd>{product.inspectedAt ? formatDate(product.inspectedAt) : "미등록"}</dd></div>
-        <div>
-          <dt>필기 비율</dt>
-          <dd>
-            {activeDisplay?.writingPercentage === null || activeDisplay?.writingPercentage === undefined
-              ? "미등록"
-              : `${activeDisplay.writingPercentage}%`}
-          </dd>
-        </div>
-        <div>
-          <dt>훼손 여부</dt>
-          <dd>
-            {activeDisplay?.hasDamage === null || activeDisplay?.hasDamage === undefined
-              ? "미등록"
-              : activeDisplay.hasDamage ? "있음" : "없음"}
-          </dd>
-        </div>
       </dl>
       {activeDisplay?.inspectionNotes ? (
         <div className="public-detail-info-notes">

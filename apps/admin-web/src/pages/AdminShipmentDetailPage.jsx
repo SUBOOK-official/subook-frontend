@@ -211,8 +211,6 @@ function getPublicStoreValidationMessage(book, draft) {
   }
 
   const missingFields = [];
-  const writingPercentage = normalizeOptionalInteger(draft.writing_percentage);
-  const hasDamage = buildPublicStorePayload(draft).has_damage;
 
   if (!toNullableText(draft.subject)) missingFields.push("과목");
   if (!toNullableText(draft.brand)) missingFields.push("브랜드");
@@ -222,13 +220,6 @@ function getPublicStoreValidationMessage(book, draft) {
   if (!toNullableText(draft.cover_image_url)) missingFields.push("표지 이미지");
   if (!normalizeOptionalInteger(draft.original_price)) missingFields.push("정가");
   if (!normalizeComparablePrice(book.price)) missingFields.push("판매가");
-  if (writingPercentage === null) missingFields.push("필기 비율");
-  if (hasDamage === null) missingFields.push("훼손 여부");
-  if (!toNullableText(draft.inspected_at)) missingFields.push("검수일");
-
-  if (writingPercentage !== null && (writingPercentage < 0 || writingPercentage > 100)) {
-    return "필기 비율은 0~100 사이 숫자로 입력해 주세요.";
-  }
 
   return missingFields.length > 0
     ? `공개 전환을 위해 ${missingFields.join(", ")}을(를) 입력해 주세요.`
@@ -476,16 +467,6 @@ function BookPublicStoreEditor({
             </select>
           </label>
 
-          <label className="block">
-            <span className="label">검수일</span>
-            <input
-              className={inputClass}
-              disabled={isDisabled}
-              onChange={(event) => onChange("inspected_at", event.target.value)}
-              type="date"
-              value={draft.inspected_at}
-            />
-          </label>
         </div>
 
         <label className="block">
@@ -536,33 +517,7 @@ function BookPublicStoreEditor({
           </label>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <label className="block">
-            <span className="label">필기 비율(%)</span>
-            <input
-              className={inputClass}
-              disabled={isDisabled}
-              onChange={(event) => onChange("writing_percentage", event.target.value)}
-              placeholder="예: 5"
-              type="number"
-              value={draft.writing_percentage}
-            />
-          </label>
-
-          <label className="block">
-            <span className="label">훼손 여부</span>
-            <select
-              className={selectClass}
-              disabled={isDisabled}
-              onChange={(event) => onChange("has_damage", event.target.value)}
-              value={draft.has_damage}
-            >
-              <option value="">선택해 주세요</option>
-              <option value="false">없음</option>
-              <option value="true">있음</option>
-            </select>
-          </label>
-
+        <div className="grid gap-3">
           <label className="block">
             <span className="label">공개 여부</span>
             <div className="mt-1 flex h-[46px] items-center rounded-xl border border-slate-300 bg-white px-3">
