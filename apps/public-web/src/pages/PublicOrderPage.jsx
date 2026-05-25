@@ -213,10 +213,12 @@ function PublicOrderPage() {
         .filter((id) => id !== null && id !== undefined);
       if (bookIds.length === 0) return;
 
-      const { data, error } = await publicSupabase
-        .from("books")
-        .select("id, price, status, is_public")
-        .in("id", bookIds);
+      // ⚠ books 테이블은 RLS로 admin만 select 가능 — security definer RPC를 통해 우회.
+      // 직접 .from("books").select()를 호출하면 0 row가 돌아와 모든 책이 unavailable로
+      // 잡혀 /cart로 무한 redirect되는 버그가 있었음 (2026-05-25 발견).
+      const { data, error } = await publicSupabase.rpc("get_books_pricing_for_order", {
+        p_book_ids: bookIds,
+      });
       if (cancelled || error || !Array.isArray(data)) return;
 
       const freshMap = new Map(data.map((row) => [String(row.id), row]));
