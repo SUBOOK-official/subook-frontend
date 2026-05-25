@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import AdminShell from "../components/AdminShell";
 import BulkPriceDeltaModal from "../components/BulkPriceDeltaModal";
@@ -369,22 +369,20 @@ function BookPublicStoreEditor({
   const productId = normalizeOptionalInteger(draft.product_id);
 
   return (
-    <details className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
-      <summary className="cursor-pointer list-none text-sm font-extrabold text-slate-800">
-        공개 스토어 정보
-      </summary>
-      <div className="mt-4 space-y-3">
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+      <p className="mb-3 text-sm font-extrabold text-slate-800">공개 스토어 정보</p>
+      <div className="space-y-3">
         {productId !== null || toNullableText(draft.product_title) ? (
           <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
             <p className="label">상품 그룹</p>
-            <div className="mt-1 grid gap-1 text-sm font-semibold text-slate-700">
+            <div className="mt-1 grid gap-1 text-sm font-semibold text-slate-700 md:grid-cols-2">
               <span>상품 ID: {productId !== null ? productId : "미등록"}</span>
               <span>상품명: {toNullableText(draft.product_title) || "미등록"}</span>
             </div>
           </div>
         ) : null}
 
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <label className="block">
             <span className="label">과목</span>
             <input
@@ -504,7 +502,7 @@ function BookPublicStoreEditor({
 
         <div className="grid gap-3 md:grid-cols-2">
           <label className="block">
-            <span className="label">검수 사진</span>
+            <span className="label">검수 사진 (업로드)</span>
             <InspectionImageUploader
               bookId={book.id}
               disabled={isDisabled}
@@ -538,7 +536,7 @@ function BookPublicStoreEditor({
           </label>
         </div>
 
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <label className="block">
             <span className="label">필기 비율(%)</span>
             <input
@@ -564,9 +562,7 @@ function BookPublicStoreEditor({
               <option value="true">있음</option>
             </select>
           </label>
-        </div>
 
-        <div className="grid gap-3 md:grid-cols-2">
           <label className="block">
             <span className="label">공개 여부</span>
             <div className="mt-1 flex h-[46px] items-center rounded-xl border border-slate-300 bg-white px-3">
@@ -584,7 +580,7 @@ function BookPublicStoreEditor({
           </label>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 border-t border-slate-200 pt-3">
           <button
             className="btn-secondary !w-auto !px-3 !py-2 text-xs"
             disabled={isDisabled || isSaving || !isDirty || Boolean(validationMessage)}
@@ -615,7 +611,7 @@ function BookPublicStoreEditor({
           </p>
         )}
       </div>
-    </details>
+    </div>
   );
 }
 
@@ -709,6 +705,9 @@ function AdminShipmentDetailPage() {
   // ─── 키보드 워크플로 (j/k 이동, x 선택, / 검색 포커스) ─────────────
   // 운영자가 100권 단위 검수 시 마우스 클릭 횟수를 크게 줄이기 위한 단축키 (UI 안내 배너는 미노출).
   const [focusedBookId, setFocusedBookId] = useState(null);
+  // 데스크탑 table에서 한 책의 "공개 스토어 정보"를 expand row로 펼치기 위한 state.
+  // 좁은 td 안에 grid를 넣으면 1열로 stack되는 문제를 해결.
+  const [expandedBookId, setExpandedBookId] = useState(null);
 
   useEffect(() => {
     if (pagedBooks.length === 0) {
@@ -2046,93 +2045,122 @@ function AdminShipmentDetailPage() {
                           updatingBookPriceId === book.id ||
                           updatingBookStatusId === book.id ||
                           updatingBookPublicId === book.id;
+                        const isExpanded = expandedBookId === book.id;
+                        const isPublicDirty = hasBookPublicDraftChange(book);
 
                         return (
-                          <tr
-                            className={`align-top transition hover:bg-slate-50 ${
-                              selectedBookIds.has(book.id) ? "bg-amber-50" : ""
-                            }`}
-                            key={book.id}
-                          >
-                            <td className="px-2 py-4">
-                              <input
-                                aria-label={`${book.title} 선택`}
-                                checked={selectedBookIds.has(book.id)}
-                                onChange={() => toggleSelectBook(book.id)}
-                                type="checkbox"
-                              />
-                            </td>
-                            <td className="px-4 py-4">
-                              <p className="font-bold text-slate-900">{book.title}</p>
-                              {toNullableText(book.option) ? (
-                                <p className="mt-1 text-xs font-semibold text-slate-500">
-                                  옵션 {book.option}
-                                </p>
-                              ) : (
-                                <p className="mt-1 text-xs font-semibold text-slate-400">
-                                  옵션 없음
-                                </p>
-                              )}
-                            </td>
-                            <td className="px-4 py-4">
-                              <StatusBadge status={book.status} />
-                            </td>
-                            <td className="px-4 py-4 font-semibold text-slate-700">
-                              {formatCurrency(book.price)}
-                            </td>
-                            <td className="px-4 py-4">
-                              <BookPriceEditor
-                                compact
-                                draftValue={priceDraftValue}
-                                isDirty={isPriceDirty}
-                                isDisabled={isRowBusy}
-                                isInvalid={isPriceInvalid}
-                                isSaving={updatingBookPriceId === book.id}
-                                onChange={(value) => handlePriceDraftChange(book.id, value)}
-                                onReset={() => resetBookPriceDraft(book.id)}
-                                onSave={() => handleSaveBookPrice(book)}
-                              />
-                            </td>
-                            <td className="px-4 py-4">
-                              <BookStatusEditor
-                                compact
-                                draftValue={statusDraftValue}
-                                isDirty={isStatusDirty}
-                                isDisabled={isRowBusy}
-                                isSaving={updatingBookStatusId === book.id}
-                                onChange={(value) => handleStatusDraftChange(book.id, value)}
-                                onReset={() => resetBookStatusDraft(book.id)}
-                                onSave={() => handleSaveBookStatus(book)}
-                              />
-
-                              <BookPublicStoreEditor
-                                book={book}
-                                draft={getBookPublicDraftValue(book)}
-                                isDirty={hasBookPublicDraftChange(book)}
-                                isDisabled={isRowBusy}
-                                isSaving={updatingBookPublicId === book.id}
-                                validationMessage={getPublicStoreValidationMessage(
-                                  book,
-                                  getBookPublicDraftValue(book),
+                          <Fragment key={book.id}>
+                            <tr
+                              className={`align-top transition hover:bg-slate-50 ${
+                                selectedBookIds.has(book.id) ? "bg-amber-50" : ""
+                              } ${isExpanded ? "bg-slate-50" : ""}`}
+                            >
+                              <td className="px-2 py-4">
+                                <input
+                                  aria-label={`${book.title} 선택`}
+                                  checked={selectedBookIds.has(book.id)}
+                                  onChange={() => toggleSelectBook(book.id)}
+                                  type="checkbox"
+                                />
+                              </td>
+                              <td className="px-4 py-4">
+                                <p className="font-bold text-slate-900">{book.title}</p>
+                                {toNullableText(book.option) ? (
+                                  <p className="mt-1 text-xs font-semibold text-slate-500">
+                                    옵션 {book.option}
+                                  </p>
+                                ) : (
+                                  <p className="mt-1 text-xs font-semibold text-slate-400">
+                                    옵션 없음
+                                  </p>
                                 )}
-                                onChange={(field, value) =>
-                                  handleBookPublicDraftChange(book, field, value)
-                                }
-                                onReset={() => resetBookPublicDraft(book.id)}
-                                onSave={() => handleSaveBookPublicDraft(book)}
-                              />
-                            </td>
-                            <td className="px-4 py-4">
-                              <button
-                                className="inline-flex rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700"
-                                disabled={isRowBusy}
-                                onClick={() => handleDeleteBook(book)}
-                                type="button"
-                              >
-                                {deletingBookId === book.id ? "삭제 중..." : "책 삭제"}
-                              </button>
-                            </td>
-                          </tr>
+                              </td>
+                              <td className="px-4 py-4">
+                                <StatusBadge status={book.status} />
+                              </td>
+                              <td className="px-4 py-4 font-semibold text-slate-700">
+                                {formatCurrency(book.price)}
+                              </td>
+                              <td className="px-4 py-4">
+                                <BookPriceEditor
+                                  compact
+                                  draftValue={priceDraftValue}
+                                  isDirty={isPriceDirty}
+                                  isDisabled={isRowBusy}
+                                  isInvalid={isPriceInvalid}
+                                  isSaving={updatingBookPriceId === book.id}
+                                  onChange={(value) => handlePriceDraftChange(book.id, value)}
+                                  onReset={() => resetBookPriceDraft(book.id)}
+                                  onSave={() => handleSaveBookPrice(book)}
+                                />
+                              </td>
+                              <td className="px-4 py-4">
+                                <BookStatusEditor
+                                  compact
+                                  draftValue={statusDraftValue}
+                                  isDirty={isStatusDirty}
+                                  isDisabled={isRowBusy}
+                                  isSaving={updatingBookStatusId === book.id}
+                                  onChange={(value) => handleStatusDraftChange(book.id, value)}
+                                  onReset={() => resetBookStatusDraft(book.id)}
+                                  onSave={() => handleSaveBookStatus(book)}
+                                />
+                              </td>
+                              <td className="px-4 py-4">
+                                <div className="flex flex-col gap-2">
+                                  <button
+                                    aria-expanded={isExpanded}
+                                    className={`inline-flex items-center justify-center rounded-lg border px-3 py-2 text-xs font-bold transition ${
+                                      isExpanded
+                                        ? "border-slate-400 bg-slate-100 text-slate-800"
+                                        : isPublicDirty
+                                          ? "border-amber-400 bg-amber-50 text-amber-800 hover:bg-amber-100"
+                                          : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                                    }`}
+                                    disabled={isRowBusy}
+                                    onClick={() => setExpandedBookId(isExpanded ? null : book.id)}
+                                    type="button"
+                                  >
+                                    {isExpanded
+                                      ? "공개 정보 접기 ▲"
+                                      : isPublicDirty
+                                        ? "공개 정보 편집 (수정중) ▼"
+                                        : "공개 정보 편집 ▼"}
+                                  </button>
+                                  <button
+                                    className="inline-flex justify-center rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700"
+                                    disabled={isRowBusy}
+                                    onClick={() => handleDeleteBook(book)}
+                                    type="button"
+                                  >
+                                    {deletingBookId === book.id ? "삭제 중..." : "책 삭제"}
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                            {isExpanded ? (
+                              <tr className="bg-slate-50">
+                                <td className="px-4 pb-5 pt-0" colSpan={7}>
+                                  <BookPublicStoreEditor
+                                    book={book}
+                                    draft={getBookPublicDraftValue(book)}
+                                    isDirty={isPublicDirty}
+                                    isDisabled={isRowBusy}
+                                    isSaving={updatingBookPublicId === book.id}
+                                    validationMessage={getPublicStoreValidationMessage(
+                                      book,
+                                      getBookPublicDraftValue(book),
+                                    )}
+                                    onChange={(field, value) =>
+                                      handleBookPublicDraftChange(book, field, value)
+                                    }
+                                    onReset={() => resetBookPublicDraft(book.id)}
+                                    onSave={() => handleSaveBookPublicDraft(book)}
+                                  />
+                                </td>
+                              </tr>
+                            ) : null}
+                          </Fragment>
                         );
                       })}
                     </tbody>
