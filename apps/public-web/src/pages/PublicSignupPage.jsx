@@ -163,9 +163,9 @@ function PublicSignupPage() {
   const hasRequiredAgreements = agreementItems
     .filter((item) => item.required)
     .every((item) => agreements[item.key]);
-  // "필수 약관 전체 동의" 체크박스 표시 상태 — 필수 약관 모두 동의됐을 때만 체크.
-  // 마케팅(선택)은 별도 체크박스로 분리. 한 번에 묶어 처리하는 패턴은 방통위 권고에 어긋남.
-  const isAllAgreed = agreements.terms && agreements.privacy;
+  // "약관 전체 동의" 체크박스 표시 상태 — 마케팅(선택) 포함 모두 동의됐을 때만 체크.
+  // 사업 정책: 마케팅 수신 동의율 유도. 라벨에 "(마케팅 정보 수신 포함)" 명시해 사용자 인지.
+  const isAllAgreed = agreements.terms && agreements.privacy && agreements.marketing;
   const isEmailAvailable = emailStatus.state === "available" && emailStatus.email === normalizedEmail;
   // canSubmit은 더 이상 버튼 disabled 결정에 쓰지 않음 (handleSubmit이 validateFields로 책임).
   // hasSession (이미 로그인된 상태)일 때만 별도로 차단. 단, OTP 인증 직후에는 verifyOtp가 세션을 발급하므로
@@ -316,15 +316,15 @@ function PublicSignupPage() {
     }));
   };
 
-  // 2026-05-25 정책 변경: "필수 약관 전체 동의"는 필수 약관만 일괄 처리.
-  // 마케팅(선택)은 사용자가 별도 체크박스에서 의식적으로 선택해야 함.
-  // (필수 + 선택을 한 번에 묶어 처리하면 방통위 다크 패턴 권고 위반)
+  // 사업 정책: "전체 동의"는 마케팅(선택)까지 함께 동의되도록 통합.
+  // 라벨에 "(마케팅 정보 수신 포함)" 명시해 사용자 인지 보장. 마케팅 수신 동의율 유도가 목적.
   const handleToggleRequiredAgreements = () => {
     const nextValue = !isAllAgreed;
     setAgreements((current) => ({
       ...current,
       terms: nextValue,
       privacy: nextValue,
+      marketing: nextValue,
     }));
     setFieldErrors((currentValue) => ({
       ...currentValue,
@@ -924,7 +924,7 @@ function PublicSignupPage() {
               </div>
 
               <div className={`public-auth-agreement-box ${fieldErrors.agreements ? "is-error" : ""}`}>
-                {/* 2026-05-25 정책: 필수 약관만 일괄 처리. 마케팅(선택)은 별도 체크박스. */}
+                {/* 사업 정책: "전체 동의"는 마케팅(선택) 포함 일괄 처리. 라벨에 명시. */}
                 <label className="public-auth-agreement-box__all">
                   <span className="public-auth-checkmark">
                     <input checked={isAllAgreed} onChange={handleToggleRequiredAgreements} type="checkbox" />
@@ -932,7 +932,10 @@ function PublicSignupPage() {
                       ✓
                     </span>
                   </span>
-                  <span>필수 약관 전체 동의</span>
+                  <span>
+                    약관 전체 동의
+                    <span className="public-auth-agreement-box__all-hint"> (마케팅 정보 수신 포함)</span>
+                  </span>
                 </label>
 
                 <div aria-hidden="true" className="public-auth-agreement-box__divider" />

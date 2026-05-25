@@ -130,10 +130,12 @@ function PublicOAuthConsentPage() {
     }));
   }, [initialName, initialPhone]);
 
-  const isRequiredAllAgreed = agreementItems
+  const hasRequiredAgreements = agreementItems
     .filter((item) => item.required)
     .every((item) => agreements[item.key]);
-  const hasRequiredAgreements = isRequiredAllAgreed;
+  // "전체 동의" 체크박스 표시 — 마케팅(선택) 포함 모두 동의됐을 때만 체크.
+  // 사업 정책: 마케팅 수신 동의율 유도. 라벨에 "(마케팅 정보 수신 포함)" 명시로 인지 보장.
+  const isAllAgreed = agreements.terms && agreements.privacy && agreements.marketing;
 
   // 이미 인증 완료된 사용자는 next로 즉시 이동
   useEffect(() => {
@@ -153,11 +155,12 @@ function PublicOAuthConsentPage() {
   };
 
   const handleToggleRequiredAgreements = () => {
-    const nextValue = !isRequiredAllAgreed;
+    const nextValue = !isAllAgreed;
     setAgreements((prev) => ({
       ...prev,
       terms: nextValue,
       privacy: nextValue,
+      marketing: nextValue,
     }));
     setErrorMessage("");
   };
@@ -403,7 +406,7 @@ function PublicOAuthConsentPage() {
                   <label className="public-auth-agreement-box__all">
                     <span className="public-auth-checkmark">
                       <input
-                        checked={isRequiredAllAgreed}
+                        checked={isAllAgreed}
                         onChange={handleToggleRequiredAgreements}
                         type="checkbox"
                       />
@@ -412,8 +415,8 @@ function PublicOAuthConsentPage() {
                       </span>
                     </span>
                     <span>
-                      필수 약관 전체 동의
-                      <span className="public-auth-agreement-box__all-hint"> (선택 항목 제외)</span>
+                      약관 전체 동의
+                      <span className="public-auth-agreement-box__all-hint"> (마케팅 정보 수신 포함)</span>
                     </span>
                   </label>
 

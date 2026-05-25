@@ -32,12 +32,11 @@ export const TAB_ITEMS = [
 // 새 사이드바 메뉴 구성. 그룹별로 묶여 표시되며,
 // 키는 location.hash와 동기화되어 활성 메뉴 판단에 사용된다.
 // settings-* 키는 SettingsTab을 공유하되 section prop으로 분기된다.
-// P0-6: 판매·쇼핑(구매)·내 정보 3그룹으로 재편하고 "수거 요청하기"를 판매 그룹 진입점으로 노출.
+// 수거 요청 CTA는 sales empty state(MypageEmptyState)와 홈 PickupCTA·헤더 메뉴에 있어 사이드바 중복 노출 제거.
 export const SIDEBAR_GROUPS = [
   {
     title: "판매 정보",
     items: [
-      { key: "pickup-new", label: "+ 수거 요청하기", isCta: true, to: "/pickup/new" },
       { key: "sales", label: "판매 내역" },
       { key: "settlements", label: "정산 내역" },
     ],
