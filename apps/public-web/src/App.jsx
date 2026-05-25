@@ -37,19 +37,25 @@ function RedirectStoreToHome() {
   return <Navigate replace to={{ pathname: "/", search: location.search, hash: location.hash }} />;
 }
 
-// OAuth 신규 가입자가 약관 동의 안 한 채 다른 페이지를 떠돌면 자동으로 동의 페이지로 보낸다.
+// 가입 미완료 사용자(약관 동의 안 한 OAuth 신규 가입자 + OTP 인증만 하고 떠난 사용자)가
+// 다른 페이지를 떠돌면 자동으로 가입 마무리 페이지로 보낸다.
 // 콜백 페이지나 동의 페이지 자체에서는 동작 안 함 (loop 방지).
-function OAuthConsentGate() {
+// /signup도 제외 — 사용자가 OTP 인증 중인 정상 흐름과 충돌 방지.
+function SignupCompletionGate() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { isLoading, needsOAuthConsent } = usePublicAuth();
+  const { isLoading, needsSignupCompletion } = usePublicAuth();
 
   useEffect(() => {
-    if (isLoading || !needsOAuthConsent) return;
-    if (location.pathname === "/auth/oauth-consent" || location.pathname === "/auth/callback") return;
+    if (isLoading || !needsSignupCompletion) return;
+    if (
+      location.pathname === "/auth/oauth-consent"
+      || location.pathname === "/auth/callback"
+      || location.pathname === "/signup"
+    ) return;
     const nextPath = `${location.pathname}${location.search}${location.hash}`;
     navigate(`/auth/oauth-consent?next=${encodeURIComponent(nextPath)}`, { replace: true });
-  }, [isLoading, needsOAuthConsent, location.pathname, location.search, location.hash, navigate]);
+  }, [isLoading, needsSignupCompletion, location.pathname, location.search, location.hash, navigate]);
 
   return null;
 }
@@ -57,7 +63,7 @@ function OAuthConsentGate() {
 function App() {
   return (
     <>
-      <OAuthConsentGate />
+      <SignupCompletionGate />
       <Suspense fallback={<PageLoadingFallback />}>
         <Routes>
           <Route element={<PublicResetPasswordPage />} path="/auth/reset-password" />

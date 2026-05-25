@@ -140,11 +140,17 @@ function PublicAuthProvider({ children }) {
   }, [isOAuthUser, state.accountRole, isEmailVerified]);
 
   // 게이트:
-  //   - 이메일 사용자: email_verified_at만 필요 (PublicSignupPage에서 약관 동의 강제됨)
-  //   - OAuth 사용자: terms_agreed_at 필수 (트리거 자동 채움 제거됨)
+  //   - 이메일 사용자: email_verified_at + 약관 동의 모두 필요
+  //   - OAuth 사용자: terms_agreed_at 필수 (이메일은 OAuth provider가 검증한 것으로 간주)
+  //   기존엔 OTP 가입자가 인증만 하고 약관 못 채운 채 떠나도 isAuthenticated=true가 됐었음(좀비).
+  //   strict하게 hasAgreedToTerms를 모든 경로에 필수로 — 미완료 사용자는 사이트 진입 전 가입 마무리 게이트로.
   const isMemberVerified =
-    state.accountRole === "member" &&
-    (isOAuthUser ? hasAgreedToTerms : isEmailVerified);
+    state.accountRole === "member"
+    && hasAgreedToTerms
+    && (isOAuthUser || isEmailVerified);
+
+  const needsSignupCompletion =
+    state.accountRole === "member" && state.hasSession && termsAgreedAt === null;
 
   const value = {
     ...state,
@@ -152,8 +158,10 @@ function PublicAuthProvider({ children }) {
     isAdminAccount: state.accountRole === "admin",
     isOAuthUser,
     hasAgreedToTerms,
-    needsOAuthConsent:
-      state.accountRole === "member" && isOAuthUser && termsAgreedAt === null,
+    needsSignupCompletion,
+    // 호환용 — 기존 호출자(App.jsx, PublicOAuthConsentPage, PublicAuthCallbackPage)는 needsOAuthConsent를
+    // 참조하지만 의미는 동일하게 "가입 마무리 필요"로 통일. provider 무관 적용.
+    needsOAuthConsent: needsSignupCompletion,
     refreshProfile,
     signOut,
   };

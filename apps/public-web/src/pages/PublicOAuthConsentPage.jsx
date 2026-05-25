@@ -4,7 +4,7 @@ import { supabase } from "@shared-supabase/publicSupabaseClient";
 import PublicAgreementDialog from "../components/PublicAgreementDialog";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { usePageMeta } from "../lib/usePageMeta";
-import { formatPhoneNumber, hasValidPhoneNumber } from "../lib/publicAuthFormUtils";
+import { formatPhoneNumber, hasRequiredPasswordConditions, hasValidPhoneNumber } from "../lib/publicAuthFormUtils";
 
 const agreementItems = [
   {
@@ -85,15 +85,27 @@ function pickInitialPhone(user) {
 
 function PublicOAuthConsentPage() {
   usePageMeta({
-    title: "서비스 이용 약관 동의",
-    description: "수북 서비스 이용을 위해 약관에 동의해 주세요.",
+    title: "회원가입 마무리",
+    description: "수북 서비스 이용을 위해 약관 동의 및 기본 정보를 입력해 주세요.",
     noindex: true,
   });
 
   const location = useLocation();
   const navigate = useNavigate();
-  const { isLoading, hasSession, needsOAuthConsent, isAuthenticated, refreshProfile, signOut, user, profile } =
-    usePublicAuth();
+  const {
+    isLoading,
+    hasSession,
+    needsSignupCompletion,
+    isAuthenticated,
+    isOAuthUser,
+    refreshProfile,
+    signOut,
+    user,
+    profile,
+  } = usePublicAuth();
+  // OTP(email provider) 가입 미완료자는 비번도 NULL이므로 같은 페이지에서 받는다.
+  // OAuth(카카오/구글)는 비번 칸 미노출.
+  const needsPasswordSetup = !isOAuthUser;
 
   const search = new URLSearchParams(location.search);
   const next = search.get("next") || "/";
@@ -103,8 +115,9 @@ function PublicOAuthConsentPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
-  const [formValues, setFormValues] = useState({ name: "", phone: "" });
-  const [fieldErrors, setFieldErrors] = useState({ name: "", phone: "" });
+  const [formValues, setFormValues] = useState({ name: "", phone: "", password: "" });
+  const [fieldErrors, setFieldErrors] = useState({ name: "", phone: "", password: "" });
+  const [showPassword, setShowPassword] = useState(false);
 
   // 카카오/구글 메타데이터에서 이름·연락처 prefill (가능한 경우).
   const initialName = useMemo(() => pickInitialName(user) || profile?.name || "", [user, profile]);
@@ -129,10 +142,10 @@ function PublicOAuthConsentPage() {
       navigate("/login", { replace: true });
       return;
     }
-    if (isAuthenticated && !needsOAuthConsent) {
+    if (isAuthenticated && !needsSignupCompletion) {
       navigate(next, { replace: true });
     }
-  }, [isLoading, hasSession, isAuthenticated, needsOAuthConsent, next, navigate]);
+  }, [isLoading, hasSession, isAuthenticated, needsSignupCompletion, next, navigate]);
 
   const handleToggleAgreement = (key) => {
     setAgreements((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -160,7 +173,7 @@ function PublicOAuthConsentPage() {
   const activeAgreement = agreementItems.find((item) => item.key === activeAgreementKey) ?? null;
 
   const validateFields = () => {
-    const nextErrors = { name: "", phone: "" };
+    const nextErrors = { name: "", phone: "", password: "" };
 
     if (!formValues.name.trim()) {
       nextErrors.name = "필수 항목입니다.";
@@ -172,8 +185,16 @@ function PublicOAuthConsentPage() {
       nextErrors.phone = "연락처 형식을 확인해 주세요.";
     }
 
+    if (needsPasswordSetup) {
+      if (!formValues.password) {
+        nextErrors.password = "비밀번호를 설정해 주세요.";
+      } else if (!hasRequiredPasswordConditions(formValues.password)) {
+        nextErrors.password = "영문·숫자 포함 8자 이상으로 입력해 주세요.";
+      }
+    }
+
     setFieldErrors(nextErrors);
-    return !nextErrors.name && !nextErrors.phone;
+    return !nextErrors.name && !nextErrors.phone && !nextErrors.password;
   };
 
   const handleSubmit = async (event) => {
@@ -194,11 +215,19 @@ function PublicOAuthConsentPage() {
 
     setIsSubmitting(true);
     try {
-      // complete_oauth_signup RPC는 항상 p_name/p_phone을 받는 새 시그니처로 호출.
-      // 과거에는 RPC 시그니처 미지원 시 인자 없이 재호출하는 fallback이 있었으나,
-      // 그 경우 사용자가 입력한 이름·연락처가 silently drop되어 마이페이지/픽업/정산
-      // 단계에서 빈 값으로 인지되는 사고를 만들었다. 더 이상 fallback하지 않는다.
-      // RPC 시그니처가 새 형식이 아니면 명시적으로 실패하고, backend 배포를 강제한다.
+      // 이메일 provider 사용자(OTP 가입 미완료자)면 비번부터 설정. 실패 시 RPC 호출 안 함.
+      if (needsPasswordSetup) {
+        const { error: passwordError } = await supabase.auth.updateUser({
+          password: formValues.password,
+        });
+        if (passwordError) {
+          setErrorMessage(passwordError.message || "비밀번호 설정에 실패했어요. 잠시 후 다시 시도해 주세요.");
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
+      // complete_oauth_signup RPC: OAuth/email 가입자 모두 사용. 약관 + 이름 + 연락처 + 마케팅 동의 저장.
       const { error } = await supabase.rpc("complete_oauth_signup", {
         p_marketing_opt_in: agreements.marketing,
         p_name: formValues.name.trim(),
@@ -334,6 +363,41 @@ function PublicOAuthConsentPage() {
                     </p>
                   )}
                 </div>
+
+                {/* 이메일 가입자(OTP 인증만 끝낸 미완료자)만 비번 입력. OAuth 사용자는 미노출. */}
+                {needsPasswordSetup ? (
+                  <div className={`public-auth-field-row ${fieldErrors.password ? "is-error" : ""}`}>
+                    <label className="public-auth-field-row__label" htmlFor="public-oauth-consent-password">
+                      비밀번호 <span className="public-auth-field-row__required">*</span>
+                    </label>
+                    <div className="public-auth-field-row__control public-auth-field-row__control--with-action">
+                      <input
+                        autoComplete="new-password"
+                        className="public-auth-field-row__input"
+                        id="public-oauth-consent-password"
+                        onChange={handleChangeValue("password")}
+                        placeholder="영문·숫자 포함 8자 이상"
+                        type={showPassword ? "text" : "password"}
+                        value={formValues.password}
+                      />
+                      <button
+                        aria-label={showPassword ? "비밀번호 가리기" : "비밀번호 보기"}
+                        className="public-auth-field-row__action"
+                        onClick={() => setShowPassword((v) => !v)}
+                        type="button"
+                      >
+                        {showPassword ? "숨기기" : "보기"}
+                      </button>
+                    </div>
+                    {fieldErrors.password ? (
+                      <p className="public-auth-inline-message public-auth-inline-message--error">{fieldErrors.password}</p>
+                    ) : (
+                      <p className="public-auth-inline-message public-auth-inline-message--info">
+                        다음에 로그인할 때 사용할 비밀번호예요.
+                      </p>
+                    )}
+                  </div>
+                ) : null}
 
                 <div className="public-auth-agreement-box">
                   <label className="public-auth-agreement-box__all">
