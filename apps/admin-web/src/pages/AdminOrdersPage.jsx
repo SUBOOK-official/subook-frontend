@@ -628,6 +628,10 @@ function AdminOrdersPage() {
         { label: "입금대기", value: summary.pending_count ?? 0, hint: "확인 필요" },
         { label: "결제완료/배송중", value: (summary.paid_count ?? 0) + (summary.shipping_count ?? 0), hint: "처리 필요" },
         { label: "구매확정", value: summary.confirmed_count ?? 0 },
+        // 구매자가 환불 신청한 주문 — refunded 처리 전까지 큐에 남음. 0이면 표시 생략.
+        ...((summary.refund_pending_count ?? 0) > 0
+          ? [{ label: "환불 신청", value: summary.refund_pending_count, hint: "처리 필요", tone: "danger" }]
+          : []),
       ]
     : [];
 
@@ -770,10 +774,20 @@ function AdminOrdersPage() {
                 </tr>
               </thead>
               <tbody>
-                {orders.map((order) => (
+                {orders.map((order) => {
+                  // 구매자가 환불 신청해 둔 상태(아직 미처리). 행 자체를 빨갛게 강조.
+                  const hasPendingRefundRequest =
+                    Boolean(order.refund_requested_at) && order.status !== "refunded";
+                  return (
                   <tr
                     className={`border-b border-slate-50 hover:bg-slate-50 transition ${
-                      selectedOrderId === order.id ? "bg-blue-50" : selectedIds.has(order.id) ? "bg-amber-50" : ""
+                      selectedOrderId === order.id
+                        ? "bg-blue-50"
+                        : hasPendingRefundRequest
+                          ? "bg-rose-50"
+                          : selectedIds.has(order.id)
+                            ? "bg-amber-50"
+                            : ""
                     }`}
                     key={order.id}
                   >
@@ -786,7 +800,14 @@ function AdminOrdersPage() {
                       />
                     </td>
                     <td className="px-4 py-3 font-mono text-xs font-bold whitespace-nowrap">
-                      {order.order_number}
+                      <div className="flex items-center gap-1.5">
+                        {order.order_number}
+                        {hasPendingRefundRequest && (
+                          <span className="inline-flex items-center rounded-full bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-700">
+                            환불신청
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       <div className="text-sm font-semibold">{order.buyer_name || "—"}</div>
@@ -838,7 +859,8 @@ function AdminOrdersPage() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -927,6 +949,52 @@ function AdminOrdersPage() {
               <p className="text-sm">
                 {selectedOrder.tracking_carrier ?? "CJ대한통운"} · {selectedOrder.tracking_number}
               </p>
+            </div>
+          )}
+
+          {/* 환불 신청 사유 — 구매자가 신청했고 아직 처리 안 된 경우 강조 */}
+          {selectedOrder.refund_requested_at && selectedOrder.status !== "refunded" && (
+            <div className="rounded-lg border-l-4 border-rose-500 bg-rose-50 px-4 py-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold text-rose-700 uppercase tracking-wider">
+                  환불 신청 접수
+                </h4>
+                <span className="text-xs text-rose-600">
+                  {formatDate(selectedOrder.refund_requested_at)}
+                </span>
+              </div>
+              <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">
+                {selectedOrder.refund_request_reason || "사유 미기재"}
+              </p>
+              <p className="mt-2 text-xs text-rose-600">
+                아래 "환불처리" 버튼으로 처리하거나, 구매자와 협의 후 보류할 수 있습니다.
+              </p>
+            </div>
+          )}
+
+          {/* 환불 완료 내역 — 이미 처리된 주문이면 결과 표시 */}
+          {selectedOrder.status === "refunded" && (
+            <div className="rounded-lg bg-slate-50 px-4 py-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  환불 완료
+                </h4>
+                <span className="text-xs text-slate-500">
+                  {selectedOrder.refunded_at ? formatDate(selectedOrder.refunded_at) : ""}
+                </span>
+              </div>
+              {selectedOrder.refund_request_reason && (
+                <p className="mt-2 text-sm text-slate-700">
+                  <span className="text-xs font-semibold text-slate-500">구매자 사유: </span>
+                  {selectedOrder.refund_request_reason}
+                </p>
+              )}
+              {selectedOrder.refund_reason && (
+                <p className="mt-1 text-sm text-slate-700">
+                  <span className="text-xs font-semibold text-slate-500">처리 메모: </span>
+                  {selectedOrder.refund_reason}
+                </p>
+              )}
             </div>
           )}
 
