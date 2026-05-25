@@ -294,34 +294,6 @@
   margin-right: 4px;
 }
 
-/* 라이브 정산 계산기 — 셀러가 "총 얼마 받을지" 즉답 */
-.pickup-policy-preview__estimate {
-  margin-top: 14px;
-  padding: 12px 14px;
-  background: #ecfdf5;
-  border: 1px solid #6ee7b7;
-  border-radius: 10px;
-}
-
-.pickup-policy-preview__estimate-title {
-  margin: 0;
-  font-size: 13px;
-  color: #065f46;
-  line-height: 1.55;
-}
-
-.pickup-policy-preview__estimate-title strong {
-  color: #047857;
-  font-weight: 800;
-}
-
-.pickup-policy-preview__estimate-hint {
-  margin: 6px 0 0;
-  font-size: 11px;
-  color: #047857;
-  line-height: 1.5;
-}
-
 /* ─── 약관 동의 (sub) ─── */
 .pickup-policy-agree {
   display: flex;

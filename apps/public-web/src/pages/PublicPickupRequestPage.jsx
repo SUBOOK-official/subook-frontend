@@ -3,7 +3,6 @@ import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import PublicSiteHeader from "../components/PublicSiteHeader";
 import PublicFooter from "../components/PublicFooter";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
-import { getSettlementInfo } from "@shared-domain/settlement";
 import {
   BANK_LIST,
   BOOK_TYPES,
@@ -130,23 +129,9 @@ function Toast({ message, tone, onClose }) {
 
 // ─── 신청 전 핵심 정책 카드 (Step 1 상단) ───
 // 2026-05-19 정책: 신규 입고는 모두 "안 쓴(미사용) 교재"만 수령.
-// 2026-05-25 톤 변경: "수수료 N%" 대신 "정가의 M% 받으세요" — 셀러 관점 직관적 카피.
-function PickupPolicyPreview({ items = [] }) {
-  // 라이브 정산 계산기: 등록된 책의 original_price 합 × 책별 수수료 적용한 예상 수령액.
-  // 책 1권당 정가 1만원 초과 → 60% 수령 / 1만원 이하 → 55% 수령.
-  const validItems = items.filter((item) => Number.isFinite(Number(item.original_price)) && Number(item.original_price) > 0);
-  const totals = validItems.reduce(
-    (acc, item) => {
-      const info = getSettlementInfo(item.original_price);
-      if (!info) return acc;
-      return {
-        gross: acc.gross + Number(item.original_price),
-        net: acc.net + info.netAmount,
-      };
-    },
-    { gross: 0, net: 0 },
-  );
-
+// 라이브 정산 계산기는 비매품(자체 산정 가격) 책 때문에 정가 기준이 부정확해 제거.
+// 셀러는 검수 완료 후 마이페이지에서 책별 가격·예상 수령액을 안내받음.
+function PickupPolicyPreview() {
   return (
     <div className="pickup-policy-preview" role="region" aria-label="신청 전 꼭 알아두세요">
       <p className="pickup-policy-preview__title">📌 신청 전 꼭 알아두세요</p>
@@ -159,7 +144,7 @@ function PickupPolicyPreview({ items = [] }) {
           <strong>새 책 기준</strong> 필기·형광펜 0%, 표지·내지 양호 (개봉 OK)
         </li>
         <li>
-          <strong>받는 금액</strong> 정가 1만원 넘는 책은 <strong>정가의 60%</strong>, 1만원 이하·모의고사는 <strong>정가의 55%</strong>를 받으세요.
+          <strong>가격 책정</strong> 책별 가격은 검수 후 운영팀이 정해서 마이페이지에 안내해 드려요.
         </li>
         <li>
           <strong>정산</strong> 구매자 구매확정 후 <strong>3영업일 이내 계좌이체</strong>
@@ -171,18 +156,6 @@ function PickupPolicyPreview({ items = [] }) {
           <strong>최소 권수</strong> 검수 통과 20권 미만이면 수거 배송비 3,500원 차감
         </li>
       </ul>
-
-      {validItems.length > 0 ? (
-        <div className="pickup-policy-preview__estimate" aria-live="polite">
-          <p className="pickup-policy-preview__estimate-title">
-            지금 등록하신 {validItems.length}권 · 정가 합계 약 {totals.gross.toLocaleString("ko-KR")}원 →
-            <strong> 예상 수령액 약 {totals.net.toLocaleString("ko-KR")}원</strong>
-          </p>
-          <p className="pickup-policy-preview__estimate-hint">
-            ※ 정가 기준 예상치예요. 실제 금액은 검수 후 등급·판매가에 따라 달라집니다.
-          </p>
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -283,7 +256,7 @@ function StepBooks({ items, setItems, onNext, showToast }) {
         <p className="pickup-step__subtitle">교재 DB에서 검색하거나, 직접 입력할 수 있어요.</p>
       </div>
 
-      <PickupPolicyPreview items={items} />
+      <PickupPolicyPreview />
 
       {/* 교재 검색 */}
       <div className="pickup-search">

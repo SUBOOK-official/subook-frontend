@@ -45,9 +45,6 @@ export const adminNavigationGroups = [
   },
 ];
 
-// 평면 리스트 (호환용 — 기존 코드가 adminNavigationItems를 import하는 경우 대비)
-export const adminNavigationItems = adminNavigationGroups.flatMap((group) => group.items);
-
 export function resolveActiveAdminModule({ pathname, explicitModule }) {
   if (explicitModule) {
     return explicitModule;

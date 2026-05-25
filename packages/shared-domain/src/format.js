@@ -34,18 +34,9 @@ export function formatCurrency(amount) {
  */
 const PLACEHOLDER_EMAIL_DOMAIN = "@oauth.subook.local";
 
-export function isPlaceholderEmail(email) {
+function isPlaceholderEmail(email) {
   if (!email) return false;
   return String(email).toLowerCase().endsWith(PLACEHOLDER_EMAIL_DOMAIN);
-}
-
-/**
- * UI 표시용: placeholder 이메일은 "(미등록)"으로 마스킹.
- */
-export function formatDisplayEmail(email) {
-  if (!email) return "(미등록)";
-  if (isPlaceholderEmail(email)) return "(이메일 미등록)";
-  return String(email);
 }
 
 /**
