@@ -168,11 +168,15 @@ function PublicCartPage() {
 
     // P1-3: 주문 페이지에서 뒤로가기 시 selection 복원. sessionStorage에서 읽어와
     // 현재 카트에 살아 있는 item만 추려 다시 선택. 없으면 기본(available 전체).
-    const cartItemIds = new Set(cartItems.map((i) => String(i.id)));
-    const availableIdsArr = cartItems.filter((i) => !i.is_sold_out).map((i) => String(i.id));
+    // ⚠ Supabase bigint id는 number. selectedIds를 number로 통일해야 row checkbox
+    //   isSelected={selectedIds.has(item.id)} 매칭이 작동한다 (Set은 strict equality).
+    const cartItemIds = new Set(cartItems.map((i) => i.id));
+    const availableIdsArr = cartItems.filter((i) => !i.is_sold_out).map((i) => i.id);
     const persisted = readPersistedCartSelection();
     if (persisted && persisted.length > 0) {
-      const restored = persisted.filter((id) => cartItemIds.has(id));
+      const restored = persisted
+        .map((id) => Number(id))
+        .filter((id) => Number.isFinite(id) && cartItemIds.has(id));
       if (restored.length > 0) {
         setSelectedIds(new Set(restored));
       } else {
