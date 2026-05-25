@@ -7,7 +7,6 @@ import HeroBanner from "../components/home/HeroBanner";
 import HomeStoreGrid from "../components/home/HomeStoreGrid";
 import LatestArrivalsSection from "../components/home/LatestArrivalsSection";
 import PickupCTA from "../components/home/PickupCTA";
-import SubjectGrid from "../components/home/SubjectGrid";
 import usePublicMemberGate from "../lib/publicMemberGate";
 import { usePublicWishlist } from "../contexts/PublicWishlistContext";
 import { usePageMeta } from "../lib/usePageMeta";
@@ -103,7 +102,6 @@ function PublicHomePage() {
       <h1 className="public-visually-hidden">수능 교재 위탁판매 — 안 쓴 교재를 합리적인 가격에 | 수북</h1>
 
       <HeroBanner onSlideAction={handleHeroAction} slides={HOME_HERO_SLIDES} />
-      <SubjectGrid />
       <BestBooksSection
         favoriteIds={favoriteIds}
         onToggleFavorite={handleToggleFavorite}

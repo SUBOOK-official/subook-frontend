@@ -78,16 +78,6 @@ function PublicFooter() {
   return (
     <footer className="public-footer">
       <ContentContainer className="public-footer__inner">
-        {/* 베타 운영 안내 — 사업자/통신판매업 등록이 끝날 때까지 솔직히 공시.
-            대표/연락처가 위에 명시되어 있어 추적 가능. */}
-        <div className="public-footer__beta" role="note">
-          <strong>베타</strong>
-          <span>
-            수북은 정식 사업자 등록 완료 전 베타로 운영 중입니다. 결제는 안전 계좌이체로만 수령하며,
-            정산·환불은 대표 연락처(010-6271-5792)로 보장됩니다.
-          </span>
-        </div>
-
         <div className="public-footer__content">
           <div className="public-footer__brand">SUBOOK®</div>
 
