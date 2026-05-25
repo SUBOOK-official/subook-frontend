@@ -1,3 +1,7 @@
+/* 페이지 골격(헤더 영역 hero/route, 본문 list/count, sticky footer 레이아웃)을 FAQ와 공유.
+   public-faq-page/route/hero/list 클래스가 PublicFaqPage.css에 정의돼 있어 그대로 재사용. */
+@import "./PublicFaqPage.css";
+
 /* ─── 알림함 페이지 ─── */
 
 .public-notifications-empty {
