@@ -74,11 +74,14 @@ function PublicSignupPage() {
   const location = useLocation();
   const { hasSession, isAdminAccount, isAuthenticated, signOut } = usePublicAuth();
 
+  // OTP 인증으로 인해 isAuthenticated가 true가 됐어도, 사용자는 비번/이름/약관 입력 단계를 마쳐야 함.
+  // verificationStatus가 "idle"인 경우(= 이미 가입된 사용자가 /signup 직접 방문)에만 자동 redirect.
+  // 가입 완료 시점에는 handleSubmit이 navigate("/")를 명시적으로 호출.
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && verificationStatus === "idle") {
       navigate("/", { replace: true });
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, navigate, verificationStatus]);
 
   const [formValues, setFormValues] = useState({
     email: "",
