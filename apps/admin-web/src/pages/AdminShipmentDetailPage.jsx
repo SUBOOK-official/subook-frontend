@@ -707,23 +707,8 @@ function AdminShipmentDetailPage() {
   const [bulkBookProcessing, setBulkBookProcessing] = useState(false);
 
   // ─── 키보드 워크플로 (j/k 이동, x 선택, / 검색 포커스) ─────────────
-  // 운영자가 100권 단위 검수 시 마우스 클릭 횟수를 크게 줄이기 위한 단축키.
+  // 운영자가 100권 단위 검수 시 마우스 클릭 횟수를 크게 줄이기 위한 단축키 (UI 안내 배너는 미노출).
   const [focusedBookId, setFocusedBookId] = useState(null);
-  const [keyboardHelpDismissed, setKeyboardHelpDismissed] = useState(() => {
-    try {
-      return window.localStorage.getItem("admin.shipmentDetail.keyboardHelpDismissed") === "1";
-    } catch {
-      return false;
-    }
-  });
-  const dismissKeyboardHelp = () => {
-    setKeyboardHelpDismissed(true);
-    try {
-      window.localStorage.setItem("admin.shipmentDetail.keyboardHelpDismissed", "1");
-    } catch {
-      /* noop */
-    }
-  };
 
   useEffect(() => {
     if (pagedBooks.length === 0) {
@@ -1860,31 +1845,6 @@ function AdminShipmentDetailPage() {
                 value={bookSearchQuery}
               />
               <p className="mt-2 text-xs font-semibold text-slate-500">페이지당 {BOOKS_PAGE_SIZE}권</p>
-              {!keyboardHelpDismissed ? (
-                <div className="mt-2 flex items-start justify-between gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
-                  <p className="text-xs font-semibold text-blue-900 leading-relaxed">
-                    <span className="font-bold">키보드 단축키</span>{" "}
-                    <kbd className="rounded bg-white px-1 font-mono text-[10px]">j</kbd>/
-                    <kbd className="rounded bg-white px-1 font-mono text-[10px]">k</kbd> 이동 ·{" "}
-                    <kbd className="rounded bg-white px-1 font-mono text-[10px]">x</kbd> 선택 ·{" "}
-                    <kbd className="rounded bg-white px-1 font-mono text-[10px]">/</kbd> 검색 ·{" "}
-                    <kbd className="rounded bg-white px-1 font-mono text-[10px]">s</kbd>/
-                    <kbd className="rounded bg-white px-1 font-mono text-[10px]">Shift+A</kbd>/
-                    <kbd className="rounded bg-white px-1 font-mono text-[10px]">d</kbd> 등급(S/A+/폐기) ·{" "}
-                    <kbd className="rounded bg-white px-1 font-mono text-[10px]">p</kbd> 가격 포커스 ·{" "}
-                    <kbd className="rounded bg-white px-1 font-mono text-[10px]">Enter</kbd> 행 저장 ·{" "}
-                    <kbd className="rounded bg-white px-1 font-mono text-[10px]">u</kbd> 공개 토글
-                  </p>
-                  <button
-                    aria-label="단축키 안내 닫기"
-                    className="text-xs font-bold text-blue-700 hover:text-blue-900"
-                    onClick={dismissKeyboardHelp}
-                    type="button"
-                  >
-                    ×
-                  </button>
-                </div>
-              ) : null}
             </div>
           ) : null}
 
