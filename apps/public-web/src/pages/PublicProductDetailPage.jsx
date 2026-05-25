@@ -942,7 +942,7 @@ function PublicProductDetailPage() {
                 {!activeAvailability.isSoldOut ? (
                   <div className="public-detail-urgency-badge public-detail-urgency-badge--info" role="status">
                     <span aria-hidden="true">📦</span>
-                    <span>단일 재고 — 결제 순서대로 발송</span>
+                    <span>재고 1개 남음</span>
                   </div>
                 ) : justSoldOut ? (
                   <div className="public-detail-soldout-flash" role="status">
