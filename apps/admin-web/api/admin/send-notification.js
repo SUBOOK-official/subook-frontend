@@ -16,6 +16,10 @@ const VALID_NOTIFICATION_TYPES = new Set([
   "shipping_started",
   "delivery_done",
   "restock",
+  // ⚠ admin_refund_order / 정산 회수 흐름에서 호출되는 type. 이전엔 set에 없어
+  //   notifyRefundCompleted가 400 INVALID_NOTIFICATION_TYPE로 거부됐다.
+  "refund_completed",
+  "settlement_recovery_required",
 ]);
 
 // 카카오 알림톡 템플릿 코드 매핑
@@ -29,6 +33,8 @@ const TEMPLATE_CODES = {
   shipping_started: "SB_SHIPPING_STARTED",
   delivery_done: "SB_DELIVERY_DONE",
   restock: "SB_RESTOCK",
+  refund_completed: "SB_REFUND_COMPLETED",
+  settlement_recovery_required: "SB_SETTLEMENT_RECOVERY",
 };
 
 // ── 메시지 본문 생성 ─────────────────────────────────────────
@@ -104,6 +110,24 @@ function buildMessageBody(type, vars) {
         `subook.kr/store/${vars.productId} 에서 바로 구매하실 수 있어요.`
       );
 
+    case "refund_completed":
+      return (
+        `[수북] 환불 완료\n` +
+        `주문번호: ${vars.orderNumber}\n` +
+        `환불 금액: ${vars.totalAmount}원\n` +
+        `사유: ${vars.reason || "환불 처리"}\n` +
+        `영업일 기준 2~5일 내 카드사·은행을 통해 환불됩니다.`
+      );
+
+    case "settlement_recovery_required":
+      return (
+        `[수북] 정산 회수 안내\n` +
+        `주문번호: ${vars.orderNumber}\n` +
+        `회수 금액: ${vars.amount}원\n` +
+        `구매자 환불로 이미 송금된 정산을 회수해야 합니다.\n` +
+        `자세한 안내는 카카오톡 채널로 연락드릴게요.`
+      );
+
     default:
       return "";
   }
@@ -121,6 +145,8 @@ function buildInAppTitle(type, vars) {
     case "shipping_started":return "배송이 시작되었어요";
     case "delivery_done":   return "교재가 도착했어요";
     case "restock":         return `"${vars.productTitle ?? "찜한 교재"}" 재입고`;
+    case "refund_completed": return "환불이 완료되었어요";
+    case "settlement_recovery_required": return "정산 회수 안내";
     default:                return "알림";
   }
 }
@@ -287,8 +313,12 @@ export default async function handler(req, res) {
   //   1) Bearer가 CRON_SECRET과 일치하면 cron/internal 호출로 간주 → service_role client 발급
   //   2) 그 외는 어드민 토큰으로 검증
   if (cronSecret && accessToken === cronSecret) {
-    const url = process.env.SUPABASE_URL;
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const url =
+      process.env.SUPABASE_URL ||
+      process.env.SUPABASE_ADMIN_URL ||
+      process.env.VITE_SUPABASE_ADMIN_URL ||
+      process.env.VITE_SUPABASE_URL;
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
     if (!url || !serviceKey) {
       return res.status(500).json(makeErrorResponse({ error: "Server misconfigured", code: "CONFIG_MISSING" }));
     }
