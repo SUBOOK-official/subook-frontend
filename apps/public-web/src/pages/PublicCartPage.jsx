@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { formatCurrency } from "@shared-domain/format";
 import ContentContainer from "../components/ContentContainer";
 import PublicFooter from "../components/PublicFooter";
+import PublicMemberGateDialog from "../components/PublicMemberGateDialog";
 import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
@@ -153,6 +154,9 @@ function PublicCartPage() {
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [isLoading, setIsLoading] = useState(true);
   const [toast, setToast] = useState(null);
+  // 비로그인 진입 시 갑작스러운 /login 점프 대신 dialog로 맥락 안내 (codex UX 감사 권고).
+  // dialog dismiss = cart 사용 안 함 → 홈으로 자연스럽게.
+  const [isMemberGateOpen, setIsMemberGateOpen] = useState(false);
 
   const showToast = useCallback((message, type = "info", options = null) => {
     setToast({ message, type, options });
@@ -201,12 +205,26 @@ function PublicCartPage() {
   useEffect(() => {
     if (authLoading) return;
     if (!isAuthenticated) {
-      // location 객체 형식으로 통일 — 로그인 후 search/hash까지 보존.
-      navigate("/login", { state: { from: { pathname: "/cart" } } });
+      // 즉시 /login 점프 대신 게이트 dialog로 안내. dialog dismiss 시 홈으로.
+      setIsMemberGateOpen(true);
       return;
     }
+    setIsMemberGateOpen(false);
     void loadCart();
-  }, [authLoading, isAuthenticated, navigate, loadCart]);
+  }, [authLoading, isAuthenticated, loadCart]);
+
+  const handleMemberGateClose = () => {
+    setIsMemberGateOpen(false);
+    navigate("/");
+  };
+  const handleMemberGateLogin = () => {
+    setIsMemberGateOpen(false);
+    navigate("/login", { state: { from: { pathname: "/cart" } } });
+  };
+  const handleMemberGateSignup = () => {
+    setIsMemberGateOpen(false);
+    navigate("/signup", { state: { from: { pathname: "/cart" } } });
+  };
 
   const handleToggle = (id) => {
     setSelectedIds((prev) => {
@@ -467,6 +485,12 @@ function PublicCartPage() {
           </div>
         )}
       </div>
+      <PublicMemberGateDialog
+        onClose={handleMemberGateClose}
+        onLogin={handleMemberGateLogin}
+        onSignup={handleMemberGateSignup}
+        open={isMemberGateOpen}
+      />
     </PublicPageFrame>
   );
 }
