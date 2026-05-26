@@ -26,7 +26,6 @@ function renderLines(lines) {
 function HeroBanner({ onSlideAction, slides = [] }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [isInteractionPaused, setIsInteractionPaused] = useState(false);
-  const [isPlaybackPaused, setIsPlaybackPaused] = useState(false);
   // prefers-reduced-motion 사용자는 자동회전을 완전히 끈다 (WCAG 2.3.3).
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const touchStartXRef = useRef(null);
@@ -59,7 +58,7 @@ function HeroBanner({ onSlideAction, slides = [] }) {
   }, []);
 
   useEffect(() => {
-    if (slideCount <= 1 || isInteractionPaused || isPlaybackPaused || prefersReducedMotion) {
+    if (slideCount <= 1 || isInteractionPaused || prefersReducedMotion) {
       return undefined;
     }
 
@@ -70,7 +69,7 @@ function HeroBanner({ onSlideAction, slides = [] }) {
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [isInteractionPaused, isPlaybackPaused, prefersReducedMotion, slideCount]);
+  }, [isInteractionPaused, prefersReducedMotion, slideCount]);
 
   useEffect(() => {
     return () => {
@@ -147,10 +146,6 @@ function HeroBanner({ onSlideAction, slides = [] }) {
 
   const handleTouchCancel = () => {
     touchStartXRef.current = null;
-  };
-
-  const handlePauseToggle = () => {
-    setIsPlaybackPaused((currentValue) => !currentValue);
   };
 
   return (
@@ -233,17 +228,6 @@ function HeroBanner({ onSlideAction, slides = [] }) {
                 />
               ))}
             </div>
-
-            {prefersReducedMotion ? null : (
-              <button
-                aria-label={isPlaybackPaused ? "자동 전환 재생" : "자동 전환 일시정지"}
-                className="public-home-hero-banner__playback"
-                onClick={handlePauseToggle}
-                type="button"
-              >
-                <span aria-hidden="true">{isPlaybackPaused ? "▶" : "⏸"}</span>
-              </button>
-            )}
           </ContentContainer>
         ) : null}
       </div>
