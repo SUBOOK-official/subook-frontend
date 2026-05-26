@@ -788,10 +788,12 @@ export function mapOrderToDisplayOrder(order) {
   const canConfirm = order.status === "delivered" && !order.confirmed_at;
   // 사용자는 배송 전 단계(입금대기/결제완료/상품 준비 중)에서 주문 취소 가능
   const canCancel = ["pending", "paid", "preparing"].includes(order.status);
-  // 전자상거래법 7일 청약철회: delivered(미확정)/confirmed에서 환불 신청 가능, 단 이미 신청·환불완료된 건 제외
+  // 전자상거래법 7일 청약철회: delivered(미확정) 상태에서만 셀프 환불 신청 가능.
+  // confirmed 후는 셀러 정산 송금이 진행됐을 위험이 있어 차단 — 고객센터 협의로 redirect
+  // (백엔드 request_member_refund도 동일 정책으로 confirmed 차단).
   const refundRequestedAt = order.refund_requested_at ?? null;
   const canRequestRefund =
-    ["delivered", "confirmed"].includes(order.status) &&
+    order.status === "delivered" &&
     !refundRequestedAt &&
     order.status !== "refunded";
   const canReturn = order.status === "delivered" && !order.confirmed_at;
