@@ -8142,11 +8142,25 @@ img {
     display: none;
   }
 
-  .public-home-hero-banner__content {
-    padding-top: 36px;
-    padding-bottom: 56px;
+  /* 데스크톱 viewport height 170px은 모바일에서 텍스트(2줄)+부제(2줄)+CTA 다
+     못 담아 CTA가 잘리거나 도트와 겹쳤음. 모바일은 컨텐츠가 들어갈 만한
+     min-height로 분리. */
+  .public-home-hero-banner__viewport {
+    height: 360px;
   }
 
+  .public-home-hero-banner__content {
+    /* CTA 아래 도트(bottom 16px)와 시각적으로 분리되도록 padding-bottom 더 줌 */
+    padding: 40px 0 64px;
+  }
+
+  /* 모바일에선 타이틀/설명 약간 축소해 한 화면 안에 자연스럽게 들어가도록 */
+  .public-home-hero-banner__title {
+    font-size: 22px;
+  }
+  .public-home-hero-banner__description {
+    font-size: 13px;
+  }
 }
 
 /* ── Slim sell banner (replaces old large PickupCTA) ── */
