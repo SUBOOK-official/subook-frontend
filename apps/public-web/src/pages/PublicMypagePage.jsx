@@ -1555,7 +1555,7 @@ function RejectableBookRow({ item, requestNumber }) {
   };
 
   return (
-    <div className="public-mypage-book-row" key={item.id}>
+    <div className="public-mypage-book-row" id={`public-mypage-book-${item.id}`} key={item.id}>
       <div className="public-mypage-book-row__copy">
         <strong>[📚] {item.title}</strong>
         {isRejected ? (
@@ -1585,13 +1585,24 @@ function RejectableBookRow({ item, requestNumber }) {
                 ))}
               </div>
             ) : null}
-            <a
-              className="public-mypage-book-row__dispute"
-              href={buildDisputeMailto()}
-              rel="noopener noreferrer"
-            >
-              이 결과가 잘못됐나요? 운영팀에 문의하기 →
-            </a>
+            {/* P0-S2: mailto 단독은 모바일에서 메일앱 미설정 시 죽음. 카톡 채널을 1순위로 병기. */}
+            <div className="public-mypage-book-row__dispute-actions">
+              <a
+                className="public-mypage-book-row__dispute public-mypage-book-row__dispute--primary"
+                href="https://pf.kakao.com/_subook"
+                rel="noopener noreferrer"
+                target="_blank"
+              >
+                카카오톡으로 이의 신청하기 →
+              </a>
+              <a
+                className="public-mypage-book-row__dispute public-mypage-book-row__dispute--secondary"
+                href={buildDisputeMailto()}
+                rel="noopener noreferrer"
+              >
+                메일로 문의
+              </a>
+            </div>
           </>
         ) : (
           <p>
@@ -1724,6 +1735,35 @@ function SalesTab({
     settlementSummary?.totalAmount ?? settlementSummary?.total_amount ?? 0,
   );
   const totalBookCount = salesMetrics.totalBookCount || shipments.reduce((sum, s) => sum + (s.bookCount ?? s.items?.length ?? 0), 0);
+
+  // P0-S2: 모든 shipments에서 판매불가 책을 모아 상단 알림 띠를 노출.
+  // 클릭하면 첫 판매불가 책이 있는 shipment를 펼치고 해당 책 row로 스크롤.
+  const rejectedBooks = useMemo(() => {
+    const acc = [];
+    for (const shipment of shipments) {
+      for (const item of shipment.items ?? []) {
+        if (item.isRejected || item.rejectionReason) {
+          acc.push({ shipmentId: shipment.id, itemId: item.id });
+        }
+      }
+    }
+    return acc;
+  }, [shipments]);
+
+  const handleJumpToFirstRejected = () => {
+    if (rejectedBooks.length === 0) return;
+    const first = rejectedBooks[0];
+    if (expandedShipmentId !== first.shipmentId) {
+      onToggleShipment(first.shipmentId);
+    }
+    // 펼침이 적용된 다음 페인트에서 스크롤
+    window.setTimeout(() => {
+      const el = document.getElementById(`public-mypage-book-${first.itemId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }, 80);
+  };
   const filteredByStatus = useMemo(
     () => filterShipmentsByStatus(shipments, statusFilter),
     [shipments, statusFilter],
@@ -1784,6 +1824,20 @@ function SalesTab({
             { label: "누적 정산금액", value: formatCurrency(totalSettledAmount) },
           ]}
         />
+
+        {rejectedBooks.length > 0 ? (
+          <button
+            className="public-mypage-rejected-banner"
+            onClick={handleJumpToFirstRejected}
+            type="button"
+          >
+            <span aria-hidden="true" className="public-mypage-rejected-banner__icon">⚠️</span>
+            <span className="public-mypage-rejected-banner__copy">
+              <strong>판매불가 {rejectedBooks.length}권</strong> 발생했어요. 사유와 검수 사진을 확인하고 필요하면 이의 신청해주세요.
+            </span>
+            <span aria-hidden="true" className="public-mypage-rejected-banner__chevron">→</span>
+          </button>
+        ) : null}
 
         <div className="public-mypage-sales-search">
           <input
@@ -1862,24 +1916,34 @@ function SalesTab({
                       ) : null}
                     </div>
 
+                    {/* P1: 현재 단계를 1.4x 노드 + bold 라벨로 강조해 "지금 어디 있지?" 인지속도 향상 */}
                     <div className="public-mypage-progress-rail" role="presentation">
-                      {SHIPMENT_PROGRESS_STEPS.map((step, index) => (
-                        <div className="public-mypage-progress-rail__step" key={step.key}>
-                          {index < SHIPMENT_PROGRESS_STEPS.length - 1 ? (
-                            <span
-                              className={`public-mypage-progress-rail__line ${
-                                index < progressIndex ? "is-active" : ""
-                              }`}
-                            />
-                          ) : null}
-                          <span
-                            className={`public-mypage-progress-rail__node ${
-                              index <= progressIndex ? "is-active" : ""
+                      {SHIPMENT_PROGRESS_STEPS.map((step, index) => {
+                        const isPast = index < progressIndex;
+                        const isCurrent = index === progressIndex;
+                        return (
+                          <div
+                            className={`public-mypage-progress-rail__step ${
+                              isCurrent ? "is-current" : ""
                             }`}
-                          />
-                          <span className="public-mypage-progress-rail__label">{step.label}</span>
-                        </div>
-                      ))}
+                            key={step.key}
+                          >
+                            {index < SHIPMENT_PROGRESS_STEPS.length - 1 ? (
+                              <span
+                                className={`public-mypage-progress-rail__line ${
+                                  isPast ? "is-active" : ""
+                                }`}
+                              />
+                            ) : null}
+                            <span
+                              className={`public-mypage-progress-rail__node ${
+                                isPast || isCurrent ? "is-active" : ""
+                              } ${isCurrent ? "is-current" : ""}`}
+                            />
+                            <span className="public-mypage-progress-rail__label">{step.label}</span>
+                          </div>
+                        );
+                      })}
                     </div>
 
                     {shipment.trackingNumber ? (

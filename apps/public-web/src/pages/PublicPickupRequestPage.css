@@ -975,6 +975,62 @@
   font-size: 13px;
 }
 
+/* P0-S3: Step4 권수 차감 안내 박스 */
+.pickup-confirm-shipping {
+  display: flex;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: var(--public-ds-radius);
+  border: 1px solid var(--public-ds-divider);
+  background: #ffffff;
+  align-items: flex-start;
+}
+
+.pickup-confirm-shipping.is-warning {
+  background: #fff7ed;
+  border-color: #fed7aa;
+}
+
+.pickup-confirm-shipping.is-ok {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.pickup-confirm-shipping__icon {
+  font-size: 18px;
+  line-height: 1.2;
+  flex-shrink: 0;
+}
+
+.pickup-confirm-shipping__copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.pickup-confirm-shipping__copy strong {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--public-ds-text);
+  line-height: 1.5;
+}
+
+.pickup-confirm-shipping.is-warning .pickup-confirm-shipping__copy strong {
+  color: #c2410c;
+}
+
+.pickup-confirm-shipping.is-ok .pickup-confirm-shipping__copy strong {
+  color: #15803d;
+}
+
+.pickup-confirm-shipping__copy p {
+  margin: 0;
+  color: var(--public-ds-text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
 /* ─── 버튼 ─── */
 
 .pickup-btn {
@@ -1391,8 +1447,23 @@
     font-size: 12px;
   }
 
+  /* P1: 모바일 신청서 progress 라벨은 11px이면 학부모 셀러 시인성 부족.
+     현재 단계 라벨만 키워 노출, 나머지는 점만 보이게 처리 */
   .pickup-progress__label {
-    font-size: 11px;
+    font-size: 10px;
+    color: transparent;
+    transition: color 0.15s ease;
+  }
+
+  .pickup-progress__item.is-current .pickup-progress__label,
+  .pickup-progress__item.is-done .pickup-progress__label {
+    color: var(--public-ds-text-secondary);
+  }
+
+  .pickup-progress__item.is-current .pickup-progress__label {
+    color: var(--public-ds-text);
+    font-size: 12px;
+    font-weight: 700;
   }
 
   .pickup-form-row {

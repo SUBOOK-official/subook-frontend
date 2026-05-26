@@ -1190,7 +1190,28 @@ function StepConfirm({ items, address, account, isSubmitting, onPrev, onSubmit, 
             {account.account_holder}
           </p>
           <p className="pickup-confirm-detail__memo">
-            정산 예상 시점: <strong>구매자 구매확정 후 3영업일 이내</strong> · 최소 정산 보장 권수: <strong>검수 통과 20권</strong>
+            정산 예상 시점: <strong>구매자 구매확정 후 3영업일 이내</strong>
+          </p>
+        </div>
+      </div>
+
+      {/* P0-S3: 20권 미만 시 수거 배송비 3,500원 차감을 마지막 확인 화면에서 명시.
+          정책 누락으로 인한 "왜 3,500원 빠졌어요" CS 1순위 차단. */}
+      <div className={`pickup-confirm-shipping ${items.length < 20 ? "is-warning" : "is-ok"}`}>
+        <span aria-hidden="true" className="pickup-confirm-shipping__icon">
+          {items.length < 20 ? "⚠️" : "✅"}
+        </span>
+        <div className="pickup-confirm-shipping__copy">
+          <strong>
+            {items.length < 20
+              ? "검수 통과 20권 미만이면 정산금에서 수거 배송비 3,500원이 차감됩니다."
+              : "검수 통과 20권 이상 — 수거 배송비 차감 없음"}
+          </strong>
+          <p>
+            현재 등록 <strong>{items.length}권</strong>
+            {items.length < 20
+              ? ` · ${20 - items.length}권 더 등록하면 차감 없이 정산됩니다.`
+              : ""}
           </p>
         </div>
       </div>

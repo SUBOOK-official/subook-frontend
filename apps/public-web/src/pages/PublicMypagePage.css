@@ -179,10 +179,17 @@
   height: 14px;
   border-radius: 999px;
   background: var(--public-ds-divider);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .public-mypage-progress-rail__node.is-active {
   background: var(--public-ds-accent);
+}
+
+/* P1: 현재 단계 노드를 키워 "지금 어디" 인지속도 향상 */
+.public-mypage-progress-rail__node.is-current {
+  transform: scale(1.6);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.15);
 }
 
 .public-mypage-progress-rail__label {
@@ -190,6 +197,12 @@
   font-size: 11px;
   font-weight: 500;
   line-height: 1.4;
+}
+
+.public-mypage-progress-rail__step.is-current .public-mypage-progress-rail__label {
+  color: var(--public-ds-text);
+  font-weight: 700;
+  font-size: 12px;
 }
 
 .public-mypage-book-list,
@@ -509,6 +522,19 @@
   .public-mypage-progress-rail__line {
     left: calc(50% + 6px);
     width: calc(100% - 12px);
+  }
+
+  /* P1: 모바일에서 6단계 라벨이 한 줄에 들어가지 못해 시인성 떨어짐 →
+     현재 단계 라벨만 노출, 나머지는 점만 유지 */
+  .public-mypage-progress-rail__label {
+    font-size: 10px;
+    color: transparent;
+  }
+
+  .public-mypage-progress-rail__step.is-current .public-mypage-progress-rail__label {
+    color: var(--public-ds-text);
+    font-size: 12px;
+    font-weight: 700;
   }
 
   .public-mypage-overview-grid {
@@ -883,17 +909,88 @@
   object-fit: cover;
 }
 
+.public-mypage-book-row__dispute-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 10px;
+}
+
 .public-mypage-book-row__dispute {
-  display: inline-block;
-  margin-top: 8px;
+  display: inline-flex;
+  align-items: center;
   font-size: 13px;
   font-weight: 600;
-  color: var(--public-ds-danger, #ef4444);
+  text-decoration: none;
+  border-radius: 8px;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+
+.public-mypage-book-row__dispute--primary {
+  padding: 8px 14px;
+  background: #fde047;
+  color: #1f2937;
+  border: 1px solid #f59e0b;
+}
+
+.public-mypage-book-row__dispute--primary:hover {
+  background: #facc15;
+}
+
+.public-mypage-book-row__dispute--secondary {
+  padding: 6px 10px;
+  color: var(--public-ds-text-secondary);
   text-decoration: underline;
 }
 
-.public-mypage-book-row__dispute:hover {
-  opacity: 0.85;
+.public-mypage-book-row__dispute--secondary:hover {
+  color: var(--public-ds-text);
+}
+
+/* P0-S2: SalesTab 상단 판매불가 알림 띠 */
+.public-mypage-rejected-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin-top: 16px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid #fca5a5;
+  background: #fef2f2;
+  color: #7f1d1d;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.public-mypage-rejected-banner:hover {
+  background: #fee2e2;
+  border-color: #f87171;
+}
+
+.public-mypage-rejected-banner__icon {
+  font-size: 20px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.public-mypage-rejected-banner__copy {
+  flex: 1;
+  font-size: 14px;
+  line-height: 1.6;
+  min-width: 0;
+}
+
+.public-mypage-rejected-banner__copy strong {
+  color: #991b1b;
+}
+
+.public-mypage-rejected-banner__chevron {
+  font-size: 18px;
+  font-weight: 700;
+  flex-shrink: 0;
 }
 
 .public-mypage-content {
