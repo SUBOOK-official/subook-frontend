@@ -6485,9 +6485,13 @@ img {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  padding: 16px;
+  /* brand / icon / title(2줄) / trust 4단 + 좁은 카드 영역에 다 들어가도록 컴팩트화.
+     이전 gap 10 + padding 16은 title 디센더가 카드 하단에 잘려보였음. */
+  gap: 6px;
+  padding: 12px;
   text-align: center;
+  /* 부모 media height 초과분은 잘려도 디자인 깨지지 않도록 hidden */
+  overflow: hidden;
 }
 
 .public-product-card__placeholder-brand {
@@ -6503,10 +6507,12 @@ img {
 }
 
 .public-product-card__placeholder-icon {
-  width: 56px;
-  height: 56px;
+  /* 컴팩트화: 56 → 44 (브랜드+제목 2줄+신뢰 카피와 함께 좁은 카드에 깔끔히 들어가도록) */
+  width: 44px;
+  height: 44px;
   color: #94a3b8;
   line-height: 1;
+  flex-shrink: 0;
 }
 
 .public-product-card__placeholder-title {
@@ -6514,11 +6520,15 @@ img {
   color: #374151;
   font-size: 14px;
   font-weight: 700;
-  line-height: 1.5;
+  /* 디센더 공간 확보 — 이전 1.5는 placeholder height 초과해서 카드 하단에서 잘림 */
+  line-height: 1.35;
   display: -webkit-box;
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+  /* line-clamp 박스를 잘리지 않게 명시적 height (line-height 1.35 * 2줄 + 살짝 여유) */
+  max-height: calc(1.35em * 2);
+  word-break: keep-all;
 }
 
 /* "사진 준비 중 · 검수 완료" — 신뢰 카피. 검수가 끝났다는 사실로 placeholder
