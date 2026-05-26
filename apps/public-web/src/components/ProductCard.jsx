@@ -72,11 +72,12 @@ function ProductCard({
     setImageStatus(coverImageUrl ? "loading" : "fallback");
     if (!coverImageUrl) return undefined;
     // Supabase Storage 응답이 끊겨 onLoad/onError가 영영 안 불리고 무한 로딩에 박히는
-    // 케이스 방지 — 3초 안에 결과 없으면 placeholder로 fallback (모바일 LTE 환경에서
-    // 8초 회색 박스가 첫인상을 망치는 문제 방어).
+    // 케이스만 방어 — 정상 로드는 충분히 기다린다. 모바일 LTE 첫 로드(캐시 miss)는
+    // 3-5초가 흔해서 이전 3초 timeout이 placeholder로 너무 빨리 떨어뜨리는 문제가
+    // 있었음. 12초로 늘려 안전 마진 확보. cache hit 후엔 무관.
     const timer = setTimeout(() => {
       setImageStatus((current) => (current === "loading" ? "fallback" : current));
-    }, 3000);
+    }, 12000);
     return () => clearTimeout(timer);
   }, [coverImageUrl]);
 
@@ -96,7 +97,10 @@ function ProductCard({
             alt={title}
             className={`public-product-card__cover ${imageStatus === "loaded" ? "is-loaded" : ""}`}
             decoding="async"
-            fetchpriority="low"
+            // fetchpriority="low"를 제거 — 그리드에 보이는 카드들이 첫인상에
+            // 즉시 보여야 하는데, low priority가 다른 리소스에 밀려 첫 로드 시
+            // placeholder 잠깐 보이는 문제를 만들었음. loading="lazy"만으로도
+            // viewport 밖 이미지는 충분히 deferred됨.
             loading="lazy"
             onError={() => setImageStatus("fallback")}
             onLoad={() => setImageStatus("loaded")}
