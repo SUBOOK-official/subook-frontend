@@ -103,12 +103,27 @@ function ProductCard({
             src={coverImageUrl}
           />
         ) : (
+          // 중고 교재 거래는 신뢰가 핵심 — 이모지/형광 placeholder 대신 표지형 패널 +
+          // "사진 준비 중" 안내로 검수가 끝났음을 암시한다.
           <div className="public-product-card__placeholder">
             <span className="public-product-card__placeholder-brand">{placeholderEyebrow}</span>
-            <span aria-hidden="true" className="public-product-card__placeholder-icon">
-              📚
-            </span>
+            <svg
+              aria-hidden="true"
+              className="public-product-card__placeholder-icon"
+              fill="none"
+              height="56"
+              viewBox="0 0 56 56"
+              width="56"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <rect height="44" rx="3" stroke="currentColor" strokeWidth="2" width="34" x="11" y="6" />
+              <line stroke="currentColor" strokeWidth="2" x1="11" x2="45" y1="15" y2="15" />
+              <line stroke="currentColor" strokeLinecap="round" strokeWidth="2" x1="17" x2="39" y1="24" y2="24" />
+              <line stroke="currentColor" strokeLinecap="round" strokeWidth="2" x1="17" x2="34" y1="31" y2="31" />
+              <line stroke="currentColor" strokeLinecap="round" strokeWidth="2" x1="17" x2="36" y1="38" y2="38" />
+            </svg>
             <span className="public-product-card__placeholder-title">{title}</span>
+            <span className="public-product-card__placeholder-trust">사진 준비 중 · 검수 완료</span>
           </div>
         )}
 

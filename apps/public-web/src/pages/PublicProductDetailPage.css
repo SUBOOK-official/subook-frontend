@@ -401,8 +401,9 @@
 }
 
 .public-detail-qty-row__btn {
-  width: 40px;
-  height: 40px;
+  /* WCAG 2.5.5: 모바일 hit area 44x44 */
+  width: 44px;
+  height: 44px;
   border: 0;
   background: #ffffff;
   font-size: 18px;
