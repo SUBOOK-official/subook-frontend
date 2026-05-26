@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
 import ContentContainer from "../ContentContainer";
 import ProductCard, { ProductCardSkeleton } from "../ProductCard";
 import {
@@ -87,6 +88,17 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
   const [isMobileViewport, setIsMobileViewport] = useState(() =>
     typeof window !== "undefined" ? window.innerWidth <= MOBILE_BREAKPOINT_PX : false,
   );
+  // 모바일 필터 바텀시트 (codex UX 감사: 390px에서 사이드바가 258px 차지 → 트리거 + 시트로 줄임)
+  const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
+  useBodyScrollLock(isFilterSheetOpen);
+  useEffect(() => {
+    if (!isFilterSheetOpen) return undefined;
+    const handler = (e) => {
+      if (e.key === "Escape") setIsFilterSheetOpen(false);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [isFilterSheetOpen]);
 
   // 카탈로그 로딩 (한 번만)
   useEffect(() => {
@@ -321,49 +333,53 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
 
   const isEmpty = !isLoading && displayedProducts.length === 0;
 
+  // 사이드바·바텀시트 양쪽에서 재사용하는 필터 그룹 마크업. dependency가 많아
+  // memoize 효과 미미하므로 그냥 inline 변수.
+  const filterGroupsJsx = HOME_SIDEBAR_FILTER_GROUPS.map((group) => {
+    const hasSelected = selectedFilters[group.key].length > 0;
+    return (
+      <div className="public-home-store-grid__sidebar-group" key={group.key}>
+        <h3 className="public-home-store-grid__sidebar-label">{group.label}</h3>
+        <ul className="public-home-store-grid__sidebar-list" role="list">
+          <li>
+            <button
+              aria-pressed={!hasSelected}
+              className={`public-home-store-grid__sidebar-option ${!hasSelected ? "is-active" : ""}`}
+              onClick={() => handleClearGroup(group.key)}
+              type="button"
+            >
+              전체
+            </button>
+          </li>
+          {group.options.map((option) => {
+            const optionValue = typeof option === "string" ? option : option.value;
+            const optionLabel = getFilterOptionLabel(option);
+            const isActive = selectedFilters[group.key].includes(optionValue);
+            return (
+              <li key={optionValue}>
+                <button
+                  aria-pressed={isActive}
+                  className={`public-home-store-grid__sidebar-option ${isActive ? "is-active" : ""}`}
+                  onClick={() => handleToggleFilter(group.key, optionValue)}
+                  type="button"
+                >
+                  {optionLabel}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    );
+  });
+
   return (
     <section className="public-home-store-grid" aria-label="전체 교재" ref={sectionTopRef}>
       <ContentContainer>
         <div className="public-home-store-grid__layout">
-          {/* 좌측 세로 사이드바 (PC) — 모바일에선 그리드 위로 떨어짐 */}
+          {/* 좌측 세로 사이드바 (PC만) — 모바일에선 CSS로 숨기고 바텀시트로 노출 */}
           <aside className="public-home-store-grid__sidebar" aria-label="필터">
-            {HOME_SIDEBAR_FILTER_GROUPS.map((group) => {
-              const hasSelected = selectedFilters[group.key].length > 0;
-              return (
-                <div className="public-home-store-grid__sidebar-group" key={group.key}>
-                  <h3 className="public-home-store-grid__sidebar-label">{group.label}</h3>
-                  <ul className="public-home-store-grid__sidebar-list" role="list">
-                    <li>
-                      <button
-                        aria-pressed={!hasSelected}
-                        className={`public-home-store-grid__sidebar-option ${!hasSelected ? "is-active" : ""}`}
-                        onClick={() => handleClearGroup(group.key)}
-                        type="button"
-                      >
-                        전체
-                      </button>
-                    </li>
-                    {group.options.map((option) => {
-                      const optionValue = typeof option === "string" ? option : option.value;
-                      const optionLabel = getFilterOptionLabel(option);
-                      const isActive = selectedFilters[group.key].includes(optionValue);
-                      return (
-                        <li key={optionValue}>
-                          <button
-                            aria-pressed={isActive}
-                            className={`public-home-store-grid__sidebar-option ${isActive ? "is-active" : ""}`}
-                            onClick={() => handleToggleFilter(group.key, optionValue)}
-                            type="button"
-                          >
-                            {optionLabel}
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-              );
-            })}
+            {filterGroupsJsx}
           </aside>
 
           {/* 우측 메인 — 과목 탭 + 툴바 + 그리드 + 페이지네이션 */}
@@ -386,8 +402,18 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
               })}
             </div>
 
-            {/* 툴바: 결과수 + 정렬 */}
+            {/* 툴바: (모바일) 필터 트리거 + 결과수 + 정렬 */}
             <div className="public-home-store-grid__toolbar">
+          {/* 모바일 전용 필터 트리거 — 데스크톱에선 CSS로 숨김 (좌측 sidebar 사용) */}
+          <button
+            aria-haspopup="dialog"
+            className="public-home-store-grid__mobile-filter-trigger"
+            onClick={() => setIsFilterSheetOpen(true)}
+            type="button"
+          >
+            <span aria-hidden="true">⚙</span>
+            <span>필터{selectedFilterCount > 0 ? ` · ${selectedFilterCount}` : ""}</span>
+          </button>
           <div className="public-home-store-grid__toolbar-right">
             <span className="public-home-store-grid__count">
               총 {visibleBooks.length.toLocaleString("ko-KR")}권
@@ -612,6 +638,57 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
           </div>
         </div>
       </ContentContainer>
+
+      {/* 모바일 전용 필터 바텀시트 — 데스크톱에선 트리거 자체가 안 보임 */}
+      {isFilterSheetOpen ? (
+        <div
+          className="public-home-store-grid__filter-sheet-backdrop"
+          onClick={() => setIsFilterSheetOpen(false)}
+          role="presentation"
+        >
+          <div
+            aria-label="필터 선택"
+            aria-modal="true"
+            className="public-home-store-grid__filter-sheet"
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+          >
+            <header className="public-home-store-grid__filter-sheet-head">
+              <h2 className="public-home-store-grid__filter-sheet-title">
+                필터{selectedFilterCount > 0 ? ` · ${selectedFilterCount}` : ""}
+              </h2>
+              <button
+                aria-label="닫기"
+                className="public-home-store-grid__filter-sheet-close"
+                onClick={() => setIsFilterSheetOpen(false)}
+                type="button"
+              >
+                ✕
+              </button>
+            </header>
+            <div className="public-home-store-grid__filter-sheet-body">
+              {filterGroupsJsx}
+            </div>
+            <footer className="public-home-store-grid__filter-sheet-foot">
+              <button
+                className="public-home-store-grid__filter-sheet-reset"
+                disabled={selectedFilterCount === 0}
+                onClick={handleResetAllFilters}
+                type="button"
+              >
+                전체 초기화
+              </button>
+              <button
+                className="public-home-store-grid__filter-sheet-apply"
+                onClick={() => setIsFilterSheetOpen(false)}
+                type="button"
+              >
+                {visibleBooks.length.toLocaleString("ko-KR")}권 보기
+              </button>
+            </footer>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }
