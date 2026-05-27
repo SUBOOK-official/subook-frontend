@@ -7263,7 +7263,7 @@ img {
 .public-home-hero-banner {
   width: 100%;
   background: var(--public-ds-background);
-  padding: 0 24px 16px;
+  padding: 16px 24px 16px;
   box-sizing: border-box;
 }
 
@@ -8066,6 +8066,7 @@ img {
 
 @media (min-width: 768px) {
   .public-home-hero-banner {
+    padding-top: 24px;
     padding-bottom: 32px;
   }
 
