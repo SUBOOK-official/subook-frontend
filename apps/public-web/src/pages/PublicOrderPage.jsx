@@ -18,6 +18,27 @@ import {
 } from "../lib/paymentBankInfo";
 import "./PublicOrderPage.css";
 
+// 백엔드 create_order가 던지는 영문/시스템 메시지를 사용자 친화 한국어로 매핑.
+// 단일재고 특성상 "이미 다른 주문에 예약됨/품절"이 가장 흔하므로 가장 친절하게 안내한다.
+function toFriendlyOrderError(error) {
+  const raw = (error?.message || "").toLowerCase();
+  if (raw.includes("already reserved") || raw.includes("not available") || raw.includes("sold")) {
+    return "방금 다른 분이 먼저 구매했거나 품절된 교재가 있어요. 장바구니에서 해당 교재를 빼고 다시 시도해 주세요.";
+  }
+  if (raw.includes("at least one item")) {
+    return "주문할 교재가 없어요. 장바구니를 다시 확인해 주세요.";
+  }
+  if (raw.includes("coupon")) {
+    return "쿠폰을 적용할 수 없어요. 쿠폰을 다시 선택해 주세요.";
+  }
+  if (raw.includes("failed to fetch") || raw.includes("network")) {
+    return "네트워크 연결을 확인한 뒤 다시 시도해 주세요.";
+  }
+  // 이미 한국어 메시지면 그대로 노출, 아니면 기본 문구.
+  if (error?.message && /[가-힣]/.test(error.message)) return error.message;
+  return "주문에 실패했습니다. 잠시 후 다시 시도해 주세요.";
+}
+
 // P1-7: 쿠폰 정렬 — 만료 임박(<24h) 우선 + 같은 그룹에서 큰 할인 순.
 // 결제 시점에 사용자가 가장 큰 이득을 가져갈 수 있는 쿠폰을 상단에 노출.
 const COUPON_EXPIRY_SOON_MS = 24 * 60 * 60 * 1000;
@@ -398,7 +419,7 @@ function PublicOrderPage() {
     setIsSubmitting(false);
 
     if (error) {
-      showToast(error.message || "주문에 실패했습니다.", "error");
+      showToast(toFriendlyOrderError(error), "error");
       inFlightRef.current = false;
       return;
     }

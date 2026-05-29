@@ -1342,6 +1342,14 @@
   }
 }
 
+/* 배송완료 후 D+7 자동 구매확정 안내 (확정 후 반품 불가 고지) */
+.public-mypage-purchase-card__auto-confirm {
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #6b7280;
+}
+
 /* ── 환불 신청 상태 표시 + ConfirmDialog reason 입력 (Phase 2 P0 launch fix) ── */
 .public-mypage-purchase-card__refund-status {
   display: inline-flex;

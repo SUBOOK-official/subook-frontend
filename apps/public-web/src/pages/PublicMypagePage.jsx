@@ -1676,7 +1676,10 @@ function SettlementCard({ settlement, status }) {
       {isCompleted ? (
         <>
           <p>
-            판매 {formatCurrency(settlement.grossSales)} - 수수료 {formatCurrency(settlement.feeAmount)}
+            판매 {formatCurrency(settlement.grossSales)} − 수수료 {formatCurrency(settlement.feeAmount)}
+            {settlement.grossSales > 0
+              ? ` (수수료율 ${Math.round((settlement.feeAmount / settlement.grossSales) * 100)}%)`
+              : ""}
           </p>
           <p>
             입금: {settlement.bankLabel} {settlement.maskedAccount}
@@ -2377,6 +2380,13 @@ function PurchasesView({
                         </span>
                       ) : null}
                     </div>
+                    {order.canConfirm && order.autoConfirmDaysRemaining != null ? (
+                      <p className="public-mypage-purchase-card__auto-confirm">
+                        {order.autoConfirmDaysRemaining <= 0
+                          ? "곧 자동으로 구매확정돼요 · 확정 후에는 반품할 수 없어요"
+                          : `${order.autoConfirmDaysRemaining}일 뒤 자동으로 구매확정돼요 · 확정 후에는 반품할 수 없어요`}
+                      </p>
+                    ) : null}
                   </article>
                 )),
               )}
