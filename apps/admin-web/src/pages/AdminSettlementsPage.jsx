@@ -6,7 +6,7 @@ import NotificationResultModal from "../components/NotificationResultModal";
 import StatusBadge from "@shared-domain/StatusBadge";
 import { notifySettlementDone } from "../lib/adminNotification";
 import { exportRowsToXlsx } from "../lib/excelFile";
-import { formatCurrency, formatDate } from "@shared-domain/format";
+import { formatCurrency, formatDate, maskEmail, maskPhone } from "@shared-domain/format";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 
 const PAGE_SIZE = 50;
@@ -49,6 +49,14 @@ function maskAccountNumber(accountNumber, accountLast4) {
   }
 
   return `****-****-${last4}`;
+}
+
+// 목록 화면 PII 마스킹 — 전화 우선, 없으면 이메일, 둘 다 없으면 placeholder.
+// (평문 계좌 다운로드는 별도 2단계 confirm+audit 경로 유지)
+function maskedContact(phone, email) {
+  if (phone) return maskPhone(phone);
+  if (email) return maskEmail(email);
+  return "연락처 없음";
 }
 
 function buildExportRows(rows, { plain = false } = {}) {
@@ -640,7 +648,7 @@ function AdminSettlementsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <p className="font-bold text-slate-900">{row.seller_name}</p>
-                      <p className="mt-1 text-xs text-slate-400">{row.seller_phone || row.seller_email || "연락처 없음"}</p>
+                      <p className="mt-1 text-xs text-slate-400">{maskedContact(row.seller_phone, row.seller_email)}</p>
                     </td>
                     <td className="px-4 py-3">
                       <p className="font-mono text-xs font-bold text-slate-500">{row.order_number}</p>

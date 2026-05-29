@@ -4,7 +4,7 @@ import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import NotificationResultModal from "../components/NotificationResultModal";
 import { notifyPickupAccepted } from "../lib/adminNotification";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
-import { formatDate } from "@shared-domain/format";
+import { formatDate, maskPhone } from "@shared-domain/format";
 import { pickupRequestStatusLabel } from "@shared-domain/status";
 import StatusBadge from "@shared-domain/StatusBadge";
 
@@ -687,7 +687,7 @@ function AdminPickupRequestsPage() {
                             {pickupRequest.pickup_recipient_name}
                           </p>
                           <p className="mt-1 text-xs font-semibold text-slate-500">
-                            {pickupRequest.pickup_recipient_phone}
+                            {maskPhone(pickupRequest.pickup_recipient_phone)}
                           </p>
                           <p className="mt-2 max-w-sm text-xs font-medium leading-relaxed text-slate-500">
                             {formatAddress(pickupRequest)}

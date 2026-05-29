@@ -45,7 +45,9 @@ export function useAdminBadgeCounts() {
 
       const [pickups, inspection, orders, settlements] = await Promise.all([
         fetchHeadCount("pickup_requests", (q) => q.eq("status", "pending")),
-        fetchHeadCount("shipments", (q) => q.in("status", ["arrived", "inspecting"])),
+        // shipments.status enum은 scheduled/inspecting/inspected. (arrived는 pickup_requests 상태라
+        // 여기서 쓰면 항상 0건 → 검수 대기 배지가 안 뜸) scheduled=입고 후 검수 대기, inspecting=검수중.
+        fetchHeadCount("shipments", (q) => q.in("status", ["scheduled", "inspecting"])),
         fetchHeadCount("orders", (q) => q.eq("status", "paid")),
         fetchHeadCount("settlements", (q) =>
           q.eq("status", "pending").lte("scheduled_date", today),

@@ -5,7 +5,7 @@ import AdminPagination from "../components/AdminPagination";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import StatusBadge from "@shared-domain/StatusBadge";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
-import { formatCurrency, formatDate } from "@shared-domain/format";
+import { formatCurrency, formatDate, maskEmail } from "@shared-domain/format";
 import {
   notifyDeliveryDone,
   notifyOrderConfirmed,
@@ -849,7 +849,7 @@ function AdminOrdersPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="text-sm font-semibold">{order.buyer_name || "—"}</div>
-                      <div className="text-xs text-slate-400">{order.buyer_email || ""}</div>
+                      <div className="text-xs text-slate-400">{order.buyer_email ? maskEmail(order.buyer_email) : ""}</div>
                     </td>
                     <td className="px-4 py-3 max-w-[200px]">
                       <div className="text-sm truncate">
