@@ -835,7 +835,16 @@ function AdminShipmentDetailPage() {
         case "D":
           if (event.shiftKey) return;
           event.preventDefault();
-          void applyGradeAndSave("DISCARD");
+          if (!focusedBook) return;
+          // 폐기는 비가역(되돌리려면 다시 등급 지정). 단축키 오타로 인한 즉시 폐기를 막기 위해
+          // 마우스/일괄 폐기와 동일하게 확인 모달을 거친다.
+          setDestructiveModal({
+            title: "이 책을 폐기할까요?",
+            description:
+              "'폐기'로 변경하면 더 이상 판매 노출되지 않습니다. 되돌리려면 다시 등급(S / A+)을 지정해야 해요.",
+            confirmLabel: "폐기",
+            onConfirm: () => applyGradeAndSave("DISCARD"),
+          });
           break;
         case "p":
         case "P":
