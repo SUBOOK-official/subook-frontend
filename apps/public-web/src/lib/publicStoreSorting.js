@@ -245,6 +245,16 @@ export function sortStorefrontProducts(products = [], sortKey = "latest") {
       return compareProductsByPopularity(left, right) || getSortTimestamp(right) - getSortTimestamp(left);
     }
 
+    if (sortKey === "discount") {
+      // 할인율(정가 대비) 높은 순. 정가가 없는 비매품(discountRate=null)은 맨 뒤로.
+      const leftRate = normalizeFiniteNumber(left.discountRate) ?? -1;
+      const rightRate = normalizeFiniteNumber(right.discountRate) ?? -1;
+      if (leftRate !== rightRate) {
+        return rightRate - leftRate;
+      }
+      return getSortTimestamp(right) - getSortTimestamp(left);
+    }
+
     return getSortTimestamp(right) - getSortTimestamp(left);
   });
 

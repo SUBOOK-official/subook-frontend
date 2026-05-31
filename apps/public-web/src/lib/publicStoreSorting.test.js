@@ -95,3 +95,31 @@ test("sortStorefrontProducts uses price and latest fallbacks for the remaining s
     ["second", "third", "first"],
   );
 });
+
+test("sortStorefrontProducts ranks discount items by rate, pushing non-priced books last", () => {
+  const products = [
+    {
+      id: "low-discount",
+      title: "low-discount",
+      discountRate: 20,
+      createdAt: "2026-04-01T09:00:00.000Z",
+    },
+    {
+      id: "no-discount",
+      title: "no-discount",
+      discountRate: null,
+      createdAt: "2026-04-03T09:00:00.000Z",
+    },
+    {
+      id: "high-discount",
+      title: "high-discount",
+      discountRate: 55,
+      createdAt: "2026-04-02T09:00:00.000Z",
+    },
+  ];
+
+  assert.deepEqual(
+    sortStorefrontProducts(products, "discount").map((product) => product.id),
+    ["high-discount", "low-discount", "no-discount"],
+  );
+});
