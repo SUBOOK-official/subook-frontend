@@ -15,9 +15,6 @@ const STATUS_OPTIONS = [
   { value: "pending", label: "정산 대기" },
   { value: "approved", label: "승인 완료" },
   { value: "completed", label: "정산 완료" },
-  // 환불로 이미 송금된 정산을 회수해야 하는 상태 — 운영자가 필터로 찾아낼 수 있어야 함(돈 회수 누락 방지).
-  { value: "recovery_required", label: "회수필요" },
-  { value: "cancelled", label: "취소" },
 ];
 
 const STATUS_FILTERS = [{ value: "all", label: "전체" }, ...STATUS_OPTIONS];

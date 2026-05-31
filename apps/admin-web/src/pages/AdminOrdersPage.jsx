@@ -418,8 +418,63 @@ function AdminOrdersPage() {
     await loadOrders();
   };
 
+  // 환불 실행 RPC 호출 (정상 경로 / 손실 감수 재시도 경로 공용)
+  const submitRefund = async (orderId, reason, acknowledgeRecovery) => {
+    setBusyOrderId(orderId);
+    const { data, error } = await supabase.rpc("admin_refund_order", {
+      p_order_id: orderId,
+      p_reason: reason,
+      p_acknowledge_recovery: acknowledgeRecovery,
+    });
+    setBusyOrderId(null);
+    return { data, error };
+  };
+
+  // 환불 성공 후 처리 (알림톡 + 토스트 + 목록 갱신)
+  const finishRefund = async (data, order, reason) => {
+    const cancelled = data?.cancelled_settlements ?? 0;
+    const recovery = data?.recovery_required_settlements ?? 0;
+    // 환불 완료 알림톡 발송 — 이전엔 토스트만 떠서 사용자가 "왜 환불 안 됐냐" 문의 폭주.
+    try {
+      await notifyRefundCompleted({ order, reason });
+    } catch (notifyErr) {
+      console.warn("환불 알림톡 발송 실패", notifyErr);
+    }
+    showToast(
+      `환불 완료. 정산 자동 처리: 취소 ${cancelled}건${
+        recovery > 0 ? ` / 회수 필요 ${recovery}건 (회수 불가 — 회사 손실 처리)` : ""
+      }. 구매자에게 환불 안내 알림톡 발송.`,
+      "success",
+    );
+    setSelectedOrderId(null);
+    await loadOrders();
+  };
+
+  // 이미 셀러에게 송금된 정산이 있어 회수가 불가능 = 회사 손실. 한 번 더 강하게 확인 후 강제 환불.
+  const confirmRecoveryLoss = (orderId, order, reason) => {
+    setDestructiveModal({
+      title: "⚠️ 회수 불가 — 회사 손실 확인",
+      description:
+        "이 주문은 셀러에게 정산금이 이미 송금 완료된 상태입니다.\n\n" +
+        "환불을 진행하면 그 금액은 회수가 사실상 불가능하여 회사 손실로 처리됩니다.\n" +
+        "(셀러에게 자발적 반환을 요청할 수는 있으나 강제할 수단이 없습니다.)\n\n" +
+        "정말로 손실을 감수하고 환불하시겠습니까?",
+      confirmPhrase: "손실 감수",
+      confirmLabel: "손실 감수하고 환불",
+      run: async () => {
+        const { data, error } = await submitRefund(orderId, reason, true);
+        if (error) {
+          showToast(error.message || "환불 처리에 실패했습니다.", "error");
+          return;
+        }
+        await finishRefund(data, order, reason);
+      },
+    });
+  };
+
   // 환불 처리: 사유 + 타이핑 확인 → admin_refund_order RPC
-  // settlements 자동 상태 변경(pending/approved→cancelled, completed→recovery_required) 포함
+  // settlements 자동 상태 변경(pending/approved→cancelled) 포함.
+  // 이미 송금 완료된 정산이 있으면 백엔드가 RECOVERY_REQUIRED_ACK로 막고, 손실 확인 모달로 전환.
   const handleRefund = (orderId) => {
     const order = orders.find((o) => o.id === orderId);
     const orderNumber = order?.order_number ?? orderId;
@@ -429,9 +484,10 @@ function AdminOrdersPage() {
         `주문 #${orderNumber}을(를) 환불 처리합니다.\n\n` +
         `[자동 처리]\n` +
         `· 정산 pending/approved → cancelled (송금 안 함)\n` +
-        `· 정산 completed → recovery_required (셀러로부터 회수 필요)\n` +
+        `· reserved 재고 → 판매중 복원\n` +
         `· 적용된 쿠폰 → available 로 복구\n` +
         `· 구매자에게 환불 안내 알림톡 발송\n\n` +
+        `※ 셀러에게 이미 송금 완료된 정산이 있으면 다음 단계에서 손실 확인을 받습니다.\n` +
         `이 작업은 되돌릴 수 없습니다.`,
       confirmPhrase: "환불",
       reasonRequired: true,
@@ -439,36 +495,17 @@ function AdminOrdersPage() {
       reasonPlaceholder: "예) 단순 변심 / 상품 불량 / 배송 사고",
       confirmLabel: "환불 진행",
       run: async (reason) => {
-        setBusyOrderId(orderId);
-        const { data, error } = await supabase.rpc("admin_refund_order", {
-          p_order_id: orderId,
-          p_reason: reason,
-        });
-        setBusyOrderId(null);
-
+        const { data, error } = await submitRefund(orderId, reason, false);
         if (error) {
+          if ((error.message || "").includes("RECOVERY_REQUIRED_ACK")) {
+            // 이미 송금된 정산이 있음 — 손실 확인 모달로 전환
+            confirmRecoveryLoss(orderId, order, reason);
+            return;
+          }
           showToast(error.message || "환불 처리에 실패했습니다.", "error");
           return;
         }
-
-        const cancelled = data?.cancelled_settlements ?? 0;
-        const recovery = data?.recovery_required_settlements ?? 0;
-
-        // 환불 완료 알림톡 발송 — 이전엔 토스트만 떠서 사용자가 "왜 환불 안 됐냐" 문의 폭주.
-        try {
-          await notifyRefundCompleted({ order, reason });
-        } catch (notifyErr) {
-          console.warn("환불 알림톡 발송 실패", notifyErr);
-        }
-
-        showToast(
-          `환불 완료. 정산 자동 처리: 취소 ${cancelled}건 / 회수 필요 ${recovery}건${
-            recovery > 0 ? " (수동 회수 진행 필요)" : ""
-          }. 구매자에게 환불 안내 알림톡 발송.`,
-          "success",
-        );
-        setSelectedOrderId(null);
-        await loadOrders();
+        await finishRefund(data, order, reason);
       },
     });
   };
