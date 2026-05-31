@@ -265,9 +265,23 @@ function PublicCartPage() {
       showToast("삭제되었습니다.", "info", {
         actionLabel: "되돌리기",
         onAction: async () => {
+          // ⚠ 단일재고 모델에서 book_id가 특정 권·등급을 가리킨다. 예전엔 product_id만
+          // 넘겨 bookId가 빠졌고, isLocalBookId(undefined)=true가 되어 데모(localStorage)
+          // 카트로 잘못 들어가면서 실제 카트엔 복구가 안 되는데 성공 토스트만 떴다.
+          // book_id로 정확히 같은 권을 복구하고, 데모 모드 표시용 메타도 함께 전달.
           const { error: restoreError } = await addToCart({
+            bookId: target.book_id,
             productId: target.product_id,
             quantity: target.quantity ?? 1,
+            productMeta: {
+              title: target.title,
+              subject: target.subject,
+              brand: target.brand,
+              optionLabel: target.option_label,
+              conditionGrade: target.condition_grade,
+              coverImageUrl: target.cover_image_url,
+              price: target.price,
+            },
           });
           if (restoreError) {
             showToast("되돌리기에 실패했어요. 다시 담아주세요.", "error");
@@ -301,9 +315,20 @@ function PublicCartPage() {
       onAction: async () => {
         let failed = 0;
         for (const item of snapshot) {
+          // book_id로 정확히 같은 권 복구 (product_id만 넘기면 bookId 누락→데모 카트로 샘).
           const { error: restoreError } = await addToCart({
+            bookId: item.book_id,
             productId: item.product_id,
             quantity: item.quantity ?? 1,
+            productMeta: {
+              title: item.title,
+              subject: item.subject,
+              brand: item.brand,
+              optionLabel: item.option_label,
+              conditionGrade: item.condition_grade,
+              coverImageUrl: item.cover_image_url,
+              price: item.price,
+            },
           });
           if (restoreError) failed += 1;
         }
