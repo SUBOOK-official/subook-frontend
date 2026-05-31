@@ -4,10 +4,9 @@ export const SEARCH_DEBOUNCE_MS = 300;
 
 export const STORE_SORT_OPTIONS = [
   { value: "latest", label: "최신순" },
-  { value: "popular", label: "인기순" },
-  { value: "discount", label: "할인율순" },
   { value: "price_asc", label: "가격 낮은순" },
   { value: "price_desc", label: "가격 높은순" },
+  { value: "popular", label: "인기순" },
 ];
 
 export const STORE_FILTER_GROUPS = [
