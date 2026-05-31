@@ -872,12 +872,38 @@ function StepSettlement({ account, setAccount, savedAccounts, memberProfileName 
   const [useNewAccount, setUseNewAccount] = useState(savedAccounts.length === 0);
   const [showPolicyDetail, setShowPolicyDetail] = useState(false);
 
+  // 신규 작성이면 기본 계좌 자동 선택. draft 복구 / 단계 이동(Step4→Step3 재진입) 시에는
+  // 복구된 부모 account(저장계좌 account_id 또는 직접입력)에 맞춰 로컬 선택 상태를 동기화한다.
+  // (이게 없으면 selectedSavedId가 null이라 어느 카드도 선택 안 되고 새 계좌 폼도 안 열리는 "유령 상태"가 됨)
+  const settlementInitRef = useRef(false);
   useEffect(() => {
-    if (savedAccounts.length > 0 && !selectedSavedId && !useNewAccount) {
+    if (settlementInitRef.current) return;
+    const hasRestoredAccount = Boolean(account.account_id) || Boolean(account.account_number?.trim());
+    // 저장계좌도 복구계좌도 아직 없으면 데이터 도착 후 재시도.
+    if (savedAccounts.length === 0 && !hasRestoredAccount) return;
+    settlementInitRef.current = true;
+
+    if (account.account_id) {
+      // 저장계좌를 골랐던 상태 — 해당 카드를 선택 표시(account 값은 그대로 유지).
+      const matched = savedAccounts.some((a) => String(a.id) === String(account.account_id));
+      setSelectedSavedId(matched ? account.account_id : null);
+      setUseNewAccount(!matched); // 저장계좌가 사라졌으면 새 계좌 입력으로 폴백
+      return;
+    }
+    if (account.account_number?.trim()) {
+      // 새 계좌를 직접 입력 중이던 상태.
+      setSelectedSavedId(null);
+      setUseNewAccount(true);
+      return;
+    }
+    // 신규 작성 — 기본 계좌 자동 선택.
+    if (savedAccounts.length > 0) {
       const defaultAcc = savedAccounts.find((a) => a.is_default) || savedAccounts[0];
       selectSaved(defaultAcc);
+    } else {
+      setUseNewAccount(true);
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [savedAccounts, account.account_id, account.account_number]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectSaved = (acc) => {
     setSelectedSavedId(acc.id);
