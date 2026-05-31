@@ -5,7 +5,7 @@ import {
 } from "../../lib/publicHomeLatestBooks";
 import ProductCarouselSection from "./ProductCarouselSection";
 
-function LatestArrivalsSection({ favoriteIds, onStoreEnter, onToggleFavorite }) {
+function LatestArrivalsSection({ favoriteIds, onToggleFavorite }) {
   const [products, setProducts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [hasFatalError, setHasFatalError] = useState(false);
@@ -61,8 +61,6 @@ function LatestArrivalsSection({ favoriteIds, onStoreEnter, onToggleFavorite }) 
       favoriteIds={favoriteIds}
       hasFatalError={hasFatalError}
       isLoading={isLoading}
-      linkHref="/store?sort=latest"
-      onLinkClick={onStoreEnter}
       onToggleFavorite={onToggleFavorite}
       products={products}
       subtitle="방금 들어온 따끈따끈한 교재"
