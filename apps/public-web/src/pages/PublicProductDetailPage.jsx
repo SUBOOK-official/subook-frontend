@@ -10,6 +10,7 @@ import PublicSiteHeader from "../components/PublicSiteHeader";
 import { usePublicWishlist } from "../contexts/PublicWishlistContext";
 import { FREE_SHIPPING_THRESHOLD, SHIPPING_FEE, addToCart } from "../lib/cart";
 import usePublicMemberGate from "../lib/publicMemberGate";
+import { clearPendingMemberAction, readPendingMemberAction } from "../lib/pendingMemberAction";
 import { usePageMeta } from "../lib/usePageMeta";
 import {
   fetchStorefrontProductDetail,
@@ -499,7 +500,7 @@ function RelatedProductsRail({ products, favoriteIds, onToggleFavorite }) {
 function PublicProductDetailPage() {
   const { productId } = useParams();
   const navigate = useNavigate();
-  const { requireMember, memberGateDialog } = usePublicMemberGate();
+  const { requireMember, memberGateDialog, isAuthenticated } = usePublicMemberGate();
   const { favoriteIds, isFavoritePending, toggleFavorite } = usePublicWishlist();
   const [product, setProduct] = useState(null);
   // 상품명·과목 동적 title + description (SEO/공유 미리보기에 노출)
@@ -530,6 +531,22 @@ function PublicProductDetailPage() {
     setCartToast({ message, type });
     setTimeout(() => setCartToast(null), 3000);
   }, []);
+
+  // 장바구니 담기 실제 실행 — 사용자 클릭과 "로그인 후 이어서 담기" 양쪽에서 공용.
+  const runAddToCart = useCallback(
+    async (cartArgs) => {
+      const { data: cartData, error: cartError } = await addToCart(cartArgs);
+      if (cartError) {
+        showCartToast(
+          cartError?.message || cartError?.details || "장바구니 담기에 실패했습니다.",
+          "error",
+        );
+        return;
+      }
+      showCartToast(cartData?.demo ? "데모 장바구니에 담았습니다." : "장바구니에 담았습니다.");
+    },
+    [showCartToast],
+  );
 
   useEffect(() => {
     let isActive = true;
@@ -757,18 +774,12 @@ function PublicProductDetailPage() {
   const isProductFavorite = product ? favoriteIds.includes(String(product.id)) : false;
   const isProductFavoritePending = product ? isFavoritePending(product.id) : false;
 
-  const handleAddToCart = async () => {
-    if (!canPurchase) return;
-    if (!requireMember("addToCart")) return;
-    // selectedOption.id 는 books.id 의 string 표현 — 우선 사용.
-    // canPurchase 가드에서 이미 hasResolvedOption을 검사하므로 여기 도달하면 bookId가 있다.
+  const buildCartArgs = useCallback(() => {
+    // selectedOption.id 는 books.id 의 string 표현. 게이트 전에 인자를 구성해 두면
+    // 로그인 후에도 같은 등급/책으로 이어서 담을 수 있다.
     const bookId = selectedOption?.id ?? null;
-    if (!bookId) {
-      // 안전망: 비정상 상태이므로 explicit error를 보여주고 페이지 새로고침 유도.
-      setOptionLoadError(true);
-      return;
-    }
-    const { data: cartData, error: cartError } = await addToCart({
+    if (!bookId) return null;
+    return {
       bookId,
       productId: product?.productId ?? null,
       quantity: 1,
@@ -781,43 +792,65 @@ function PublicProductDetailPage() {
         coverImageUrl: activeDisplay?.coverImageUrl ?? product?.coverImageUrl ?? null,
         price: priceValue,
       },
-    });
-    if (cartError) {
-      const detailMessage =
-        cartError?.message ||
-        cartError?.details ||
-        "장바구니 담기에 실패했습니다.";
-      showCartToast(detailMessage, "error");
+    };
+  }, [selectedOption, product, activeDisplay, priceValue]);
+
+  const handleAddToCart = async () => {
+    if (!canPurchase) return;
+    const cartArgs = buildCartArgs();
+    if (
+      !requireMember(
+        "addToCart",
+        null,
+        cartArgs ? { type: "addToCart", productId: product?.id ?? null, cartArgs } : null,
+      )
+    )
+      return;
+    if (!cartArgs) {
+      // 안전망: bookId 누락은 비정상 상태이므로 explicit error 후 새로고침 유도.
+      setOptionLoadError(true);
       return;
     }
-    showCartToast(cartData?.demo ? "데모 장바구니에 담았습니다." : "장바구니에 담았습니다.");
+    await runAddToCart(cartArgs);
   };
 
   const handleBuyNow = async () => {
     if (!canPurchase) return;
-    if (!requireMember("buyNow")) return;
-    // canPurchase 가드에서 hasResolvedOption 검사 완료. bookId 누락은 비정상 상태.
-    const bookId = selectedOption?.id;
-    if (!bookId) {
+    const bookId = selectedOption?.id ?? null;
+    const orderPayload = bookId
+      ? [
+          {
+            bookId,
+            productId: product?.productId ?? null,
+            quantity: 1,
+            title: product?.title ?? "",
+            optionLabel: activeDisplay?.option ?? activeDisplay?.conditionGradeLabel ?? "",
+            conditionGrade: activeDisplay?.conditionGrade ?? "",
+            coverImageUrl: activeDisplay?.coverImageUrl ?? product?.coverImageUrl ?? "",
+            price: priceValue,
+          },
+        ]
+      : null;
+    if (
+      !requireMember(
+        "buyNow",
+        null,
+        orderPayload
+          ? { type: "buyNow", productId: product?.id ?? null, orderItems: orderPayload }
+          : null,
+      )
+    )
+      return;
+    if (!orderPayload) {
       setOptionLoadError(true);
       return;
     }
-    const orderPayload = [{
-      bookId,
-      productId: product?.productId ?? null,
-      quantity: 1,
-      title: product?.title ?? "",
-      optionLabel: activeDisplay?.option ?? activeDisplay?.conditionGradeLabel ?? "",
-      conditionGrade: activeDisplay?.conditionGrade ?? "",
-      coverImageUrl: activeDisplay?.coverImageUrl ?? product?.coverImageUrl ?? "",
-      price: priceValue,
-    }];
     navigate("/order", { state: { items: orderPayload } });
   };
 
   const handleToggleFavorite = async (targetProductId) => {
     if (!targetProductId) return;
-    if (!requireMember("favorite")) return;
+    if (!requireMember("favorite", null, { type: "favorite", productId: targetProductId })) return;
     const result = await toggleFavorite(targetProductId);
     if (result.error) {
       showCartToast("찜 상태를 변경하지 못했어요.", "error");
@@ -825,6 +858,31 @@ function PublicProductDetailPage() {
     }
     showCartToast(result.isFavorite ? "찜 목록에 추가했어요." : "찜을 해제했어요.");
   };
+
+  // 비회원이 담기/바로구매/찜을 눌러 로그인한 경우, 로그인 후 같은 상품으로 돌아오면
+  // 저장해 둔 행동을 1회 이어서 실행한다. (이메일 로그인은 from 복귀로 이 페이지에 다시 진입)
+  const resumeHandledRef = useRef(false);
+  useEffect(() => {
+    if (resumeHandledRef.current) return;
+    if (!isAuthenticated || !product) return;
+    const pending = readPendingMemberAction();
+    if (!pending || String(pending.productId) !== String(product.id)) return;
+    resumeHandledRef.current = true;
+    clearPendingMemberAction();
+    if (pending.type === "addToCart" && pending.cartArgs) {
+      void runAddToCart(pending.cartArgs);
+    } else if (pending.type === "buyNow" && Array.isArray(pending.orderItems)) {
+      navigate("/order", { state: { items: pending.orderItems } });
+    } else if (pending.type === "favorite") {
+      void toggleFavorite(product.id).then((result) => {
+        if (result?.error) {
+          showCartToast("찜 상태를 변경하지 못했어요.", "error");
+          return;
+        }
+        showCartToast(result?.isFavorite ? "찜 목록에 추가했어요." : "찜을 해제했어요.");
+      });
+    }
+  }, [isAuthenticated, product, runAddToCart, navigate, toggleFavorite, showCartToast]);
 
   const pageContent = (
     <div className="public-product-detail-page">

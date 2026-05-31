@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import PublicMemberGateDialog from "../components/PublicMemberGateDialog";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { createMemberGateRedirectState } from "./publicMemberGateUtils";
+import { setPendingMemberAction } from "./pendingMemberAction";
 
 function usePublicMemberGate() {
   const { isAuthenticated } = usePublicAuth();
@@ -19,7 +20,7 @@ function usePublicMemberGate() {
   }, []);
 
   const requireMember = useCallback(
-    (nextActionType = "", nextRedirectTarget = null) => {
+    (nextActionType = "", nextRedirectTarget = null, pendingAction = null) => {
       if (isAuthenticated) {
         return true;
       }
@@ -27,6 +28,10 @@ function usePublicMemberGate() {
       setActionType(nextActionType);
       setRedirectTarget(nextRedirectTarget);
       setIsOpen(true);
+      // 로그인 후 이어서 실행할 행동(담기/바로구매/찜)을 저장. 호출부가 파라미터까지 담아 넘긴다.
+      if (pendingAction) {
+        setPendingMemberAction(pendingAction);
+      }
       return false;
     },
     [isAuthenticated],
@@ -54,6 +59,7 @@ function usePublicMemberGate() {
 
   return {
     closeMemberGate,
+    isAuthenticated,
     requireMember,
     memberGateDialog: (
       <PublicMemberGateDialog
