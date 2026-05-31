@@ -416,8 +416,8 @@ function AdminPickupRequestsPage() {
       title: `수거 일괄 취소 — ${targetIds.length}건`,
       description:
         `선택한 ${targetIds.length}건의 수거 요청을 일괄 취소합니다.\n\n` +
-        `(pending / pickup_assigned 상태만 처리됩니다.\n` +
-        `이미 CJ 접수된 건은 별도 처리 필요.)\n\n` +
+        `(아직 수거 전 — 접수 대기·수거 예정 상태만 취소됩니다.\n` +
+        `이미 수거가 시작/완료된 건은 취소되지 않아요.)\n\n` +
         `이 작업은 되돌릴 수 없습니다.`,
       confirmPhrase: "취소",
       reasonRequired: true,
@@ -434,7 +434,14 @@ function AdminPickupRequestsPage() {
           );
           if (rpcError) throw rpcError;
           const cancelledCount = data?.cancelled_count ?? 0;
-          setNotice(`수거 요청 ${cancelledCount}건 취소 완료.`);
+          if (cancelledCount < targetIds.length) {
+            setNotice(
+              `선택 ${targetIds.length}건 중 ${cancelledCount}건 취소 완료. ` +
+                `나머지는 이미 수거가 진행/완료되어 취소되지 않았습니다.`,
+            );
+          } else {
+            setNotice(`수거 요청 ${cancelledCount}건 취소 완료.`);
+          }
           await loadPickupRequests();
         } catch (apiError) {
           setError(apiError instanceof Error ? apiError.message : "일괄 취소에 실패했습니다.");
