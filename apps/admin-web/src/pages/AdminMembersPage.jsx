@@ -118,6 +118,7 @@ function AdminMembersPage() {
   const [destructiveBusy, setDestructiveBusy] = useState(false);
   // 회원 차단 시 통지 토글 (디폴트 OFF — 사용자에게는 차단 사실을 알리지 않음)
   const [notifyOnBlock, setNotifyOnBlock] = useState(false);
+  const [blockHistory, setBlockHistory] = useState([]); // member_block_history (차단/해제 영구 audit)
   const requestIdRef = useRef(0);
 
   const showToast = useCallback((message, tone = "info") => {
@@ -206,6 +207,7 @@ function AdminMembersPage() {
 
     setSelectedMember(member);
     setMemberDetail(null);
+    setBlockHistory([]);
     setIsDetailLoading(true);
 
     const { data, error } = await supabase.rpc("get_admin_member_detail", {
@@ -232,11 +234,18 @@ function AdminMembersPage() {
       : null;
     setMemberDetail(enrichedDetail);
     setIsDetailLoading(false);
+
+    // 차단/해제 영구 이력 (member_block_history) — 처리자/사유/통지설정/시각
+    const { data: historyData } = await supabase.rpc("admin_get_member_block_history", {
+      p_user_id: member.user_id,
+    });
+    setBlockHistory(Array.isArray(historyData) ? historyData : []);
   };
 
   const closeMemberDetail = () => {
     setSelectedMember(null);
     setMemberDetail(null);
+    setBlockHistory([]);
     setIsDetailLoading(false);
   };
 
@@ -258,37 +267,18 @@ function AdminMembersPage() {
       confirmLabel: "차단 실행",
       run: async (reason) => {
         setDestructiveBusy(true);
-        // TODO(backend): admin_block_member RPC 시그니처에 p_admin_email/p_admin_user_id 파라미터
-        // 추가 필요 + member_profiles에 blocked_by_email/blocked_at 컬럼 + 차단 이력 테이블
-        // (member_block_history) 도입. 현재는 기존 RPC 그대로 호출하고 audit 정보는 클라이언트에서만 기록.
-        const { data: { user: currentAdmin } = {} } = await supabase.auth.getUser();
+        // 서버가 member_block_history에 영구 audit(처리자/사유/통지설정/시각)를 기록한다.
         const { error } = await supabase.rpc("admin_block_member", {
           p_user_id: member.user_id,
           p_reason: reason || null,
+          p_notify_user: notifyOnBlock,
         });
-        // 클라이언트 로컬 audit (서버 audit 테이블 도입 전까지 임시)
-        try {
-          // eslint-disable-next-line no-console
-          console.info("[member-block]", {
-            at: new Date().toISOString(),
-            target_user_id: member.user_id,
-            target_label: label,
-            admin_email: currentAdmin?.email ?? null,
-            reason,
-            notify_member: notifyOnBlock,
-          });
-        } catch (_e) { /* noop */ }
         setDestructiveBusy(false);
         if (error) {
           showToast(error.message || "회원 차단에 실패했습니다.", "error");
           return;
         }
-        if (notifyOnBlock) {
-          // TODO(backend): 통지 채널이 정해지면 send-notification 호출 추가
-          showToast("회원을 차단했습니다. (통지 발송은 백엔드 미구현)", "success");
-        } else {
-          showToast("회원을 차단했습니다.", "success");
-        }
+        showToast("회원을 차단했습니다.", "success");
         await loadMembers();
         if (selectedMember?.user_id === member.user_id) {
           await openMemberDetail({ ...member, is_blocked: true });
@@ -547,23 +537,34 @@ function AdminMembersPage() {
               </div>
             </div>
 
-            {/* 차단 audit / 이력 — 백엔드 컬럼 도입 전까지 placeholder */}
-            {detailMember?.is_blocked ? (
+            {/* 차단/해제 영구 이력 (member_block_history) — 처리자·사유·시각 audit */}
+            {blockHistory.length > 0 ? (
+              <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-700">
+                <p className="font-bold text-slate-900">차단/해제 이력</p>
+                <ul className="mt-2 space-y-2">
+                  {blockHistory.map((entry) => (
+                    <li className="border-l-2 border-slate-300 pl-3" key={entry.id}>
+                      <p className="font-semibold">
+                        <span className={entry.action === "block" ? "text-rose-700" : "text-emerald-700"}>
+                          {entry.action === "block" ? "차단" : "차단 해제"}
+                        </span>
+                        {" · "}
+                        {formatDate(entry.created_at)}
+                      </p>
+                      <p className="mt-0.5 text-slate-500">
+                        처리자: {entry.admin_email || "-"}
+                        {entry.action === "block" && entry.notify_user ? " · 통지설정 ON" : ""}
+                      </p>
+                      {entry.reason ? <p className="mt-0.5">사유: {entry.reason}</p> : null}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : detailMember?.is_blocked ? (
               <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-800">
                 <p className="font-bold">차단 정보</p>
-                <p className="mt-1">
-                  차단 시각: {formatDate(detailMember?.blocked_at) || "(기록 없음)"}
-                </p>
-                <p>
-                  차단 사유: {detailMember?.block_reason || "(기록 없음)"}
-                </p>
-                <p>
-                  차단자: {detailMember?.blocked_by_email || "(백엔드 컬럼 미구현)"}
-                </p>
-                <p className="mt-2 text-[11px] text-rose-600">
-                  TODO: backend `member_profiles.blocked_by_email` 컬럼과 차단 이력 테이블
-                  (`member_block_history`) 도입 후 이력 타임라인 표시.
-                </p>
+                <p className="mt-1">차단 시각: {formatDate(detailMember?.blocked_at) || "(기록 없음)"}</p>
+                <p>차단 사유: {detailMember?.block_reason || "(기록 없음)"}</p>
               </div>
             ) : null}
 
