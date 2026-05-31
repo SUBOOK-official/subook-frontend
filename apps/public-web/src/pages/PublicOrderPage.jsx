@@ -437,7 +437,35 @@ function PublicOrderPage() {
     });
   };
 
-  if (!orderItems || orderItems.length === 0) return null;
+  if (!orderItems || orderItems.length === 0) {
+    // 빈손 진입이면 위 effect가 /cart로 보내는 중 → 깜빡임 방지 null.
+    // 진입은 있었으나 drift/품절로 전 품목이 빠진 경우 → 사유와 함께 카트 복귀 안내
+    // (예전엔 사유 없이 /cart로 튕겨 사용자가 이유를 몰랐다).
+    if (!initialOrderItems || initialOrderItems.length === 0) return null;
+    return (
+      <PublicPageFrame>
+        <div className="order-page">
+          <PublicSiteHeader />
+          <ContentContainer as="section" className="order-content">
+            <div className="order-empty" role="alert">
+              <p className="order-empty__text">
+                {priceDriftWarning ||
+                  "선택하신 교재를 주문할 수 없어요. 이미 판매되었거나 비공개로 전환되었습니다."}
+              </p>
+              <button
+                className="order-empty__back"
+                onClick={() => navigate("/cart")}
+                type="button"
+              >
+                장바구니로 돌아가기
+              </button>
+            </div>
+          </ContentContainer>
+          <PublicFooter />
+        </div>
+      </PublicPageFrame>
+    );
+  }
 
   const subtotal = orderItems.reduce((sum, i) => sum + (i.price ?? 0) * i.quantity, 0);
   const baseShippingFee = calculateShippingFee(subtotal);
