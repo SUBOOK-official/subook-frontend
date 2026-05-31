@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect } from "react";
-import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation, useNavigate, useNavigationType } from "react-router-dom";
 import { usePublicAuth } from "./contexts/PublicAuthContext";
 
 const PublicAuthCallbackPage = lazy(() => import("./pages/PublicAuthCallbackPage"));
@@ -60,10 +60,28 @@ function SignupCompletionGate() {
   return null;
 }
 
+// SPA는 라우트 이동 시 window 스크롤이 유지된다. 홈을 스크롤한 채 상품을 클릭하면
+// 상세 페이지가 그 위치에서 시작하는 문제를 막기 위해, 새 페이지로 이동할 때 맨 위로 올린다.
+function ScrollToTop() {
+  const location = useLocation();
+  const navigationType = useNavigationType();
+
+  useEffect(() => {
+    // 뒤로/앞으로 가기(POP)는 브라우저의 위치 복원에 맡긴다 (이전에 보던 위치로 돌아가는 게 자연스러움).
+    if (navigationType === "POP") return;
+    // 홈 스토어 섹션으로 스크롤하려는 의도가 담긴 내비게이션은 그쪽(HomeStoreGrid) 로직이 처리하므로 건드리지 않음.
+    if (location.state?.scrollToStorefront) return;
+    window.scrollTo(0, 0);
+  }, [location.pathname, location.state, navigationType]);
+
+  return null;
+}
+
 function App() {
   return (
     <>
       <SignupCompletionGate />
+      <ScrollToTop />
       <Suspense fallback={<PageLoadingFallback />}>
         <Routes>
           <Route element={<PublicResetPasswordPage />} path="/auth/reset-password" />
