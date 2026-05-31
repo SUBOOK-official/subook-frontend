@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { formatCurrency } from "@shared-domain/format";
+import { formatCurrency, formatDate } from "@shared-domain/format";
 import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
 import ContentContainer from "../components/ContentContainer";
 import ProductCard from "../components/ProductCard";
@@ -289,6 +289,11 @@ function DetailTabPanel({ activeKey, product, activeDisplay, onOpenLightbox }) {
         <div><dt>유형</dt><dd>{product.bookType || "미등록"}</dd></div>
         <div><dt>연도</dt><dd>{product.publishedYear || "미등록"}</dd></div>
         <div><dt>강사명</dt><dd>{product.instructorName || "미등록"}</dd></div>
+        {/* 검수일: 신뢰 지표. 검수 완료된 교재임을 명시. 값이 없으면 항목 자체를 숨긴다
+            (없는데 "미등록"으로 두면 검수를 안 한 것처럼 보여 오히려 신뢰를 깎음). */}
+        {activeDisplay?.inspectedAt ? (
+          <div><dt>검수일</dt><dd>{formatDate(activeDisplay.inspectedAt)}</dd></div>
+        ) : null}
       </dl>
       {activeDisplay?.inspectionNotes ? (
         <div className="public-detail-info-notes">
