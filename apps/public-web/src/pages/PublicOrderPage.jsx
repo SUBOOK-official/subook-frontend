@@ -217,11 +217,13 @@ function PublicOrderPage() {
       navigate("/login", { state: { from: { pathname: "/order" } } });
       return;
     }
-    if (!orderItems || orderItems.length === 0) {
+    // 진입 자체가 빈손일 때만 카트로 돌려보낸다. drift/품절로 전 품목이 빠진
+    // 경우는 본문에서 사유를 보여주고 사용자가 직접 돌아가게 한다(사유 없이 튕기지 않도록).
+    if (!initialOrderItems || initialOrderItems.length === 0) {
       navigate("/cart");
       return;
     }
-  }, [authLoading, isAuthenticated, navigate, orderItems]);
+  }, [authLoading, isAuthenticated, navigate, initialOrderItems]);
 
   // 가격 drift 검증: 진입 시 books 테이블에서 fresh 가격·status를 조회해 표시 금액을 동기화한다.
   // initialOrderItems가 바뀔 때만 한 번 fetch (재실행 방지).
