@@ -210,6 +210,12 @@ function getPublicStoreValidationMessage(book, draft) {
     return "";
   }
 
+  // 트리거(books_enforce_public_storefront_rules)가 공개 시 product_id(상품 마스터 연결) 필수.
+  // 미연결 책을 공개하려 하면 영문 에러로 막히므로, 사전에 명확한 한국어로 안내한다.
+  if (!book.product_id) {
+    return "이 책은 상품 마스터에 연결되어 있지 않아 공개할 수 없어요. (상품 관리에서 연결하거나 운영팀에 문의)";
+  }
+
   const missingFields = [];
 
   if (!toNullableText(draft.subject)) missingFields.push("과목");
@@ -746,6 +752,17 @@ function AdminShipmentDetailPage() {
         if (!focusedBook) return;
         const currentDraft = getBookPublicDraftValue(focusedBook);
         const nextValue = !Boolean(currentDraft.is_public);
+        // 공개 ON 전환 시 검증 — 미연결/필수값 누락이면 트리거 영문 에러 대신 명확히 안내.
+        if (nextValue) {
+          const validationMessage = getPublicStoreValidationMessage(focusedBook, {
+            ...currentDraft,
+            is_public: true,
+          });
+          if (validationMessage) {
+            setError(validationMessage);
+            return;
+          }
+        }
         handleBookPublicDraftChange(focusedBook, "is_public", nextValue);
         if (!isSupabaseConfigured) return;
         const nextPayload = buildPublicStorePayload({ ...currentDraft, is_public: nextValue });
