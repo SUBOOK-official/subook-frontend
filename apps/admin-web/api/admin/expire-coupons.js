@@ -26,8 +26,12 @@ export default async function handler(req, res) {
   }
 
   // service_role은 VITE_* fallback 금지 (client 번들 embed 위험)
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseUrl =
+    process.env.SUPABASE_URL ||
+    process.env.SUPABASE_ADMIN_URL ||
+    process.env.VITE_SUPABASE_ADMIN_URL ||
+    process.env.VITE_SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
 
   if (!supabaseUrl || !supabaseServiceKey) {
     return res.status(500).json({ error: "Missing Supabase configuration" });

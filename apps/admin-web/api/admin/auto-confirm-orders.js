@@ -59,8 +59,12 @@ export default async function handler(req, res) {
 
   // ⚠️ service_role은 VITE_* fallback 금지. VITE_* prefix는 client 번들에 embed되므로
   // 누군가 실수로 그 이름에 service_role을 등록하면 키가 공개됨.
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseUrl =
+    process.env.SUPABASE_URL ||
+    process.env.SUPABASE_ADMIN_URL ||
+    process.env.VITE_SUPABASE_ADMIN_URL ||
+    process.env.VITE_SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
 
   if (!supabaseUrl || !supabaseServiceKey) {
     return res.status(500).json({ error: "Missing Supabase configuration" });
