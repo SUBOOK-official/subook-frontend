@@ -9,6 +9,23 @@ import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseCl
 
 const PAGE_SIZE = 50;
 
+// 회원 상태 필터 — list_admin_members의 account_status와 1:1.
+// '휴면'은 명시 컬럼이 없어 제외(정책 정해지면 last_sign_in 기반 별도 추가).
+const MEMBER_STATUS_FILTERS = [
+  { key: "all", label: "전체", summaryKey: "member_count" },
+  { key: "active", label: "정상", summaryKey: "active_count" },
+  { key: "blocked", label: "차단", summaryKey: "blocked_count" },
+  { key: "withdrawal_pending", label: "탈퇴 대기", summaryKey: "withdrawal_pending_count" },
+  { key: "withdrawn", label: "탈퇴 완료", summaryKey: "withdrawn_count" },
+];
+
+const MEMBER_STATUS_BADGE = {
+  active: { label: "정상", className: "bg-emerald-100 text-emerald-700" },
+  blocked: { label: "차단", className: "bg-rose-100 text-rose-700" },
+  withdrawal_pending: { label: "탈퇴 대기", className: "bg-amber-100 text-amber-700" },
+  withdrawn: { label: "탈퇴 완료", className: "bg-slate-200 text-slate-600" },
+};
+
 const ORDER_STATUS_LABEL = {
   pending: "입금대기",
   paid: "결제완료",
@@ -108,6 +125,7 @@ function AdminMembersPage() {
   const [summary, setSummary] = useState({});
   const [totalCount, setTotalCount] = useState(0);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [isLoading, setIsLoading] = useState(true);
   const [selectedMember, setSelectedMember] = useState(null);
   const [memberDetail, setMemberDetail] = useState(null);
@@ -146,6 +164,9 @@ function AdminMembersPage() {
     if (search.trim()) {
       params.p_search = search.trim();
     }
+    if (statusFilter && statusFilter !== "all") {
+      params.p_status = statusFilter;
+    }
 
     const { data, error } = await supabase.rpc("list_admin_members", params);
 
@@ -164,33 +185,19 @@ function AdminMembersPage() {
 
     const normalizedData = normalizeMemberResponse(data);
 
-    // 회원 차단 상태 별도 fetch — list_admin_members 본체 변경 없이 합침
-    const userIds = normalizedData.rows.map((r) => r.user_id).filter(Boolean);
-    let blockMap = new Map();
-    if (userIds.length > 0) {
-      const { data: blockRows } = await supabase
-        .from("member_profiles")
-        .select("user_id, is_blocked, blocked_at, block_reason")
-        .in("user_id", userIds);
-      if (Array.isArray(blockRows)) {
-        blockMap = new Map(blockRows.map((b) => [b.user_id, b]));
-      }
-    }
-    const enrichedRows = normalizedData.rows.map((row) => {
-      const block = blockMap.get(row.user_id);
-      return {
-        ...row,
-        is_blocked: Boolean(block?.is_blocked),
-        blocked_at: block?.blocked_at ?? null,
-        block_reason: block?.block_reason ?? null,
-      };
-    });
+    // list_admin_members가 이제 상태(is_blocked·account_status·withdrawal 등)를 직접
+    // 반환하므로 member_profiles 별도 fetch는 불필요. is_blocked 기본값만 방어적으로 보정.
+    const enrichedRows = normalizedData.rows.map((row) => ({
+      ...row,
+      is_blocked: Boolean(row.is_blocked),
+      account_status: row.account_status ?? (row.is_blocked ? "blocked" : "active"),
+    }));
 
     setMembers(enrichedRows);
     setSummary(normalizedData.summary);
     setTotalCount(normalizedData.totalCount);
     setIsLoading(false);
-  }, [currentPage, search, showToast]);
+  }, [currentPage, search, statusFilter, showToast]);
 
   useEffect(() => {
     const timerId = window.setTimeout(() => {
@@ -369,12 +376,44 @@ function AdminMembersPage() {
             className="btn-secondary !w-auto !px-4 !py-3 text-sm"
             onClick={() => {
               setSearch("");
+              setStatusFilter("all");
               setCurrentPage(1);
             }}
             type="button"
           >
             초기화
           </button>
+        </div>
+
+        {/* 상태 필터 — RPC 레벨 필터라 페이지네이션·카운트 정확. 카운트는 현재 검색 집합 기준. */}
+        <div className="flex flex-wrap gap-2" role="group" aria-label="회원 상태 필터">
+          {MEMBER_STATUS_FILTERS.map((option) => {
+            const isActive = statusFilter === option.key;
+            const count = summary?.[option.summaryKey];
+            return (
+              <button
+                aria-pressed={isActive}
+                className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
+                  isActive
+                    ? "bg-slate-900 text-white"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+                key={option.key}
+                onClick={() => {
+                  setStatusFilter(option.key);
+                  setCurrentPage(1);
+                }}
+                type="button"
+              >
+                {option.label}
+                {typeof count === "number" ? (
+                  <span className={isActive ? "ml-1 text-slate-300" : "ml-1 text-slate-400"}>
+                    {formatCount(count)}
+                  </span>
+                ) : null}
+              </button>
+            );
+          })}
         </div>
 
         <p className="text-sm font-semibold text-slate-500">
@@ -417,7 +456,17 @@ function AdminMembersPage() {
                     tabIndex={0}
                   >
                     <td className="px-4 py-3">
-                      <p className="font-black text-slate-900">{member.display_name || member.name || "이름 없음"}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="font-black text-slate-900">{member.display_name || member.name || "이름 없음"}</p>
+                        {/* 정상 회원은 배지 생략(노이즈 방지), 차단·탈퇴만 강조 */}
+                        {member.account_status && member.account_status !== "active" && MEMBER_STATUS_BADGE[member.account_status] ? (
+                          <span
+                            className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-bold ${MEMBER_STATUS_BADGE[member.account_status].className}`}
+                          >
+                            {MEMBER_STATUS_BADGE[member.account_status].label}
+                          </span>
+                        ) : null}
+                      </div>
                       {member.nickname && member.nickname !== member.name ? (
                         <p className="mt-1 text-xs text-slate-400">{member.name}</p>
                       ) : null}
