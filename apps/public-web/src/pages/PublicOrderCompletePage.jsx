@@ -13,23 +13,9 @@ import {
   BANK_HOLDER,
   BANK_NAME,
   PAYMENT_DEADLINE_HOURS,
+  buildDepositorName,
 } from "../lib/paymentBankInfo";
 import "./PublicOrderCompletePage.css";
-
-// 주문번호(예: ORD-2412-0042)에서 마지막 4자리 추출
-function getOrderTail(orderNumber) {
-  if (!orderNumber) return "";
-  const digits = String(orderNumber).replace(/\D/g, "");
-  return digits.slice(-4);
-}
-
-// 추천 입금자명: "홍길동1234"
-function buildDepositorName(recipientName, orderNumber) {
-  const name = (recipientName ?? "").toString().trim();
-  const tail = getOrderTail(orderNumber);
-  if (!name || !tail) return name || tail;
-  return `${name}${tail}`;
-}
 
 // "MM/DD HH:mm" 한국 시각 포맷
 function formatDeadline(createdAtIso) {

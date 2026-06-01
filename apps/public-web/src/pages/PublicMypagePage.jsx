@@ -73,6 +73,13 @@ import {
 } from "../lib/publicMypageUtils";
 import { formatPhoneNumber, hasValidPhoneNumber } from "../lib/publicAuthFormUtils";
 import { fetchWishlistProducts } from "../lib/publicWishlist";
+import {
+  BANK_ACCOUNT,
+  BANK_HOLDER,
+  BANK_NAME,
+  PAYMENT_DEADLINE_HOURS,
+  buildDepositorName,
+} from "../lib/paymentBankInfo";
 import "./PublicMypagePage.css";
 
 const initialLoadedTabs = {
@@ -1649,6 +1656,80 @@ function TrackingNumberRow({ company, trackingNumber }) {
   );
 }
 
+// 입금 대기(pending) 주문의 계좌·입금자명·금액 재확인 안내.
+// 결제 직후 주문완료 화면을 놓쳐도(탭 닫힘/세션 만료) 여기서 다시 입금할 수 있게 한다.
+// 입금자명·계좌·마감 정의는 주문완료 페이지(PublicOrderCompletePage)와 동일 소스를 공유.
+function OrderDepositRow({ label, value, copyLabel, highlight = false, hint = null }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = async () => {
+    if (!value || typeof navigator === "undefined" || !navigator.clipboard) return;
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* ignore */
+    }
+  };
+  return (
+    <div
+      className={`public-mypage-deposit__row${
+        highlight ? " public-mypage-deposit__row--highlight" : ""
+      }`}
+    >
+      <div className="public-mypage-deposit__cell">
+        <span className="public-mypage-deposit__label">{label}</span>
+        <span className="public-mypage-deposit__value">{value}</span>
+        {hint ? <span className="public-mypage-deposit__hint">{hint}</span> : null}
+      </div>
+      <button
+        aria-label={copyLabel}
+        className="public-mypage-deposit__copy"
+        onClick={handleCopy}
+        type="button"
+      >
+        {copied ? "복사됨" : "복사"}
+      </button>
+    </div>
+  );
+}
+
+function OrderDepositInfo({ order }) {
+  const depositorName = buildDepositorName(order.recipientName, order.reference);
+  const bankAccountPlain = BANK_ACCOUNT.replace(/-/g, "");
+  return (
+    <div className="public-mypage-deposit" role="group" aria-label="입금 안내">
+      <p className="public-mypage-deposit__title">입금 계좌 안내</p>
+      <OrderDepositRow
+        copyLabel="계좌번호 복사"
+        label={`${BANK_NAME} · 예금주 ${BANK_HOLDER}`}
+        value={BANK_ACCOUNT}
+        hint={`복사 시 ${bankAccountPlain}`}
+      />
+      {order.totalAmount != null ? (
+        <OrderDepositRow
+          copyLabel="입금 금액 복사"
+          label="입금 금액"
+          value={formatCurrency(order.totalAmount)}
+        />
+      ) : null}
+      {depositorName ? (
+        <OrderDepositRow
+          copyLabel="입금자명 복사"
+          highlight
+          hint="본인 성함 + 주문번호 마지막 4자리. 다르게 입력하면 입금 확인이 늦어질 수 있어요."
+          label="입금자명 (필수)"
+          value={depositorName}
+        />
+      ) : null}
+      <p className="public-mypage-deposit__notice">
+        주문 후 <strong>{PAYMENT_DEADLINE_HOURS}시간 이내</strong>에 입금해주세요. 미입금 시 주문이
+        자동 취소됩니다.
+      </p>
+    </div>
+  );
+}
+
 // P1-5: 정산 카드 — 클릭 시 주문번호·판매일·구매확정일·입금일 타임라인 노출.
 function SettlementCard({ settlement, status }) {
   const [expanded, setExpanded] = useState(false);
@@ -2299,6 +2380,11 @@ function PurchasesView({
                         {getOrderStatusLabel(order.status)}
                       </span>
                     </div>
+
+                    {/* 입금 대기 주문: 계좌·입금자명·금액 재확인 (주문완료 화면 놓쳐도 입금 가능) */}
+                    {order.status === "pending" && order.paymentStatus !== "paid" ? (
+                      <OrderDepositInfo order={order} />
+                    ) : null}
 
                     <div className="public-mypage-purchase-card__body">
                       <div className="public-mypage-purchase-card__thumb" aria-hidden="true">

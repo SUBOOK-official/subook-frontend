@@ -801,6 +801,8 @@ export function mapOrderToDisplayOrder(order) {
   return {
     id: order.id,
     reference: order.order_number,
+    recipientName: order.shipping_recipient_name ?? null,
+    paymentStatus: order.payment_status ?? null,
     createdAt: order.created_at,
     status: order.status,
     subtotal: order.subtotal ?? 0,

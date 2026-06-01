@@ -1263,6 +1263,91 @@
   color: var(--public-ds-accent);
 }
 
+/* ── 입금 대기 주문: 계좌·입금자명 재확인 안내 ───────────────────── */
+.public-mypage-deposit {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid #fcd34d;
+  border-radius: 10px;
+  background: #fffbeb;
+}
+
+.public-mypage-deposit__title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #92400e;
+}
+
+.public-mypage-deposit__row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #ffffff;
+  border: 1px solid #fef3c7;
+}
+
+.public-mypage-deposit__row--highlight {
+  border-color: #f59e0b;
+  background: #fffaf0;
+}
+
+.public-mypage-deposit__cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.public-mypage-deposit__label {
+  font-size: 12px;
+  color: var(--public-ds-text-secondary, #64748b);
+  font-weight: 600;
+}
+
+.public-mypage-deposit__value {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--public-ds-text, #0f172a);
+  word-break: break-all;
+}
+
+.public-mypage-deposit__hint {
+  font-size: 11px;
+  color: #b45309;
+  line-height: 1.4;
+}
+
+.public-mypage-deposit__copy {
+  flex-shrink: 0;
+  min-height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--public-ds-border, #e2e8f0);
+  border-radius: 6px;
+  background: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--public-ds-text, #0f172a);
+  cursor: pointer;
+}
+
+.public-mypage-deposit__copy:hover {
+  border-color: #f59e0b;
+  color: #b45309;
+}
+
+.public-mypage-deposit__notice {
+  margin: 0;
+  font-size: 12px;
+  color: #92400e;
+  line-height: 1.5;
+}
+
 @media (max-width: 1023px) {
   .public-mypage-shell-grid {
     grid-template-columns: 180px minmax(0, 1fr);
