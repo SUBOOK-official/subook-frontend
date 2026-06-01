@@ -488,8 +488,6 @@ function PublicOrderPage() {
     return sum + price * (i.quantity ?? 1);
   }, 0);
   const retailSavings = retailOriginalTotal - retailSellingTotal;
-  const retailSavingsPct =
-    retailOriginalTotal > 0 ? Math.round((retailSavings / retailOriginalTotal) * 100) : 0;
 
   const baseShippingFee = calculateShippingFee(subtotal);
   const selectedCoupon = applicableCoupons.find((c) => c.id === selectedCouponId) ?? null;
@@ -760,8 +758,7 @@ function PublicOrderPage() {
                     전부 비매품(정가 없음)이면 retailSavings=0이라 노출 안 됨. */}
                 {retailSavings > 0 ? (
                   <p className="order-sidebar__savings">
-                    정가 대비 <strong>{formatCurrency(retailSavings)}</strong>
-                    {retailSavingsPct > 0 ? ` (${retailSavingsPct}%)` : ""} 아꼈어요
+                    정가 대비 <strong>{formatCurrency(retailSavings)}</strong> 아꼈어요
                   </p>
                 ) : null}
 

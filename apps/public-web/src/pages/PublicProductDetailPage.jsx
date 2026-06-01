@@ -131,11 +131,6 @@ function ProductPriceLine({ priceValue, originalPriceValue, discountRate }) {
         ? Math.round(((originalPriceValue - priceValue) / originalPriceValue) * 100)
         : null;
 
-  const savings =
-    originalPriceValue && originalPriceValue > priceValue
-      ? originalPriceValue - priceValue
-      : 0;
-
   return (
     <div className="public-detail-price-line-group">
       <div className="public-detail-price-line">
@@ -159,11 +154,6 @@ function ProductPriceLine({ priceValue, originalPriceValue, discountRate }) {
           </s>
         ) : null}
       </div>
-      {savings > 0 ? (
-        <p className="public-detail-price-line__savings">
-          정가 대비 {formatCurrency(savings)} 아꼈어요
-        </p>
-      ) : null}
     </div>
   );
 }
