@@ -1,8 +1,13 @@
 import { createClient } from "@supabase/supabase-js";
 
 /**
- * 미입금 24h 자동 취소 Cron
- * 매시간 정각(매 1시간마다) 실행 — pending 상태로 24h 지난 주문을 cancelled로 전이 + 쿠폰 복구.
+ * 미입금 24h 자동 취소 Cron 엔드포인트.
+ * pending 상태로 24h 지난 주문을 cancelled로 전이 + 쿠폰 복구하는 expire_unpaid_orders() RPC 호출.
+ *
+ * ⚠️ 실제 집행 주기: 이 함수의 핵심 스케줄은 DB의 pg_cron이 15분마다 직접
+ *    `select expire_unpaid_orders()`를 호출하는 것(migration 2026051801). 무료(Hobby)
+ *    플랜이라 Vercel cron은 하루 1회(vercel.json `0 18 * * *`)로만 보조 호출한다.
+ *    (Hobby cron 최소 간격 = 하루 1회 제약 때문.) 두 경로 모두 동일 RPC라 멱등.
  */
 export default async function handler(req, res) {
   // fail-close: CRON_SECRET 미설정이면 항상 차단
@@ -21,8 +26,12 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseUrl =
+    process.env.SUPABASE_URL ||
+    process.env.SUPABASE_ADMIN_URL ||
+    process.env.VITE_SUPABASE_ADMIN_URL ||
+    process.env.VITE_SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
 
   if (!supabaseUrl || !supabaseServiceKey) {
     return res.status(500).json({ error: "Missing Supabase configuration" });
