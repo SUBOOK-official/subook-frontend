@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { formatCurrency } from "@shared-domain/format";
+import { formatPhoneNumber, isValidKoreanMobile } from "../lib/publicAuthFormUtils";
 import ContentContainer from "../components/ContentContainer";
 import PublicFooter from "../components/PublicFooter";
 import PublicPageFrame from "../components/PublicPageFrame";
@@ -381,6 +382,8 @@ function PublicOrderPage() {
   const validate = () => {
     if (!shipping.recipientName.trim()) return "수령인 이름을 입력해주세요.";
     if (!shipping.recipientPhone.trim()) return "수령인 연락처를 입력해주세요.";
+    // 배송 안내 SMS·알림톡 발송 대상이므로 휴대폰 형식을 검증한다(수거요청 페이지와 동일 기준).
+    if (!isValidKoreanMobile(shipping.recipientPhone)) return "휴대폰 번호를 정확히 입력해주세요. (예: 010-1234-5678)";
     if (!shipping.postalCode.trim() || !shipping.addressLine1.trim()) return "배송지 주소를 입력해주세요.";
     if (!agreementOrder) return "[필수] 주문 내용·개인정보 제공 동의에 체크해주세요.";
     if (!agreementPayment) return "[필수] 24시간 미입금 시 자동 취소 동의에 체크해주세요.";
@@ -568,7 +571,8 @@ function PublicOrderPage() {
                     <label className="order-form__label">연락처</label>
                     <input
                       className="order-form__input"
-                      onChange={(e) => setShipping((p) => ({ ...p, recipientPhone: e.target.value }))}
+                      inputMode="tel"
+                      onChange={(e) => setShipping((p) => ({ ...p, recipientPhone: formatPhoneNumber(e.target.value) }))}
                       placeholder="010-0000-0000"
                       type="tel"
                       value={shipping.recipientPhone}
