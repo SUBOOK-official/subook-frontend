@@ -7453,9 +7453,6 @@ img {
   flex-shrink: 0;
 }
 
-.public-home-hero-banner__arrow-icon--prev {
-  transform: scaleX(-1);
-}
 
 .public-home-hero-banner__dots {
   position: absolute;
