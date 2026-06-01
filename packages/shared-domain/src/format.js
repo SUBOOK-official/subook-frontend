@@ -70,3 +70,27 @@ export function maskPhone(phone) {
   const tail = digits.slice(-4);
   return `${head}-****-${tail}`;
 }
+
+/**
+ * 이름 마스킹 — 목록 화면용. 가운데 글자를 가려 식별 가능성을 낮추되 첫/끝 글자는 보존.
+ * 한국 이름 기준: 2글자=끝글자(홍길→홍*), 3글자+=가운데 전부(홍길동→홍*동, 남궁민수→남**수).
+ * 1글자는 그대로. 공백 포함 이름(외국식)은 각 토큰을 같은 규칙으로 처리.
+ * 상세 모달 등 명시적으로 본 행에서는 풀네임을 쓰고, 목록에서만 이걸 쓴다.
+ */
+export function maskName(name) {
+  if (!name) return "-";
+  const raw = String(name).trim();
+  if (!raw) return "-";
+
+  const maskToken = (token) => {
+    const chars = Array.from(token);
+    if (chars.length <= 1) return token;
+    if (chars.length === 2) return `${chars[0]}*`;
+    return `${chars[0]}${"*".repeat(chars.length - 2)}${chars[chars.length - 1]}`;
+  };
+
+  return raw
+    .split(/\s+/)
+    .map(maskToken)
+    .join(" ");
+}

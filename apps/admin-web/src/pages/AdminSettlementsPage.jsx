@@ -6,7 +6,7 @@ import NotificationResultModal from "../components/NotificationResultModal";
 import StatusBadge from "@shared-domain/StatusBadge";
 import { notifySettlementDone } from "../lib/adminNotification";
 import { exportRowsToXlsx } from "../lib/excelFile";
-import { formatCurrency, formatDate, maskEmail, maskPhone } from "@shared-domain/format";
+import { formatCurrency, formatDate, maskEmail, maskName, maskPhone } from "@shared-domain/format";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 
 const PAGE_SIZE = 50;
@@ -677,7 +677,7 @@ function AdminSettlementsPage() {
                         {maskAccountNumber(row.account_number, row.account_last4)}
                       </p>
                       {row.account_holder ? (
-                        <p className="mt-1 text-xs text-slate-400">{row.account_holder}</p>
+                        <p className="mt-1 text-xs text-slate-400">{maskName(row.account_holder)}</p>
                       ) : null}
                     </td>
                     <td className="px-4 py-3">

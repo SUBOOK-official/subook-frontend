@@ -1,0 +1,32 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { maskName } from "../../../../packages/shared-domain/src/format.js";
+
+test("maskName masks the middle of Korean names, keeping first and last", () => {
+  assert.equal(maskName("홍길동"), "홍*동");
+  assert.equal(maskName("남궁민수"), "남**수");
+});
+
+test("maskName masks the last char of two-character names", () => {
+  assert.equal(maskName("홍길"), "홍*");
+});
+
+test("maskName leaves single-character names unchanged", () => {
+  assert.equal(maskName("김"), "김");
+});
+
+test("maskName returns dash for empty/nullish input", () => {
+  assert.equal(maskName(""), "-");
+  assert.equal(maskName(null), "-");
+  assert.equal(maskName(undefined), "-");
+  assert.equal(maskName("   "), "-");
+});
+
+test("maskName masks each whitespace-separated token (foreign names)", () => {
+  assert.equal(maskName("John Smith"), "J**n S***h");
+  assert.equal(maskName("Al Bo"), "A* B*");
+});
+
+test("maskName trims surrounding whitespace before masking", () => {
+  assert.equal(maskName("  홍길동  "), "홍*동");
+});
