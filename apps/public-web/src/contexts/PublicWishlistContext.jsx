@@ -4,9 +4,7 @@ import {
   loadWishlistProductIds,
   mergeWishlistProductIds,
   normalizeWishlistProductId,
-  readGuestWishlistProductIds,
   setWishlistItemActive,
-  toggleGuestWishlistProductId,
 } from "../lib/publicWishlist";
 
 const PublicWishlistContext = createContext(null);
@@ -36,9 +34,8 @@ function PublicWishlistProvider({ children }) {
     }
 
     if (!isAuthenticated || !user?.id) {
-      // 비로그인 사용자도 guest wishlist를 사용할 수 있게 한다.
-      // 로그인 시 loadWishlistProductIds가 guest store를 user store에 merge하고 비운다.
-      setFavoriteIds(readGuestWishlistProductIds());
+      // 비로그인 상태에서는 찜 상태를 저장하거나 표시하지 않는다.
+      setFavoriteIds([]);
       setPendingProductIds([]);
       setWishlistError(null);
       setIsWishlistLoading(false);
@@ -95,21 +92,11 @@ function PublicWishlistProvider({ children }) {
       };
     }
 
-    // P1: 비로그인 사용자도 guest localStorage에 임시 저장.
-    // 멤버 게이트 다이얼로그 카피는 다른 에이전트가 별도 처리하므로,
-    // 여기서는 데이터 보존만 책임진다. 로그인 시 user wishlist에 merge.
     if (!isAuthenticated || !user?.id) {
-      const currentGuestIds = favoriteIdsRef.current;
-      const wasFavoriteGuest = currentGuestIds.includes(normalizedProductId);
-      const nextGuestIds = toggleGuestWishlistProductId(
-        normalizedProductId,
-        !wasFavoriteGuest,
-      );
-      setFavoriteIds(nextGuestIds);
       return {
-        isFavorite: !wasFavoriteGuest,
-        source: "guest",
-        error: null,
+        isFavorite: false,
+        source: "auth-required",
+        error: new Error("로그인이 필요합니다."),
       };
     }
 
