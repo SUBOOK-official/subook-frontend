@@ -610,8 +610,46 @@
 }
 
 .public-detail-info-notes,
-.public-detail-info-images {
+.public-detail-info-images,
+.public-detail-condition-report {
   margin-top: 16px;
+}
+
+/* 검수 리포트 — A+/A 등급에만 노출(S는 ConditionReport에서 숨김) */
+.public-detail-condition-report__items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.public-detail-condition-report__item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 8px 12px;
+  background: #ffffff;
+  border: 1px solid var(--public-border, #e2e8f0);
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.public-detail-condition-report__item--warn {
+  border-color: #f59e0b;
+  background: #fffbeb;
+}
+
+.public-detail-condition-report__key {
+  color: var(--public-ds-text-muted, #94a3b8);
+  font-weight: 600;
+}
+
+.public-detail-condition-report__val {
+  color: var(--public-ds-text, #0f172a);
+  font-weight: 700;
+}
+
+.public-detail-condition-report__item--warn .public-detail-condition-report__val {
+  color: #b45309;
 }
 
 .public-detail-info-notes__label {

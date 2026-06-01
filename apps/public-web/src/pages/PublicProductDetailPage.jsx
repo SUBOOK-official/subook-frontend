@@ -228,6 +228,52 @@ function QuantityRow({ value, maxQuantity, disabled, onDecrease, onIncrease }) {
   );
 }
 
+// 검수 리포트(필기 비율 · 훼손 여부) — A+/A 등 "사용감 있는" 등급에만 노출한다.
+// S 등급은 미사용(신규 입고 전량)이라 항상 "필기 0%·훼손 없음"이 되어, 모든 상품에
+// 똑같이 붙이면 신호가 0인 cried-wolf가 된다. 그래서 S·미등급에서는 통째로 숨긴다.
+function ConditionReport({ display }) {
+  const gradeTone = getGradeTone(display?.conditionGradeLabel);
+  // a-plus / a 만 노출 대상. s · null(미등급)은 숨김.
+  if (gradeTone !== "a-plus" && gradeTone !== "a") return null;
+
+  const writing =
+    typeof display?.writingPercentage === "number" && Number.isFinite(display.writingPercentage)
+      ? Math.max(0, Math.min(100, Math.trunc(display.writingPercentage)))
+      : null;
+  const hasDamage = typeof display?.hasDamage === "boolean" ? display.hasDamage : null;
+
+  // 보여줄 지표가 하나도 없으면(둘 다 미입력) 블록 자체를 숨긴다.
+  if (writing === null && hasDamage === null) return null;
+
+  return (
+    <div className="public-detail-condition-report">
+      <span className="public-detail-info-notes__label">검수 리포트</span>
+      <div className="public-detail-condition-report__items">
+        {writing !== null ? (
+          <span className="public-detail-condition-report__item">
+            <span className="public-detail-condition-report__key">필기·표시</span>
+            <span className="public-detail-condition-report__val">
+              {writing === 0 ? "거의 없음" : `약 ${writing}%`}
+            </span>
+          </span>
+        ) : null}
+        {hasDamage !== null ? (
+          <span
+            className={`public-detail-condition-report__item${
+              hasDamage ? " public-detail-condition-report__item--warn" : ""
+            }`}
+          >
+            <span className="public-detail-condition-report__key">훼손</span>
+            <span className="public-detail-condition-report__val">
+              {hasDamage ? "있음 (검수 메모 확인)" : "없음"}
+            </span>
+          </span>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function DetailTabPanel({ activeKey, product, activeDisplay, onOpenLightbox }) {
   if (activeKey === "grade") {
     return (
@@ -295,6 +341,7 @@ function DetailTabPanel({ activeKey, product, activeDisplay, onOpenLightbox }) {
           <div><dt>검수일</dt><dd>{formatDate(activeDisplay.inspectedAt)}</dd></div>
         ) : null}
       </dl>
+      <ConditionReport display={activeDisplay} />
       {activeDisplay?.inspectionNotes ? (
         <div className="public-detail-info-notes">
           <span className="public-detail-info-notes__label">검수 메모</span>
