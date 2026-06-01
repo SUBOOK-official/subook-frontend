@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AdminShell from "../components/AdminShell";
+import AdminDialog from "../components/AdminDialog";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import NotificationResultModal from "../components/NotificationResultModal";
 import { notifyPickupAccepted } from "../lib/adminNotification";
@@ -81,6 +82,111 @@ function getPickupItemSummary(pickupRequest) {
   return extraCount > 0 ? `${firstTitle} 외 ${extraCount}권` : firstTitle;
 }
 
+function PickupDetailRow({ label, value, mono = false }) {
+  return (
+    <div className="flex flex-col gap-0.5 sm:flex-row sm:items-baseline sm:gap-3">
+      <dt className="min-w-[96px] shrink-0 text-xs font-semibold text-slate-400">{label}</dt>
+      <dd className={`text-sm text-slate-900 ${mono ? "font-mono" : ""}`}>
+        {value === null || value === undefined || value === "" ? (
+          <span className="text-slate-300">—</span>
+        ) : (
+          value
+        )}
+      </dd>
+    </div>
+  );
+}
+
+// 수거요청 상세 모달 — 목록엔 안 보이는 운영 필드(현관비번·희망일·메모·이메일·박스수·품목)를
+// 본다. 상세 화면이라 PII(이름·전화·주소)는 평문으로 노출(운영자가 명시적으로 연 행).
+function PickupDetailModal({ request, onClose }) {
+  if (!request) return null;
+  const items = Array.isArray(request.items) ? request.items : [];
+  const fullAddress = formatAddress(request);
+
+  return (
+    <AdminDialog
+      open={Boolean(request)}
+      onClose={onClose}
+      size="xl"
+      title={`수거 요청 상세 · ${request.request_number ?? ""}`}
+    >
+      <div className="space-y-6 px-6 py-5">
+        <section>
+          <h3 className="mb-2 text-xs font-black uppercase tracking-wider text-slate-500">수령인 · 수거지</h3>
+          <dl className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <PickupDetailRow label="이름" value={request.pickup_recipient_name} />
+            <PickupDetailRow label="연락처" value={request.pickup_recipient_phone} mono />
+            <PickupDetailRow label="이메일" value={request.pickup_email} />
+            <PickupDetailRow label="주소" value={fullAddress} />
+            <PickupDetailRow
+              label="현관 비밀번호"
+              value={request.pickup_entrance_password}
+              mono
+            />
+          </dl>
+        </section>
+
+        <section>
+          <h3 className="mb-2 text-xs font-black uppercase tracking-wider text-slate-500">수거 정보</h3>
+          <dl className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <PickupDetailRow
+              label="희망 수거일"
+              value={request.desired_pickup_date ? formatDate(request.desired_pickup_date) : null}
+            />
+            <PickupDetailRow
+              label="예상 권수"
+              value={request.expected_book_count != null ? `${request.expected_book_count}권` : null}
+            />
+            <PickupDetailRow
+              label="박스 수"
+              value={request.box_count != null ? `${request.box_count}개` : null}
+            />
+            <PickupDetailRow label="요청일" value={formatDateTime(request.created_at)} />
+            <PickupDetailRow label="메모" value={request.pickup_memo} />
+          </dl>
+        </section>
+
+        <section>
+          <h3 className="mb-2 text-xs font-black uppercase tracking-wider text-slate-500">
+            품목 {items.length > 0 ? `(${items.length})` : ""}
+          </h3>
+          {items.length > 0 ? (
+            <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200">
+              {items.map((item, index) => (
+                <li
+                  className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm"
+                  key={item.id ?? `${item.title ?? "item"}-${index}`}
+                >
+                  <span className="font-semibold text-slate-800">{item.title || "교재"}</span>
+                  <span className="shrink-0 text-xs text-slate-400">
+                    {[item.brand, item.subject].filter(Boolean).join(" · ")}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-400">
+              등록된 품목이 없습니다. (총 {request.item_count ?? 0}권)
+            </p>
+          )}
+        </section>
+
+        {request.tracking_number ? (
+          <section>
+            <h3 className="mb-2 text-xs font-black uppercase tracking-wider text-slate-500">배송</h3>
+            <dl className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <PickupDetailRow label="운송장" value={request.tracking_number} mono />
+              <PickupDetailRow label="택배사" value={request.tracking_carrier || "CJ대한통운"} />
+              <PickupDetailRow label="CJ 상태" value={request.cj_tracking_status} />
+            </dl>
+          </section>
+        ) : null}
+      </div>
+    </AdminDialog>
+  );
+}
+
 function canRegisterCjPickup(pickupRequest) {
   return (
     !pickupRequest.tracking_number &&
@@ -147,6 +253,8 @@ function AdminPickupRequestsPage() {
   const [registeringIds, setRegisteringIds] = useState([]);
   const [trackingLookupId, setTrackingLookupId] = useState(null);
   const [trackingModal, setTrackingModal] = useState(null);
+  // 요청 상세 모달 — 목록엔 안 보이는 현관비번·희망일·메모·이메일·박스수·품목 전체를 본다.
+  const [detailModal, setDetailModal] = useState(null);
   const [destructiveModal, setDestructiveModal] = useState(null);
   // 알림톡/RPC 부분 실패를 전체 노출 — 이전엔 setError에 3건만 보여 4건 이후가 사라지는 P0 사고
   const [cjFailureModal, setCjFailureModal] = useState(null);
@@ -747,6 +855,13 @@ function AdminPickupRequestsPage() {
                         </td>
                         <td className="min-w-[190px] px-4 py-4">
                           <div className="flex flex-wrap gap-2">
+                            <button
+                              className="btn-secondary !w-auto !px-3 !py-2 text-xs"
+                              onClick={() => setDetailModal(pickupRequest)}
+                              type="button"
+                            >
+                              상세
+                            </button>
                             {isEligible ? (
                               <button
                                 className="btn-primary !w-auto !px-3 !py-2 text-xs"
@@ -822,6 +937,8 @@ function AdminPickupRequestsPage() {
           </nav>
         ) : null}
       </section>
+
+      <PickupDetailModal request={detailModal} onClose={() => setDetailModal(null)} />
 
       {trackingModal ? (
         <div
