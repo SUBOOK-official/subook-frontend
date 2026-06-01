@@ -333,6 +333,32 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
 
   const isEmpty = !isLoading && displayedProducts.length === 0;
 
+  // 과목 선택 — 사이드바 최상단 그룹. 필터(유형·브랜드)와 같은 칩 UI를 쓰되 과목은
+  // 단일 선택(라디오처럼)이라 toggle이 아니라 handleSelectSubject로 교체한다.
+  // STORE_SUBJECTS[0] === "전체"라 첫 옵션이 곧 초기화 역할(별도 리셋 버튼 불필요).
+  const subjectGroupJsx = (
+    <div className="public-home-store-grid__sidebar-group" key="subject">
+      <h3 className="public-home-store-grid__sidebar-label">과목</h3>
+      <ul className="public-home-store-grid__sidebar-list" role="list">
+        {STORE_SUBJECTS.map((subject) => {
+          const isActive = selectedSubject === subject;
+          return (
+            <li key={subject}>
+              <button
+                aria-pressed={isActive}
+                className={`public-home-store-grid__sidebar-option ${isActive ? "is-active" : ""}`}
+                onClick={() => handleSelectSubject(subject)}
+                type="button"
+              >
+                {subject}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+
   // 사이드바·바텀시트 양쪽에서 재사용하는 필터 그룹 마크업. dependency가 많아
   // memoize 효과 미미하므로 그냥 inline 변수.
   const filterGroupsJsx = HOME_SIDEBAR_FILTER_GROUPS.map((group) => {
@@ -379,30 +405,13 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
         <div className="public-home-store-grid__layout">
           {/* 좌측 세로 사이드바 (PC만) — 모바일에선 CSS로 숨기고 바텀시트로 노출 */}
           <aside className="public-home-store-grid__sidebar" aria-label="필터">
+            {subjectGroupJsx}
             {filterGroupsJsx}
           </aside>
 
-          {/* 우측 메인 — 과목 탭 + 툴바 + 그리드 + 페이지네이션 */}
+          {/* 우측 메인 — 툴바 + 그리드 + 페이지네이션 (과목 선택은 좌측 사이드바로 이동) */}
           <div className="public-home-store-grid__main">
-            <div className="public-home-store-grid__tabs" role="tablist" aria-label="과목">
-              {STORE_SUBJECTS.map((subject) => {
-                const isActive = selectedSubject === subject;
-                return (
-                  <button
-                    aria-selected={isActive}
-                    className={`public-home-store-grid__tab ${isActive ? "is-active" : ""}`}
-                    key={subject}
-                    onClick={() => handleSelectSubject(subject)}
-                    role="tab"
-                    type="button"
-                  >
-                    {subject}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* 툴바: (모바일) 필터 트리거 + 결과수 + 정렬 */}
+            {/* 툴바: (모바일) 필터 트리거 + 정렬 */}
             <div className="public-home-store-grid__toolbar">
           {/* 모바일 전용 필터 트리거 — 데스크톱에선 CSS로 숨김 (좌측 sidebar 사용) */}
           <button
@@ -415,9 +424,6 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
             <span>필터{selectedFilterCount > 0 ? ` · ${selectedFilterCount}` : ""}</span>
           </button>
           <div className="public-home-store-grid__toolbar-right">
-            <span className="public-home-store-grid__count">
-              총 {visibleBooks.length.toLocaleString("ko-KR")}권
-            </span>
             <div className="public-home-store-grid__sort-wrap" ref={sortMenuRef}>
               <button
                 aria-expanded={isSortMenuOpen}
@@ -667,6 +673,7 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
               </button>
             </header>
             <div className="public-home-store-grid__filter-sheet-body">
+              {subjectGroupJsx}
               {filterGroupsJsx}
             </div>
             <footer className="public-home-store-grid__filter-sheet-foot">
