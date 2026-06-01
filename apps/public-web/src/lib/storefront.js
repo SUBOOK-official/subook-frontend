@@ -20,6 +20,45 @@ const LEGACY_BOOK_DETAIL_RPC_NAME = "get_public_store_book_detail";
 
 let mockStorefrontCatalogCache = null;
 
+function normalizeMockFlag(value) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalizedValue = value.trim().toLowerCase();
+  if (["1", "true", "on", "yes"].includes(normalizedValue)) {
+    return true;
+  }
+
+  if (["0", "false", "off", "no"].includes(normalizedValue)) {
+    return false;
+  }
+
+  return null;
+}
+
+function isProductionBuild() {
+  return import.meta.env?.PROD === true || import.meta.env?.MODE === "production";
+}
+
+function canUseStoreMockData() {
+  const explicitAllow = normalizeMockFlag(import.meta.env?.VITE_PUBLIC_STORE_ALLOW_MOCKS);
+  if (explicitAllow !== null) {
+    return explicitAllow;
+  }
+
+  return !isProductionBuild();
+}
+
+function canImplicitlyFallbackToStoreMockData() {
+  const explicitAllow = normalizeMockFlag(import.meta.env?.VITE_PUBLIC_STORE_ALLOW_IMPLICIT_MOCK_FALLBACK);
+  if (explicitAllow !== null) {
+    return explicitAllow;
+  }
+
+  return !isProductionBuild();
+}
+
 const conditionGradeLabel = {
   S: bookConditionLabel.S,
   A_PLUS: bookConditionLabel.A_PLUS,
@@ -891,9 +930,14 @@ async function rpcWithFallback(primaryRpcName, fallbackRpcName, primaryArgs, fal
 
 async function fetchStorefrontProducts(filters = {}) {
   const mockModePreference = readStoreMockModePreference();
-  const mockModeForced = mockModePreference === true;
-  const mockModeDisabled = mockModePreference === false;
-  const allowImplicitMockFallback = !mockModeDisabled && !hasScopedStorefrontFilters(filters);
+  const mockDataAllowed = canUseStoreMockData();
+  const mockModeForced = mockDataAllowed && mockModePreference === true;
+  const mockModeDisabled = !mockDataAllowed || mockModePreference === false;
+  const allowImplicitMockFallback =
+    mockDataAllowed &&
+    canImplicitlyFallbackToStoreMockData() &&
+    !mockModeDisabled &&
+    !hasScopedStorefrontFilters(filters);
 
   if (mockModeForced) {
     return buildMockStorefrontProductsResult(filters);
@@ -975,8 +1019,9 @@ async function fetchStorefrontProducts(filters = {}) {
 
 async function fetchStorefrontProductDetail(productId) {
   const mockModePreference = readStoreMockModePreference();
-  const mockModeForced = mockModePreference === true;
-  const mockModeDisabled = mockModePreference === false;
+  const mockDataAllowed = canUseStoreMockData();
+  const mockModeForced = mockDataAllowed && mockModePreference === true;
+  const mockModeDisabled = !mockDataAllowed || mockModePreference === false;
 
   if (!productId) {
     if (!mockModeDisabled) {
