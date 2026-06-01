@@ -310,7 +310,9 @@ function PublicOrderCompletePage() {
                           . 미입금 시 주문이 자동 취소됩니다.
                         </>
                       ) : countdown?.expired ? (
-                        <strong>입금 시간이 지났습니다. 주문이 곧 자동 취소돼요.</strong>
+                        <>
+                          <strong>입금 예정 시간이 지났어요.</strong> 아직 입금 전이라면 곧 자동 취소될 수 있으니 서둘러 입금해 주세요. 이미 입금하셨다면 확인까지 잠시만 기다려 주세요.
+                        </>
                       ) : deadlineLabel ? (
                         <>
                           <strong>{deadlineLabel}까지</strong> 입금해주세요. 미입금 시 주문이 자동 취소됩니다.
