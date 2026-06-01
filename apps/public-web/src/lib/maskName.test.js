@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { maskName } from "../../../../packages/shared-domain/src/format.js";
+import { maskAddress, maskName } from "../../../../packages/shared-domain/src/format.js";
 
 test("maskName masks the middle of Korean names, keeping first and last", () => {
   assert.equal(maskName("홍길동"), "홍*동");
@@ -29,4 +29,31 @@ test("maskName masks each whitespace-separated token (foreign names)", () => {
 
 test("maskName trims surrounding whitespace before masking", () => {
   assert.equal(maskName("  홍길동  "), "홍*동");
+});
+
+test("maskAddress keeps postal code + region head, masks the detailed part", () => {
+  assert.equal(
+    maskAddress("[06234] 서울 강남구 테헤란로 123 401호"),
+    "[06234] 서울 강남구 테헤란로 ***",
+  );
+});
+
+test("maskAddress works without a postal code", () => {
+  assert.equal(maskAddress("서울 강남구 테헤란로 123"), "서울 강남구 테헤란로 ***");
+});
+
+test("maskAddress leaves short addresses (<= 3 tokens) unmasked", () => {
+  assert.equal(maskAddress("서울 강남구 역삼동"), "서울 강남구 역삼동");
+  assert.equal(maskAddress("[12345] 서울 강남구"), "[12345] 서울 강남구");
+});
+
+test("maskAddress returns dash for empty/nullish input", () => {
+  assert.equal(maskAddress(""), "-");
+  assert.equal(maskAddress(null), "-");
+  assert.equal(maskAddress(undefined), "-");
+  assert.equal(maskAddress("   "), "-");
+});
+
+test("maskAddress keeps postal code even when nothing else remains", () => {
+  assert.equal(maskAddress("[06234]"), "[06234]");
 });

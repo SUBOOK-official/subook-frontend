@@ -94,3 +94,36 @@ export function maskName(name) {
     .map(maskToken)
     .join(" ");
 }
+
+/**
+ * 주소 마스킹 — 목록 화면용. 배송 권역(시/구/동, 우편번호)은 보존해 운영자가
+ * 어느 동네인지·중복 요청인지 식별할 수 있게 하되, 상세 주소(도로명 번지·동호수)는
+ * 가린다. 정확한 집주소는 상세 모달에서만 풀노출.
+ *
+ * 예) "[06234] 서울 강남구 테헤란로 123 4층 401호" → "[06234] 서울 강남구 테헤란로 ***"
+ *
+ * 규칙: 우편번호([...])는 유지. 나머지 토큰 중 앞 3개(보통 시·구·동/도로명)는 보존하고
+ *       그 뒤(상세 번지·동호수)가 있으면 *** 로 대체. 짧은 주소(토큰 3개 이하)는
+ *       가릴 상세부가 없으므로 그대로 둔다.
+ */
+export function maskAddress(address) {
+  if (!address) return "-";
+  const raw = String(address).trim();
+  if (!raw) return "-";
+
+  // 선두 우편번호 [12345] 는 그대로 보존하고 나머지를 마스킹 대상으로 분리.
+  const postalMatch = raw.match(/^(\[[^\]]*\]\s*)?(.*)$/);
+  const postalPart = postalMatch[1] ? postalMatch[1].trim() : "";
+  const rest = (postalMatch[2] ?? "").trim();
+
+  if (!rest) {
+    return postalPart || "-";
+  }
+
+  const tokens = rest.split(/\s+/);
+  const KEEP = 3;
+  const head = tokens.slice(0, KEEP).join(" ");
+  const masked = tokens.length > KEEP ? `${head} ***` : head;
+
+  return postalPart ? `${postalPart} ${masked}` : masked;
+}
