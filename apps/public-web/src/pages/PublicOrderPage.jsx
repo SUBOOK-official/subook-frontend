@@ -471,6 +471,26 @@ function PublicOrderPage() {
   }
 
   const subtotal = orderItems.reduce((sum, i) => sum + (i.price ?? 0) * i.quantity, 0);
+
+  // 정가(original_price) 대비 절약액 — 정가가 있는 시중 상품만 합산.
+  // 비매품(정가 없음)·정가<=판매가는 제외해 할인이 0/음수로 잡히지 않게 가드.
+  // (정가는 시중 정가라 정적 → 결제 직전 drift로 price가 바뀌어도 그대로 의미 있음)
+  const retailOriginalTotal = orderItems.reduce((sum, i) => {
+    const orig = Number(i.originalPrice);
+    const price = Number(i.price);
+    if (!Number.isFinite(orig) || !Number.isFinite(price) || orig <= price) return sum;
+    return sum + orig * (i.quantity ?? 1);
+  }, 0);
+  const retailSellingTotal = orderItems.reduce((sum, i) => {
+    const orig = Number(i.originalPrice);
+    const price = Number(i.price);
+    if (!Number.isFinite(orig) || !Number.isFinite(price) || orig <= price) return sum;
+    return sum + price * (i.quantity ?? 1);
+  }, 0);
+  const retailSavings = retailOriginalTotal - retailSellingTotal;
+  const retailSavingsPct =
+    retailOriginalTotal > 0 ? Math.round((retailSavings / retailOriginalTotal) * 100) : 0;
+
   const baseShippingFee = calculateShippingFee(subtotal);
   const selectedCoupon = applicableCoupons.find((c) => c.id === selectedCouponId) ?? null;
   const couponPreview = previewCouponDiscount(selectedCoupon, subtotal, baseShippingFee);
@@ -735,6 +755,15 @@ function PublicOrderPage() {
                   <span>총 결제금액</span>
                   <span>{formatCurrency(totalAmount)}</span>
                 </div>
+
+                {/* 정가 대비 절약 멘트 — 정가가 있는 시중 상품에 한해 표시.
+                    전부 비매품(정가 없음)이면 retailSavings=0이라 노출 안 됨. */}
+                {retailSavings > 0 ? (
+                  <p className="order-sidebar__savings">
+                    정가 대비 <strong>{formatCurrency(retailSavings)}</strong>
+                    {retailSavingsPct > 0 ? ` (${retailSavingsPct}%)` : ""} 아꼈어요
+                  </p>
+                ) : null}
 
                 {/* P0-3: 동의 체크박스 3분리 — 주문 내용 / 자동 취소 / 환불 정책 */}
                 <div className="order-sidebar__agreements">

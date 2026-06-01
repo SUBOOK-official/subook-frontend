@@ -362,6 +362,7 @@ function PublicCartPage() {
       conditionGrade: i.condition_grade,
       coverImageUrl: i.cover_image_url,
       price: i.price,
+      originalPrice: i.original_price ?? null,
     }));
     navigate("/order", { state: { items: orderPayload } });
   };

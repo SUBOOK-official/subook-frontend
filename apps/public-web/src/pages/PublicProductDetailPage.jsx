@@ -879,6 +879,7 @@ function PublicProductDetailPage() {
             conditionGrade: activeDisplay?.conditionGrade ?? "",
             coverImageUrl: activeDisplay?.coverImageUrl ?? product?.coverImageUrl ?? "",
             price: priceValue,
+            originalPrice: activeDisplay?.originalPrice ?? product?.originalPrice ?? null,
           },
         ]
       : null;
