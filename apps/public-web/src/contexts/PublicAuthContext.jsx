@@ -135,7 +135,9 @@ function PublicAuthProvider({ children }) {
 
   useEffect(() => {
     if (isOAuthUser && state.accountRole === "member" && !isEmailVerified && supabase) {
-      supabase.rpc("complete_member_email_verification").catch(() => {});
+      // supabase.rpc()는 .catch()가 없는 thenable → 직접 .catch 호출 시 TypeError.
+      // Promise.resolve로 감싸 안전하게 fire-and-forget 한다.
+      void Promise.resolve(supabase.rpc("complete_member_email_verification")).catch(() => {});
     }
   }, [isOAuthUser, state.accountRole, isEmailVerified]);
 

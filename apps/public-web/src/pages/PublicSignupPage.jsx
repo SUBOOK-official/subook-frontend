@@ -509,7 +509,15 @@ function PublicSignupPage() {
     }
 
     // member_profiles.email_verified_at 마무리 처리 (트리거가 처리하지만 명시적으로 한 번 더 호출).
-    await supabase.rpc("complete_member_email_verification").catch(() => null);
+    // ⚠️ supabase.rpc()는 .catch()가 없는 thenable이라 .catch를 직접 호출하면
+    //    "TypeError: ...catch is not a function"이 던져져 이후 성공 처리
+    //    (saveSignupSuccessState·navigate)가 통째로 중단됨 → 가입은 됐는데 화면이 안 넘어감.
+    //    try/catch로 감싸 안전하게 무시한다.
+    try {
+      await supabase.rpc("complete_member_email_verification");
+    } catch {
+      /* 트리거가 이미 처리하므로 실패해도 무시 */
+    }
 
     saveSignupSuccessState({
       email: normalizedEmail,
