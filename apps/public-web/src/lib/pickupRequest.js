@@ -77,7 +77,7 @@ async function searchBooksForPickup(searchTerm) {
 async function submitPickupRequest({
   pickupAddress,
   settlementAccount,
-  items,
+  items = [],
   policyAgreed = false,
 }) {
   if (!isSupabaseConfigured || !supabase) {
