@@ -134,7 +134,7 @@ function PickupPolicyPreview() {
       </div>
       <ul className="pickup-policy-preview__list">
         <li>
-          <strong>교재 등록 불필요</strong> 어떤 책을 보내는지 일일이 적지 않아도 돼요. 검수하며 저희가 등록해 드려요.
+          <strong>교재 등록 불필요</strong> 어떤 책을 보내는지 일일이 적지 않아도 돼요. 검수하며 수북이 등록해 드려요.
         </li>
         <li>
           <strong>새 책 기준</strong> 필기·형광펜 0%, 표지·내지 양호 (개봉 OK)
@@ -301,7 +301,7 @@ function StepAddress({ address, setAddress, savedAddresses, onNext, showToast })
     <div className="pickup-step">
       <div className="pickup-step__header">
         <h2 className="pickup-step__title">수거 정보를 입력해주세요</h2>
-        <p className="pickup-step__subtitle">보낼 교재 수량과 수거 주소를 알려주세요. 어떤 책인지는 적지 않으셔도 돼요 — 검수하며 저희가 등록해 드려요.</p>
+        <p className="pickup-step__subtitle">보낼 교재 수량과 수거 주소를 알려주세요. 어떤 책인지는 적지 않으셔도 돼요 — 검수하며 수북이 등록해 드려요.</p>
       </div>
 
       <PickupPolicyPreview />
@@ -490,17 +490,6 @@ function StepAddress({ address, setAddress, savedAddresses, onNext, showToast })
         </div>
       </div>
 
-      {/* 수거 요청사항 */}
-      <div className="pickup-form-field">
-        <label className="pickup-field-label">수거 요청사항 (선택)</label>
-        <input
-          className="pickup-input"
-          onChange={(e) => setAddress((p) => ({ ...p, memo: e.target.value }))}
-          placeholder="예: 경비실에 맡겨주세요"
-          value={address.memo}
-        />
-      </div>
-
       {/* 포장 안내 */}
       <div className="pickup-info-box">
         <p className="pickup-info-box__title">📦 포장 안내</p>
@@ -509,7 +498,6 @@ function StepAddress({ address, setAddress, savedAddresses, onNext, showToast })
           <li>20권 이하는 한 박스에 모아주세요</li>
           <li>교재가 흔들리지 않도록 포장해주세요</li>
         </ul>
-        <p className="pickup-info-box__tip">💡 잘 포장하면 교재 상태가 보존되어 더 좋은 등급을 받을 수 있어요!</p>
       </div>
 
       {!isValid && (
@@ -783,16 +771,13 @@ function StepSettlement({ account, setAccount, savedAccounts, memberProfileName 
               <ul className="pickup-policy-box__list">
                 <li>1만원 초과 교재: 판매가의 40%</li>
                 <li>1만원 이하 교재·모의고사: 판매가의 45%</li>
-                <li>1만원 이하 수수료가 더 높은 이유: 검수·촬영·창고 단가가 책 가격에 관계없이 거의 일정해서, 저가 교재일수록 비율을 더 받아야 운영이 가능해요.</li>
               </ul>
             </div>
             <div className="pickup-policy-box__section">
               <p className="pickup-policy-box__heading">검수 안내</p>
               <ul className="pickup-policy-box__list">
-                <li>신규 입고는 모두 <strong>S(새 책)</strong> 등급으로 매입합니다</li>
                 <li>새 책 기준: 비닐 개봉 OK, 필기·형광펜 0%, 표지·내지 양호</li>
                 <li>위 기준 미달 교재(필기·형광펜 있음, 표지·내지 손상 등)는 판매불가 → 자체 폐기</li>
-                <li>기존 A+·A 등급 재고는 재고 소진까지만 운영</li>
               </ul>
             </div>
             <div className="pickup-policy-box__section">
@@ -842,7 +827,7 @@ function StepConfirm({ address, account, isSubmitting, onPrev, onSubmit, goToSte
         <div className="pickup-confirm-detail">
           <p>예상 권수 <strong>{expectedCount}권</strong> · 박스 <strong>{boxCount}개</strong></p>
           <p className="pickup-confirm-detail__memo">
-            어떤 교재인지는 따로 적지 않으셔도 돼요. 검수하며 저희가 등록하고, 책별 가격은 마이페이지에서 안내해 드려요.
+            어떤 교재인지는 따로 적지 않으셔도 돼요. 검수하며 수북이 등록하고, 책별 가격은 마이페이지에서 안내해 드려요.
           </p>
         </div>
       </div>
