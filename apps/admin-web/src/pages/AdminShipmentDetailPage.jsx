@@ -583,6 +583,7 @@ function AdminShipmentDetailPage() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [shipment, setShipment] = useState(null);
+  const [boxCountInput, setBoxCountInput] = useState("");
   const [books, setBooks] = useState([]);
   const [bookForm, setBookForm] = useState(initialBookForm);
   const [destructiveModal, setDestructiveModal] = useState(null);
@@ -1057,6 +1058,7 @@ function AdminShipmentDetailPage() {
     }
 
     setShipment(shipmentResult.data);
+    setBoxCountInput(String(shipmentResult.data?.box_count ?? 0));
     setBooks(booksResult.data ?? []);
     setBookPriceDrafts({});
     setBookStatusDrafts({});
@@ -1131,6 +1133,26 @@ function AdminShipmentDetailPage() {
 
   // 검수 완료 전환 시 미등급 책이 1권이라도 있으면 destructive confirm 모달로 차단.
   // 운영자가 폐기/미등급 책을 인지하고 명시적으로 강행하도록 강제.
+  const handleSaveBoxCount = async () => {
+    if (!isSupabaseConfigured || !shipment) return;
+    const parsed = Math.max(0, Number.parseInt(boxCountInput, 10) || 0);
+    setActionLoading(true);
+    setError("");
+    setNotice("");
+    const { error: updateError } = await supabase
+      .from("shipments")
+      .update({ box_count: parsed })
+      .eq("id", shipment.id);
+    setActionLoading(false);
+    if (updateError) {
+      setError("박스 수 저장에 실패했습니다.");
+      return;
+    }
+    setShipment((prev) => (prev ? { ...prev, box_count: parsed } : prev));
+    setBoxCountInput(String(parsed));
+    setNotice(`박스 수 ${parsed}개 저장 — 상품화 비용 ${(parsed * 5000).toLocaleString()}원이 셀러 정산 시 차감됩니다.`);
+  };
+
   const handleUpdateShipmentStatus = ({ nextStatus, successMessage }) => {
     if (nextStatus === "inspected") {
       const discardedCount = books.filter((book) => book.condition_grade === "DISCARD").length;
@@ -1662,6 +1684,32 @@ function AdminShipmentDetailPage() {
             <p className="text-sm font-semibold text-slate-600">
               수거 일자: <span className="text-brand">{formatDate(shipment.pickup_date)}</span>
             </p>
+
+            <div className="mt-2 rounded-xl bg-slate-50 px-3 py-2">
+              <span className="label">실제 박스 수 (상품화 비용)</span>
+              <div className="mt-1 flex items-center gap-2">
+                <input
+                  className="input-base !w-24"
+                  inputMode="numeric"
+                  min="0"
+                  onChange={(e) => setBoxCountInput(e.target.value.replace(/\D/g, "").slice(0, 3))}
+                  type="text"
+                  value={boxCountInput}
+                />
+                <span className="text-sm text-slate-500">박스</span>
+                <button
+                  className="btn-secondary !w-auto !px-3 !py-2 text-xs"
+                  disabled={actionLoading}
+                  onClick={handleSaveBoxCount}
+                  type="button"
+                >
+                  저장
+                </button>
+              </div>
+              <p className="mt-1 text-xs text-slate-500">
+                박스 1개당 5,000원 — 셀러 정산 시 첫 판매 건부터 차감됩니다. (현재 {(Math.max(0, Number.parseInt(boxCountInput, 10) || 0) * 5000).toLocaleString()}원)
+              </p>
+            </div>
 
             {isScheduled ? (
               <button
