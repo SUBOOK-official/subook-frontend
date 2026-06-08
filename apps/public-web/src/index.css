@@ -7219,7 +7219,7 @@ img {
 .public-home-hero-banner {
   width: 100%;
   background: var(--public-ds-background);
-  padding: 0 24px 16px;
+  padding: 24px 24px 16px;
   box-sizing: border-box;
 }
 
@@ -7378,7 +7378,7 @@ img {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0;
+  padding: 0 16px;
   pointer-events: none;
 }
 
@@ -7394,8 +7394,6 @@ img {
   align-items: center;
   justify-content: center;
   padding: 0;
-  font-size: 28px;
-  line-height: 1;
   opacity: 0;
   pointer-events: none;
   transition:
@@ -7404,9 +7402,13 @@ img {
     transform 180ms ease;
 }
 
-.public-home-hero-banner__arrow span {
-  transform: translateY(-1px);
+.public-home-hero-banner__arrow-icon {
+  width: 24px;
+  height: 24px;
+  color: #ffffff;
+  flex-shrink: 0;
 }
+
 
 .public-home-hero-banner__dots {
   position: absolute;
@@ -8022,6 +8024,7 @@ img {
 
 @media (min-width: 768px) {
   .public-home-hero-banner {
+    padding-top: 24px;
     padding-bottom: 32px;
   }
 
