@@ -129,7 +129,7 @@ function PickupPolicyPreview() {
     <div className="pickup-policy-preview" role="region" aria-label="신청 전 꼭 알아두세요">
       <p className="pickup-policy-preview__title">📌 신청 전 꼭 알아두세요</p>
       <div className="pickup-policy-preview__highlight">
-        <strong>안 쓴 교재(미사용)</strong>만 받습니다.
+        <strong>안 쓴 새 책(미사용)</strong>, <strong>수능 기준 3개년 이내</strong> 교재만 받습니다.
         <span> 비닐 개봉은 괜찮지만 필기·형광펜이 있거나 표지·내지가 손상된 책은 판매불가입니다.</span>
       </div>
       <ul className="pickup-policy-preview__list">
@@ -137,7 +137,10 @@ function PickupPolicyPreview() {
           <strong>교재 등록 불필요</strong> 어떤 책을 보내는지 일일이 적지 않아도 돼요. 검수하며 수북이 등록해 드려요.
         </li>
         <li>
-          <strong>새 책 기준</strong> 필기·형광펜 0%, 표지·내지 양호 (개봉 OK)
+          <strong>무료 수거</strong> 별도의 수거 비용은 없어요.
+        </li>
+        <li>
+          <strong>박스당 5,000원</strong> 박스 1개당 상품화 비용 5,000원이 정산 시 차감돼요. 여러 박스보다 가장 큰 박스 하나에 담는 게 유리해요.
         </li>
         <li>
           <strong>가격 책정</strong> 책별 가격은 검수 후 운영팀이 정해서 마이페이지에 안내해 드려요.
@@ -146,7 +149,7 @@ function PickupPolicyPreview() {
           <strong>정산</strong> 구매자 구매확정 후 <strong>3영업일 이내 계좌이체</strong>
         </li>
         <li>
-          <strong>최소 권수</strong> 검수 통과 20권 미만이면 수거 배송비 3,500원 차감
+          <strong>검수 폐기·반송 없음</strong> 기준 미달 교재는 판매불가 → 자체 폐기(반송 없음)
         </li>
       </ul>
     </div>
@@ -197,10 +200,6 @@ function StepAddress({ address, setAddress, savedAddresses, onNext, showToast })
   }, [address.desired_pickup_date]);
   const expectedCountNumber = Number.parseInt(address.expected_book_count, 10);
   const boxCountNumber = Number.parseInt(address.box_count, 10);
-  const boxHint = Number.isFinite(boxCountNumber) && Number.isFinite(expectedCountNumber)
-    && expectedCountNumber >= 30 && boxCountNumber === 1
-    ? "교재가 30권 이상이면 박스를 2개 이상 사용하는 게 안전해요."
-    : "";
 
   useEffect(() => {
     if (savedAddresses.length > 0 && !selectedSavedId && !useNewAddress) {
@@ -463,12 +462,6 @@ function StepAddress({ address, setAddress, savedAddresses, onNext, showToast })
             value={address.expected_book_count}
           />
           <span className="pickup-field-hint">보내실 교재 권수를 대략 알려주세요. 실제 정산 권수는 검수 후 확정돼요.</span>
-          {/* 20권 미만이면 수거 배송비 차감 inline 경고 */}
-          {Number.isFinite(expectedCountNumber) && expectedCountNumber > 0 && expectedCountNumber < 20 && (
-            <span className="pickup-field-hint pickup-field-hint--warning">
-              💡 검수 통과 20권 이상이면 <strong>수거 배송비 무료</strong>예요. 지금 기준 {expectedCountNumber}권이라 {20 - expectedCountNumber}권만 더 보내면 됩니다.
-            </span>
-          )}
         </div>
         <div className="pickup-form-field">
           <label className="pickup-field-label">박스 개수 *</label>
@@ -484,9 +477,7 @@ function StepAddress({ address, setAddress, savedAddresses, onNext, showToast })
             type="text"
             value={address.box_count}
           />
-          {boxHint && (
-            <span className="pickup-field-hint pickup-field-hint--warn">{boxHint}</span>
-          )}
+          <span className="pickup-field-hint">박스당 상품화 비용 <strong>5,000원</strong>이 정산 시 차감돼요. 여러 박스보다 가장 큰 박스 하나에 담는 게 유리해요.</span>
         </div>
       </div>
 
@@ -495,7 +486,7 @@ function StepAddress({ address, setAddress, savedAddresses, onNext, showToast })
         <p className="pickup-info-box__title">📦 포장 안내</p>
         <ul className="pickup-info-box__list">
           <li>빈 공간 없이 딱 맞는 박스에 담아주세요</li>
-          <li>20권 이하는 한 박스에 모아주세요</li>
+          <li>여러 박스로 나누지 말고 가장 큰 박스 하나에 담아주세요 (박스당 5,000원)</li>
           <li>교재가 흔들리지 않도록 포장해주세요</li>
         </ul>
       </div>
@@ -776,15 +767,17 @@ function StepSettlement({ account, setAccount, savedAccounts, memberProfileName 
             <div className="pickup-policy-box__section">
               <p className="pickup-policy-box__heading">검수 안내</p>
               <ul className="pickup-policy-box__list">
+                <li>새 교재 + 현재 수능 기준 3개년 이내 교재만 접수</li>
                 <li>새 책 기준: 비닐 개봉 OK, 필기·형광펜 0%, 표지·내지 양호</li>
-                <li>위 기준 미달 교재(필기·형광펜 있음, 표지·내지 손상 등)는 판매불가 → 자체 폐기</li>
+                <li>위 기준 미달 교재(필기·형광펜 있음, 표지·내지 손상 등)는 판매불가 → 자체 폐기(반송 없음)</li>
               </ul>
             </div>
             <div className="pickup-policy-box__section">
-              <p className="pickup-policy-box__heading">정산 안내</p>
+              <p className="pickup-policy-box__heading">수거·정산 안내</p>
               <ul className="pickup-policy-box__list">
+                <li>수거는 무료 (별도 수거 비용 없음)</li>
+                <li>박스 1개당 상품화 비용 5,000원 — 정산 시 차감 (박스 수 × 5,000원)</li>
                 <li>구매자 구매확정 후 3영업일 이내 계좌이체</li>
-                <li>검수 통과 20권 미만 시 초기 수거 배송비 3,500원 차감</li>
               </ul>
             </div>
           </div>
@@ -871,24 +864,37 @@ function StepConfirm({ address, account, isSubmitting, onPrev, onSubmit, goToSte
         </div>
       </div>
 
-      {/* 20권 미만 시 수거 배송비 3,500원 차감을 마지막 확인 화면에서 명시.
-          정책 누락으로 인한 "왜 3,500원 빠졌어요" CS 1순위 차단. (자가신고 예상권수 기준) */}
-      <div className={`pickup-confirm-shipping ${expectedCount < 20 ? "is-warning" : "is-ok"}`}>
-        <span aria-hidden="true" className="pickup-confirm-shipping__icon">
-          {expectedCount < 20 ? "⚠️" : "✅"}
-        </span>
-        <div className="pickup-confirm-shipping__copy">
-          <strong>
-            {expectedCount < 20
-              ? "검수 통과 20권 미만이면 정산금에서 수거 배송비 3,500원이 차감됩니다."
-              : "예상 20권 이상 — 수거 배송비 차감 없음 (검수 통과 기준)"}
-          </strong>
+      {/* 박스 포장 및 발송 규정 + 검수 탈락 교재 처리 안내 (제출 직전 정책 고지) */}
+      <div className="pickup-confirm-section">
+        <div className="pickup-confirm-section__header">
+          <span className="pickup-confirm-section__icon">📦</span>
+          <span className="pickup-confirm-section__title">박스 포장 및 발송 규정</span>
+        </div>
+        <div className="pickup-confirm-detail">
           <p>
-            예상 <strong>{expectedCount}권</strong>
-            {expectedCount < 20
-              ? ` · ${20 - expectedCount}권 더 보내면 차감 없이 정산됩니다.`
-              : ""}
+            박스 1개당 상품화 비용 <strong>5,000원</strong>
+            {boxCount > 0 ? ` · 현재 ${boxCount}박스 기준 ${(boxCount * 5000).toLocaleString()}원` : ""}
           </p>
+          <p className="pickup-confirm-detail__memo">
+            교재 권수와 무관하게 “박스당” 비용이 부과돼요. 여러 박스에 나눠 보내면 박스 수 × 5,000원이 부과되니,
+            가능하면 <strong>가장 큰 박스 하나에</strong> 담아주세요.
+          </p>
+          <p className="pickup-confirm-detail__memo">
+            사전 결제가 아니라, 교재 판매 후 <strong>정산 과정에서 차감</strong>되는 구조예요.
+          </p>
+          <p className="pickup-confirm-detail__memo">📦 별도의 수거 비용은 없습니다. (무료 수거)</p>
+        </div>
+      </div>
+
+      <div className="pickup-confirm-section">
+        <div className="pickup-confirm-section__header">
+          <span className="pickup-confirm-section__icon">🔎</span>
+          <span className="pickup-confirm-section__title">검수 탈락 교재 처리 안내</span>
+        </div>
+        <div className="pickup-confirm-detail">
+          <p className="pickup-confirm-detail__memo">실제 판매로 이어지는 교재 수량은 검수 완료 후 마이페이지에서 직접 확인하실 수 있어요.</p>
+          <p className="pickup-confirm-detail__memo">검수 기준 미달로 탈락한 교재는 수북에서 자체 폐기되며, <strong>반송은 진행되지 않습니다.</strong></p>
+          <p className="pickup-confirm-detail__memo">반드시 <strong>새 교재 + 현재 수능 기준 3개년 이내</strong>의 교재만 접수해 주세요.</p>
         </div>
       </div>
 
