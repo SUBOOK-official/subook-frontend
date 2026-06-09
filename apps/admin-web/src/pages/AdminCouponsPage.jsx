@@ -147,7 +147,13 @@ function AdminCouponsPage() {
       setTotalCount(0);
     } else if (Array.isArray(data)) {
       setCoupons(data);
-      setTotalCount(data.length < COUPONS_PAGE_SIZE ? (currentPage - 1) * COUPONS_PAGE_SIZE + data.length : 0);
+      // 페이지가 가득 차면 정확한 총량을 알 수 없음 — 0이면 다음 페이지로 못 가므로
+      // "최소 한 페이지 더 있음"으로 표현한다.
+      setTotalCount(
+        data.length < COUPONS_PAGE_SIZE
+          ? (currentPage - 1) * COUPONS_PAGE_SIZE + data.length
+          : currentPage * COUPONS_PAGE_SIZE + 1,
+      );
     } else if (data && typeof data === "object") {
       setCoupons(Array.isArray(data.items) ? data.items : []);
       setTotalCount(Number(data.total_count) || 0);
@@ -989,6 +995,8 @@ function AdminCouponsPage() {
           await current.run(reason);
         }}
         open={!!destructiveModal}
+        reasonMinLength={destructiveModal?.reasonMinLength}
+        reasonPlaceholder={destructiveModal?.reasonPlaceholder}
         reasonRequired={destructiveModal?.reasonRequired}
         title={destructiveModal?.title ?? ""}
       />

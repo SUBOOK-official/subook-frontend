@@ -174,13 +174,17 @@ function PublicCartPage() {
     // 현재 카트에 살아 있는 item만 추려 다시 선택. 없으면 기본(available 전체).
     // ⚠ Supabase bigint id는 number. selectedIds를 number로 통일해야 row checkbox
     //   isSelected={selectedIds.has(item.id)} 매칭이 작동한다 (Set은 strict equality).
-    const cartItemIds = new Set(cartItems.map((i) => i.id));
-    const availableIdsArr = cartItems.filter((i) => !i.is_sold_out).map((i) => i.id);
+    // 선택 가능 기준은 본문의 availableItems와 동일해야 한다(품절 + 가격미등록 제외).
+    // 어긋나면 "전체선택 (3/2)" 같은 카운트 불일치와 전체선택 토글 고장이 생긴다.
+    const availableIdsArr = cartItems
+      .filter((i) => !i.is_sold_out && i.price !== null && i.price !== undefined)
+      .map((i) => i.id);
+    const availableIdSet = new Set(availableIdsArr);
     const persisted = readPersistedCartSelection();
     if (persisted && persisted.length > 0) {
       const restored = persisted
         .map((id) => Number(id))
-        .filter((id) => Number.isFinite(id) && cartItemIds.has(id));
+        .filter((id) => Number.isFinite(id) && availableIdSet.has(id));
       if (restored.length > 0) {
         setSelectedIds(new Set(restored));
       } else {

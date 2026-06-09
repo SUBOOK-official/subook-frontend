@@ -243,7 +243,15 @@ function PublicOrderPage() {
       const { data, error } = await publicSupabase.rpc("get_books_pricing_for_order", {
         p_book_ids: bookIds,
       });
-      if (cancelled || error || !Array.isArray(data)) return;
+      if (cancelled) return;
+      if (error || !Array.isArray(data)) {
+        // 검증 실패를 "변동 없음"으로 침묵 처리하면 표시 금액 ≠ 청구 금액이 될 수 있다.
+        // 결제는 서버가 books.price 기준으로 재계산하므로 막지는 않되, 명시적으로 경고.
+        setPriceDriftWarning(
+          "최신 가격 정보를 확인하지 못했습니다. 표시 금액이 실제 결제 금액과 다를 수 있으니 새로고침 후 다시 확인해 주세요.",
+        );
+        return;
+      }
 
       const freshMap = new Map(data.map((row) => [String(row.id), row]));
       const drifts = [];

@@ -278,7 +278,11 @@ function AdminOrdersPage() {
       const raw = ordersResult.data;
       if (Array.isArray(raw)) {
         setOrders(raw);
-        setTotalCount(raw.length < PAGE_SIZE ? (currentPage - 1) * PAGE_SIZE + raw.length : 0);
+        // 페이지가 가득 차면 정확한 총량을 알 수 없음 — 0을 넣으면 totalPages=1이 되어
+        // 다음 페이지로 못 가므로, "최소 한 페이지 더 있음"으로 표현한다.
+        setTotalCount(
+          raw.length < PAGE_SIZE ? (currentPage - 1) * PAGE_SIZE + raw.length : currentPage * PAGE_SIZE + 1,
+        );
       } else if (raw && typeof raw === "object") {
         setOrders(Array.isArray(raw.items) ? raw.items : []);
         setTotalCount(Number(raw.total_count) || 0);

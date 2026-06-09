@@ -56,7 +56,7 @@ function applyAdminShipmentFilters(query, { search, statuses, fromDate, toDate }
   let nextQuery = query;
 
   if (search) {
-    nextQuery = nextQuery.or(`seller_name.ilike.%${search}%,seller_phone.ilike.%${search}`);
+    nextQuery = nextQuery.or(`seller_name.ilike.%${search}%,seller_phone.ilike.%${search}%`);
   }
 
   if (statuses.length > 0) {

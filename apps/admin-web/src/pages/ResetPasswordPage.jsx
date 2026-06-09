@@ -237,7 +237,7 @@ function ResetPasswordPage() {
               disabled={phase !== "ready"}
               name="password"
               onChange={handleChange}
-              placeholder="8자 이상"
+              placeholder="12자 이상, 영문 대소문자·숫자·특수문자 중 3종 이상"
               type="password"
               value={form.password}
             />

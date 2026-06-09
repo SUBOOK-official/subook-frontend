@@ -240,7 +240,13 @@ function AdminProductMastersPage() {
       const raw = listRes.data;
       if (Array.isArray(raw)) {
         setProducts(raw);
-        setTotalCount(raw.length < PRODUCTS_PAGE_SIZE ? (currentPage - 1) * PRODUCTS_PAGE_SIZE + raw.length : 0);
+        // 페이지가 가득 차면 정확한 총량을 알 수 없음 — 0이면 다음 페이지로 못 가므로
+        // "최소 한 페이지 더 있음"으로 표현한다.
+        setTotalCount(
+          raw.length < PRODUCTS_PAGE_SIZE
+            ? (currentPage - 1) * PRODUCTS_PAGE_SIZE + raw.length
+            : currentPage * PRODUCTS_PAGE_SIZE + 1,
+        );
       } else if (raw && typeof raw === "object") {
         setProducts(Array.isArray(raw.items) ? raw.items : []);
         setTotalCount(Number(raw.total_count) || 0);

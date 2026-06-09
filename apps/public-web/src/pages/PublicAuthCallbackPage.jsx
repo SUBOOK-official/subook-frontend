@@ -32,7 +32,11 @@ function PublicAuthCallbackPage() {
   } = usePublicAuth();
 
   const search = new URLSearchParams(location.search);
-  const next = search.get("next") || "/";
+  // next는 URL로 노출되는 파라미터 — 내부 경로만 허용 (open-redirect/경로 강제 이동 방지).
+  const rawNext = search.get("next") || "/";
+  const next = rawNext.startsWith("/") && !rawNext.startsWith("//") && !rawNext.includes("\\")
+    ? rawNext
+    : "/";
   const [showStuckHint, setShowStuckHint] = useState(false);
 
   useEffect(() => {

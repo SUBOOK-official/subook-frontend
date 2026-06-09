@@ -772,9 +772,12 @@ function AdminSettlementsPage() {
           "정말 평문 계좌번호 포함으로 다운로드하시겠습니까?"
         }
         onCancel={() => (isExporting ? null : setExportPlainConfirmOpen(false))}
-        onConfirm={() => {
+        onConfirm={(reason) => {
+          // 평문 모달이 이미 강화된 사유(6자+)와 확인 문구를 받았으므로
+          // 일반 확인 모달을 한 번 더 띄우지 않고 사유를 그대로 audit에 전달한다.
+          // (기존엔 여기서 사유를 버리고 두 번째 모달을 띄워 사유가 분실됐음)
           setExportPlainConfirmOpen(false);
-          setExportConfirmOpen(true);
+          return handleExportConfirmed(reason);
         }}
         open={exportPlainConfirmOpen}
         reasonMinLength={6}

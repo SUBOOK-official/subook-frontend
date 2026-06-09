@@ -861,7 +861,7 @@ function AdminShipmentDetailPage() {
             description:
               "'폐기'로 변경하면 더 이상 판매 노출되지 않습니다. 되돌리려면 다시 등급(S / A+)을 지정해야 해요.",
             confirmLabel: "폐기",
-            onConfirm: () => applyGradeAndSave("DISCARD"),
+            run: () => applyGradeAndSave("DISCARD"),
           });
           break;
         case "p":

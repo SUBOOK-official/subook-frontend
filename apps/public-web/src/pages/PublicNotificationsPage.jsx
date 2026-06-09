@@ -269,8 +269,10 @@ function PublicNotificationsPage() {
                 </ul>
               )}
 
-              {/* P1-6: 더 보기 버튼 (30건씩 페이지네이션) */}
-              {hasMore && filteredItems.length > 0 ? (
+              {/* P1-6: 더 보기 버튼 (30건씩 페이지네이션).
+                  필터는 클라이언트에서만 적용되므로, 받아온 페이지에 해당 카테고리가
+                  0건이어도 뒤 페이지에 있을 수 있다 — filteredItems가 아닌 items 기준. */}
+              {hasMore && items.length > 0 ? (
                 <button
                   className="public-notifications-loadmore"
                   disabled={isLoadingMore}

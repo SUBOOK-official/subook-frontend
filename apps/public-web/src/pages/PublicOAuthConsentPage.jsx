@@ -125,6 +125,7 @@ function PublicOAuthConsentPage() {
 
   useEffect(() => {
     setFormValues((current) => ({
+      ...current, // password 등 다른 필드 보존 (누락 시 OTP 가입자의 비번 input이 uncontrolled로 깨짐)
       name: current.name || initialName,
       phone: current.phone || initialPhone,
     }));
