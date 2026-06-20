@@ -15,6 +15,8 @@ const PublicNotFoundPage = lazy(() => import("./pages/PublicNotFoundPage"));
 const PublicOAuthConsentPage = lazy(() => import("./pages/PublicOAuthConsentPage"));
 const PublicOrderCompletePage = lazy(() => import("./pages/PublicOrderCompletePage"));
 const PublicOrderPage = lazy(() => import("./pages/PublicOrderPage"));
+const PublicPaymentFailPage = lazy(() => import("./pages/PublicPaymentFailPage"));
+const PublicPaymentSuccessPage = lazy(() => import("./pages/PublicPaymentSuccessPage"));
 const PublicPickupRequestPage = lazy(() => import("./pages/PublicPickupRequestPage"));
 const PublicPolicyPage = lazy(() => import("./pages/PublicPolicyPage"));
 const PublicProductDetailPage = lazy(() => import("./pages/PublicProductDetailPage"));
@@ -96,6 +98,8 @@ function App() {
           <Route element={<PublicNoticesPage />} path="/notices" />
           <Route element={<PublicNotificationsPage />} path="/notifications" />
           <Route element={<PublicOrderCompletePage />} path="/order/complete/:orderId" />
+          <Route element={<PublicPaymentSuccessPage />} path="/order/payment/success" />
+          <Route element={<PublicPaymentFailPage />} path="/order/payment/fail" />
           <Route element={<PublicOrderPage />} path="/order" />
           <Route element={<PublicPickupRequestPage />} path="/pickup/new" />
           <Route element={<PublicPolicyPage type="privacy" />} path="/privacy" />

@@ -90,6 +90,16 @@ function previewCouponDiscount(coupon, subtotal, shippingFee) {
   return { subtotalDiscount: 0, shippingFeeAfter: shippingFee, label: "" };
 }
 
+// 결제위젯에 넘길 최종 결제금액 — 화면 표시용 totalAmount와 동일 공식.
+// (create_order가 서버에서 다시 계산하므로 제출 직전 setAmount(data.total_amount)로 한 번 더 맞춘다)
+function computePayableTotal(items, coupons, selectedCouponId) {
+  const subtotal = (items || []).reduce((sum, i) => sum + (i.price ?? 0) * (i.quantity ?? 1), 0);
+  const baseShipping = calculateShippingFee(subtotal);
+  const coupon = (coupons || []).find((c) => c.id === selectedCouponId) ?? null;
+  const preview = previewCouponDiscount(coupon, subtotal, baseShipping);
+  return Math.max(0, subtotal + preview.shippingFeeAfter - preview.subtotalDiscount);
+}
+
 const PAYMENT_METHODS = [
   { id: "bank_transfer", label: "계좌이체 (무통장입금)", available: true },
   { id: "card", label: "신용/체크카드", available: false },
@@ -97,6 +107,20 @@ const PAYMENT_METHODS = [
   { id: "toss_pay", label: "토스페이", available: false },
   { id: "naver_pay", label: "네이버페이", available: false },
 ];
+
+// PG(토스 결제위젯) 활성 플래그 — 프로덕션은 라이브 키 들어오기 전까지 OFF.
+// OFF면 아래 모든 PG 분기가 비활성화되고 기존 계좌이체 UI 그대로 동작한다.
+const TOSS_ENABLED = import.meta.env.VITE_TOSS_ENABLED === "true";
+const TOSS_CLIENT_KEY = import.meta.env.VITE_TOSS_CLIENT_KEY || "";
+const TOSS_READY = TOSS_ENABLED && Boolean(TOSS_CLIENT_KEY);
+
+// 결제위젯 orderName(최대 100자): "첫 상품명 외 N건"
+function buildOrderName(items) {
+  const first = items?.[0]?.title || "수북 교재";
+  const extra = (items?.length ?? 1) - 1;
+  const name = extra > 0 ? `${first} 외 ${extra}건` : first;
+  return name.length > 100 ? name.slice(0, 100) : name;
+}
 
 function loadDaumPostcode() {
   return new Promise((resolve, reject) => {
@@ -174,13 +198,21 @@ function PublicOrderPage() {
   });
   const [savedAddresses, setSavedAddresses] = useState([]);
   const [selectedAddressId, setSelectedAddressId] = useState(null);
-  const [paymentMethod, setPaymentMethod] = useState("bank_transfer");
+  const [paymentMethod, setPaymentMethod] = useState(TOSS_READY ? "card" : "bank_transfer");
   const [isSubmitting, setIsSubmitting] = useState(false);
   // P0-3: 동의 체크박스 3개로 분리 — 주문 내용/결제 및 자동 취소/환불 정책
   const [agreementOrder, setAgreementOrder] = useState(false);
   const [agreementPayment, setAgreementPayment] = useState(false);
   const [agreementRefund, setAgreementRefund] = useState(false);
-  const allAgreementsChecked = agreementOrder && agreementPayment && agreementRefund;
+  // PG('card') vs 계좌이체. PG는 즉시결제라 '24시간 미입금 자동취소' 동의가 불필요하다.
+  const isPg = TOSS_READY && paymentMethod !== "bank_transfer";
+  const requiredAgreementsOk = isPg
+    ? agreementOrder && agreementRefund
+    : agreementOrder && agreementPayment && agreementRefund;
+  // 토스 결제위젯 인스턴스 + 준비/오류 상태
+  const tossWidgetsRef = useRef(null);
+  const [tossWidgetReady, setTossWidgetReady] = useState(false);
+  const [tossLoadError, setTossLoadError] = useState(false);
   const inFlightRef = useRef(false); // 더블 클릭으로 RPC 두 번 발사 방지 (state 비동기 보완)
   const [toast, setToast] = useState(null);
   // 쿠폰
@@ -340,6 +372,53 @@ function PublicOrderPage() {
     void loadCoupons();
   }, [user, orderItems]);
 
+  // ── 토스 결제위젯 초기화 (PG 활성 + 로그인 + 주문상품 있을 때 1회) ──────────────
+  useEffect(() => {
+    if (!TOSS_READY || !user?.id || !orderItems?.length) return undefined;
+    if (tossWidgetsRef.current) return undefined; // 이미 init됨 — 재init 방지
+    let cancelled = false;
+    setTossLoadError(false);
+    (async () => {
+      try {
+        const { loadTossPayments, ANONYMOUS } = await import("@tosspayments/tosspayments-sdk");
+        const toss = await loadTossPayments(TOSS_CLIENT_KEY);
+        if (cancelled) return;
+        const widgets = toss.widgets({ customerKey: user.id || ANONYMOUS });
+        // setAmount는 render보다 먼저 호출해야 한다. 정확한 금액은 아래 sync effect가 유지.
+        await widgets.setAmount({
+          currency: "KRW",
+          value: computePayableTotal(orderItems, applicableCoupons, selectedCouponId),
+        });
+        await Promise.all([
+          widgets.renderPaymentMethods({ selector: "#toss-payment-method", variantKey: "DEFAULT" }),
+          widgets.renderAgreement({ selector: "#toss-agreement", variantKey: "AGREEMENT" }),
+        ]);
+        if (cancelled) return;
+        tossWidgetsRef.current = widgets;
+        setTossWidgetReady(true);
+      } catch (err) {
+        if (!cancelled) {
+          setTossLoadError(true);
+          if (typeof window !== "undefined" && window.console) {
+            window.console.warn("[toss] 결제위젯 초기화 실패", err);
+          }
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, orderItems, applicableCoupons, selectedCouponId]);
+
+  // 금액(쿠폰/배송비) 변동 시 결제위젯 금액 동기화
+  useEffect(() => {
+    if (!tossWidgetReady || !tossWidgetsRef.current) return;
+    tossWidgetsRef.current.setAmount({
+      currency: "KRW",
+      value: computePayableTotal(orderItems, applicableCoupons, selectedCouponId),
+    });
+  }, [tossWidgetReady, orderItems, applicableCoupons, selectedCouponId]);
+
   const handleSelectAddress = (addr) => {
     setSelectedAddressId(addr.id);
     setShipping({
@@ -378,6 +457,11 @@ function PublicOrderPage() {
   };
 
   const handlePaymentSelect = (methodId) => {
+    if (TOSS_READY) {
+      // PG 활성 시: 'card'(토스 결제위젯)와 'bank_transfer'(계좌이체) 둘 다 선택 가능
+      setPaymentMethod(methodId);
+      return;
+    }
     const method = PAYMENT_METHODS.find((m) => m.id === methodId);
     if (!method?.available) {
       // P1-8: 비활성 결제 수단 클릭 시 사용자가 "왜 안 되지" 멈추지 않게 명시
@@ -394,7 +478,7 @@ function PublicOrderPage() {
     if (!isValidKoreanMobile(shipping.recipientPhone)) return "휴대폰 번호를 정확히 입력해주세요. (예: 010-1234-5678)";
     if (!shipping.postalCode.trim() || !shipping.addressLine1.trim()) return "배송지 주소를 입력해주세요.";
     if (!agreementOrder) return "[필수] 주문 내용·개인정보 제공 동의에 체크해주세요.";
-    if (!agreementPayment) return "[필수] 24시간 미입금 시 자동 취소 동의에 체크해주세요.";
+    if (!isPg && !agreementPayment) return "[필수] 24시간 미입금 시 자동 취소 동의에 체크해주세요.";
     if (!agreementRefund) return "[필수] 환불·교환 정책 확인에 체크해주세요.";
     return null;
   };
@@ -429,14 +513,43 @@ function PublicOrderPage() {
       memberCouponId: selectedCouponId,
     });
 
-    setIsSubmitting(false);
-
     if (error) {
+      setIsSubmitting(false);
       showToast(toFriendlyOrderError(error), "error");
       inFlightRef.current = false;
       return;
     }
 
+    // PG: 주문(pending) 생성 후 토스 결제위젯 호출. 성공 시 토스가 successUrl로 리다이렉트.
+    if (isPg) {
+      try {
+        const widgets = tossWidgetsRef.current;
+        if (!widgets) throw new Error("결제 모듈이 아직 준비되지 않았어요. 잠시 후 다시 시도해 주세요.");
+        // 서버가 확정한 금액으로 한 번 더 맞춰 청구금액 = 주문금액을 보장.
+        await widgets.setAmount({ currency: "KRW", value: data.total_amount });
+        await widgets.requestPayment({
+          orderId: data.order_number,
+          orderName: buildOrderName(orderItems),
+          successUrl: `${window.location.origin}/order/payment/success`,
+          failUrl: `${window.location.origin}/order/payment/fail`,
+          customerName: shipping.recipientName.trim() || undefined,
+          customerMobilePhone: shipping.recipientPhone.replace(/\D/g, "") || undefined,
+        });
+        // 리다이렉트되므로 이후 코드는 실행되지 않는다.
+      } catch (err) {
+        // 사용자가 결제창을 닫았거나 실패. 주문(pending)은 24시간 후 자동 취소된다.
+        setIsSubmitting(false);
+        inFlightRef.current = false;
+        const msg =
+          err?.message && /[가-힣]/.test(err.message)
+            ? err.message
+            : "결제가 취소되었거나 완료되지 않았습니다. 다시 시도해 주세요.";
+        showToast(msg, "info");
+      }
+      return;
+    }
+
+    setIsSubmitting(false);
     navigate(`/order/complete/${data.order_id}`, {
       state: {
         orderNumber: data.order_number,
@@ -655,24 +768,58 @@ function PublicOrderPage() {
               {/* 결제 수단 */}
               <div className="order-section">
                 <h2 className="order-section__title">결제 수단</h2>
-                <div className="order-payment-methods">
-                  {PAYMENT_METHODS.map((method) => (
-                    <button
-                      aria-disabled={!method.available || undefined}
-                      className={`order-payment-btn${method.id === paymentMethod ? " is-active" : ""}${!method.available ? " is-disabled" : ""}`}
-                      disabled={!method.available}
-                      key={method.id}
-                      onClick={() => handlePaymentSelect(method.id)}
-                      title={!method.available ? "준비 중인 결제 수단입니다." : undefined}
-                      type="button"
-                    >
-                      <span className="order-payment-btn__label">{method.label}</span>
-                      {!method.available && (
-                        <span className="order-payment-btn__badge">준비 중</span>
-                      )}
-                    </button>
-                  ))}
-                </div>
+                {TOSS_READY ? (
+                  <>
+                    <div className="order-payment-methods">
+                      <button
+                        className={`order-payment-btn${paymentMethod !== "bank_transfer" ? " is-active" : ""}`}
+                        onClick={() => handlePaymentSelect("card")}
+                        type="button"
+                      >
+                        <span className="order-payment-btn__label">간편결제 · 카드</span>
+                      </button>
+                      <button
+                        className={`order-payment-btn${paymentMethod === "bank_transfer" ? " is-active" : ""}`}
+                        onClick={() => handlePaymentSelect("bank_transfer")}
+                        type="button"
+                      >
+                        <span className="order-payment-btn__label">계좌이체 (무통장입금)</span>
+                      </button>
+                    </div>
+
+                    {/* 토스 결제위젯 컨테이너는 항상 마운트(재선택 시 재init 방지), 계좌이체 선택 시 숨김 */}
+                    <div style={{ display: paymentMethod === "bank_transfer" ? "none" : undefined, marginTop: 16 }}>
+                      <div id="toss-payment-method" />
+                      <div id="toss-agreement" />
+                      {tossLoadError ? (
+                        <p role="alert" style={{ marginTop: 12, fontSize: 13, color: "#dc2626" }}>
+                          결제 모듈을 불러오지 못했어요. 새로고침 후 다시 시도하거나 계좌이체를 이용해 주세요.
+                        </p>
+                      ) : !tossWidgetReady ? (
+                        <p style={{ marginTop: 12, fontSize: 13, color: "#64748b" }}>결제 수단을 불러오는 중...</p>
+                      ) : null}
+                    </div>
+                  </>
+                ) : (
+                  <div className="order-payment-methods">
+                    {PAYMENT_METHODS.map((method) => (
+                      <button
+                        aria-disabled={!method.available || undefined}
+                        className={`order-payment-btn${method.id === paymentMethod ? " is-active" : ""}${!method.available ? " is-disabled" : ""}`}
+                        disabled={!method.available}
+                        key={method.id}
+                        onClick={() => handlePaymentSelect(method.id)}
+                        title={!method.available ? "준비 중인 결제 수단입니다." : undefined}
+                        type="button"
+                      >
+                        <span className="order-payment-btn__label">{method.label}</span>
+                        {!method.available && (
+                          <span className="order-payment-btn__badge">준비 중</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
 
                 {paymentMethod === "bank_transfer" && (
                   <div className="order-bank-info">
@@ -782,17 +929,19 @@ function PublicOrderPage() {
                       <strong>[필수]</strong> 주문 내용·개인정보 제공에 동의합니다.
                     </span>
                   </label>
-                  <label className="order-sidebar__agreement-check">
-                    <input
-                      checked={agreementPayment}
-                      onChange={(e) => setAgreementPayment(e.target.checked)}
-                      type="checkbox"
-                    />
-                    <span>
-                      <strong>[필수]</strong> 결제 후 {PAYMENT_DEADLINE_HOURS}시간 이내 미입금 시
-                      <strong> 자동 취소</strong>에 동의합니다.
-                    </span>
-                  </label>
+                  {!isPg && (
+                    <label className="order-sidebar__agreement-check">
+                      <input
+                        checked={agreementPayment}
+                        onChange={(e) => setAgreementPayment(e.target.checked)}
+                        type="checkbox"
+                      />
+                      <span>
+                        <strong>[필수]</strong> 결제 후 {PAYMENT_DEADLINE_HOURS}시간 이내 미입금 시
+                        <strong> 자동 취소</strong>에 동의합니다.
+                      </span>
+                    </label>
+                  )}
                   <label className="order-sidebar__agreement-check">
                     <input
                       checked={agreementRefund}
@@ -816,7 +965,7 @@ function PublicOrderPage() {
 
                 <button
                   className="order-sidebar__submit-btn"
-                  disabled={isSubmitting || !allAgreementsChecked}
+                  disabled={isSubmitting || !requiredAgreementsOk || (isPg && !tossWidgetReady)}
                   onClick={handleSubmit}
                   type="button"
                 >
