@@ -211,6 +211,8 @@ function PublicOrderPage() {
     : agreementOrder && agreementPayment && agreementRefund;
   // 토스 결제위젯 인스턴스 + 준비/오류 상태
   const tossWidgetsRef = useRef(null);
+  const tossInitStartedRef = useRef(false); // 동시/재진입 init 동기 차단
+  const pricingRef = useRef(null); // 최신 금액 입력 (init이 deps 없이 읽도록)
   const [tossWidgetReady, setTossWidgetReady] = useState(false);
   const [tossLoadError, setTossLoadError] = useState(false);
   const inFlightRef = useRef(false); // 더블 클릭으로 RPC 두 번 발사 방지 (state 비동기 보완)
@@ -372,43 +374,45 @@ function PublicOrderPage() {
     void loadCoupons();
   }, [user, orderItems]);
 
-  // ── 토스 결제위젯 초기화 (PG 활성 + 로그인 + 주문상품 있을 때 1회) ──────────────
+  // pricingRef를 최신 상태로 유지 — init effect가 deps 없이 초기 금액을 읽기 위함.
   useEffect(() => {
-    if (!TOSS_READY || !user?.id || !orderItems?.length) return undefined;
-    if (tossWidgetsRef.current) return undefined; // 이미 init됨 — 재init 방지
-    let cancelled = false;
+    pricingRef.current = { orderItems, applicableCoupons, selectedCouponId };
+  }, [orderItems, applicableCoupons, selectedCouponId]);
+
+  // ── 토스 결제위젯 초기화 — user 준비 시 "딱 1회"만 ───────────────────────────
+  // ⚠ deps에 orderItems/쿠폰을 넣으면 마운트 직후 값이 바뀌며 effect가 재실행되어
+  //   async init이 경쟁(double render)하고 "결제 모듈을 불러오지 못했어요" 오류가 났다.
+  //   금액 동기화는 아래 sync effect가 전담. init은 user에만 의존 + 동기 가드로 재진입 차단.
+  useEffect(() => {
+    if (!TOSS_READY || !user?.id || tossInitStartedRef.current) return;
+    tossInitStartedRef.current = true;
     setTossLoadError(false);
     (async () => {
       try {
         const { loadTossPayments, ANONYMOUS } = await import("@tosspayments/tosspayments-sdk");
         const toss = await loadTossPayments(TOSS_CLIENT_KEY);
-        if (cancelled) return;
         const widgets = toss.widgets({ customerKey: user.id || ANONYMOUS });
-        // setAmount는 render보다 먼저 호출해야 한다. 정확한 금액은 아래 sync effect가 유지.
+        const p = pricingRef.current || {};
+        // setAmount는 render보다 먼저 호출해야 한다. 정확한 금액은 sync effect가 유지.
         await widgets.setAmount({
           currency: "KRW",
-          value: computePayableTotal(orderItems, applicableCoupons, selectedCouponId),
+          value: computePayableTotal(p.orderItems, p.applicableCoupons, p.selectedCouponId),
         });
         await Promise.all([
           widgets.renderPaymentMethods({ selector: "#toss-payment-method", variantKey: "DEFAULT" }),
           widgets.renderAgreement({ selector: "#toss-agreement", variantKey: "AGREEMENT" }),
         ]);
-        if (cancelled) return;
         tossWidgetsRef.current = widgets;
         setTossWidgetReady(true);
       } catch (err) {
-        if (!cancelled) {
-          setTossLoadError(true);
-          if (typeof window !== "undefined" && window.console) {
-            window.console.warn("[toss] 결제위젯 초기화 실패", err);
-          }
+        tossInitStartedRef.current = false; // 다음 렌더에서 재시도 허용
+        setTossLoadError(true);
+        if (typeof window !== "undefined" && window.console) {
+          window.console.warn("[toss] 결제위젯 초기화 실패", err);
         }
       }
     })();
-    return () => {
-      cancelled = true;
-    };
-  }, [user, orderItems, applicableCoupons, selectedCouponId]);
+  }, [user]);
 
   // 금액(쿠폰/배송비) 변동 시 결제위젯 금액 동기화
   useEffect(() => {
