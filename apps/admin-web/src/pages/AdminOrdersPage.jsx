@@ -422,16 +422,35 @@ function AdminOrdersPage() {
     await loadOrders();
   };
 
-  // 환불 실행 RPC 호출 (정상 경로 / 손실 감수 재시도 경로 공용)
+  // 환불 실행 (정상 경로 / 손실 감수 재시도 경로 공용).
+  // PG(토스) 주문은 서버리스가 토스 결제취소 먼저 → admin_refund_order, 계좌이체는 DB 환불만.
+  // 반환 형태 { data, error }는 기존과 동일 — RECOVERY_REQUIRED_ACK 메시지도 그대로 전달돼
+  // 호출부(handleRefund)가 손실확인 모달로 분기한다.
   const submitRefund = async (orderId, reason, acknowledgeRecovery) => {
     setBusyOrderId(orderId);
-    const { data, error } = await supabase.rpc("admin_refund_order", {
-      p_order_id: orderId,
-      p_reason: reason,
-      p_acknowledge_recovery: acknowledgeRecovery,
-    });
-    setBusyOrderId(null);
-    return { data, error };
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        return { data: null, error: { message: "인증이 만료되었습니다. 다시 로그인해 주세요." } };
+      }
+      const resp = await fetch("/api/admin/payment-cancel", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ orderId, reason, acknowledgeRecovery }),
+      });
+      const result = await resp.json().catch(() => ({}));
+      if (!resp.ok || result.error) {
+        return { data: null, error: { message: result.error || "환불 처리에 실패했습니다." } };
+      }
+      return { data: result.data ?? null, error: null };
+    } catch (err) {
+      return { data: null, error: { message: err?.message || "환불 처리 중 오류가 발생했습니다." } };
+    } finally {
+      setBusyOrderId(null);
+    }
   };
 
   // 환불 성공 후 처리 (알림톡 + 토스트 + 목록 갱신)

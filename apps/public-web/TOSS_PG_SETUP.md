@@ -58,8 +58,23 @@
 3. `npm run deploy:public` (production).
 4. 실결제 1건 소액 테스트 후 환불(현 시점 환불은 토스 콘솔에서 수동 — Phase 2 전까지).
 
+## Phase 2 — PG 환불 (완료)
+
+- `admin-web/api/admin/payment-cancel.js`: admin 인증 → 주문 조회 → **PG주문이면 토스 `POST /v1/payments/{paymentKey}/cancel`(멱등키) 먼저** → `admin_refund_order`(정산취소/재고복원/쿠폰복구). 계좌이체(payment_key 없음)는 토스 취소 건너뛰고 DB 환불만.
+- 토스 취소 우선 순서 — 실패 시 DB 안 건드려 "환불됐다는데 돈 안 옴"(구매자 불리) 방지. RECOVERY_REQUIRED_ACK 재호출 시 토스 취소는 멱등이라 안전.
+- 프론트 `AdminOrdersPage.submitRefund`가 RPC 직접호출 대신 이 엔드포인트 호출(반환 `{data,error}` 계약·손실확인 모달 흐름 유지).
+- **admin-web Vercel 프로젝트에 `TOSS_SECRET_KEY` env 필요**(public-web와 동일 키).
+- 검증: 토스 cancel API 인증·엔드포인트 정상 확인(2026-06-21).
+
+## ⚠ 결제수단 구성 (중요 — 환불 자동화)
+
+PG 환불은 결제수단에 따라 다름:
+- **카드 / 간편결제(토스·카카오·네이버페이)**: `cancelReason`만으로 자동 환불 ✅
+- **가상계좌 / (퀵)계좌이체**: 토스 cancel에 `refundReceiveAccount`(환불받을 은행·계좌·예금주)가 필수 — 우리는 구매자 환불계좌를 수집하지 않으므로 이 수단은 자동환불 불가(테스트결제로 400 INVALID_REQUEST 확인).
+
+→ **토스 대시보드에서 결제위젯 결제수단을 카드+간편결제로 제한**(가상계좌·(퀵)계좌이체 제외) 권장. 무통장입금은 우리 자체 계좌이체 흐름이 이미 담당.
+
 ## 남은 작업
 
-- **Phase 2**: admin 환불을 `payment_method` 분기 → PG주문은 토스 `POST /v1/payments/{paymentKey}/cancel`(멱등키) 호출 후 `admin_refund_order`. 계좌이체는 기존 유지.
 - 통신판매업신고 / 에스크로(구매안전서비스 이용확인증) — subook.kr 도메인 기준 신청. 푸터 `통신판매업신고번호`("정식 등록 진행 중") 업데이트.
 - 결제실패로 남는 pending 주문 정리 UX(현재 24h 자동취소에 의존) — 필요 시 mypage "결제 재시도".
