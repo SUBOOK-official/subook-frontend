@@ -58,13 +58,14 @@ export async function notifyArrived({ shipment }) {
 
 // 검수 완료 알림 (판매자) — shipment 기반
 export async function notifyInspectionDone({ shipment, books }) {
-  const items = (books || [])
+  // 카카오 알림톡은 배열 변수를 못 받으므로 한 문자열(#{inspectionResult})로 합쳐 전달.
+  const inspectionResult = (books || [])
     .filter((b) => b.condition_grade)
-    .map((b) => ({
-      title: b.title,
-      grade: b.condition_grade,
-      price: b.price ? `${Number(b.price).toLocaleString("ko-KR")}원` : "미정",
-    }));
+    .map((b) => {
+      const price = b.price ? `${Number(b.price).toLocaleString("ko-KR")}원` : "미정";
+      return `▸ ${b.title}: ${b.condition_grade} / ${price}`;
+    })
+    .join("\n");
 
   return callSendNotification({
     notificationType: "inspection_done",
@@ -73,7 +74,7 @@ export async function notifyInspectionDone({ shipment, books }) {
     recipientUserId: shipment.user_id,
     refType: "shipment",
     refId: shipment.id,
-    templateVariables: { items },
+    templateVariables: { inspectionResult },
   });
 }
 
@@ -111,6 +112,9 @@ export async function notifySettlementDone({ sellerPhone, sellerName, sellerUser
 export async function notifyOrderConfirmed({ order }) {
   const firstItem = order.items?.[0];
   const extraCount = (order.items?.length ?? 1) - 1;
+  const firstItemTitle = firstItem?.title ?? "교재";
+  // 조건부 "외 N건"은 카카오 변수로 못 하므로 미리 하나의 문자열(#{itemSummary})로 만든다.
+  const itemSummary = extraCount > 0 ? `${firstItemTitle} 외 ${extraCount}건` : firstItemTitle;
 
   return callSendNotification({
     notificationType: "order_confirmed",
@@ -121,8 +125,7 @@ export async function notifyOrderConfirmed({ order }) {
     refId: order.id,
     templateVariables: {
       orderNumber: order.order_number,
-      firstItemTitle: firstItem?.title ?? "교재",
-      extraCount,
+      itemSummary,
       totalAmount: Number(order.total_amount).toLocaleString("ko-KR"),
     },
   });

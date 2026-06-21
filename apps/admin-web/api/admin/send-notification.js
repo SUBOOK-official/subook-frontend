@@ -60,8 +60,8 @@ function buildMessageBody(type, vars) {
     case "inspection_done":
       return (
         `[수북] 검수 완료\n` +
-        `${(vars.items || []).map((item) => `▸ ${item.title}: ${item.grade} / ${item.price}`).join("\n")}\n` +
-        `마이페이지에서 상세 확인하세요.`
+        `${vars.inspectionResult || ""}\n` +
+        `마이페이지에서 상세 내역을 확인하실 수 있습니다.`
       );
 
     case "sold":
@@ -83,8 +83,8 @@ function buildMessageBody(type, vars) {
       return (
         `[수북] 주문 확인\n` +
         `주문번호: ${vars.orderNumber}\n` +
-        `${vars.firstItemTitle}${vars.extraCount > 0 ? ` 외 ${vars.extraCount}건` : ""}\n` +
-        `결제: ${vars.totalAmount}원\n` +
+        `${vars.itemSummary || ""}\n` +
+        `결제 금액: ${vars.totalAmount}원\n` +
         `배송 예상: 2~3일`
       );
 
@@ -106,8 +106,8 @@ function buildMessageBody(type, vars) {
     case "restock":
       return (
         `[수북] 재입고 알림\n` +
-        `찜하신 교재 "${vars.productTitle}"이(가) 재입고되었어요.\n` +
-        `subook.kr/store/${vars.productId} 에서 바로 구매하실 수 있어요.`
+        `찜하신 교재 "${vars.productTitle}"이(가) 재입고되었습니다.\n` +
+        `마이페이지 찜 목록에서 확인하실 수 있습니다.`
       );
 
     case "refund_completed":

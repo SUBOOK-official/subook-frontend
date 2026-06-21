@@ -69,6 +69,8 @@ async function fireOrderConfirmedNotification({ supabaseUrl, serviceKey, orderNu
   const items = order.order_items || [];
   const firstItemTitle = items[0]?.title ?? "교재";
   const extraCount = Math.max(0, items.length - 1);
+  // 카카오 알림톡 템플릿 #{itemSummary}와 일치 — 조건부 "외 N건"을 미리 문자열로.
+  const itemSummary = extraCount > 0 ? `${firstItemTitle} 외 ${extraCount}건` : firstItemTitle;
 
   await fetchWithTimeout(notifyUrl, {
     method: "POST",
@@ -85,8 +87,7 @@ async function fireOrderConfirmedNotification({ supabaseUrl, serviceKey, orderNu
       refId: order.id,
       templateVariables: {
         orderNumber: order.order_number,
-        firstItemTitle,
-        extraCount,
+        itemSummary,
         totalAmount: Number(order.total_amount ?? 0).toLocaleString("ko-KR"),
       },
     }),
