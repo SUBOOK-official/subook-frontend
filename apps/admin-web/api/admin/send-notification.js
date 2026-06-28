@@ -20,7 +20,6 @@ const VALID_NOTIFICATION_TYPES = new Set([
   // ⚠ admin_refund_order / 정산 회수 흐름에서 호출되는 type. 이전엔 set에 없어
   //   notifyRefundCompleted가 400 INVALID_NOTIFICATION_TYPE로 거부됐다.
   "refund_completed",
-  "settlement_recovery_required",
 ]);
 
 // 카카오 알림톡 템플릿 코드 매핑
@@ -35,7 +34,6 @@ const TEMPLATE_CODES = {
   delivery_done: "SB_DELIVERY_DONE",
   restock: "SB_RESTOCK",
   refund_completed: "SB_REFUND_COMPLETED",
-  settlement_recovery_required: "SB_SETTLEMENT_RECOVERY",
 };
 
 // ── 메시지 본문 생성 ─────────────────────────────────────────
@@ -120,15 +118,6 @@ function buildMessageBody(type, vars) {
         `영업일 기준 2~5일 내 카드사·은행을 통해 환불됩니다.`
       );
 
-    case "settlement_recovery_required":
-      return (
-        `[수북] 정산 회수 안내\n` +
-        `주문번호: ${vars.orderNumber}\n` +
-        `회수 금액: ${vars.amount}원\n` +
-        `구매자 환불로 이미 송금된 정산을 회수해야 합니다.\n` +
-        `자세한 안내는 카카오톡 채널로 연락드릴게요.`
-      );
-
     default:
       return "";
   }
@@ -147,7 +136,6 @@ function buildInAppTitle(type, vars) {
     case "delivery_done":   return "교재가 도착했어요";
     case "restock":         return `"${vars.productTitle ?? "찜한 교재"}" 재입고`;
     case "refund_completed": return "환불이 완료되었어요";
-    case "settlement_recovery_required": return "정산 회수 안내";
     default:                return "알림";
   }
 }

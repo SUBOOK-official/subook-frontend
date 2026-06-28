@@ -479,7 +479,7 @@ function AdminOrdersPage() {
     }
     showToast(
       `환불 완료. 정산 자동 처리: 취소 ${cancelled}건${
-        recovery > 0 ? ` / 회수 필요 ${recovery}건 (회수 불가 — 회사 손실 처리)` : ""
+        recovery > 0 ? ` / 회사 손실 ${recovery}건 (정산 완료분 — 회사 부담)` : ""
       }. 구매자에게 환불 안내 알림톡 발송.`,
       "success",
     );
@@ -487,14 +487,14 @@ function AdminOrdersPage() {
     await loadOrders();
   };
 
-  // 이미 셀러에게 송금된 정산이 있어 회수가 불가능 = 회사 손실. 한 번 더 강하게 확인 후 강제 환불.
+  // 정산완료(송금됨) 주문을 환불하면 그 정산금은 회사 손실. 셀러 정산은 회수하지 않음.
   const confirmRecoveryLoss = (orderId, order, reason) => {
     setDestructiveModal({
-      title: "⚠️ 회수 불가 — 회사 손실 확인",
+      title: "⚠️ 회사 손실 확인",
       description:
         "이 주문은 셀러에게 정산금이 이미 송금 완료된 상태입니다.\n\n" +
-        "환불을 진행하면 그 금액은 회수가 사실상 불가능하여 회사 손실로 처리됩니다.\n" +
-        "(셀러에게 자발적 반환을 요청할 수는 있으나 강제할 수단이 없습니다.)\n\n" +
+        "환불을 진행하면 이미 지급된 정산금은 회사가 손실로 부담합니다.\n" +
+        "(셀러 정산은 회수하지 않습니다.)\n\n" +
         "정말로 손실을 감수하고 환불하시겠습니까?",
       confirmPhrase: "손실 감수",
       confirmLabel: "손실 감수하고 환불",

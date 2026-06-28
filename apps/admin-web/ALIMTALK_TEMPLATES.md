@@ -106,15 +106,7 @@
 ```
 - 변수: `orderNumber`(예: ORD-2606-0042), `totalAmount`(예: 23,500), `reason`(예: 단순 변심)
 
-## 11. 정산 회수 안내 (셀러) — `SB_SETTLEMENT_RECOVERY`
-```
-[수북] 정산 회수 안내
-주문번호: #{orderNumber}
-회수 금액: #{amount}원
-구매자 환불로 이미 송금된 정산을 회수해야 합니다.
-자세한 안내는 카카오톡 채널로 연락드립니다.
-```
-- 변수: `orderNumber`(예: ORD-2606-0042), `amount`(예: 12,000)
+> ※ 정산 회수(SB_SETTLEMENT_RECOVERY)는 제거됨 — 정산완료 후 환불은 회사 손실로만 처리(셀러 정산 유지, 회수 알림 없음). 등록하지 않습니다.
 
 ---
 
@@ -126,7 +118,7 @@
 2. **솔라피 가입** — [solapi.com](https://solapi.com) 회원가입. 세금계산서 받으려면 사업자 정보 입력.
 3. **카카오 채널 연동(발신프로필)** — 콘솔에서 채널 검색용 아이디(`@subook`) + 담당자 휴대폰 입력 → 인증 → **pfId 발급**.
 4. **발신번호 등록** — SMS 발신번호(휴대폰) 등록·인증 (알림톡 `from` + 실패 시 문자 대체용).
-5. **템플릿 11종 등록 + 검수** — 위 11종을 알림톡 템플릿으로 등록(본문 `#{변수}`, 변수 예시, 버튼) → 검수 요청 → 카카오 심사(영업일 2일). 승인되면 각 **templateId** 확보. ⚠️ 등록 후 수정 불가 — 제출 전 확인.
+5. **템플릿 10종 등록 + 검수** — 위 10종을 알림톡 템플릿으로 등록(본문 `#{변수}`, 변수 예시, 버튼) → 검수 요청 → 카카오 심사(영업일 2일). 승인되면 각 **templateId** 확보. ⚠️ 등록 후 수정 불가 — 제출 전 확인.
 6. **API 키 발급** — 콘솔 개발/API 설정에서 **API Key + API Secret** 발급.
 7. **env 설정** (admin-web Vercel 프로젝트):
    - `SOLAPI_API_KEY` / `SOLAPI_API_SECRET` — 콘솔 API 키
@@ -134,7 +126,7 @@
    - `SOLAPI_FROM` — 등록한 발신번호 (예: `01012345678`)
    - `SOLAPI_TEMPLATE_IDS` — 타입→templateId JSON. 예:
      ```json
-     {"pickup_accepted":"KA01TP...","arrived":"...","inspection_done":"...","sold":"...","settlement_done":"...","order_confirmed":"...","shipping_started":"...","delivery_done":"...","restock":"...","refund_completed":"...","settlement_recovery_required":"..."}
+     {"pickup_accepted":"KA01TP...","arrived":"...","inspection_done":"...","sold":"...","settlement_done":"...","order_confirmed":"...","shipping_started":"...","delivery_done":"...","restock":"...","refund_completed":"..."}
      ```
    - (선택) `SOLAPI_ENABLE_SMS_FALLBACK=true` — 알림톡 실패 시 문자 대체발송(추가 과금, 8.4원/건)
 

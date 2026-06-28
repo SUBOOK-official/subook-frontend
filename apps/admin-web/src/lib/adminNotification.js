@@ -178,19 +178,4 @@ export async function notifyRefundCompleted({ order, reason }) {
   });
 }
 
-// 정산 회수 필요 알림 (셀러) — 환불로 인해 이미 송금된 정산을 회수해야 할 때.
-// 셀러에게 명시적 안내가 가야 회수 협조를 받을 수 있음.
-export async function notifySettlementRecoveryRequired({ sellerPhone, sellerName, sellerUserId, amount, settlementId, orderNumber }) {
-  return callSendNotification({
-    notificationType: "settlement_recovery_required",
-    recipientPhone: sellerPhone,
-    recipientName: sellerName,
-    recipientUserId: sellerUserId,
-    refType: "settlement",
-    refId: settlementId,
-    templateVariables: {
-      amount: Number(amount ?? 0).toLocaleString("ko-KR"),
-      orderNumber,
-    },
-  });
-}
+// 정산 회수 알림은 제거됨 — 정산완료 후 환불은 회사 손실로만 처리(셀러 정산 유지, 회수하지 않음).

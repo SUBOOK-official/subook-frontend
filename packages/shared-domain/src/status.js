@@ -70,7 +70,7 @@ export const settlementStatusLabel = {
   approved: "승인",
   completed: "정산완료",
   cancelled: "취소",
-  recovery_required: "회수필요",
+  recovery_required: "회사 손실",
 };
 
 export const memberStatusLabel = {
