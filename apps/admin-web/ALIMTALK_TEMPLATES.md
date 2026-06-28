@@ -1,6 +1,6 @@
 # 카카오 알림톡 템플릿 — 검수 제출용 (수북)
 
-> 작성 2026-06-22. NHN Cloud 카카오 비즈메시지로 발송([send-notification.js](api/admin/send-notification.js)).
+> 작성 2026-06-22. 발송 대행사 = **솔라피(SOLAPI)** ([send-notification.js](api/admin/send-notification.js)).
 > 카카오 알림톡은 **정보성 메시지만** 허용 — 광고·구매유도·쿠폰/포인트 사용유도는 반려.
 > 규칙 출처: [카카오 심사 가이드](https://kakaobusiness.gitbook.io/main/ad/infotalk/audit), [NHN Cloud 콘솔 가이드](https://docs.nhncloud.com/ko/Notification/KakaoTalk%20Bizmessage/ko/alimtalk-console-guide/)
 
@@ -118,16 +118,24 @@
 
 ---
 
-## 외부 설정 절차
+## 외부 설정 절차 (솔라피 / SOLAPI)
 
-1. **카카오톡 채널** 준비 — 수북은 이미 `pf.kakao.com/_subook` 보유. 카카오 비즈니스에서 **비즈니스 채널 인증**(사업자등록 필요 — 완료됨).
-2. **NHN Cloud** 가입 → 프로젝트 생성 → **Notification > KakaoTalk Bizmessage** 활성화.
-3. **발신프로필 등록**: 콘솔 `발신프로필 관리`에서 위 카카오 채널을 발신프로필로 등록(채널 검색용 ID + 인증).
-4. **템플릿 등록**: 위 11종을 `템플릿 등록`으로 입력(코드 `SB_*`, 본문, 변수 예시, 버튼) → **검수 요청**. 카카오 심사 **영업일 2일 이내**.
-5. **env 설정** (admin-web Vercel 프로젝트):
-   - `KAKAO_ALIMTALK_APP_KEY` — NHN Cloud 프로젝트 Appkey (KakaoTalk Bizmessage)
-   - `KAKAO_ALIMTALK_SECRET_KEY` — 콘솔에서 발급한 Secret key (X-Secret-Key)
-   - `KAKAO_ALIMTALK_SENDER_KEY` — 발신프로필의 발신키(SenderKey)
-6. (선택) SMS 대체발송: 알림톡 실패 시 문자 대체 — NHN Cloud SMS Appkey + 발신번호 필요. (DEV_ROADMAP의 SMS fallback)
+> 발송 대행사 = 솔라피. 선불 충전식·즉시 가입(NHN의 사업자회원/계좌이체 장벽 없음). 가입·발신프로필·템플릿 검수 모두 솔라피 콘솔에서.
 
-> 검수는 카카오가 직접, 영업일 2일. 반려되면 사유 보고 본문만 수정 후 재요청.
+1. **카카오톡 채널** — 수북 `@subook` 비즈니스 채널 전환 완료(사업자 인증). 그대로 재사용.
+2. **솔라피 가입** — [solapi.com](https://solapi.com) 회원가입. 세금계산서 받으려면 사업자 정보 입력.
+3. **카카오 채널 연동(발신프로필)** — 콘솔에서 채널 검색용 아이디(`@subook`) + 담당자 휴대폰 입력 → 인증 → **pfId 발급**.
+4. **발신번호 등록** — SMS 발신번호(휴대폰) 등록·인증 (알림톡 `from` + 실패 시 문자 대체용).
+5. **템플릿 11종 등록 + 검수** — 위 11종을 알림톡 템플릿으로 등록(본문 `#{변수}`, 변수 예시, 버튼) → 검수 요청 → 카카오 심사(영업일 2일). 승인되면 각 **templateId** 확보. ⚠️ 등록 후 수정 불가 — 제출 전 확인.
+6. **API 키 발급** — 콘솔 개발/API 설정에서 **API Key + API Secret** 발급.
+7. **env 설정** (admin-web Vercel 프로젝트):
+   - `SOLAPI_API_KEY` / `SOLAPI_API_SECRET` — 콘솔 API 키
+   - `SOLAPI_PFID` — 연동한 카카오 채널의 pfId
+   - `SOLAPI_FROM` — 등록한 발신번호 (예: `01012345678`)
+   - `SOLAPI_TEMPLATE_IDS` — 타입→templateId JSON. 예:
+     ```json
+     {"pickup_accepted":"KA01TP...","arrived":"...","inspection_done":"...","sold":"...","settlement_done":"...","order_confirmed":"...","shipping_started":"...","delivery_done":"...","restock":"...","refund_completed":"...","settlement_recovery_required":"..."}
+     ```
+   - (선택) `SOLAPI_ENABLE_SMS_FALLBACK=true` — 알림톡 실패 시 문자 대체발송(추가 과금, 8.4원/건)
+
+> 검수 반려되면 사유 캡처 → 본문만 고쳐 재제출. 키·templateId·pfId 다 나오면 개발자에게 전달 → env 연결 + 테스트 발송 1건으로 확인.

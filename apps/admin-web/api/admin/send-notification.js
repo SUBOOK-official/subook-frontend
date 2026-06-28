@@ -1,9 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
+import { createHmac, randomBytes } from "crypto";
 
-// ── 카카오 알림톡 API 설정 ──────────────────────────────────
-const KAKAO_BIZ_API_URL = "https://kakaotalk-bizmessage.api.nhncloudservice.com/alimtalk/v2.3/appkeys";
-const KAKAO_REQUEST_TIMEOUT_MS = 5_000;
-const KAKAO_RETRY_COUNT = 1;
+// ── 솔라피(SOLAPI) 카카오 알림톡 API 설정 ──────────────────────
+const SOLAPI_SEND_URL = "https://api.solapi.com/messages/v4/send";
+const SOLAPI_REQUEST_TIMEOUT_MS = 5_000;
+const SOLAPI_RETRY_COUNT = 1;
 
 // ── 알림 유형 허용 목록 ──────────────────────────────────────
 const VALID_NOTIFICATION_TYPES = new Set([
@@ -171,42 +172,75 @@ function buildInAppRefUrl(type, refType, refId, vars) {
   return "/mypage";
 }
 
-// ── 카카오 알림톡 API 호출 ───────────────────────────────────
-async function sendKakaoAlimtalk({ recipientPhone, templateCode, templateVariables }) {
-  const appKey = process.env.KAKAO_ALIMTALK_APP_KEY;
-  const secretKey = process.env.KAKAO_ALIMTALK_SECRET_KEY;
-  const senderKey = process.env.KAKAO_ALIMTALK_SENDER_KEY;
+// 알림톡 타입 → 솔라피 templateId 매핑. 템플릿 검수 통과 후 SOLAPI_TEMPLATE_IDS(JSON)로 주입.
+//   예) SOLAPI_TEMPLATE_IDS={"pickup_accepted":"KA01TP...","arrived":"KA01TP...",...}
+function getSolapiTemplateId(notificationType) {
+  try {
+    const map = JSON.parse(process.env.SOLAPI_TEMPLATE_IDS || "{}");
+    return map[notificationType] || "";
+  } catch {
+    return "";
+  }
+}
 
-  if (!appKey || !secretKey || !senderKey) {
-    return { success: false, error: "KAKAO_ALIMTALK 환경변수 미설정" };
+// 솔라피 HMAC-SHA256 인증 헤더. signature = HMAC-SHA256(date+salt, apiSecret) hex.
+function buildSolapiAuthHeader(apiKey, apiSecret) {
+  const date = new Date().toISOString();
+  const salt = randomBytes(32).toString("hex");
+  const signature = createHmac("sha256", apiSecret).update(date + salt).digest("hex");
+  return `HMAC-SHA256 apiKey=${apiKey}, date=${date}, salt=${salt}, signature=${signature}`;
+}
+
+// ── 솔라피(SOLAPI) 카카오 알림톡 발송 ─────────────────────────
+async function sendKakaoAlimtalk({ recipientPhone, notificationType, templateVariables }) {
+  const apiKey = process.env.SOLAPI_API_KEY;
+  const apiSecret = process.env.SOLAPI_API_SECRET;
+  const pfId = process.env.SOLAPI_PFID;
+  const from = String(process.env.SOLAPI_FROM || "").replace(/\D/g, "");
+  const templateId = getSolapiTemplateId(notificationType);
+
+  if (!apiKey || !apiSecret || !pfId || !from) {
+    return { success: false, error: "SOLAPI 환경변수 미설정 (API_KEY/SECRET/PFID/FROM)" };
+  }
+  if (!templateId) {
+    return { success: false, error: `SOLAPI templateId 미설정: ${notificationType}` };
   }
 
-  // 전화번호 정규화 (하이픈 제거, 국가번호 추가)
-  const phone = recipientPhone.replace(/-/g, "").replace(/^0/, "82");
+  const to = String(recipientPhone || "").replace(/\D/g, "");
+  if (!to) {
+    return { success: false, error: "수신번호가 올바르지 않습니다." };
+  }
+
+  // 카카오 변수는 #{키} 형태, 값은 모두 문자열로.
+  const variables = {};
+  for (const [key, value] of Object.entries(templateVariables || {})) {
+    variables[`#{${key}}`] = value === null || value === undefined ? "" : String(value);
+  }
 
   const body = {
-    senderKey,
-    templateCode,
-    recipientList: [
-      {
-        recipientNo: phone,
-        templateParameter: templateVariables || {},
+    message: {
+      to,
+      from,
+      kakaoOptions: {
+        pfId,
+        templateId,
+        variables,
+        // 알림톡 실패 시 문자 대체발송 — 기본 비활성(추가 과금 방지). 켜려면 SOLAPI_ENABLE_SMS_FALLBACK=true
+        disableSms: String(process.env.SOLAPI_ENABLE_SMS_FALLBACK || "").toLowerCase() !== "true",
       },
-    ],
+    },
   };
 
-  const url = `${KAKAO_BIZ_API_URL}/${appKey}/messages`;
-
-  for (let attempt = 0; attempt <= KAKAO_RETRY_COUNT; attempt++) {
+  for (let attempt = 0; attempt <= SOLAPI_RETRY_COUNT; attempt++) {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), KAKAO_REQUEST_TIMEOUT_MS);
+      const timeoutId = setTimeout(() => controller.abort(), SOLAPI_REQUEST_TIMEOUT_MS);
 
-      const response = await fetch(url, {
+      const response = await fetch(SOLAPI_SEND_URL, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json;charset=UTF-8",
-          "X-Secret-Key": secretKey,
+          Authorization: buildSolapiAuthHeader(apiKey, apiSecret),
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(body),
         signal: controller.signal,
@@ -214,28 +248,35 @@ async function sendKakaoAlimtalk({ recipientPhone, templateCode, templateVariabl
 
       clearTimeout(timeoutId);
 
-      const result = await response.json();
+      const result = await response.json().catch(() => ({}));
 
-      if (response.ok && result.header?.isSuccessful) {
-        const messageId =
-          result.message?.requestId ||
-          result.sendResults?.[0]?.requestId ||
-          null;
-        return { success: true, messageId };
+      // 솔라피: 정상 접수 시 statusCode "2000". 실패 메시지 목록(failedMessageList)이 있으면 실패.
+      const failed = Array.isArray(result?.failedMessageList) && result.failedMessageList.length > 0;
+      const statusCode = result?.statusCode || result?.groupInfo?.status || "";
+      const ok =
+        response.ok &&
+        !failed &&
+        !result?.errorCode &&
+        (statusCode === "" || statusCode === "2000" || String(statusCode).startsWith("2"));
+
+      if (ok) {
+        return { success: true, messageId: result?.messageId || result?.groupId || null };
       }
 
       const errorMsg =
-        result.header?.resultMessage ||
-        result.message?.resultMessage ||
+        result?.failedMessageList?.[0]?.statusMessage ||
+        result?.statusMessage ||
+        result?.errorMessage ||
+        result?.message ||
         `HTTP ${response.status}`;
 
-      if (attempt < KAKAO_RETRY_COUNT) continue;
+      if (attempt < SOLAPI_RETRY_COUNT) continue;
       return { success: false, error: errorMsg };
     } catch (err) {
-      if (attempt < KAKAO_RETRY_COUNT) continue;
+      if (attempt < SOLAPI_RETRY_COUNT) continue;
       const errorMsg =
         err.name === "AbortError"
-          ? `카카오 API 타임아웃 (${KAKAO_REQUEST_TIMEOUT_MS}ms)`
+          ? `솔라피 API 타임아웃 (${SOLAPI_REQUEST_TIMEOUT_MS}ms)`
           : err.message;
       return { success: false, error: errorMsg };
     }
@@ -367,10 +408,10 @@ export default async function handler(req, res) {
     }));
   }
 
-  // 알림톡 발송
+  // 알림톡 발송 (솔라피 — notificationType으로 templateId 매핑)
   const kakaoResult = await sendKakaoAlimtalk({
     recipientPhone,
-    templateCode,
+    notificationType,
     templateVariables: templateVariables || {},
   });
 
