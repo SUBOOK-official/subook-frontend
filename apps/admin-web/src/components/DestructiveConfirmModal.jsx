@@ -1,13 +1,17 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useRef, useState, useId } from "react";
 import { createPortal } from "react-dom";
 import { useFocusTrap } from "@shared-domain/useFocusTrap";
 import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
 
+// 예/아니오 재확인 모달 (+ 필요 시 사유 입력).
+// 과거에는 "확인 문구를 정확히 입력" 타이핑을 요구했으나, 매 작업마다 단어를 치게 해
+// 운영이 불편하다는 피드백이 많아 제거함. 이제 확인/취소(예/아니오)만으로 진행한다.
+// reasonRequired인 경우(환불·차단·폐기 등)는 기록·분쟁 대응용 사유 입력만 유지.
+// confirmPhrase prop은 호출부 하위호환을 위해 받기만 하고 무시한다.
 function DestructiveConfirmModal({
   open,
   title,
   description,
-  confirmPhrase,
   reasonRequired = false,
   reasonMinLength = 1,
   reasonPlaceholder = "사유를 입력하세요",
@@ -17,9 +21,8 @@ function DestructiveConfirmModal({
   onCancel,
   onConfirm,
 }) {
-  const [phraseInput, setPhraseInput] = useState("");
   const [reason, setReason] = useState("");
-  const phraseRef = useRef(null);
+  const reasonRef = useRef(null);
   const dialogRef = useRef(null);
   const titleId = useId();
 
@@ -28,18 +31,18 @@ function DestructiveConfirmModal({
 
   useEffect(() => {
     if (open) {
-      setPhraseInput("");
       setReason("");
-      window.setTimeout(() => phraseRef.current?.focus(), 50);
+      // 사유 입력이 있으면 거기로 포커스, 없으면 포커스트랩이 취소 버튼(첫 포커서블)으로 둔다.
+      if (reasonRequired) {
+        window.setTimeout(() => reasonRef.current?.focus(), 50);
+      }
     }
-  }, [open]);
+  }, [open, reasonRequired]);
 
   useEffect(() => {
     if (!open) return undefined;
     const handleKey = (event) => {
-      if (event.key === "Escape" && !busy) {
-        onCancel();
-      }
+      if (event.key === "Escape" && !busy) onCancel();
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
@@ -48,9 +51,8 @@ function DestructiveConfirmModal({
   if (!open) return null;
   if (typeof document === "undefined") return null;
 
-  const phraseOk = !confirmPhrase || phraseInput.trim() === confirmPhrase;
   const reasonOk = !reasonRequired || reason.trim().length >= reasonMinLength;
-  const canConfirm = phraseOk && reasonOk && !busy;
+  const canConfirm = reasonOk && !busy;
 
   const handleConfirm = () => {
     if (!canConfirm) return;
@@ -74,35 +76,15 @@ function DestructiveConfirmModal({
         <h2 className="text-lg font-black text-rose-700" id={titleId}>{title}</h2>
         <p className="mt-2 whitespace-pre-line text-sm text-slate-700">{description}</p>
 
-        {confirmPhrase ? (
-          <label className="mt-4 block text-sm font-semibold text-slate-700">
-            <span>
-              계속하려면{" "}
-              <code className="rounded bg-rose-50 px-1.5 py-0.5 font-mono text-rose-700">
-                {confirmPhrase}
-              </code>{" "}
-              을(를) 정확히 입력하세요.
-            </span>
-            <input
-              autoComplete="off"
-              className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-sm focus:border-rose-500 focus:outline-none"
-              disabled={busy}
-              onChange={(event) => setPhraseInput(event.target.value)}
-              ref={phraseRef}
-              type="text"
-              value={phraseInput}
-            />
-          </label>
-        ) : null}
-
         {reasonRequired ? (
-          <label className="mt-3 block text-sm font-semibold text-slate-700">
+          <label className="mt-4 block text-sm font-semibold text-slate-700">
             <span>사유 (최소 {reasonMinLength}자)</span>
             <textarea
               className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-rose-500 focus:outline-none"
               disabled={busy}
               onChange={(event) => setReason(event.target.value)}
               placeholder={reasonPlaceholder}
+              ref={reasonRef}
               rows={3}
               value={reason}
             />
