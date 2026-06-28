@@ -373,6 +373,20 @@ function AdminOrdersPage() {
     return true;
   };
 
+  // 자동 정산 생성(주문 확정 트리거)이 누락된 경우 운영자가 수동으로 재실행.
+  // admin_run_order_settlement → create_settlements_for_order 래퍼. 멱등(중복 생성 안 됨).
+  const handleRunSettlement = async (orderId) => {
+    setBusyOrderId(orderId);
+    const { error } = await supabase.rpc("admin_run_order_settlement", { p_order_id: orderId });
+    setBusyOrderId(null);
+    if (error) {
+      showToast(error.message || "정산 생성에 실패했습니다.", "error");
+      return;
+    }
+    showToast("정산 생성을 실행했습니다. (정산 관리 탭에서 확인)", "success");
+    await loadOrders();
+  };
+
   // 입금확인 모달 열기 — 빈 값으로 시작 (운영자가 통장 보고 직접 입력).
   // 과거에는 total_amount가 value로 미리 채워져 검증이 무력화되는 P0 사고 위험이 있었음.
   const openPaymentModal = (order) => {
@@ -1155,9 +1169,21 @@ function AdminOrdersPage() {
                 );
               })}
 
-              {(NEXT_STATUS_ACTIONS[selectedOrder.status] ?? []).length === 0 && (
-                <p className="text-xs text-slate-400">현재 상태에서 가능한 작업이 없습니다.</p>
-              )}
+              {selectedOrder.status === "confirmed" ? (
+                <button
+                  className="btn-secondary !w-auto !px-4 !py-2 text-sm"
+                  disabled={busyOrderId === selectedOrder.id}
+                  onClick={() => handleRunSettlement(selectedOrder.id)}
+                  type="button"
+                >
+                  {busyOrderId === selectedOrder.id ? "처리 중..." : "정산 생성(수동)"}
+                </button>
+              ) : null}
+
+              {(NEXT_STATUS_ACTIONS[selectedOrder.status] ?? []).length === 0 &&
+                selectedOrder.status !== "confirmed" && (
+                  <p className="text-xs text-slate-400">현재 상태에서 가능한 작업이 없습니다.</p>
+                )}
             </div>
           </div>
         </div>

@@ -6,6 +6,7 @@ const AdminAnalyticsPage = lazy(() => import("./pages/AdminAnalyticsPage"));
 const AdminDashboardPage = lazy(() => import("./pages/AdminDashboardPage"));
 const AdminFaqsPage = lazy(() => import("./pages/AdminFaqsPage"));
 const AdminLoginPage = lazy(() => import("./pages/AdminLoginPage"));
+const AdminManualSettlementsPage = lazy(() => import("./pages/AdminManualSettlementsPage"));
 const AdminNoticesPage = lazy(() => import("./pages/AdminNoticesPage"));
 const AdminMembersPage = lazy(() => import("./pages/AdminMembersPage"));
 const AdminOrdersPage = lazy(() => import("./pages/AdminOrdersPage"));
@@ -132,6 +133,14 @@ function App() {
               </AdminRoute>
             }
             path="/admin/settlements"
+          />
+          <Route
+            element={
+              <AdminRoute>
+                <AdminManualSettlementsPage />
+              </AdminRoute>
+            }
+            path="/admin/manual-settlements"
           />
           <Route
             element={

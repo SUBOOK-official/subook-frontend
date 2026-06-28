@@ -16,6 +16,7 @@ export const adminNavigationGroups = [
       { key: "inspection", label: "검수", to: "/admin/inspections", icon: "🔍" },
       { key: "orders", label: "주문", to: "/admin/orders", icon: "🛒" },
       { key: "settlements", label: "정산", to: "/admin/settlements", icon: "💰" },
+      { key: "manual-settlements", label: "수동 정산", to: "/admin/manual-settlements", icon: "🧾" },
     ],
   },
   {
@@ -84,6 +85,10 @@ export function resolveActiveAdminModule({ pathname, explicitModule }) {
 
   if (pathname.startsWith("/admin/orders")) {
     return "orders";
+  }
+
+  if (pathname.startsWith("/admin/manual-settlements")) {
+    return "manual-settlements";
   }
 
   if (pathname.startsWith("/admin/settlements")) {
