@@ -948,7 +948,7 @@ function PublicProductDetailPage() {
     }
   }, [isAuthenticated, product, runAddToCartBatch, navigate, toggleFavorite, showCartToast]);
 
-  // 옵션 선택 목록(데스크톱·모바일 공용 렌더).
+  // 옵션 선택 목록(데스크톱·모바일 공용 렌더). 미선택 시엔 아무것도 노출하지 않는다.
   const renderSelectedOptions = () =>
     selections.length > 0 ? (
       <div className="public-detail-selected-options">
@@ -967,11 +967,7 @@ function PublicProductDetailPage() {
           );
         })}
       </div>
-    ) : (
-      <p className="public-detail-option-hint">
-        원하는 회차·옵션을 선택하면 아래에 추가돼요. 여러 옵션을 한 번에 담을 수 있어요.
-      </p>
-    );
+    ) : null;
 
   const pageContent = (
     <div className="public-product-detail-page">

@@ -429,18 +429,7 @@
   line-height: 40px;
 }
 
-/* ── 옵션 선택 안내 / 선택된 회차 라인(다중) ───────────────── */
-.public-detail-option-hint {
-  margin: 10px 0 0;
-  padding: 12px 14px;
-  border: 1px dashed var(--public-border, #e2e8f0);
-  border-radius: 8px;
-  background: var(--public-bg-soft, #f8fafc);
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--public-ds-text-muted, #64748b);
-}
-
+/* ── 선택된 회차 라인(다중) ───────────────────────────────── */
 .public-detail-selected-options {
   display: flex;
   flex-direction: column;
