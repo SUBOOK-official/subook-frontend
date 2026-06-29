@@ -22,12 +22,6 @@ const INVENTORY_AUDIT_EXPORT_HEADERS = [
   "정산여부",
 ];
 
-const initialForm = {
-  sellerName: "",
-  sellerPhone: "",
-  pickupDate: "",
-};
-
 const shipmentStatusFilters = [
   { value: "scheduled", label: shipmentStatusLabel.scheduled },
   { value: "inspecting", label: shipmentStatusLabel.inspecting },
@@ -231,11 +225,9 @@ function AdminDashboardPage({ view = "overview" }) {
   const shipmentOverviewRequestRef = useRef(0);
   const badgeCounts = useAdminBadgeCounts();
 
-  const [form, setForm] = useState(initialForm);
   const [shipments, setShipments] = useState([]);
   const [shipmentOverview, setShipmentOverview] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isInventoryExporting, setIsInventoryExporting] = useState(false);
   const [error, setError] = useState("");
@@ -615,65 +607,6 @@ function AdminDashboardPage({ view = "overview" }) {
       setDeleteCandidateId(null);
     }
   }, [deleteCandidateId, shipments]);
-
-  const handleChange = (event) => {
-    const { name, value } = event.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-    setError("");
-    setSuccess("");
-
-    if (!isSupabaseConfigured) {
-      setError("Supabase 환경 변수가 설정되지 않았습니다.");
-      return;
-    }
-
-    if (!form.sellerName.trim() || !form.sellerPhone.trim() || !form.pickupDate) {
-      setError("이름, 전화번호, 수거 일자를 모두 입력해 주세요.");
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    const { error: insertError } = await supabase.from("shipments").insert({
-      seller_name: form.sellerName.trim(),
-      seller_phone: form.sellerPhone.trim(),
-      pickup_date: form.pickupDate,
-      status: "scheduled",
-    });
-
-    if (insertError) {
-      setError("수거 등록에 실패했습니다.");
-      setIsSubmitting(false);
-      return;
-    }
-
-    setForm(initialForm);
-    setSuccess("새 수거 내역이 등록되었습니다.");
-    setIsSubmitting(false);
-
-    await fetchShipmentOverview({
-      searchKeyword: appliedSearch,
-      statuses: appliedStatuses,
-      fromDate: appliedPickupDateFrom,
-      toDate: appliedPickupDateTo,
-    });
-
-    if (currentPage !== 1) {
-      setCurrentPage(1);
-    } else {
-      await fetchShipments({
-        page: 1,
-        searchKeyword: appliedSearch,
-        statuses: appliedStatuses,
-        fromDate: appliedPickupDateFrom,
-        toDate: appliedPickupDateTo,
-      });
-    }
-  };
 
   const handleSearchSubmit = async (event) => {
     event.preventDefault();
@@ -1306,49 +1239,11 @@ function AdminDashboardPage({ view = "overview" }) {
         <section className="card animate-rise h-full">
           <h2 className="section-title">수거 등록</h2>
           <p className="mt-1 text-sm text-slate-500">
-            등록 시 상태는 자동으로 수거예정으로 저장됩니다.
+            셀러(고객) 생성과 교재 등록은 상품 등록 화면에서 한 번에 진행합니다.
           </p>
-
-          <form className="mt-4 space-y-3" onSubmit={handleSubmit}>
-            <label className="block">
-              <span className="label">판매자 이름</span>
-              <input
-                className="input-base"
-                name="sellerName"
-                onChange={handleChange}
-                placeholder="홍길동"
-                type="text"
-                value={form.sellerName}
-              />
-            </label>
-
-            <label className="block">
-              <span className="label">전화번호</span>
-              <input
-                className="input-base"
-                name="sellerPhone"
-                onChange={handleChange}
-                placeholder="01012345678"
-                type="tel"
-                value={form.sellerPhone}
-              />
-            </label>
-
-            <label className="block">
-              <span className="label">수거 일자</span>
-              <input
-                className="input-base"
-                name="pickupDate"
-                onChange={handleChange}
-                type="date"
-                value={form.pickupDate}
-              />
-            </label>
-
-            <button className="btn-primary" disabled={isSubmitting} type="submit">
-              {isSubmitting ? "등록 중..." : "수거 등록"}
-            </button>
-          </form>
+          <Link className="btn-primary mt-4 inline-flex w-full items-center justify-center" to="/admin/register">
+            상품 등록 화면으로 이동 →
+          </Link>
         </section>
 
         <section className="card animate-rise h-full">

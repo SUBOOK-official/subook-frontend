@@ -23,6 +23,7 @@ export const adminNavigationGroups = [
     key: "catalog",
     label: "카탈로그",
     items: [
+      { key: "register", label: "상품 등록", to: "/admin/register", icon: "➕" },
       { key: "products", label: "상품 마스터", to: "/admin/products", icon: "🗂" },
       { key: "studio", label: "사진 스튜디오 (AI)", to: "/admin/studio", icon: "📷" },
     ],
@@ -73,6 +74,10 @@ export function resolveActiveAdminModule({ pathname, explicitModule }) {
 
   if (pathname.startsWith("/admin/pickups")) {
     return "pickups";
+  }
+
+  if (pathname.startsWith("/admin/register")) {
+    return "register";
   }
 
   if (pathname.startsWith("/admin/products")) {

@@ -1,10 +1,9 @@
-﻿import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+﻿import { Fragment, useEffect, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import AdminShell from "../components/AdminShell";
 import BulkPriceDeltaModal from "../components/BulkPriceDeltaModal";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import InspectionImageUploader from "../components/InspectionImageUploader";
-import { readSheetRowsAsObjects } from "../lib/excelFile";
 import { formatCurrency, formatDate } from "@shared-domain/format";
 import { bookConditionLabel, bookStatusLabel, shipmentStatusLabel } from "@shared-domain/status";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
@@ -12,11 +11,6 @@ import StatusBadge from "@shared-domain/StatusBadge";
 import NotificationResultModal from "../components/NotificationResultModal";
 import { notifyArrived, notifyInspectionDone } from "../lib/adminNotification";
 
-const initialBookForm = {
-  title: "",
-  option: "",
-  price: "",
-};
 const BOOKS_PAGE_SIZE = 30;
 
 const adminBookStatusOptions = [
@@ -63,20 +57,6 @@ function parsePrice(rawValue) {
 
   const parsed = Number.parseInt(normalized, 10);
   return parsed >= 0 ? parsed : Number.NaN;
-}
-
-function splitOptionValues(optionInput) {
-  const optionText = toNullableText(optionInput);
-  if (!optionText) {
-    return [null];
-  }
-
-  const optionItems = optionText
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-
-  return optionItems.length > 0 ? optionItems : [null];
 }
 
 function formatBookLabel(book) {
@@ -578,14 +558,12 @@ function BookPublicStoreEditor({
 
 function AdminShipmentDetailPage() {
   const { shipmentId } = useParams();
-  const fileInputRef = useRef(null);
   // 검색어와 현재 페이지를 URL에 반영 → 뒤로가기 회복 가능.
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [shipment, setShipment] = useState(null);
   const [boxCountInput, setBoxCountInput] = useState("");
   const [books, setBooks] = useState([]);
-  const [bookForm, setBookForm] = useState(initialBookForm);
   const [destructiveModal, setDestructiveModal] = useState(null);
   const [priceDeltaOpen, setPriceDeltaOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -594,7 +572,6 @@ function AdminShipmentDetailPage() {
   const [actionLoading, setActionLoading] = useState(false);
   // 상태 전이 시 발송된 알림톡 결과 모달 — console.warn 휘발 위험 제거
   const [shipmentNotificationResult, setShipmentNotificationResult] = useState(null);
-  const [isBulkUploading, setIsBulkUploading] = useState(false);
   const [updatingBookStatusId, setUpdatingBookStatusId] = useState(null);
   const [updatingBookPriceId, setUpdatingBookPriceId] = useState(null);
   const [deletingBookId, setDeletingBookId] = useState(null);
@@ -1196,143 +1173,6 @@ function AdminShipmentDetailPage() {
     void performUpdateShipmentStatus({ nextStatus, successMessage });
   };
 
-  const handleBookFormChange = (event) => {
-    const { name, value } = event.target;
-    setBookForm((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleAddBook = async (event) => {
-    event.preventDefault();
-
-    if (!isSupabaseConfigured || !shipment) {
-      return;
-    }
-
-    const title = toNullableText(bookForm.title);
-    if (!title) {
-      setError("책 제목을 입력해 주세요.");
-      return;
-    }
-
-    const parsedPrice = parsePrice(bookForm.price);
-    if (Number.isNaN(parsedPrice)) {
-      setError("판매 가격은 0 이상의 숫자로 입력해 주세요.");
-      return;
-    }
-
-    const optionValues = splitOptionValues(bookForm.option);
-    // status는 books 테이블의 default('on_sale')에 맡긴다.
-    // is_public 기본값은 false이며, books_enforce_public_storefront_rules 트리거가
-    // condition_grade/inspected_at 없이 is_public=true 전환을 차단한다.
-    const payload = optionValues.map((optionValue) => ({
-      shipment_id: shipment.id,
-      title,
-      option: optionValue,
-      price: parsedPrice,
-    }));
-
-    setActionLoading(true);
-    setError("");
-    setNotice("");
-
-    const { data, error: insertError } = await supabase
-      .from("books")
-      .insert(payload)
-      .select("*");
-
-    if (insertError) {
-      setError("책 등록에 실패했습니다.");
-      setActionLoading(false);
-      return;
-    }
-
-    setBooks((prev) => [...prev, ...(data ?? [])]);
-    setBookForm(initialBookForm);
-    setNotice(
-      `${payload.length}권의 책이 추가되었습니다. 검수 등급과 사진을 입력하기 전까지는 스토어에 노출되지 않습니다.`,
-    );
-    setActionLoading(false);
-  };
-
-  const handleOpenExcelPicker = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleExcelUpload = async (event) => {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-
-    if (!file) {
-      return;
-    }
-
-    if (!isSupabaseConfigured || !shipment) {
-      return;
-    }
-
-    if (!isInspected) {
-      setError("검수 완료 상태에서만 엑셀 등록이 가능합니다.");
-      return;
-    }
-
-    setIsBulkUploading(true);
-    setError("");
-    setNotice("");
-
-    try {
-      const rows = await readSheetRowsAsObjects(file);
-      if (rows.length === 0) {
-        setError("엑셀 파일에 데이터가 없습니다.");
-        return;
-      }
-
-      const payload = [];
-
-      for (let index = 0; index < rows.length; index += 1) {
-        const row = rows[index];
-        const title = toNullableText(row.Title ?? row.title ?? row.TITLE);
-        if (!title) {
-          continue;
-        }
-
-        const parsedPrice = parsePrice(row.Price ?? row.price ?? row.PRICE);
-        if (Number.isNaN(parsedPrice)) {
-          setError(`${index + 2}행 Price 값이 올바른 숫자가 아닙니다.`);
-          return;
-        }
-
-        const optionValues = splitOptionValues(row.Option ?? row.option ?? row.OPTION);
-        for (const optionValue of optionValues) {
-          // status는 default('on_sale')에 맡기고 is_public 전환은 트리거가 검증.
-          payload.push({
-            shipment_id: shipment.id,
-            title,
-            option: optionValue,
-            price: parsedPrice,
-          });
-        }
-      }
-
-      if (payload.length === 0) {
-        setError("등록 가능한 Title 데이터가 없습니다.");
-        return;
-      }
-
-      const { error: insertError } = await supabase.from("books").insert(payload);
-      if (insertError) {
-        setError("엑셀 대량 등록에 실패했습니다.");
-        return;
-      }
-
-      await refreshBooks();
-      setNotice(`${payload.length}권의 책을 엑셀로 등록했습니다.`);
-    } catch (uploadError) {
-      setError("엑셀 파일 처리 중 오류가 발생했습니다.");
-    } finally {
-      setIsBulkUploading(false);
-    }
-  };
-
   const getStatusDraftValue = (book) => {
     if (Object.prototype.hasOwnProperty.call(bookStatusDrafts, book.id)) {
       return bookStatusDrafts[book.id];
@@ -1714,7 +1554,7 @@ function AdminShipmentDetailPage() {
             {isScheduled ? (
               <button
                 className="btn-primary mt-2"
-                disabled={actionLoading || isBulkUploading}
+                disabled={actionLoading}
                 onClick={() =>
                   handleUpdateShipmentStatus({
                     nextStatus: "inspecting",
@@ -1730,7 +1570,7 @@ function AdminShipmentDetailPage() {
             {isInspecting ? (
               <button
                 className="btn-primary mt-2"
-                disabled={actionLoading || isBulkUploading}
+                disabled={actionLoading}
                 onClick={() =>
                   handleUpdateShipmentStatus({
                     nextStatus: "inspected",
@@ -1743,84 +1583,20 @@ function AdminShipmentDetailPage() {
               </button>
             ) : null}
 
-            {isInspected ? (
-              <p className="rounded-xl bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-700">
-                검수 완료 상태입니다. 아래에서 책을 추가하거나 엑셀로 일괄 등록할 수 있습니다.
-              </p>
-            ) : null}
           </section>
 
-          {isInspected ? (
-            <section className="card animate-rise">
-              <h2 className="section-title">책 추가</h2>
-              <form className="mt-4 space-y-3" onSubmit={handleAddBook}>
-                <label className="block">
-                  <span className="label">책 제목</span>
-                  <input
-                    className="input-base"
-                    name="title"
-                    onChange={handleBookFormChange}
-                    placeholder="예: 서바이벌 모의고사"
-                    type="text"
-                    value={bookForm.title}
-                  />
-                </label>
-
-                <label className="block">
-                  <span className="label">옵션(예: 1회, 2회, 상/하)</span>
-                  <input
-                    className="input-base"
-                    name="option"
-                    onChange={handleBookFormChange}
-                    placeholder="예: 1회, 2회"
-                    type="text"
-                    value={bookForm.option}
-                  />
-                </label>
-
-                <label className="block">
-                  <span className="label">판매 가격(선택)</span>
-                  <input
-                    className="input-base"
-                    name="price"
-                    onChange={handleBookFormChange}
-                    placeholder="예: 12000"
-                    type="number"
-                    value={bookForm.price}
-                  />
-                </label>
-
-                <button
-                  className="btn-primary"
-                  disabled={actionLoading || isBulkUploading}
-                  type="submit"
-                >
-                  {actionLoading ? "추가 중..." : "책 추가"}
-                </button>
-              </form>
-
-              <div className="mt-4 border-t border-slate-200 pt-4">
-                <button
-                  className="btn-secondary w-full"
-                  disabled={actionLoading || isBulkUploading}
-                  onClick={handleOpenExcelPicker}
-                  type="button"
-                >
-                  {isBulkUploading ? "업로드 중..." : "엑셀로 책 등록하기"}
-                </button>
-                <p className="mt-2 text-xs font-semibold text-slate-500">
-                  엑셀 컬럼명: `Title`, `Option`, `Price`
-                </p>
-                <input
-                  ref={fileInputRef}
-                  accept=".xlsx"
-                  className="hidden"
-                  onChange={handleExcelUpload}
-                  type="file"
-                />
-              </div>
-            </section>
-          ) : null}
+          <section className="card animate-rise">
+            <h2 className="section-title">상품 등록</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              이 고객의 교재를 검색·신규 등록하고 사진까지 한 번에 처리합니다.
+            </p>
+            <Link
+              className="btn-primary mt-3 inline-flex w-full items-center justify-center"
+              to={`/admin/register?shipmentId=${shipment.id}`}
+            >
+              이 고객 상품 등록하기 →
+            </Link>
+          </section>
 
         </div>
 
@@ -1893,7 +1669,6 @@ function AdminShipmentDetailPage() {
                   const isStatusDirty = hasBookStatusChange(book);
                   const isRowBusy =
                     deletingBookId === book.id ||
-                    isBulkUploading ||
                     updatingBookPriceId === book.id ||
                     updatingBookStatusId === book.id ||
                     updatingBookPublicId === book.id;
@@ -2070,7 +1845,6 @@ function AdminShipmentDetailPage() {
                         const isStatusDirty = hasBookStatusChange(book);
                         const isRowBusy =
                           deletingBookId === book.id ||
-                          isBulkUploading ||
                           updatingBookPriceId === book.id ||
                           updatingBookStatusId === book.id ||
                           updatingBookPublicId === book.id;

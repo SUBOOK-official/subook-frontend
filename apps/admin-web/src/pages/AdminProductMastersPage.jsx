@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import AdminDialog from "../components/AdminDialog";
 import AdminShell from "../components/AdminShell";
 import AdminPagination from "../components/AdminPagination";
@@ -45,20 +46,6 @@ const CONDITION_LABEL = {
   A: "A (사용감 있음)",
 };
 
-function initialCreateForm() {
-  return {
-    title: "",
-    subject: "",
-    brand: "",
-    book_type: "",
-    published_year: "",
-    instructor_name: "",
-    option: "",
-    cover_image_url: "",
-    status: "selling",
-  };
-}
-
 function priceRangeLabel(min, max) {
   if (min == null && max == null) return "-";
   if (min === max) return formatCurrency(min);
@@ -82,11 +69,6 @@ function AdminProductMastersPage() {
   const [detailData, setDetailData] = useState(null);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [bookBusyId, setBookBusyId] = useState(null);
-  // 새 상품 모달
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [createForm, setCreateForm] = useState(initialCreateForm());
-  const [isCreating, setIsCreating] = useState(false);
-  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const requestIdRef = useRef(0);
 
   // 일괄 선택
@@ -304,82 +286,6 @@ function AdminProductMastersPage() {
     setDetailData(null);
   };
 
-  // ── 새 상품 모달 ─────────────────────────────────────────────
-  const openCreate = () => {
-    setCreateForm(initialCreateForm());
-    setIsCreateOpen(true);
-  };
-  const closeCreate = () => {
-    setIsCreateOpen(false);
-    setCreateForm(initialCreateForm());
-  };
-  const handleCreateField = (key) => (e) => {
-    setCreateForm((f) => ({ ...f, [key]: e.target.value }));
-  };
-
-  const handleImageUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif"];
-    if (!allowed.includes(file.type)) {
-      showToast("jpeg/png/webp/gif 형식만 업로드 가능합니다.", "error");
-      return;
-    }
-    if (file.size > 15 * 1024 * 1024) {
-      showToast("이미지 크기는 15MB 이하여야 합니다.", "error");
-      return;
-    }
-    setIsUploadingImage(true);
-    const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
-    const path = `manual/${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${ext}`;
-    const { error } = await supabase.storage
-      .from("product-covers")
-      .upload(path, file, { contentType: file.type, upsert: false });
-    if (error) {
-      setIsUploadingImage(false);
-      showToast(error.message || "이미지 업로드 실패", "error");
-      return;
-    }
-    const { data: pub } = supabase.storage.from("product-covers").getPublicUrl(path);
-    setCreateForm((f) => ({ ...f, cover_image_url: pub.publicUrl }));
-    setIsUploadingImage(false);
-    showToast("이미지가 업로드되었습니다.", "success");
-    e.target.value = "";
-  };
-
-  const handleCreateSubmit = async (e) => {
-    e.preventDefault();
-    if (!createForm.title.trim()) {
-      showToast("상품 이름을 입력하세요.", "error");
-      return;
-    }
-    if (!createForm.subject || !createForm.brand || !createForm.book_type) {
-      showToast("과목 / 브랜드 / 책 타입을 모두 선택하세요.", "error");
-      return;
-    }
-    setIsCreating(true);
-    const payload = {
-      title: createForm.title.trim(),
-      subject: createForm.subject,
-      brand: createForm.brand,
-      book_type: createForm.book_type,
-      published_year: createForm.published_year ? Number(createForm.published_year) : null,
-      instructor_name: createForm.instructor_name.trim() || null,
-      option: createForm.option.trim() || null,
-      cover_image_url: createForm.cover_image_url.trim() || null,
-      status: createForm.status,
-    };
-    const { error } = await supabase.rpc("admin_create_product", { p_payload: payload });
-    setIsCreating(false);
-    if (error) {
-      showToast(error.message || "등록에 실패했습니다.", "error");
-      return;
-    }
-    showToast(`"${payload.title}" 상품이 등록되었습니다.`, "success");
-    closeCreate();
-    await loadProducts();
-  };
-
   const handleBookVisibility = async (book, nextValue) => {
     setBookBusyId(book.id);
     const { error } = await supabase.rpc("admin_set_book_visibility", {
@@ -408,13 +314,12 @@ function AdminProductMastersPage() {
     <AdminShell
       actions={
         <>
-          <button
+          <Link
             className="rounded-md bg-slate-900 px-3 py-2 text-xs font-bold text-white hover:bg-slate-700"
-            onClick={openCreate}
-            type="button"
+            to="/admin/register"
           >
-            + 새 상품
-          </button>
+            + 상품 등록
+          </Link>
         </>
       }
       activeModule="products"
@@ -677,202 +582,6 @@ function AdminProductMastersPage() {
           totalCount={totalCount}
         />
       </div>
-
-      {/* 새 상품 모달 */}
-      <AdminDialog
-        busy={isCreating || isUploadingImage}
-        dirty={Boolean(
-          createForm.title.trim() ||
-            createForm.subject ||
-            createForm.brand ||
-            createForm.book_type ||
-            createForm.option ||
-            createForm.cover_image_url,
-        )}
-        onClose={closeCreate}
-        open={isCreateOpen}
-        size="lg"
-      >
-        {isCreateOpen ? (
-          <form onSubmit={handleCreateSubmit} className="p-6">
-            <header className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-black text-slate-900">새 상품 등록</h2>
-              <button
-                type="button"
-                onClick={closeCreate}
-                disabled={isCreating || isUploadingImage}
-                className="text-slate-400 hover:text-slate-700"
-              >
-                ✕
-              </button>
-            </header>
-
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <label className="md:col-span-2">
-                <span className="text-xs font-bold text-slate-700">상품 이름 *</span>
-                <input
-                  required
-                  type="text"
-                  value={createForm.title}
-                  onChange={handleCreateField("title")}
-                  placeholder="예: 2026 시대인재 파이널 브릿지 전국 모의고사 지구과학1"
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
-                />
-              </label>
-
-              <label>
-                <span className="text-xs font-bold text-slate-700">과목 *</span>
-                <select
-                  required
-                  value={createForm.subject}
-                  onChange={handleCreateField("subject")}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
-                >
-                  <option value="">선택</option>
-                  {SUBJECT_OPTIONS.map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-              </label>
-
-              <label>
-                <span className="text-xs font-bold text-slate-700">브랜드 *</span>
-                <select
-                  required
-                  value={createForm.brand}
-                  onChange={handleCreateField("brand")}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
-                >
-                  <option value="">선택</option>
-                  {BRAND_OPTIONS.map((b) => (
-                    <option key={b} value={b}>{b}</option>
-                  ))}
-                  <option value="기타">기타</option>
-                </select>
-              </label>
-
-              <label>
-                <span className="text-xs font-bold text-slate-700">책 타입 *</span>
-                <select
-                  required
-                  value={createForm.book_type}
-                  onChange={handleCreateField("book_type")}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
-                >
-                  <option value="">선택</option>
-                  {BOOK_TYPE_OPTIONS.map((t) => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                  <option value="논술">논술</option>
-                </select>
-              </label>
-
-              <label>
-                <span className="text-xs font-bold text-slate-700">출판 연도 (선택)</span>
-                <input
-                  type="number"
-                  min="2000"
-                  max="2100"
-                  value={createForm.published_year}
-                  onChange={handleCreateField("published_year")}
-                  placeholder="예: 2026"
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
-                />
-              </label>
-
-              <label>
-                <span className="text-xs font-bold text-slate-700">강사명 (선택)</span>
-                <input
-                  type="text"
-                  value={createForm.instructor_name}
-                  onChange={handleCreateField("instructor_name")}
-                  placeholder="예: 이해원T"
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
-                />
-              </label>
-
-              <label className="md:col-span-2">
-                <span className="text-xs font-bold text-slate-700">옵션 (선택)</span>
-                <input
-                  type="text"
-                  value={createForm.option}
-                  onChange={handleCreateField("option")}
-                  placeholder="예: 회차[7], 1권 / 2권"
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
-                />
-              </label>
-
-              <div className="md:col-span-2">
-                <span className="text-xs font-bold text-slate-700">표지 이미지 (선택)</span>
-                <div className="mt-1 flex items-start gap-3">
-                  <div className="h-24 w-24 flex-shrink-0 overflow-hidden rounded-md border border-slate-200 bg-slate-100">
-                    {createForm.cover_image_url ? (
-                      // eslint-disable-next-line jsx-a11y/img-redundant-alt
-                      <img src={createForm.cover_image_url} alt="" className="h-full w-full object-cover" />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center text-[10px] text-slate-400">
-                        no img
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <input
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp,image/gif"
-                      onChange={handleImageUpload}
-                      disabled={isUploadingImage}
-                      className="block w-full text-xs text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-slate-200 file:px-3 file:py-2 file:text-xs file:font-bold hover:file:bg-slate-300 disabled:opacity-50"
-                    />
-                    <input
-                      type="url"
-                      value={createForm.cover_image_url}
-                      onChange={handleCreateField("cover_image_url")}
-                      placeholder="또는 URL 직접 입력"
-                      className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-xs"
-                    />
-                    {isUploadingImage ? (
-                      <p className="mt-1 text-xs text-slate-500">업로드 중...</p>
-                    ) : (
-                      <p className="mt-1 text-xs text-slate-400">jpeg/png/webp/gif, 최대 15MB</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <label className="md:col-span-2">
-                <span className="text-xs font-bold text-slate-700">상태</span>
-                <select
-                  value={createForm.status}
-                  onChange={handleCreateField("status")}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
-                >
-                  <option value="selling">판매중</option>
-                  <option value="sold_out">품절</option>
-                  <option value="hidden">숨김</option>
-                </select>
-              </label>
-            </div>
-
-            <footer className="mt-6 flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={closeCreate}
-                disabled={isCreating || isUploadingImage}
-                className="rounded-md border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-              >
-                취소
-              </button>
-              <button
-                type="submit"
-                disabled={isCreating || isUploadingImage}
-                className="rounded-md bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700 disabled:opacity-50"
-              >
-                {isCreating ? "등록 중..." : "상품 등록"}
-              </button>
-            </footer>
-          </form>
-        ) : null}
-      </AdminDialog>
 
       {/* 상세 모달 */}
       <AdminDialog
