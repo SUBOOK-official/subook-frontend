@@ -13,15 +13,19 @@ import usePublicMemberGate from "../lib/publicMemberGate";
 import { clearPendingMemberAction, readPendingMemberAction } from "../lib/pendingMemberAction";
 import { usePageMeta } from "../lib/usePageMeta";
 import {
+  allocateSelectedBooks,
+  buildCartArgsFromBooks,
+  buildOrderItemsFromBooks,
+  getLineTotalForGroup,
+  groupOptionsByVariant,
+} from "../lib/productOptionGroups";
+import {
   fetchStorefrontProductDetail,
   fetchStorefrontProducts,
   sortStorefrontProducts,
 } from "../lib/storefront";
 import "./PublicProductDetailPage.css";
 
-// 단일재고 모델(1 books row = 1 physical book)이므로 사용자가 1권만 살 수 있다.
-// 추후 다중 재고 도입 시 이 상수만 풀면 된다.
-const FALLBACK_MAX_QUANTITY = 1;
 const RELATED_RAIL_LIMIT = 12;
 const SCROLL_EDGE_THRESHOLD_PX = 4;
 
@@ -31,49 +35,6 @@ const DETAIL_TABS = [
   { key: "shipping", label: "배송 안내" },
   { key: "return", label: "교환 및 반품 안내" },
 ];
-
-function getAvailabilitySnapshot(item) {
-  if (!item) {
-    return {
-      availableCount: null,
-      isSoldOut: false,
-      availabilityLabel: "재고 정보 없음",
-      maxQuantity: FALLBACK_MAX_QUANTITY,
-    };
-  }
-
-  const availableCount =
-    item.availableCount ??
-    item.stockCount ??
-    item.quantityAvailable ??
-    item.remainingCount ??
-    item.available_quantity ??
-    null;
-  const normalizedAvailableCount =
-    typeof availableCount === "number" && Number.isFinite(availableCount) && availableCount >= 0
-      ? Math.trunc(availableCount)
-      : null;
-  const isSoldOut =
-    Boolean(item.isSoldOut) ||
-    item.status === "sold_out" ||
-    normalizedAvailableCount === 0;
-  // 단일재고 모델: option별 availableCount와 무관하게 한 books row는 1권만 판매됨.
-  // 사용자는 항상 1권만 주문 가능. quantity stepper UX는 유지하되 최대값 1로 캡.
-  const maxQuantity = 1;
-
-  return {
-    availableCount: normalizedAvailableCount,
-    isSoldOut,
-    availabilityLabel:
-      item.availabilityLabel ??
-      (isSoldOut
-        ? "품절"
-        : normalizedAvailableCount === null
-          ? "재고 정보 없음"
-          : `재고 ${normalizedAvailableCount}권`),
-    maxQuantity,
-  };
-}
 
 // 등급 라벨 → CSS modifier(--grade-s/a-plus/a). 색상 변별력을 위해 등급별 다른 톤.
 function getGradeTone(label) {
@@ -158,62 +119,86 @@ function ProductPriceLine({ priceValue, originalPriceValue, discountRate }) {
   );
 }
 
-function OptionDropdown({ options, selectedOptionId, onSelect, disabled }) {
-  if (!options.length) return null;
+// 회차(option) 선택 dropdown — 고르면 아래 선택목록에 추가만 하고 placeholder로 되돌아간다.
+// 라벨에서 등급('S (새 책)')은 빼고 회차명만 노출. 전량 품절 회차는 비활성화.
+function VariantSelect({ groups, onAdd, disabled }) {
+  if (!groups.length) return null;
 
   return (
     <div className="public-detail-option-row">
       <label className="public-detail-option-row__label" htmlFor="public-detail-option-select">
-        옵션
+        옵션 선택
       </label>
       <select
         className="public-detail-option-row__select"
         disabled={disabled}
         id="public-detail-option-select"
-        onChange={(event) => onSelect(event.target.value)}
-        value={selectedOptionId}
+        onChange={(event) => {
+          const key = event.target.value;
+          if (key !== "__placeholder__") onAdd(key);
+        }}
+        value="__placeholder__"
       >
-        {options.map((option) => {
-          const availability = getAvailabilitySnapshot(option);
-          const priceLabel = option.price === null ? "가격 미정" : formatCurrency(option.price);
-          const baseLabel = option.conditionGradeLabel || option.option || "옵션";
-          const subLabel = option.option && option.conditionGradeLabel ? ` · ${option.option}` : "";
-          const stockLabel = availability.isSoldOut ? " · 품절" : "";
-          return (
-            <option key={option.id} value={option.id} disabled={availability.isSoldOut}>
-              {baseLabel}{subLabel} | {priceLabel}{stockLabel}
-            </option>
-          );
-        })}
+        <option value="__placeholder__" disabled>
+          옵션을 선택해 주세요
+        </option>
+        {groups.map((group) => (
+          <option disabled={group.soldOut} key={group.key || "__default__"} value={group.key}>
+            {group.label}{group.soldOut ? " (품절)" : ""}
+          </option>
+        ))}
       </select>
     </div>
   );
 }
 
-function QuantityRow({ value, maxQuantity, disabled, onDecrease, onIncrease }) {
+// 선택된 회차 한 줄 — "회차명 + N개 남음" + 수량 stepper(재고로 캡) + 라인 합계 + 제거.
+function SelectedOptionRow({ group, quantity, onDecrease, onIncrease, onRemove }) {
+  const lineTotal = getLineTotalForGroup(group, quantity);
+  const atMax = quantity >= group.availableCount;
+
   return (
-    <div className="public-detail-qty-row">
-      <button
-        aria-label="수량 줄이기"
-        className="public-detail-qty-row__btn"
-        disabled={disabled || value <= 1}
-        onClick={onDecrease}
-        type="button"
-      >
-        −
-      </button>
-      <span className="public-detail-qty-row__value" aria-live="polite">
-        {value}
-      </span>
-      <button
-        aria-label="수량 늘리기"
-        className="public-detail-qty-row__btn"
-        disabled={disabled || value >= maxQuantity}
-        onClick={onIncrease}
-        type="button"
-      >
-        +
-      </button>
+    <div className="public-detail-selected-option">
+      <div className="public-detail-selected-option__head">
+        <span className="public-detail-selected-option__name">
+          {group.label}
+          <span className="public-detail-selected-option__stock">{group.availableCount}개 남음</span>
+        </span>
+        <button
+          aria-label={`${group.label} 옵션 제거`}
+          className="public-detail-selected-option__remove"
+          onClick={onRemove}
+          type="button"
+        >
+          ✕
+        </button>
+      </div>
+      <div className="public-detail-selected-option__controls">
+        <div className="public-detail-qty-row">
+          <button
+            aria-label={`${group.label} 수량 줄이기`}
+            className="public-detail-qty-row__btn"
+            disabled={quantity <= 1}
+            onClick={onDecrease}
+            type="button"
+          >
+            −
+          </button>
+          <span className="public-detail-qty-row__value" aria-live="polite">
+            {quantity}
+          </span>
+          <button
+            aria-label={`${group.label} 수량 늘리기`}
+            className="public-detail-qty-row__btn"
+            disabled={atMax}
+            onClick={onIncrease}
+            type="button"
+          >
+            +
+          </button>
+        </div>
+        <span className="public-detail-selected-option__price">{formatCurrency(lineTotal)}</span>
+      </div>
     </div>
   );
 }
@@ -552,19 +537,19 @@ function PublicProductDetailPage() {
       : undefined,
   });
   const [relatedProducts, setRelatedProducts] = useState([]);
-  const [selectedOptionId, setSelectedOptionId] = useState("");
+  // 다중 옵션 선택: [{ key: 회차, quantity }]. 단일재고 모델이라 회차별 수량은 그 회차의
+  // 남은 책 수로 캡되고, 담기/구매 시 회차별로 distinct한 book_id가 할당된다.
+  const [selections, setSelections] = useState([]);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
-  const [quantity, setQuantity] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [cartToast, setCartToast] = useState(null);
   const [activeTabKey, setActiveTabKey] = useState("info");
-  // P0: 옵션 미선택 시 사용자 책임으로 둔갑하는 토스트 대신 explicit error state.
+  // P0: 옵션을 못 불러오면 사용자 책임으로 둔갑하는 토스트 대신 explicit error state.
   const [optionLoadError, setOptionLoadError] = useState(false);
   // P1: lightbox 상태 — 메인 이미지 클릭, 검수 사진 클릭 모두 이 모달로 통합.
   const [lightboxState, setLightboxState] = useState(null);
-  // P0: 단일재고 정책 → 페이지 진입 후 sold_out으로 바뀌면 인라인 메시지 표시.
-  // TODO(backend): Supabase Realtime 채널이 별도 작업. 현재는 옵션 변경/재방문 시점 갱신만.
+  // P0: 페이지 진입 후 전 회차 품절로 바뀌면 인라인 메시지 표시.
   const wasInStockRef = useRef(false);
   const [justSoldOut, setJustSoldOut] = useState(false);
 
@@ -573,18 +558,53 @@ function PublicProductDetailPage() {
     setTimeout(() => setCartToast(null), 3000);
   }, []);
 
+  // 회차(option) 단위로 묶은 옵션 그룹 + 파생값.
+  const variantGroups = useMemo(
+    () => groupOptionsByVariant(product?.options ?? []),
+    [product],
+  );
+  const productHasStock = useMemo(
+    () => variantGroups.some((group) => !group.soldOut),
+    [variantGroups],
+  );
+  // 선택을 실제 distinct book 목록으로 펼친 것 — 금액·담기·주문 모두 이걸 기준으로.
+  const allocatedBooks = useMemo(
+    () => allocateSelectedBooks(variantGroups, selections),
+    [variantGroups, selections],
+  );
+  const selectionSubtotal = useMemo(
+    () => allocatedBooks.reduce((sum, book) => sum + (book.price ?? 0), 0),
+    [allocatedBooks],
+  );
+  const selectionCount = allocatedBooks.length;
+  const hasSelection = selectionCount > 0;
+
   // 장바구니 담기 실제 실행 — 사용자 클릭과 "로그인 후 이어서 담기" 양쪽에서 공용.
-  const runAddToCart = useCallback(
-    async (cartArgs) => {
-      const { data: cartData, error: cartError } = await addToCart(cartArgs);
-      if (cartError) {
-        showCartToast(
-          cartError?.message || cartError?.details || "장바구니 담기에 실패했습니다.",
-          "error",
-        );
-        return;
+  // 단일재고 모델이라 책 단위로 add_to_cart를 N번 호출한다(권당 1권).
+  const runAddToCartBatch = useCallback(
+    async (cartArgsList) => {
+      const list = Array.isArray(cartArgsList) ? cartArgsList : [];
+      if (list.length === 0) return;
+      let ok = 0;
+      let fail = 0;
+      let demo = false;
+      for (const args of list) {
+        // 순차 호출: 단일재고 책마다 add_to_cart를 1번씩. (동시 호출해도 무방하나 순서 유지)
+        const { data, error } = await addToCart(args);
+        if (error) {
+          fail += 1;
+        } else {
+          ok += 1;
+          if (data?.demo) demo = true;
+        }
       }
-      showCartToast(cartData?.demo ? "데모 장바구니에 담았습니다." : "장바구니에 담았습니다.");
+      if (ok > 0 && fail === 0) {
+        showCartToast(demo ? `데모 장바구니에 ${ok}개 담았어요.` : `장바구니에 ${ok}개 담았어요.`);
+      } else if (ok > 0) {
+        showCartToast(`${ok}개는 담았지만 ${fail}개는 재고가 바뀌어 담지 못했어요.`, "error");
+      } else {
+        showCartToast("장바구니 담기에 실패했어요. 잠시 후 다시 시도해 주세요.", "error");
+      }
     },
     [showCartToast],
   );
@@ -601,13 +621,15 @@ function PublicProductDetailPage() {
         if (!isActive) return;
 
         setProduct(detailResult.product);
-        const availableOption =
-          detailResult.options.find((option) => !getAvailabilitySnapshot(option).isSoldOut) ??
-          detailResult.options[0] ??
-          null;
-        setSelectedOptionId(availableOption?.id ?? detailResult.product?.selectedOptionId ?? "");
+        // 옵션이 회차 하나뿐인 단권 상품은 자동 선택해 1-클릭 구매 동선을 유지한다.
+        // 회차가 여러 개면 사용자가 직접 고르게 빈 선택으로 시작.
+        const initialGroups = groupOptionsByVariant(detailResult.product?.options ?? []);
+        setSelections(
+          initialGroups.length === 1 && !initialGroups[0].soldOut
+            ? [{ key: initialGroups[0].key, quantity: 1 }]
+            : [],
+        );
         setSelectedImageIndex(0);
-        setQuantity(1);
 
         if (!detailResult.product) {
           setError(detailResult.error ? "교재 상세 정보를 불러오지 못했습니다." : "해당 교재를 찾지 못했습니다.");
@@ -678,55 +700,51 @@ function PublicProductDetailPage() {
     };
   }, [productId]);
 
-  const selectedOption = useMemo(() => {
-    if (!product?.options?.length) return null;
-    return product.options.find((option) => option.id === selectedOptionId) ?? product.options[0] ?? null;
-  }, [product, selectedOptionId]);
-
-  useEffect(() => {
-    if (!product?.options?.length) return;
-    if (!selectedOptionId) {
-      setSelectedOptionId(product.options[0]?.id ?? "");
-      return;
-    }
-    if (!product.options.some((option) => option.id === selectedOptionId)) {
-      setSelectedOptionId(product.options[0]?.id ?? "");
-    }
-  }, [product, selectedOptionId]);
-
-  const activeDisplay = selectedOption ?? product;
-  const activeAvailability = getAvailabilitySnapshot(activeDisplay);
-  // P0: 구매 정보(bookId)를 못 불러오면 explicit error. 사용자 책임으로 둔갑하는
-  // "옵션 선택해 주세요" 토스트보다 솔직한 안내가 신뢰감을 준다.
-  const hasResolvedOption = Boolean(selectedOption?.id);
-  const canPurchase = !activeAvailability.isSoldOut && hasResolvedOption && !optionLoadError;
-
-  // 옵션이 비어 있고 product가 있으면 explicit error 표시.
+  // 옵션 그룹이 비어 있으면(구매 정보 누락) explicit error 표시.
   useEffect(() => {
     if (!product) {
       setOptionLoadError(false);
       return;
     }
-    const hasAnyOption = (product.options ?? []).length > 0;
-    setOptionLoadError(!hasAnyOption);
-  }, [product]);
+    setOptionLoadError(variantGroups.length === 0);
+  }, [product, variantGroups]);
 
-  // P0: 페이지 진입 시 in-stock → sold_out 전환 감지.
+  // 더 이상 존재하지 않는(품절·삭제) 회차가 선택목록에 남지 않도록 정리.
+  useEffect(() => {
+    if (variantGroups.length === 0) return;
+    setSelections((prev) => {
+      let changed = false;
+      const next = [];
+      for (const selection of prev) {
+        const group = variantGroups.find((item) => item.key === selection.key);
+        if (!group || group.soldOut) {
+          changed = true;
+          continue;
+        }
+        const clampedQuantity = Math.max(1, Math.min(selection.quantity, group.availableCount));
+        if (clampedQuantity !== selection.quantity) changed = true;
+        next.push({ key: selection.key, quantity: clampedQuantity });
+      }
+      return changed ? next : prev;
+    });
+  }, [variantGroups]);
+
+  // P0: 페이지 진입 시 in-stock → 전 회차 품절 전환 감지.
   useEffect(() => {
     if (!product) {
       wasInStockRef.current = false;
       setJustSoldOut(false);
       return;
     }
-    const isCurrentlySoldOut = activeAvailability.isSoldOut;
-    if (wasInStockRef.current && isCurrentlySoldOut) {
+    const soldOut = !productHasStock;
+    if (wasInStockRef.current && soldOut) {
       setJustSoldOut(true);
     }
-    if (!isCurrentlySoldOut) {
+    if (!soldOut) {
       wasInStockRef.current = true;
       setJustSoldOut(false);
     }
-  }, [product, activeAvailability.isSoldOut]);
+  }, [product, productHasStock]);
 
   // 재입고 알림 구독 상태
   const [isSubscribedRestock, setIsSubscribedRestock] = useState(false);
@@ -789,105 +807,103 @@ function PublicProductDetailPage() {
     }
   };
 
-  useEffect(() => {
-    setQuantity((current) => Math.min(Math.max(1, current), activeAvailability.maxQuantity));
-  }, [activeAvailability.maxQuantity]);
-
   const galleryImages = useMemo(() => {
     if (!product) return [];
-    const nextImages = [
-      product.coverImageUrl,
-      ...(product.inspectionImageUrls ?? []),
-      selectedOption?.coverImageUrl,
-      ...(selectedOption?.inspectionImageUrls ?? []),
-    ].filter(Boolean);
+    const nextImages = [product.coverImageUrl, ...(product.inspectionImageUrls ?? [])].filter(Boolean);
     return Array.from(new Set(nextImages));
-  }, [product, selectedOption]);
+  }, [product]);
 
   useEffect(() => {
     if (selectedImageIndex >= galleryImages.length) setSelectedImageIndex(0);
   }, [galleryImages, selectedImageIndex]);
 
-  const selectedImageUrl = galleryImages[selectedImageIndex] ?? activeDisplay?.coverImageUrl ?? "";
-  const priceValue = activeDisplay?.price ?? product?.price ?? null;
-  const originalPriceValue = activeDisplay?.originalPrice ?? product?.originalPrice ?? null;
-  const totalPriceValue = priceValue === null ? null : priceValue * quantity;
+  const selectedImageUrl = galleryImages[selectedImageIndex] ?? product?.coverImageUrl ?? "";
+  // 상단 큰 가격/할인/등급칩은 상품 대표값(최저가·대표 등급) 기준 — 회차마다 가격이 같은
+  // 모의고사 세트가 대부분이라 대표값으로 충분하고, 라인별 정확 금액은 선택 목록이 보여준다.
+  const priceValue = product?.price ?? null;
+  const originalPriceValue = product?.originalPrice ?? null;
   const isProductFavorite = product ? favoriteIds.includes(String(product.id)) : false;
   const isProductFavoritePending = product ? isFavoritePending(product.id) : false;
+  // 구매 가능 = 재고 있는 회차가 하나라도 있고, 구매 정보 로드 정상.
+  const canPurchase = productHasStock && !optionLoadError;
 
-  const buildCartArgs = useCallback(() => {
-    // selectedOption.id 는 books.id 의 string 표현. 게이트 전에 인자를 구성해 두면
-    // 로그인 후에도 같은 등급/책으로 이어서 담을 수 있다.
-    const bookId = selectedOption?.id ?? null;
-    if (!bookId) return null;
-    return {
-      bookId,
-      productId: product?.productId ?? null,
-      quantity: 1,
-      productMeta: {
-        title: product?.title,
-        subject: product?.subject,
-        brand: product?.brand,
-        optionLabel: activeDisplay?.option ?? null,
-        conditionGrade: activeDisplay?.conditionGradeLabel ?? activeDisplay?.conditionGrade ?? null,
-        coverImageUrl: activeDisplay?.coverImageUrl ?? product?.coverImageUrl ?? null,
-        price: priceValue,
-      },
-    };
-  }, [selectedOption, product, activeDisplay, priceValue]);
+  // ── 옵션 선택 핸들러 ──────────────────────────────────────────
+  const handleAddVariant = useCallback(
+    (key) => {
+      setSelections((prev) => {
+        const group = variantGroups.find((item) => item.key === key);
+        if (!group || group.soldOut) return prev;
+        const existing = prev.find((selection) => selection.key === key);
+        if (existing) {
+          // 이미 담긴 회차를 또 고르면 +1, 재고를 다 채웠으면 그대로 두고 안내.
+          if (existing.quantity >= group.availableCount) {
+            showCartToast("이미 담은 옵션이에요. 남은 수량을 모두 골랐어요.");
+            return prev;
+          }
+          return prev.map((selection) =>
+            selection.key === key ? { ...selection, quantity: selection.quantity + 1 } : selection,
+          );
+        }
+        return [...prev, { key, quantity: 1 }];
+      });
+    },
+    [variantGroups, showCartToast],
+  );
+
+  const handleChangeQuantity = useCallback(
+    (key, delta) => {
+      setSelections((prev) =>
+        prev.map((selection) => {
+          if (selection.key !== key) return selection;
+          const group = variantGroups.find((item) => item.key === key);
+          const max = group?.availableCount ?? 1;
+          const next = Math.max(1, Math.min(selection.quantity + delta, max));
+          return { ...selection, quantity: next };
+        }),
+      );
+    },
+    [variantGroups],
+  );
+
+  const handleRemoveVariant = useCallback((key) => {
+    setSelections((prev) => prev.filter((selection) => selection.key !== key));
+  }, []);
 
   const handleAddToCart = async () => {
-    if (!canPurchase) return;
-    const cartArgs = buildCartArgs();
-    if (
-      !requireMember(
-        "addToCart",
-        null,
-        cartArgs ? { type: "addToCart", productId: product?.id ?? null, cartArgs } : null,
-      )
-    )
-      return;
-    if (!cartArgs) {
-      // 안전망: bookId 누락은 비정상 상태이므로 explicit error 후 새로고침 유도.
+    if (!canPurchase || !hasSelection) return;
+    const cartArgsList = buildCartArgsFromBooks(product, allocatedBooks);
+    if (cartArgsList.length === 0) {
+      // 안전망: 할당 실패는 비정상 상태 → explicit error 후 새로고침 유도.
       setOptionLoadError(true);
       return;
     }
-    await runAddToCart(cartArgs);
+    if (
+      !requireMember("addToCart", null, {
+        type: "addToCart",
+        productId: product?.id ?? null,
+        cartArgsList,
+      })
+    )
+      return;
+    await runAddToCartBatch(cartArgsList);
   };
 
   const handleBuyNow = async () => {
-    if (!canPurchase) return;
-    const bookId = selectedOption?.id ?? null;
-    const orderPayload = bookId
-      ? [
-          {
-            bookId,
-            productId: product?.productId ?? null,
-            quantity: 1,
-            title: product?.title ?? "",
-            optionLabel: activeDisplay?.option ?? activeDisplay?.conditionGradeLabel ?? "",
-            conditionGrade: activeDisplay?.conditionGrade ?? "",
-            coverImageUrl: activeDisplay?.coverImageUrl ?? product?.coverImageUrl ?? "",
-            price: priceValue,
-            originalPrice: activeDisplay?.originalPrice ?? product?.originalPrice ?? null,
-          },
-        ]
-      : null;
-    if (
-      !requireMember(
-        "buyNow",
-        null,
-        orderPayload
-          ? { type: "buyNow", productId: product?.id ?? null, orderItems: orderPayload }
-          : null,
-      )
-    )
-      return;
-    if (!orderPayload) {
+    if (!canPurchase || !hasSelection) return;
+    const orderItems = buildOrderItemsFromBooks(product, allocatedBooks);
+    if (orderItems.length === 0) {
       setOptionLoadError(true);
       return;
     }
-    navigate("/order", { state: { items: orderPayload } });
+    if (
+      !requireMember("buyNow", null, {
+        type: "buyNow",
+        productId: product?.id ?? null,
+        orderItems,
+      })
+    )
+      return;
+    navigate("/order", { state: { items: orderItems } });
   };
 
   const handleToggleFavorite = async (targetProductId) => {
@@ -911,8 +927,14 @@ function PublicProductDetailPage() {
     if (!pending || String(pending.productId) !== String(product.id)) return;
     resumeHandledRef.current = true;
     clearPendingMemberAction();
-    if (pending.type === "addToCart" && pending.cartArgs) {
-      void runAddToCart(pending.cartArgs);
+    if (pending.type === "addToCart") {
+      // 신버전은 cartArgsList(배열). 구버전 단일 cartArgs도 호환.
+      const list = Array.isArray(pending.cartArgsList)
+        ? pending.cartArgsList
+        : pending.cartArgs
+          ? [pending.cartArgs]
+          : [];
+      if (list.length > 0) void runAddToCartBatch(list);
     } else if (pending.type === "buyNow" && Array.isArray(pending.orderItems)) {
       navigate("/order", { state: { items: pending.orderItems } });
     } else if (pending.type === "favorite") {
@@ -924,7 +946,32 @@ function PublicProductDetailPage() {
         showCartToast(result?.isFavorite ? "찜 목록에 추가했어요." : "찜을 해제했어요.");
       });
     }
-  }, [isAuthenticated, product, runAddToCart, navigate, toggleFavorite, showCartToast]);
+  }, [isAuthenticated, product, runAddToCartBatch, navigate, toggleFavorite, showCartToast]);
+
+  // 옵션 선택 목록(데스크톱·모바일 공용 렌더).
+  const renderSelectedOptions = () =>
+    selections.length > 0 ? (
+      <div className="public-detail-selected-options">
+        {selections.map((selection) => {
+          const group = variantGroups.find((item) => item.key === selection.key);
+          if (!group) return null;
+          return (
+            <SelectedOptionRow
+              group={group}
+              key={selection.key || "__default__"}
+              onDecrease={() => handleChangeQuantity(selection.key, -1)}
+              onIncrease={() => handleChangeQuantity(selection.key, 1)}
+              onRemove={() => handleRemoveVariant(selection.key)}
+              quantity={selection.quantity}
+            />
+          );
+        })}
+      </div>
+    ) : (
+      <p className="public-detail-option-hint">
+        원하는 회차·옵션을 선택하면 아래에 추가돼요. 여러 옵션을 한 번에 담을 수 있어요.
+      </p>
+    );
 
   const pageContent = (
     <div className="public-product-detail-page">
@@ -1008,75 +1055,67 @@ function PublicProductDetailPage() {
                 <ProductChips
                   brand={product.brand}
                   bookType={product.bookType}
-                  conditionGradeLabel={activeDisplay?.conditionGradeLabel}
+                  conditionGradeLabel={product.conditionGradeLabel}
                   subject={product.subject}
                 />
 
                 <h1 className="public-detail-hero__title">{product.title}</h1>
 
                 <ProductPriceLine
-                  discountRate={activeDisplay?.discountRate}
+                  discountRate={product.discountRate}
                   originalPriceValue={originalPriceValue}
                   priceValue={priceValue}
                 />
 
-                {/* 단일재고 정책 정보 — 시급성 톤이 아닌 사실 톤. */}
-                {/* 모든 상품에 같은 "단 1권" 시급성을 붙이면 cried-wolf가 되어 학생들이 무시한다. */}
-                {!activeAvailability.isSoldOut ? (
-                  <div className="public-detail-urgency-badge public-detail-urgency-badge--info" role="status">
-                    <span aria-hidden="true">📦</span>
-                    <span>재고 1개 남음</span>
-                  </div>
-                ) : justSoldOut ? (
-                  <div className="public-detail-soldout-flash" role="status">
-                    방금 다른 분이 구매했어요. 재입고 알림을 받아 보세요.
-                  </div>
-                ) : (
-                  <div className="public-detail-urgency-badge public-detail-urgency-badge--soldout" role="status">
-                    {activeAvailability.availabilityLabel}
-                  </div>
-                )}
+                {/* 품절 상태만 명시 — 재고 있는 동안은 회차별 "N개 남음"이 선택 목록에서 안내한다.
+                    (모든 상품에 똑같은 "단 N권" 시급성을 붙이면 cried-wolf가 되어 학생들이 무시한다.) */}
+                {!productHasStock ? (
+                  justSoldOut ? (
+                    <div className="public-detail-soldout-flash" role="status">
+                      방금 다른 분이 구매했어요. 재입고 알림을 받아 보세요.
+                    </div>
+                  ) : (
+                    <div className="public-detail-urgency-badge public-detail-urgency-badge--soldout" role="status">
+                      품절
+                    </div>
+                  )
+                ) : null}
 
-                {/* P0: 옵션 미선택 → "옵션 선택해주세요" 토스트 대신 explicit error */}
+                {/* P0: 구매 정보 누락 → explicit error */}
                 {optionLoadError ? (
                   <div className="public-detail-option-error" role="alert">
                     구매 정보를 불러오지 못했어요. 새로고침 후에도 같은 문제면 고객센터로 알려주세요.
                   </div>
                 ) : null}
 
+                {/* 회차/옵션 선택 — 재고 있을 때만 노출. 품절이면 아래 재입고 알림으로 대체. */}
+                {canPurchase ? (
+                  <>
+                    <VariantSelect
+                      disabled={!productHasStock}
+                      groups={variantGroups}
+                      onAdd={handleAddVariant}
+                    />
+                    {renderSelectedOptions()}
+                  </>
+                ) : null}
+
                 <dl className="public-detail-hero__summary">
                   <div>
                     <dt>배송비</dt>
                     <dd>
-                      {priceValue !== null && priceValue >= FREE_SHIPPING_THRESHOLD
+                      {hasSelection && selectionSubtotal >= FREE_SHIPPING_THRESHOLD
                         ? "무료"
                         : formatCurrency(SHIPPING_FEE)}
                     </dd>
                   </div>
                   <div>
-                    <dt>총 상품 금액 ({quantity}개)</dt>
+                    <dt>총 상품 금액 ({selectionCount}개)</dt>
                     <dd className="public-detail-hero__summary-total">
-                      {totalPriceValue === null ? "-" : formatCurrency(totalPriceValue)}
+                      {hasSelection ? formatCurrency(selectionSubtotal) : "-"}
                     </dd>
                   </div>
                 </dl>
-
-                <OptionDropdown
-                  disabled={!canPurchase}
-                  onSelect={setSelectedOptionId}
-                  options={product.options ?? []}
-                  selectedOptionId={selectedOptionId}
-                />
-
-                <QuantityRow
-                  disabled={!canPurchase}
-                  maxQuantity={activeAvailability.maxQuantity}
-                  onDecrease={() => setQuantity((current) => Math.max(1, current - 1))}
-                  onIncrease={() =>
-                    setQuantity((current) => Math.min(activeAvailability.maxQuantity, current + 1))
-                  }
-                  value={quantity}
-                />
 
                 <div className="public-detail-hero__actions">
                   <button
@@ -1095,6 +1134,7 @@ function PublicProductDetailPage() {
                     <>
                       <button
                         className="public-detail-hero__btn public-detail-hero__btn--cart"
+                        disabled={!hasSelection}
                         onClick={handleAddToCart}
                         type="button"
                       >
@@ -1102,6 +1142,7 @@ function PublicProductDetailPage() {
                       </button>
                       <button
                         className="public-detail-hero__btn public-detail-hero__btn--buy"
+                        disabled={!hasSelection}
                         onClick={handleBuyNow}
                         type="button"
                       >
@@ -1144,7 +1185,7 @@ function PublicProductDetailPage() {
 
             <DetailTabPanel
               activeKey={activeTabKey}
-              activeDisplay={activeDisplay}
+              activeDisplay={product}
               onOpenLightbox={(images, initialIndex, captionPrefix) =>
                 setLightboxState({ images, initialIndex, captionPrefix })
               }
@@ -1198,15 +1239,16 @@ function PublicProductDetailPage() {
           <span aria-hidden="true">{isProductFavorite ? "♥" : "♡"}</span>
         </button>
         <div className="public-detail-sticky-bar__price">
-          <span className="public-detail-sticky-bar__price-label">총 {quantity}개</span>
+          <span className="public-detail-sticky-bar__price-label">총 {selectionCount}개</span>
           <span className="public-detail-sticky-bar__price-value">
-            {totalPriceValue === null ? "-" : formatCurrency(totalPriceValue)}
+            {hasSelection ? formatCurrency(selectionSubtotal) : "-"}
           </span>
         </div>
         {canPurchase ? (
           <>
             <button
               className="public-detail-sticky-bar__btn public-detail-sticky-bar__btn--cart"
+              disabled={!hasSelection}
               onClick={handleAddToCart}
               type="button"
             >
@@ -1214,6 +1256,7 @@ function PublicProductDetailPage() {
             </button>
             <button
               className="public-detail-sticky-bar__btn public-detail-sticky-bar__btn--buy"
+              disabled={!hasSelection}
               onClick={handleBuyNow}
               type="button"
             >

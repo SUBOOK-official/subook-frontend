@@ -429,6 +429,99 @@
   line-height: 40px;
 }
 
+/* ── 옵션 선택 안내 / 선택된 회차 라인(다중) ───────────────── */
+.public-detail-option-hint {
+  margin: 10px 0 0;
+  padding: 12px 14px;
+  border: 1px dashed var(--public-border, #e2e8f0);
+  border-radius: 8px;
+  background: var(--public-bg-soft, #f8fafc);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--public-ds-text-muted, #64748b);
+}
+
+.public-detail-selected-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.public-detail-selected-option {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--public-border, #e2e8f0);
+  border-radius: 10px;
+  background: var(--public-bg-soft, #f8fafc);
+}
+
+.public-detail-selected-option__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.public-detail-selected-option__name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--public-ds-text, #0f172a);
+  line-height: 1.4;
+}
+
+.public-detail-selected-option__stock {
+  font-size: 12px;
+  font-weight: 700;
+  color: #DC2626;
+}
+
+.public-detail-selected-option__remove {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--public-ds-text-muted, #94a3b8);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+
+.public-detail-selected-option__remove:hover {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.public-detail-selected-option__controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.public-detail-selected-option__controls .public-detail-qty-row {
+  margin-top: 0;
+}
+
+.public-detail-selected-option__price {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--public-ds-text, #0f172a);
+  letter-spacing: -0.01em;
+}
+
 /* ── 하단 액션 (찜 + 장바구니 + 바로 구매) ─────────────── */
 .public-detail-hero__actions {
   display: grid;
