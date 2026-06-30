@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/publicSupabaseClient";
-import PublicAgreementDialog from "../components/PublicAgreementDialog";
 import PublicOAuthButtons from "../components/PublicOAuthButtons";
 import PublicToastMessage from "../components/PublicToastMessage";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
@@ -151,7 +150,8 @@ function PublicSignupPage() {
     message: "",
   });
   const [showPassword, setShowPassword] = useState(false);
-  const [activeAgreementKey, setActiveAgreementKey] = useState("");
+  // 약관 본문 펼침 상태 — '보기'를 누르면 모달 대신 아래로 펼친다. 항목별 독립 토글(Set).
+  const [expandedAgreements, setExpandedAgreements] = useState(() => new Set());
   const [toastState, setToastState] = useState({
     message: "",
     tone: "info",
@@ -273,8 +273,6 @@ function PublicSignupPage() {
     };
   }, [emailTouched, normalizedEmail]);
 
-  const activeAgreement = agreementItems.find((item) => item.key === activeAgreementKey) ?? null;
-
   const handleChangeValue = (key) => (event) => {
     const nextValue = key === "phone" ? formatPhoneNumber(event.target.value) : event.target.value;
 
@@ -342,6 +340,65 @@ function PublicSignupPage() {
       ...currentValue,
       agreements: "",
     }));
+  };
+
+  // '보기' → 모달 대신 해당 약관 본문을 아래로 펼침/접음 (항목별 독립 토글).
+  const handleToggleAgreementDetail = (key) => {
+    setExpandedAgreements((current) => {
+      const next = new Set(current);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
+
+  // 약관 한 줄 — 체크박스 + 라벨 + '보기/접기' 버튼, 펼치면 본문 단락을 인라인 노출.
+  // 필수·선택 두 목록이 동일 마크업이라 공용 렌더로 묶는다.
+  const renderAgreementRow = (item) => {
+    const isExpanded = expandedAgreements.has(item.key);
+    const tagModifier = item.required
+      ? "public-auth-agreement-box__item-tag--required"
+      : "public-auth-agreement-box__item-tag--optional";
+    const detailId = `public-agreement-detail-${item.key}`;
+    return (
+      <div className="public-auth-agreement-box__row" key={item.key}>
+        <div className="public-auth-agreement-box__item">
+          <label className="public-auth-agreement-box__item-label">
+            <span className="public-auth-checkmark">
+              <input checked={agreements[item.key]} onChange={() => handleToggleAgreement(item.key)} type="checkbox" />
+              <span aria-hidden="true" className="public-auth-checkmark__indicator">
+                ✓
+              </span>
+            </span>
+            <span className="public-auth-agreement-box__item-copy">
+              <span className={`public-auth-agreement-box__item-tag ${tagModifier}`}>{item.tagLabel}</span>
+              <span>{item.label}</span>
+            </span>
+          </label>
+          <button
+            aria-controls={detailId}
+            aria-expanded={isExpanded}
+            className="public-auth-agreement-box__view"
+            onClick={() => handleToggleAgreementDetail(item.key)}
+            type="button"
+          >
+            {isExpanded ? "접기" : "보기"}
+          </button>
+        </div>
+        {isExpanded ? (
+          <div className="public-auth-agreement-box__detail" id={detailId}>
+            {item.paragraphs.map((paragraph) => (
+              <p className="public-auth-agreement-box__detail-paragraph" key={paragraph}>
+                {paragraph}
+              </p>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    );
   };
 
   const handleClearSession = async () => {
@@ -968,65 +1025,13 @@ function PublicSignupPage() {
                 <div aria-hidden="true" className="public-auth-agreement-box__divider" />
 
                 <div className="public-auth-agreement-box__list">
-                  {agreementItems
-                    .filter((item) => item.required)
-                    .map((item) => (
-                      <div className="public-auth-agreement-box__item" key={item.key}>
-                        <label className="public-auth-agreement-box__item-label">
-                          <span className="public-auth-checkmark">
-                            <input checked={agreements[item.key]} onChange={() => handleToggleAgreement(item.key)} type="checkbox" />
-                            <span aria-hidden="true" className="public-auth-checkmark__indicator">
-                              ✓
-                            </span>
-                          </span>
-                          <span className="public-auth-agreement-box__item-copy">
-                            <span className="public-auth-agreement-box__item-tag public-auth-agreement-box__item-tag--required">
-                              {item.tagLabel}
-                            </span>
-                            <span>{item.label}</span>
-                          </span>
-                        </label>
-                        <button
-                          className="public-auth-agreement-box__view"
-                          onClick={() => setActiveAgreementKey(item.key)}
-                          type="button"
-                        >
-                          보기
-                        </button>
-                      </div>
-                    ))}
+                  {agreementItems.filter((item) => item.required).map(renderAgreementRow)}
                 </div>
 
                 <div aria-hidden="true" className="public-auth-agreement-box__divider" />
 
                 <div className="public-auth-agreement-box__list">
-                  {agreementItems
-                    .filter((item) => !item.required)
-                    .map((item) => (
-                      <div className="public-auth-agreement-box__item" key={item.key}>
-                        <label className="public-auth-agreement-box__item-label">
-                          <span className="public-auth-checkmark">
-                            <input checked={agreements[item.key]} onChange={() => handleToggleAgreement(item.key)} type="checkbox" />
-                            <span aria-hidden="true" className="public-auth-checkmark__indicator">
-                              ✓
-                            </span>
-                          </span>
-                          <span className="public-auth-agreement-box__item-copy">
-                            <span className="public-auth-agreement-box__item-tag public-auth-agreement-box__item-tag--optional">
-                              {item.tagLabel}
-                            </span>
-                            <span>{item.label}</span>
-                          </span>
-                        </label>
-                        <button
-                          className="public-auth-agreement-box__view"
-                          onClick={() => setActiveAgreementKey(item.key)}
-                          type="button"
-                        >
-                          보기
-                        </button>
-                      </div>
-                    ))}
+                  {agreementItems.filter((item) => !item.required).map(renderAgreementRow)}
                 </div>
               </div>
               {fieldErrors.agreements ? (
@@ -1051,12 +1056,6 @@ function PublicSignupPage() {
           </section>
         </div>
       </main>
-
-      <PublicAgreementDialog
-        documentItem={activeAgreement}
-        onClose={() => setActiveAgreementKey("")}
-        open={Boolean(activeAgreement)}
-      />
     </>
   );
 }

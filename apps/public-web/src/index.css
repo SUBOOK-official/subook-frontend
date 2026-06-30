@@ -4656,6 +4656,34 @@ img {
   color: var(--public-ds-accent);
   font-size: 13px;
   font-weight: 700;
+  cursor: pointer;
+  flex: 0 0 auto;
+  text-decoration: underline;
+}
+
+/* 약관 한 줄 wrapper — 행(item) + 펼친 본문(detail)을 세로로 묶는다. */
+.public-auth-agreement-box__row {
+  display: flex;
+  flex-direction: column;
+}
+
+/* '보기'로 펼친 본문 — 모달 대신 인라인. 체크박스+라벨 폭(24+10)만큼 들여쓴다. */
+.public-auth-agreement-box__detail {
+  margin: 2px 0 6px 34px;
+  padding: 12px 14px;
+  background: #f8fafc;
+  border: 1px solid var(--public-ds-border);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.public-auth-agreement-box__detail-paragraph {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--public-ds-text-secondary);
 }
 
 .public-auth-checkmark {
