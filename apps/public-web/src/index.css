@@ -5,6 +5,10 @@
 @tailwind utilities;
 
 :root {
+  /* 사이트 전체가 라이트 전용 디자인. 선언 안 하면 OS가 다크모드일 때 브라우저가
+     select/scrollbar 등 네이티브 폼 컨트롤만 자체 다크 테마로 강제 렌더링해
+     페이지 디자인과 어긋난 배색(어두운 회색 배경+흰 텍스트)이 나타난다. */
+  color-scheme: light;
   /* 브랜드 primary 단일화: admin/public-header/public-store/OG 이미지/meta theme-color 모두 #1B3A5C로 통일 */
   --public-primary: #1B3A5C;
   --public-text: #3b3b3b;

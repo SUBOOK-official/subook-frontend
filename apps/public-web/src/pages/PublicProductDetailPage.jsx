@@ -119,35 +119,109 @@ function ProductPriceLine({ priceValue, originalPriceValue, discountRate }) {
   );
 }
 
+// 옵션 dropdown 트리거의 chevron 아이콘. 열림 상태는 CSS에서 회전시켜 표현.
+function OptionChevronIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="public-detail-option-row__chevron"
+      fill="none"
+      height="16"
+      viewBox="0 0 16 16"
+      width="16"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path d="M4 6L8 10L12 6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.6" />
+    </svg>
+  );
+}
+
 // 회차(option) 선택 dropdown — 고르면 아래 선택목록에 추가만 하고 placeholder로 되돌아간다.
 // 라벨에서 등급('S (새 책)')은 빼고 회차명만 노출. 전량 품절 회차는 비활성화.
+// 네이티브 <select>는 OS 다크모드 등 환경에 따라 팝업 배색을 브라우저가 강제해 디자인을
+// 완전히 통제할 수 없어, 버튼 + listbox 조합의 커스텀 드롭다운으로 직접 구현한다.
 function VariantSelect({ groups, onAdd, disabled }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef(null);
+  const labelId = "public-detail-option-label";
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+
+    const handlePointerDown = (event) => {
+      if (containerRef.current && !containerRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen]);
+
+  // 비활성(재고 없음) 전환 시 열려 있던 팝업은 닫아준다.
+  useEffect(() => {
+    if (disabled) {
+      setIsOpen(false);
+    }
+  }, [disabled]);
+
   if (!groups.length) return null;
+
+  const handleSelect = (group) => {
+    if (group.soldOut) return;
+    onAdd(group.key);
+    setIsOpen(false);
+  };
 
   return (
     <div className="public-detail-option-row">
-      <label className="public-detail-option-row__label" htmlFor="public-detail-option-select">
+      <label className="public-detail-option-row__label" id={labelId}>
         옵션 선택
       </label>
-      <select
-        className="public-detail-option-row__select"
-        disabled={disabled}
-        id="public-detail-option-select"
-        onChange={(event) => {
-          const key = event.target.value;
-          if (key !== "__placeholder__") onAdd(key);
-        }}
-        value="__placeholder__"
-      >
-        <option value="__placeholder__" disabled>
-          옵션을 선택해 주세요
-        </option>
-        {groups.map((group) => (
-          <option disabled={group.soldOut} key={group.key || "__default__"} value={group.key}>
-            {group.label}{group.soldOut ? " (품절)" : ""}
-          </option>
-        ))}
-      </select>
+      <div className="public-detail-option-row__dropdown" ref={containerRef}>
+        <button
+          aria-expanded={isOpen}
+          aria-haspopup="listbox"
+          aria-labelledby={`${labelId} public-detail-option-trigger`}
+          className={`public-detail-option-row__trigger${isOpen ? " is-open" : ""}`}
+          disabled={disabled}
+          id="public-detail-option-trigger"
+          onClick={() => setIsOpen((prev) => !prev)}
+          type="button"
+        >
+          <span className="public-detail-option-row__trigger-label">옵션을 선택해 주세요</span>
+          <OptionChevronIcon />
+        </button>
+
+        {isOpen ? (
+          <ul aria-labelledby={labelId} className="public-detail-option-row__listbox" role="listbox">
+            {groups.map((group) => (
+              <li
+                aria-disabled={group.soldOut ? "true" : undefined}
+                aria-selected="false"
+                className={`public-detail-option-row__option${group.soldOut ? " is-disabled" : ""}`}
+                key={group.key || "__default__"}
+                onClick={() => handleSelect(group)}
+                role="option"
+              >
+                <span className="public-detail-option-row__option-label">{group.label}</span>
+                {group.soldOut ? <span className="public-detail-option-row__option-badge">품절</span> : null}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
     </div>
   );
 }
