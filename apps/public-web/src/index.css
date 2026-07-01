@@ -7253,7 +7253,9 @@ img {
 
 .public-home-hero-banner__viewport {
   position: relative;
-  height: 170px;
+  /* 배너 이미지 비율(모바일 3:2)에 맞춰 폭에 따라 높이가 자동으로 늘어난다. */
+  height: auto;
+  aspect-ratio: 3 / 2;
   max-width: 1152px;
   margin: 0 auto;
   overflow: hidden;
@@ -7319,6 +7321,34 @@ img {
 .public-home-hero-banner__controls .public-home-hero-banner__arrow,
 .public-home-hero-banner__controls .public-home-hero-banner__dot {
   pointer-events: auto;
+}
+
+.public-home-hero-banner__image-button,
+.public-home-hero-banner__image-static {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+.public-home-hero-banner__image-button {
+  cursor: pointer;
+}
+
+.public-home-hero-banner__image-button picture,
+.public-home-hero-banner__image-static picture,
+.public-home-hero-banner__image {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.public-home-hero-banner__image {
+  object-fit: cover;
 }
 
 .public-home-hero-banner__content {
@@ -7416,7 +7446,7 @@ img {
   height: 44px;
   border: 0;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.16);
   color: #ffffff;
   display: inline-flex;
   align-items: center;
@@ -7457,7 +7487,7 @@ img {
   border: 0;
   border-radius: 999px;
   padding: 0;
-  background: rgba(255, 255, 255, 0.4);
+  background: rgba(0, 0, 0, 0.16);
   cursor: pointer;
   transition:
     background-color 180ms ease,
@@ -7476,7 +7506,7 @@ img {
 }
 
 .public-home-hero-banner__dot.is-active {
-  background: #ffffff;
+  background: rgba(0, 0, 0, 0.45);
   transform: scale(1.2);
 }
 
@@ -8027,7 +8057,7 @@ img {
 
   .public-home-hero-banner__arrow:hover,
   .public-home-hero-banner__arrow:focus-visible {
-    background: rgba(255, 255, 255, 0.38);
+    background: rgba(0, 0, 0, 0.26);
     transform: scale(1.04);
   }
 
@@ -8057,7 +8087,8 @@ img {
   }
 
   .public-home-hero-banner__viewport {
-    height: 270px;
+    /* 데스크톱 배너 이미지 비율 */
+    aspect-ratio: 3 / 1;
   }
 
   .public-home-hero-banner__content {
@@ -8110,10 +8141,6 @@ img {
 }
 
 @media (min-width: 1024px) {
-  .public-home-hero-banner__viewport {
-    height: 340px;
-  }
-
   .public-home-subject-card--all {
     display: none;
   }
@@ -8137,13 +8164,6 @@ img {
 @media (max-width: 767px) {
   .public-home-hero-banner__arrow-group {
     display: none;
-  }
-
-  /* 데스크톱 viewport height 170px은 모바일에서 텍스트(2줄)+부제(2줄)+CTA 다
-     못 담아 CTA가 잘리거나 도트와 겹쳤음. 모바일은 컨텐츠가 들어갈 만한
-     min-height로 분리. */
-  .public-home-hero-banner__viewport {
-    height: 360px;
   }
 
   .public-home-hero-banner__content {
