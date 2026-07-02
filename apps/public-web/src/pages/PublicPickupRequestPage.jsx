@@ -146,7 +146,7 @@ function PickupPolicyPreview() {
           <strong>가격 책정</strong> 책별 가격은 검수 후 운영팀이 정해서 마이페이지에 안내해 드려요.
         </li>
         <li>
-          <strong>정산</strong> 구매자 구매확정 후 <strong>3영업일 이내 계좌이체</strong>
+          <strong>정산</strong> 구매확정된 판매분은 <strong>매월 1일 계좌이체</strong>
         </li>
         <li>
           <strong>검수 폐기·반송 없음</strong> 기준 미달 교재는 판매불가 → 자체 폐기(반송 없음)
@@ -720,7 +720,7 @@ function StepSettlement({ account, setAccount, savedAccounts, memberProfileName 
                 onChange={togglePolicy("consignment")}
                 type="checkbox"
               />
-              <span>(필수) 위탁판매 약관 동의 — 수수료(1만원 초과 40%, 이하 45%) · 정산 D+3영업일</span>
+              <span>(필수) 위탁판매 약관 동의 — 수수료(1만원 초과 40%, 이하 45%) · 매월 1일 정산</span>
             </label>
           </li>
           <li>
@@ -777,7 +777,7 @@ function StepSettlement({ account, setAccount, savedAccounts, memberProfileName 
               <ul className="pickup-policy-box__list">
                 <li>수거는 무료 (별도 수거 비용 없음)</li>
                 <li>박스 1개당 상품화 비용 5,000원 — 정산 시 차감 (박스 수 × 5,000원)</li>
-                <li>구매자 구매확정 후 3영업일 이내 계좌이체</li>
+                <li>구매확정된 판매분은 매월 1일 계좌이체</li>
               </ul>
             </div>
           </div>
@@ -859,7 +859,7 @@ function StepConfirm({ address, account, isSubmitting, onPrev, onSubmit, goToSte
             {account.account_holder}
           </p>
           <p className="pickup-confirm-detail__memo">
-            정산 예상 시점: <strong>구매자 구매확정 후 3영업일 이내</strong>
+            정산 예상 시점: <strong>매월 1일</strong>
           </p>
         </div>
       </div>
