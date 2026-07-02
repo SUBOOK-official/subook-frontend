@@ -12,7 +12,7 @@ import {
 } from "./publicStoreCards.js";
 
 test("store card condition helpers return spec labels and tones", () => {
-  assert.equal(getStoreCardConditionLabel("S"), "S");
+  assert.equal(getStoreCardConditionLabel("S"), "S (새 책)");
   assert.equal(getStoreCardConditionLabel("A_PLUS"), "A+");
   assert.equal(getStoreCardConditionLabel("A"), "A");
 
@@ -31,7 +31,7 @@ test("getStoreCardTags returns subject, brand, and preferred condition tags", ()
     [
       { key: "subject", label: "수학", tone: "subject" },
       { key: "brand", label: "시대인재", tone: "brand" },
-      { key: "condition", label: "S", tone: "grade-s" },
+      { key: "condition", label: "S (새 책)", tone: "grade-s" },
     ],
   );
 
