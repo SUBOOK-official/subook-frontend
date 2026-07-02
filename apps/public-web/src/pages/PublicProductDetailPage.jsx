@@ -448,24 +448,82 @@ function DetailInfoContent({ activeDisplay }) {
   );
 }
 
-// 수북 검수 정책 섹션 (구 "상태 등급 안내" 탭)
+// 강사 사진 — public/policy/grade-policy.jpg 가 없으면(아직 안 올렸으면) 회색 틀로 폴백.
+// 파일만 그 경로에 추가하면 자동으로 실제 사진이 노출된다.
+const GRADE_POLICY_IMAGE_URL = "/policy/grade-policy.jpg";
+
+function GradePolicyImage() {
+  const [imageFailed, setImageFailed] = useState(false);
+
+  if (imageFailed) {
+    return (
+      <div
+        aria-label="강사 사진 (준비 중)"
+        className="public-detail-grade-layout__image"
+      >
+        <span>강사 사진</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="public-detail-grade-layout__image public-detail-grade-layout__image--photo">
+      <img
+        alt="수북 검수 담당자"
+        onError={() => setImageFailed(true)}
+        src={GRADE_POLICY_IMAGE_URL}
+      />
+    </div>
+  );
+}
+
+// 수북 검수 정책 섹션 (구 "상태 등급 안내" 탭) — 강사 사진 + 검수 항목 칩 + 등급 안내.
 function DetailGradeContent() {
   return (
     <>
       <h3 className="public-detail-tab-content__heading">수북 검수 정책</h3>
-      <ul className="public-detail-tab-content__list">
-        <li>
-          <strong>S (새 책)</strong> · 필기·형광펜이 전혀 없고 표지·내지가
-          양호한 미사용 교재 (비닐 개봉은 무관)
-        </li>
-        <li>
-          <strong>A+ (사용감 적음)</strong> · 일부 페이지에 가벼운 필기/표시가
-          있으나 전반적으로 깨끗 (필기 10% 이하)
-        </li>
-      </ul>
-      <p className="public-detail-tab-content__note">
-        모든 교재는 4단계 검수 (외관 · 내지 · 누락 · 훼손) 후 등급이 부여됩니다.
-      </p>
+      <div className="public-detail-grade-layout">
+        <GradePolicyImage />
+        <div className="public-detail-grade-layout__content">
+          <p className="public-detail-grade-intro">
+            수북은 전문 QC센터에서 검수를 마친 상태가 검증된 교재만을
+            판매합니다.
+          </p>
+          <div className="public-detail-grade-checks">
+            <span className="public-detail-grade-checks__item">필기율 검사</span>
+            <span className="public-detail-grade-checks__item">
+              표지/페이지 찢김, 구겨짐 등 하자 검사
+            </span>
+            <span className="public-detail-grade-checks__item">교재 적합성 검사</span>
+            <span className="public-detail-grade-checks__item">불법 복제본 검열</span>
+          </div>
+          <h4 className="public-detail-grade-subheading">등급 안내</h4>
+          <div className="public-detail-grade-list">
+            <div className="public-detail-grade-list__item">
+              <p className="public-detail-grade-list__title">
+                <strong className="public-detail-grade-list__label">S급</strong>{" "}
+                - 미사용 새책
+              </p>
+              <p className="public-detail-grade-list__desc">
+                랩핑조차 뜯지 않았거나, 사용감이 느껴지지 않는 완전한 새 책
+                상태.
+              </p>
+            </div>
+            <div className="public-detail-grade-list__item">
+              <p className="public-detail-grade-list__title">
+                <strong className="public-detail-grade-list__label">
+                  A+급
+                </strong>{" "}
+                - 극미한 사용감
+              </p>
+              <p className="public-detail-grade-list__desc">
+                10%미만의 연필 필기 ,이름만 적은 수준, 거의 새책에 준하는
+                상태.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
     </>
   );
 }

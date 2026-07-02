@@ -741,6 +741,109 @@
   color: var(--public-ds-text-muted, #94a3b8);
 }
 
+/* ── 수북 검수 정책: 강사 사진(준비 중) + 본문 2단 레이아웃 ── */
+.public-detail-grade-layout {
+  display: grid;
+  grid-template-columns: minmax(160px, 220px) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+  margin-top: 16px;
+}
+
+@media (max-width: 640px) {
+  .public-detail-grade-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.public-detail-grade-layout__image {
+  aspect-ratio: 1 / 1;
+  border-radius: 12px;
+  background: var(--public-border, #e2e8f0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--public-ds-text-muted, #94a3b8);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.public-detail-grade-layout__image--photo {
+  overflow: hidden;
+}
+
+.public-detail-grade-layout__image--photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.public-detail-grade-layout__content {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.public-detail-grade-intro {
+  margin: 0;
+  font-size: 14px;
+  color: var(--public-ds-text-secondary, #475569);
+  line-height: 1.6;
+}
+
+.public-detail-grade-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.public-detail-grade-checks__item {
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: #ffffff;
+  border: 1px solid var(--public-border, #e2e8f0);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--public-ds-text, #0f172a);
+}
+
+.public-detail-grade-subheading {
+  margin: 4px 0 0;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--public-ds-text, #0f172a);
+}
+
+.public-detail-grade-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.public-detail-grade-list__item {
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: #eef1f5;
+}
+
+.public-detail-grade-list__title {
+  margin: 0;
+  font-size: 14px;
+  color: var(--public-ds-text, #0f172a);
+}
+
+.public-detail-grade-list__label {
+  color: #1d4ed8;
+  font-weight: 800;
+}
+
+.public-detail-grade-list__desc {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--public-ds-text-muted, #64748b);
+}
+
 /* ── AI 요약 (실제 연동 전 틀만 — skeleton) ──────────────── */
 .public-detail-ai-summary {
   display: flex;
