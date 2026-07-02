@@ -814,39 +814,7 @@
   }
 }
 
-/* 정보 탭 — dl 격자 */
-.public-detail-info-dl {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px 24px;
-  margin: 0 0 24px;
-}
-
-.public-detail-info-dl > div {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 10px 14px;
-  background: #ffffff;
-  border-radius: 8px;
-  border: 1px solid var(--public-border, #e2e8f0);
-}
-
-.public-detail-info-dl dt {
-  font-size: 12px;
-  color: var(--public-ds-text-muted, #94a3b8);
-  margin: 0;
-}
-
-.public-detail-info-dl dd {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--public-ds-text, #0f172a);
-}
-
 .public-detail-info-notes,
-.public-detail-info-images,
 .public-detail-condition-report {
   margin-top: 16px;
 }
@@ -905,26 +873,6 @@
   font-size: 14px;
   line-height: 1.7;
   color: var(--public-ds-text-secondary, #475569);
-}
-
-.public-detail-info-images__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 8px;
-}
-
-.public-detail-info-images__item {
-  display: block;
-  aspect-ratio: 1 / 1;
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.public-detail-info-images__item img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
 }
 
 /* ── 비슷한 교재 추천 (가로 스크롤) ───────────────────── */
@@ -1371,18 +1319,3 @@
   }
 }
 
-/* P2-4: 등급 칩 색상 — 정보 탭 dl에 표시되는 grade pill에도 적용. */
-.public-detail-info-images__item {
-  display: block;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  aspect-ratio: 1 / 1;
-  border-radius: 8px;
-  overflow: hidden;
-  cursor: zoom-in;
-}
-.public-detail-info-images__item:focus-visible {
-  outline: 2px solid var(--public-primary, #1B3A5C);
-  outline-offset: 2px;
-}

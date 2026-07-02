@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { formatCurrency, formatDate } from "@shared-domain/format";
+import { formatCurrency } from "@shared-domain/format";
 import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
 import ContentContainer from "../components/ContentContainer";
 import ProductCard from "../components/ProductCard";
@@ -430,41 +430,11 @@ function DetailPhotoSection() {
   );
 }
 
-// 교재 상세 정보 섹션 — AI 요약 아래에 기존 상세 정보가 이어진다.
-function DetailInfoContent({ product, activeDisplay, onOpenLightbox }) {
+// 교재 상세 정보 섹션 — 교재 정보 칸(과목/브랜드/유형 등)과 검수 사진은 삭제.
+// 검수 사진은 위쪽 "상품 상세 사진" 섹션으로 이동했다.
+function DetailInfoContent({ activeDisplay }) {
   return (
     <>
-      <h3 className="public-detail-tab-content__heading">교재 정보</h3>
-      <dl className="public-detail-info-dl">
-        <div>
-          <dt>과목</dt>
-          <dd>{product.subject || "미등록"}</dd>
-        </div>
-        <div>
-          <dt>브랜드</dt>
-          <dd>{product.brand || "미등록"}</dd>
-        </div>
-        <div>
-          <dt>유형</dt>
-          <dd>{product.bookType || "미등록"}</dd>
-        </div>
-        <div>
-          <dt>연도</dt>
-          <dd>{product.publishedYear || "미등록"}</dd>
-        </div>
-        <div>
-          <dt>강사명</dt>
-          <dd>{product.instructorName || "미등록"}</dd>
-        </div>
-        {/* 검수일: 신뢰 지표. 검수 완료된 교재임을 명시. 값이 없으면 항목 자체를 숨긴다
-            (없는데 "미등록"으로 두면 검수를 안 한 것처럼 보여 오히려 신뢰를 깎음). */}
-        {activeDisplay?.inspectedAt ? (
-          <div>
-            <dt>검수일</dt>
-            <dd>{formatDate(activeDisplay.inspectedAt)}</dd>
-          </div>
-        ) : null}
-      </dl>
       <ConditionReport display={activeDisplay} />
       {activeDisplay?.inspectionNotes ? (
         <div className="public-detail-info-notes">
@@ -472,34 +442,6 @@ function DetailInfoContent({ product, activeDisplay, onOpenLightbox }) {
           <p className="public-detail-info-notes__body">
             {activeDisplay.inspectionNotes}
           </p>
-        </div>
-      ) : null}
-      {product.inspectionImageUrls?.length ? (
-        <div className="public-detail-info-images">
-          <span className="public-detail-info-notes__label">검수 사진</span>
-          <div className="public-detail-info-images__grid">
-            {product.inspectionImageUrls.map((imageUrl, index) => (
-              <button
-                aria-label={`${product.title} 검수 사진 ${index + 1} 크게 보기`}
-                className="public-detail-info-images__item"
-                key={`${imageUrl}-${index}`}
-                onClick={() =>
-                  onOpenLightbox?.(
-                    product.inspectionImageUrls ?? [],
-                    index,
-                    `${product.title} 검수 사진`,
-                  )
-                }
-                type="button"
-              >
-                <img
-                  alt={`${product.title} 검수 사진 ${index + 1}`}
-                  loading="lazy"
-                  src={getThumbnailImageUrl(imageUrl)}
-                />
-              </button>
-            ))}
-          </div>
         </div>
       ) : null}
     </>
@@ -1600,13 +1542,7 @@ function PublicProductDetailPage() {
             >
               <AiSummarySection />
               <DetailPhotoSection />
-              <DetailInfoContent
-                activeDisplay={product}
-                onOpenLightbox={(images, initialIndex, captionPrefix) =>
-                  setLightboxState({ images, initialIndex, captionPrefix })
-                }
-                product={product}
-              />
+              <DetailInfoContent activeDisplay={product} />
             </section>
 
             <section
