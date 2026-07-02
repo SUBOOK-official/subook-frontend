@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { formatCurrency } from "@shared-domain/format";
 import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
 import ContentContainer from "../components/ContentContainer";
-import ProductCard from "../components/ProductCard";
+import ProductCard, { HeartIcon } from "../components/ProductCard";
 import PublicFooter from "../components/PublicFooter";
 import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
@@ -380,25 +380,51 @@ function ConditionReport({ display }) {
   );
 }
 
+// AI 요약 아이콘 — public/ai/ai-summary-icon.png 가 없으면(아직 안 올렸으면) 기존
+// 스파클 SVG로 폴백. 파일만 그 경로에 추가하면 자동으로 실제 아이콘이 노출된다.
+const AI_SUMMARY_ICON_URL = "/ai/ai-summary-icon.png";
+
+function AiSummaryIcon() {
+  const [imageFailed, setImageFailed] = useState(false);
+
+  if (imageFailed) {
+    return (
+      <svg
+        aria-hidden="true"
+        className="public-detail-ai-summary__icon"
+        fill="none"
+        height="18"
+        viewBox="0 0 24 24"
+        width="18"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          d="M12 2L13.8 8.2L20 10L13.8 11.8L12 18L10.2 11.8L4 10L10.2 8.2L12 2Z"
+          fill="currentColor"
+        />
+      </svg>
+    );
+  }
+
+  return (
+    <img
+      alt=""
+      aria-hidden="true"
+      className="public-detail-ai-summary__icon"
+      height={18}
+      onError={() => setImageFailed(true)}
+      src={AI_SUMMARY_ICON_URL}
+      width={18}
+    />
+  );
+}
+
 // AI 요약 — 아직 실제 모델 연동 전이라 틀만 제공. 데이터 연결 전까지 skeleton으로 표시.
 function AiSummarySection() {
   return (
     <div aria-label="AI 요약 (준비 중)" className="public-detail-ai-summary">
       <div className="public-detail-ai-summary__header">
-        <svg
-          aria-hidden="true"
-          className="public-detail-ai-summary__icon"
-          fill="none"
-          height="18"
-          viewBox="0 0 24 24"
-          width="18"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <path
-            d="M12 2L13.8 8.2L20 10L13.8 11.8L12 18L10.2 11.8L4 10L10.2 8.2L12 2Z"
-            fill="currentColor"
-          />
-        </svg>
+        <AiSummaryIcon />
         <span>AI 요약</span>
       </div>
       <div className="public-detail-ai-summary__body">
@@ -1528,9 +1554,7 @@ function PublicProductDetailPage() {
                     }}
                     type="button"
                   >
-                    <span aria-hidden="true">
-                      {isProductFavorite ? "♥" : "♡"}
-                    </span>
+                    <HeartIcon filled={isProductFavorite} size={24} />
                   </button>
                   {canPurchase ? (
                     <>
@@ -1673,7 +1697,7 @@ function PublicProductDetailPage() {
           }}
           type="button"
         >
-          <span aria-hidden="true">{isProductFavorite ? "♥" : "♡"}</span>
+          <HeartIcon filled={isProductFavorite} size={22} />
         </button>
         <div className="public-detail-sticky-bar__price">
           <span className="public-detail-sticky-bar__price-label">

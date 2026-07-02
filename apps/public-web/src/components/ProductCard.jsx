@@ -11,6 +11,25 @@ import {
 } from "../lib/publicStoreCards";
 import { getThumbnailImageUrl } from "../lib/storageImage";
 
+// 찜하기 하트 아이콘 — 예전엔 "♥"/"♡" 텍스트 글리프였는데, 폰트마다 굵기·정렬이
+// 달라져 보이던 문제를 없애려 SVG로 교체. 색상은 currentColor라 버튼의 color만
+// 바꾸면(연한 회색 ↔ 빨강) 채워짐 여부가 그대로 반영된다.
+function HeartIcon({ size = 20, filled = false }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={`public-heart-icon${filled ? " is-filled" : ""}`}
+      fill="currentColor"
+      height={size}
+      viewBox="0 0 24 24"
+      width={size}
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path d="M2 8.5C2 5.46243 4.46243 3 7.5 3C9.36016 3 11.0046 3.92345 12 5.33692C12.9954 3.92345 14.6398 3 16.5 3C19.5376 3 22 5.46243 22 8.5C22 16 11.9999 21.4852 11.9999 21.4852C11.9999 21.4852 2 16 2 8.5Z" />
+    </svg>
+  );
+}
+
 function ProductCardTag({ label, tone }) {
   return <span className={`public-product-card__tag public-product-card__tag--${tone}`}>{label}</span>;
 }
@@ -43,7 +62,9 @@ function ProductCardFavoriteButton({ filled = false, onToggle }) {
       }}
       type="button"
     >
-      <span aria-hidden="true">{filled ? "♥" : "♡"}</span>
+      <span aria-hidden="true">
+        <HeartIcon filled={filled} size={18} />
+      </span>
     </button>
   );
 }
@@ -245,5 +266,5 @@ function ProductCardSkeleton({ badge = null, className = "" }) {
   );
 }
 
-export { ProductCardSkeleton };
+export { HeartIcon, ProductCardSkeleton };
 export default ProductCard;

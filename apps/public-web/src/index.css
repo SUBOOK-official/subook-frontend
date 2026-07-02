@@ -6541,7 +6541,7 @@ img {
   border: 0;
   border-radius: 999px;
   background: transparent;
-  color: #6b7280;
+  color: #d1d5db;
   font-size: 18px;
   display: inline-flex;
   align-items: center;
@@ -6572,6 +6572,12 @@ img {
 .public-product-card__favorite.is-active {
   color: var(--public-ds-danger);
   animation: public-store-favorite-pop 0.22s ease;
+}
+
+/* 찜 하트 아이콘(SVG) — color를 그대로 물려받아 연한 회색 ↔ 빨강을 전환한다. */
+.public-heart-icon {
+  display: block;
+  color: inherit;
 }
 
 .public-product-card__sold-out {
