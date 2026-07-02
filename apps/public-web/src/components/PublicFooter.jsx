@@ -1,5 +1,8 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import ContentContainer from "./ContentContainer";
+
+const CONTACT_EMAIL = "subook2025@gmail.com";
 
 function FooterMailIcon() {
   return (
@@ -42,7 +45,7 @@ const footerTopLinks = [
   { label: "개인정보처리방침", to: "/privacy", bold: true },
   { label: "환불정책", to: "/refund" },
   // 1:1문의는 카카오톡 채널 우선 (답장 속도/접근성), 이메일은 socials 아이콘으로 보조
-  { label: "1:1문의 (카카오톡)", href: "https://pf.kakao.com/_subook", external: true },
+  { label: "1:1문의 (카카오톡)", href: "https://pf.kakao.com/_xdhxdyn", external: true },
 ];
 
 const footerMetaLines = [
@@ -75,6 +78,27 @@ function FooterMetaPair({ label, value }) {
 }
 
 function PublicFooter() {
+  // mailto는 유지(메일앱 있으면 작성창)하되, 기본 메일앱이 없는 데스크톱에서 "아무 반응 없음"이
+  // 되지 않도록: 클릭 시 이메일 주소를 클립보드에 복사하고, 복사가 막혀도(권한/구형 브라우저)
+  // 주소 자체를 노출해 어느 기기에서든 피드백이 뜨게 한다.
+  const [emailFeedback, setEmailFeedback] = useState(null);
+
+  const flashEmailFeedback = (message) => {
+    setEmailFeedback(message);
+    window.setTimeout(() => setEmailFeedback(null), 2500);
+  };
+
+  const handleEmailClick = () => {
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(CONTACT_EMAIL).then(
+        () => flashEmailFeedback(`✓ 이메일 주소를 복사했어요 · ${CONTACT_EMAIL}`),
+        () => flashEmailFeedback(`문의 이메일 · ${CONTACT_EMAIL}`),
+      );
+      return;
+    }
+    flashEmailFeedback(`문의 이메일 · ${CONTACT_EMAIL}`);
+  };
+
   return (
     <footer className="public-footer">
       <ContentContainer className="public-footer__inner">
@@ -121,16 +145,32 @@ function PublicFooter() {
 
         <div className="public-footer__side">
           <div className="public-footer__socials">
-            <a aria-label="이메일 문의" className="public-footer__social" href="mailto:subook2025@gmail.com">
+            <a
+              aria-label={`이메일 문의 (${CONTACT_EMAIL})`}
+              className="public-footer__social"
+              href={`mailto:${CONTACT_EMAIL}`}
+              onClick={handleEmailClick}
+              title={CONTACT_EMAIL}
+            >
               <FooterMailIcon />
             </a>
-            <a aria-label="인스타그램" className="public-footer__social" href="https://instagram.com/subook_official" rel="noopener noreferrer" target="_blank">
+            <a aria-label="인스타그램" className="public-footer__social" href="https://instagram.com/subook.official" rel="noopener noreferrer" target="_blank">
               <FooterInstagramIcon />
             </a>
-            <a aria-label="카카오톡 채널" className="public-footer__social" href="https://pf.kakao.com/_subook" rel="noopener noreferrer" target="_blank">
+            <a aria-label="카카오톡 채널" className="public-footer__social" href="https://pf.kakao.com/_xdhxdyn" rel="noopener noreferrer" target="_blank">
               <FooterChatIcon />
             </a>
           </div>
+
+          {emailFeedback ? (
+            <p
+              className="public-footer__email-copied"
+              role="status"
+              style={{ margin: "6px 0 0", fontSize: "12px", fontWeight: 600, color: "#10b981" }}
+            >
+              {emailFeedback}
+            </p>
+          ) : null}
 
           <p className="public-footer__copyright">© {new Date().getFullYear()} SUBOOK. All Rights Reserved.</p>
         </div>
