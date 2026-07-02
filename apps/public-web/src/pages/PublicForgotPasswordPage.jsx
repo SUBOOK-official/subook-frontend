@@ -225,7 +225,7 @@ function PublicForgotPasswordPage() {
                     <p className="public-auth-inline-message public-auth-inline-message--error">{fieldErrors.name}</p>
                   ) : (
                     <p className="public-auth-inline-message public-auth-inline-message--info">
-                      회원가입 때 쓴 이름과 정확히 일치해야 해요. (공백 자동 제거)
+                      회원가입 때 쓴 이름과 정확히 일치해야 해요.
                     </p>
                   )}
                 </div>
