@@ -661,12 +661,17 @@
   transform: scale(0.98);
 }
 
-/* ── 탭 ───────────────────────────────────────────────── */
+/* ── 섹션 nav (sticky) ────────────────────────────────── */
 .public-detail-tabs {
   display: flex;
   border-bottom: 1px solid var(--public-border, #e2e8f0);
   margin-bottom: 24px;
   gap: 0;
+  position: sticky;
+  /* 상단 고정 사이트 헤더 바로 아래 붙는다. */
+  top: 72px;
+  z-index: 40;
+  background: #ffffff;
 }
 
 .public-detail-tabs__btn {
@@ -708,6 +713,11 @@
   font-size: 16px;
   font-weight: 800;
   color: var(--public-ds-text, #0f172a);
+}
+
+/* 배송 안내 + 교환/반품 안내처럼 한 섹션에 소제목이 여러 개 붙을 때 위쪽 여백 */
+.public-detail-tab-content__heading--spaced {
+  margin-top: 24px;
 }
 
 .public-detail-tab-content__list {
