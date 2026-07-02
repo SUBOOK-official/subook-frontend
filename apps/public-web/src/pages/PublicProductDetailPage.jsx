@@ -226,31 +226,35 @@ function VariantSelect({ groups, onAdd, disabled }) {
   );
 }
 
-// 선택된 회차 한 줄 — "회차명 + N개 남음" + 수량 stepper(재고로 캡) + 라인 합계 + 제거.
-function SelectedOptionRow({ group, quantity, onDecrease, onIncrease, onRemove }) {
+// 선택된 회차 한 줄 — "라벨 + N개 남음" + 수량 stepper(재고로 캡) + 라인 합계 + 제거(✕).
+// label: 표시 라벨(무옵션 단일상품은 상품명). removable: 단일옵션이면 false로 ✕ 숨김.
+function SelectedOptionRow({ group, label, quantity, removable = true, onDecrease, onIncrease, onRemove }) {
   const lineTotal = getLineTotalForGroup(group, quantity);
   const atMax = quantity >= group.availableCount;
+  const displayLabel = label ?? group.label;
 
   return (
     <div className="public-detail-selected-option">
       <div className="public-detail-selected-option__head">
         <span className="public-detail-selected-option__name">
-          {group.label}
+          {displayLabel}
           <span className="public-detail-selected-option__stock">{group.availableCount}개 남음</span>
         </span>
-        <button
-          aria-label={`${group.label} 옵션 제거`}
-          className="public-detail-selected-option__remove"
-          onClick={onRemove}
-          type="button"
-        >
-          ✕
-        </button>
+        {removable ? (
+          <button
+            aria-label={`${displayLabel} 옵션 제거`}
+            className="public-detail-selected-option__remove"
+            onClick={onRemove}
+            type="button"
+          >
+            ✕
+          </button>
+        ) : null}
       </div>
       <div className="public-detail-selected-option__controls">
         <div className="public-detail-qty-row">
           <button
-            aria-label={`${group.label} 수량 줄이기`}
+            aria-label={`${displayLabel} 수량 줄이기`}
             className="public-detail-qty-row__btn"
             disabled={quantity <= 1}
             onClick={onDecrease}
@@ -262,7 +266,7 @@ function SelectedOptionRow({ group, quantity, onDecrease, onIncrease, onRemove }
             {quantity}
           </span>
           <button
-            aria-label={`${group.label} 수량 늘리기`}
+            aria-label={`${displayLabel} 수량 늘리기`}
             className="public-detail-qty-row__btn"
             disabled={atMax}
             onClick={onIncrease}
@@ -1023,25 +1027,32 @@ function PublicProductDetailPage() {
   }, [isAuthenticated, product, runAddToCartBatch, navigate, toggleFavorite, showCartToast]);
 
   // 옵션 선택 목록(데스크톱·모바일 공용 렌더). 미선택 시엔 아무것도 노출하지 않는다.
-  const renderSelectedOptions = () =>
-    selections.length > 0 ? (
+  const renderSelectedOptions = () => {
+    if (selections.length === 0) return null;
+    // 옵션이 하나뿐(무옵션 단일상품/단일회차)이면 제거(✕)를 숨기고, 무옵션 그룹은 상품명을 라벨로.
+    const isSingleOption = variantGroups.length === 1;
+    return (
       <div className="public-detail-selected-options">
         {selections.map((selection) => {
           const group = variantGroups.find((item) => item.key === selection.key);
           if (!group) return null;
+          const label = group.key === "" ? product.title : group.label;
           return (
             <SelectedOptionRow
               group={group}
               key={selection.key || "__default__"}
+              label={label}
               onDecrease={() => handleChangeQuantity(selection.key, -1)}
               onIncrease={() => handleChangeQuantity(selection.key, 1)}
               onRemove={() => handleRemoveVariant(selection.key)}
               quantity={selection.quantity}
+              removable={!isSingleOption}
             />
           );
         })}
       </div>
-    ) : null;
+    );
+  };
 
   const pageContent = (
     <div className="public-product-detail-page">
@@ -1158,14 +1169,18 @@ function PublicProductDetailPage() {
                   </div>
                 ) : null}
 
-                {/* 회차/옵션 선택 — 재고 있을 때만 노출. 품절이면 아래 재입고 알림으로 대체. */}
+                {/* 회차/옵션 선택 — 재고 있을 때만 노출. 품절이면 아래 재입고 알림으로 대체.
+                    옵션이 2개 이상일 때만 드롭다운 노출. 단일옵션(수능특강 등)은 드롭다운 없이
+                    상품이 바로 선택된 상태로 표시(자동 선택). */}
                 {canPurchase ? (
                   <>
-                    <VariantSelect
-                      disabled={!productHasStock}
-                      groups={variantGroups}
-                      onAdd={handleAddVariant}
-                    />
+                    {variantGroups.length > 1 ? (
+                      <VariantSelect
+                        disabled={!productHasStock}
+                        groups={variantGroups}
+                        onAdd={handleAddVariant}
+                      />
+                    ) : null}
                     {renderSelectedOptions()}
                   </>
                 ) : null}
