@@ -12,6 +12,7 @@ import { FREE_SHIPPING_THRESHOLD, SHIPPING_FEE, addToCart } from "../lib/cart";
 import usePublicMemberGate from "../lib/publicMemberGate";
 import { clearPendingMemberAction, readPendingMemberAction } from "../lib/pendingMemberAction";
 import { usePageMeta } from "../lib/usePageMeta";
+import { getDetailImageUrl, getThumbnailImageUrl, getZoomImageUrl } from "../lib/storageImage";
 import {
   allocateSelectedBooks,
   buildCartArgsFromBooks,
@@ -412,7 +413,7 @@ function DetailTabPanel({ activeKey, product, activeDisplay, onOpenLightbox }) {
                 onClick={() => onOpenLightbox?.(product.inspectionImageUrls ?? [], index, `${product.title} 검수 사진`)}
                 type="button"
               >
-                <img alt={`${product.title} 검수 사진 ${index + 1}`} loading="lazy" src={imageUrl} />
+                <img alt={`${product.title} 검수 사진 ${index + 1}`} loading="lazy" src={getThumbnailImageUrl(imageUrl)} />
               </button>
             ))}
           </div>
@@ -488,7 +489,7 @@ function ProductImageLightbox({ images, initialIndex, captionPrefix, onClose }) 
         </button>
       ) : null}
       <figure className="public-detail-lightbox__figure">
-        <img alt={`${captionPrefix ?? "이미지"} ${currentIndex + 1}`} src={currentUrl} />
+        <img alt={`${captionPrefix ?? "이미지"} ${currentIndex + 1}`} src={getZoomImageUrl(currentUrl)} />
         {total > 1 ? (
           <figcaption className="public-detail-lightbox__caption">
             {currentIndex + 1} / {total}
@@ -1105,7 +1106,7 @@ function PublicProductDetailPage() {
                       decoding="async"
                       fetchpriority="high"
                       loading="eager"
-                      src={selectedImageUrl}
+                      src={getDetailImageUrl(selectedImageUrl)}
                     />
                   ) : (
                     <div className="public-detail-hero__placeholder">
@@ -1124,7 +1125,7 @@ function PublicProductDetailPage() {
                         onClick={() => setSelectedImageIndex(index)}
                         type="button"
                       >
-                        <img alt="" loading="lazy" src={imageUrl} />
+                        <img alt="" loading="lazy" src={getThumbnailImageUrl(imageUrl)} />
                       </button>
                     ))}
                   </div>

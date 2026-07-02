@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { formatCurrency } from "@shared-domain/format";
 import {
@@ -9,6 +9,7 @@ import {
   getStoreCardMetaLine,
   getStoreCardTags,
 } from "../lib/publicStoreCards";
+import { getThumbnailImageUrl } from "../lib/storageImage";
 
 function ProductCardTag({ label, tone }) {
   return <span className={`public-product-card__tag public-product-card__tag--${tone}`}>{label}</span>;
@@ -58,37 +59,74 @@ function ProductCard({
   const resolvedDetailPath = detailPath ?? `/store/${product.id}`;
   const title = getProductCardTitle(product);
   const placeholderEyebrow = getProductCardPlaceholderEyebrow(product);
-  const coverImageUrl = getStoreCardCoverImageUrl(product);
+  // 저장된 원본(/object/public, 최대 2MB, no-cache) 대신 리사이즈·WebP 변환 URL을
+  // 쓴다. 카드 썸네일은 수 KB로 줄고 CDN 캐시되어 새로고침마다 재다운로드되지 않는다.
+  const coverImageUrl = getThumbnailImageUrl(getStoreCardCoverImageUrl(product));
   const { discountRate, originalPrice, price } = getProductCardPrice(product);
   const tags = getStoreCardTags(product);
   const metaLine = getStoreCardMetaLine(product);
   const saleLabel = price !== null ? formatCurrency(price) : "가격 미정";
+  const mediaRef = useRef(null);
+  const [shouldLoad, setShouldLoad] = useState(false);
   const [imageStatus, setImageStatus] = useState(coverImageUrl ? "loading" : "fallback");
-  const showImage = Boolean(coverImageUrl) && imageStatus !== "fallback";
-  const isImageLoading = imageStatus === "loading";
+  const showImage = Boolean(coverImageUrl) && shouldLoad && imageStatus !== "fallback";
+  const showSkeleton = Boolean(coverImageUrl) && imageStatus === "loading";
+  const showPlaceholder = !coverImageUrl || imageStatus === "fallback";
   const cardClassName = ["public-product-card", className].filter(Boolean).join(" ");
 
+  // coverImageUrl이 바뀌면 로드 상태를 리셋한다.
   useEffect(() => {
     setImageStatus(coverImageUrl ? "loading" : "fallback");
-    if (!coverImageUrl) return undefined;
-    // Supabase Storage 응답이 끊겨 onLoad/onError가 영영 안 불리고 무한 로딩에 박히는
-    // 케이스만 방어 — 정상 로드는 충분히 기다린다. 모바일 LTE 첫 로드(캐시 miss)는
-    // 3-5초가 흔해서 이전 3초 timeout이 placeholder로 너무 빨리 떨어뜨리는 문제가
-    // 있었음. 12초로 늘려 안전 마진 확보. cache hit 후엔 무관.
+    setShouldLoad(false);
+  }, [coverImageUrl]);
+
+  // 뷰포트 근처(400px)에 들어왔을 때만 실제 로드를 시작한다. native loading="lazy"를
+  // IntersectionObserver로 대체 — 로드 시작 시점을 알아야 아래 "멈춤 방어" 타이머를
+  // 로드 시작에 맞춰 걸 수 있고, 화면 밖 카드가 mount 기준 타이머 때문에 placeholder로
+  // 잘못 떨어지던 버그(스크롤해서 실제로 보일 땐 이미 fallback 상태)를 없앤다.
+  useEffect(() => {
+    if (!coverImageUrl) {
+      return undefined;
+    }
+    const node = mediaRef.current;
+    if (!node || typeof IntersectionObserver === "undefined") {
+      setShouldLoad(true);
+      return undefined;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setShouldLoad(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "400px 0px" },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [coverImageUrl]);
+
+  // 실제 로드를 시작한 뒤에만(shouldLoad) "멈춤 방어" 타이머를 건다. 변환 이미지는
+  // 수 KB라 정상 로드는 1초 내지만, 응답이 끊겨 onLoad/onError가 영영 안 불리는
+  // 케이스를 대비해 15초 후 placeholder로 폴백한다.
+  useEffect(() => {
+    if (!coverImageUrl || !shouldLoad) {
+      return undefined;
+    }
     const timer = setTimeout(() => {
       setImageStatus((current) => (current === "loading" ? "fallback" : current));
-    }, 12000);
+    }, 15000);
     return () => clearTimeout(timer);
-  }, [coverImageUrl]);
+  }, [coverImageUrl, shouldLoad]);
 
   return (
     <article className={cardClassName}>
       <Link aria-label={`${title} 상세 보기`} className="public-product-card__overlay-link" to={resolvedDetailPath} />
 
-      <div className="public-product-card__media">
+      <div className="public-product-card__media" ref={mediaRef}>
         <ProductCardBadge badge={badge} />
 
-        {isImageLoading ? (
+        {showSkeleton ? (
           <div aria-hidden="true" className="public-product-card__image-skeleton public-store-skeleton" />
         ) : null}
 
@@ -97,16 +135,15 @@ function ProductCard({
             alt={title}
             className={`public-product-card__cover ${imageStatus === "loaded" ? "is-loaded" : ""}`}
             decoding="async"
-            // fetchpriority="low"를 제거 — 그리드에 보이는 카드들이 첫인상에
-            // 즉시 보여야 하는데, low priority가 다른 리소스에 밀려 첫 로드 시
-            // placeholder 잠깐 보이는 문제를 만들었음. loading="lazy"만으로도
-            // viewport 밖 이미지는 충분히 deferred됨.
-            loading="lazy"
+            // 로드 시점은 위 IntersectionObserver(shouldLoad)로 직접 제어하므로
+            // native loading="lazy"는 붙이지 않는다(중복 defer 방지).
             onError={() => setImageStatus("fallback")}
             onLoad={() => setImageStatus("loaded")}
             src={coverImageUrl}
           />
-        ) : (
+        ) : null}
+
+        {showPlaceholder ? (
           // 중고 교재 거래는 신뢰가 핵심 — 이모지/형광 placeholder 대신 표지형 패널 +
           // "사진 준비 중" 안내로 검수가 끝났음을 암시한다.
           <div className="public-product-card__placeholder">
@@ -129,7 +166,7 @@ function ProductCard({
             <span className="public-product-card__placeholder-title">{title}</span>
             <span className="public-product-card__placeholder-trust">사진 준비 중 · 검수 완료</span>
           </div>
-        )}
+        ) : null}
 
         {product.isSoldOut ? (
           <div className="public-product-card__sold-out">

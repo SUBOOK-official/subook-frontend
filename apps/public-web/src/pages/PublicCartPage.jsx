@@ -11,6 +11,7 @@ import { usePublicWishlist } from "../contexts/PublicWishlistContext";
 import { usePageMeta } from "../lib/usePageMeta";
 import { getAddableBooks, groupCartItems, normalizeCartGrade } from "../lib/cartItemGroups";
 import { fetchStorefrontProductDetail } from "../lib/storefront";
+import { getThumbnailImageUrl } from "../lib/storageImage";
 import {
   FREE_SHIPPING_THRESHOLD,
   addToCart,
@@ -87,7 +88,7 @@ function CartGroupRow({ group, isSelected, canIncrease, busy, onToggle, onIncrea
 
       <div className="cart-item__image">
         {group.representative?.cover_image_url ? (
-          <img alt={group.representative.title} loading="lazy" src={group.representative.cover_image_url} />
+          <img alt={group.representative.title} loading="lazy" src={getThumbnailImageUrl(group.representative.cover_image_url)} />
         ) : (
           <div className="cart-item__image-placeholder">SUBOOK</div>
         )}

@@ -11,6 +11,7 @@ import { supabase as publicSupabase } from "@shared-supabase/publicSupabaseClien
 import { FREE_SHIPPING_THRESHOLD, calculateShippingFee, createOrder } from "../lib/cart";
 import { loadMemberPortalSnapshot } from "../lib/memberPortal";
 import { usePageMeta } from "../lib/usePageMeta";
+import { getThumbnailImageUrl } from "../lib/storageImage";
 import {
   BANK_ACCOUNT,
   BANK_HOLDER,
@@ -156,7 +157,7 @@ function OrderItemRow({ item }) {
     <div className="order-item">
       <div className="order-item__image">
         {item.coverImageUrl ? (
-          <img alt={item.title} src={item.coverImageUrl} />
+          <img alt={item.title} src={getThumbnailImageUrl(item.coverImageUrl)} />
         ) : (
           <div className="order-item__image-placeholder">SUBOOK</div>
         )}

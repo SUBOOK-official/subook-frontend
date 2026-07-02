@@ -73,6 +73,7 @@ import {
 } from "../lib/publicMypageUtils";
 import { formatPhoneNumber, hasValidPhoneNumber } from "../lib/publicAuthFormUtils";
 import { fetchWishlistProducts } from "../lib/publicWishlist";
+import { getThumbnailImageUrl } from "../lib/storageImage";
 import {
   BANK_ACCOUNT,
   BANK_HOLDER,
@@ -1587,7 +1588,7 @@ function RejectableBookRow({ item, requestNumber }) {
                     rel="noopener noreferrer"
                     target="_blank"
                   >
-                    <img alt={`검수 사진 ${idx + 1}`} src={url} />
+                    <img alt={`검수 사진 ${idx + 1}`} src={getThumbnailImageUrl(url)} />
                   </a>
                 ))}
               </div>
@@ -2389,7 +2390,7 @@ function PurchasesView({
                     <div className="public-mypage-purchase-card__body">
                       <div className="public-mypage-purchase-card__thumb" aria-hidden="true">
                         {item.coverImageUrl ? (
-                          <img alt="" src={item.coverImageUrl} />
+                          <img alt="" src={getThumbnailImageUrl(item.coverImageUrl)} />
                         ) : null}
                       </div>
 
