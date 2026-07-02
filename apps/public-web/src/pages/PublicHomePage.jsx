@@ -28,6 +28,9 @@ const HOME_HERO_SLIDES = [
     ctaTextColor: "#0B1F47",
     gradient: "135deg, #1D4ED8 0%, #3B82F6 50%, #60A5FA 100%",
     actionType: "shop",
+    imageDesktop: "/banners/hero-banner-1-desktop.png",
+    imageMobile: "/banners/hero-banner-1-mobile.png",
+    imageAlt: "수능 끝, 안 쓴 교재를 합리적인 가격에 - 교재 보러가기",
   },
   {
     id: "pickup-request",
@@ -41,6 +44,15 @@ const HOME_HERO_SLIDES = [
     ctaTextColor: "#9F1239",
     gradient: "135deg, #BE123C 0%, #E11D48 50%, #F43F5E 100%",
     actionType: "pickup",
+    imageDesktop: "/banners/hero-banner-2-desktop.png",
+    imageMobile: "/banners/hero-banner-2-mobile.png",
+    imageAlt: "집에 쌓인 교재를 합리적인 정산금으로 - 판매 신청하기",
+  },
+  {
+    id: "banner-3",
+    imageDesktop: "/banners/hero-banner-3-desktop.png",
+    imageMobile: "/banners/hero-banner-3-mobile.png",
+    imageAlt: "",
   },
 ];
 

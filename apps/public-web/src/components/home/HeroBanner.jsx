@@ -6,6 +6,8 @@ import ContentContainer from "../ContentContainer";
 const AUTO_ROTATION_MS = 5000;
 const INTERACTION_PAUSE_MS = 10000;
 const SWIPE_THRESHOLD_PX = 50;
+// 모바일/데스크톱 배너 이미지 전환 기준. index.css의 hero-banner 브레이크포인트와 동일하게 맞춘다.
+const MOBILE_IMAGE_MEDIA_QUERY = "(max-width: 767px)";
 
 function getWrappedIndex(index, length) {
   if (length <= 0) {
@@ -179,6 +181,15 @@ function HeroBanner({ onSlideAction, slides = [] }) {
       >
         {slides.map((slide, index) => {
           const isActive = index === activeIndex;
+          const hasImage = Boolean(slide.imageDesktop);
+          const hasClickAction = Boolean(slide.actionType || slide.href);
+
+          const imageContent = (
+            <picture>
+              {slide.imageMobile ? <source media={MOBILE_IMAGE_MEDIA_QUERY} srcSet={slide.imageMobile} /> : null}
+              <img alt={slide.imageAlt ?? ""} className="public-home-hero-banner__image" src={slide.imageDesktop} />
+            </picture>
+          );
 
           return (
             <article
@@ -187,29 +198,49 @@ function HeroBanner({ onSlideAction, slides = [] }) {
               aria-roledescription="slide"
               className={`public-home-hero-banner__slide ${isActive ? "is-active" : ""}`}
               key={slide.id}
-              style={{
-                "--public-home-hero-cta-color": slide.ctaTextColor,
-                "--public-home-hero-gradient": `linear-gradient(${slide.gradient})`,
-              }}
+              style={
+                hasImage
+                  ? undefined
+                  : {
+                      "--public-home-hero-cta-color": slide.ctaTextColor,
+                      "--public-home-hero-gradient": `linear-gradient(${slide.gradient})`,
+                    }
+              }
             >
-              <ContentContainer className="public-home-hero-banner__slide-shell">
-                <div className="public-home-hero-banner__content">
-                  <p className="public-home-hero-banner__eyebrow">{slide.eyebrow}</p>
-                  {/* 페이지의 단일 <h1>은 PublicHomePage 최상단에서 시각적으로 숨겨 제공.
-                      슬라이드 텍스트는 <h2>로 두고 비활성 슬라이드는 aria-hidden 처리. */}
-                  <h2 className="public-home-hero-banner__title">{renderLines(slide.titleLines)}</h2>
-                  <p className="public-home-hero-banner__description">{renderLines(slide.descriptionLines)}</p>
-                  <button
-                    aria-hidden={isActive ? undefined : "true"}
-                    className="public-home-hero-banner__cta"
-                    onClick={() => onSlideAction?.(slide)}
-                    tabIndex={isActive ? 0 : -1}
-                    type="button"
-                  >
-                    <span>{slide.ctaLabel}</span>
-                  </button>
+              {hasImage && hasClickAction ? (
+                <button
+                  aria-hidden={isActive ? undefined : "true"}
+                  className="public-home-hero-banner__image-button"
+                  onClick={() => onSlideAction?.(slide)}
+                  tabIndex={isActive ? 0 : -1}
+                  type="button"
+                >
+                  {imageContent}
+                </button>
+              ) : hasImage ? (
+                <div aria-hidden={isActive ? undefined : "true"} className="public-home-hero-banner__image-static">
+                  {imageContent}
                 </div>
-              </ContentContainer>
+              ) : (
+                <ContentContainer className="public-home-hero-banner__slide-shell">
+                  <div className="public-home-hero-banner__content">
+                    <p className="public-home-hero-banner__eyebrow">{slide.eyebrow}</p>
+                    {/* 페이지의 단일 <h1>은 PublicHomePage 최상단에서 시각적으로 숨겨 제공.
+                        슬라이드 텍스트는 <h2>로 두고 비활성 슬라이드는 aria-hidden 처리. */}
+                    <h2 className="public-home-hero-banner__title">{renderLines(slide.titleLines)}</h2>
+                    <p className="public-home-hero-banner__description">{renderLines(slide.descriptionLines)}</p>
+                    <button
+                      aria-hidden={isActive ? undefined : "true"}
+                      className="public-home-hero-banner__cta"
+                      onClick={() => onSlideAction?.(slide)}
+                      tabIndex={isActive ? 0 : -1}
+                      type="button"
+                    >
+                      <span>{slide.ctaLabel}</span>
+                    </button>
+                  </div>
+                </ContentContainer>
+              )}
             </article>
           );
         })}
