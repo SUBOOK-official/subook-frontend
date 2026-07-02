@@ -741,6 +741,79 @@
   color: var(--public-ds-text-muted, #94a3b8);
 }
 
+/* ── AI 요약 (실제 연동 전 틀만 — skeleton) ──────────────── */
+.public-detail-ai-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px 24px;
+  margin-bottom: 24px;
+  background: #ffffff;
+  border: 1px solid var(--public-border, #e2e8f0);
+  border-radius: 12px;
+}
+
+.public-detail-ai-summary__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--public-ds-text, #0f172a);
+}
+
+.public-detail-ai-summary__icon {
+  flex-shrink: 0;
+  color: var(--public-ds-text, #0f172a);
+}
+
+.public-detail-ai-summary__body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.public-detail-ai-summary__line {
+  display: block;
+  height: 12px;
+  border-radius: 999px;
+}
+
+.public-detail-ai-summary__line--short {
+  width: 55%;
+}
+
+/* ── 상품 상세 사진 (실제 연동 전 틀만) ───────────────────── */
+.public-detail-photo-section {
+  margin-bottom: 24px;
+}
+
+.public-detail-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.public-detail-photo-grid__item {
+  aspect-ratio: 1 / 1;
+  border-radius: 16px;
+  background: var(--public-bg-soft, #f1f5f9);
+  border: 1px solid var(--public-border, #e2e8f0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--public-ds-text-muted, #94a3b8);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+@media (max-width: 767px) {
+  .public-detail-photo-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* 정보 탭 — dl 격자 */
 .public-detail-info-dl {
   display: grid;

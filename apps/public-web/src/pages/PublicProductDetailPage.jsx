@@ -10,9 +10,16 @@ import PublicSiteHeader from "../components/PublicSiteHeader";
 import { usePublicWishlist } from "../contexts/PublicWishlistContext";
 import { FREE_SHIPPING_THRESHOLD, SHIPPING_FEE, addToCart } from "../lib/cart";
 import usePublicMemberGate from "../lib/publicMemberGate";
-import { clearPendingMemberAction, readPendingMemberAction } from "../lib/pendingMemberAction";
+import {
+  clearPendingMemberAction,
+  readPendingMemberAction,
+} from "../lib/pendingMemberAction";
 import { usePageMeta } from "../lib/usePageMeta";
-import { getDetailImageUrl, getThumbnailImageUrl, getZoomImageUrl } from "../lib/storageImage";
+import {
+  getDetailImageUrl,
+  getThumbnailImageUrl,
+  getZoomImageUrl,
+} from "../lib/storageImage";
 import {
   allocateSelectedBooks,
   buildCartArgsFromBooks,
@@ -85,7 +92,9 @@ function ProductPriceLine({ priceValue, originalPriceValue, discountRate }) {
   if (priceValue === null) {
     return (
       <div className="public-detail-price-line">
-        <span className="public-detail-price-line__amount" aria-label="판매가">가격 미입력</span>
+        <span className="public-detail-price-line__amount" aria-label="판매가">
+          가격 미입력
+        </span>
       </div>
     );
   }
@@ -94,7 +103,9 @@ function ProductPriceLine({ priceValue, originalPriceValue, discountRate }) {
     typeof discountRate === "number" && discountRate > 0
       ? discountRate
       : originalPriceValue && originalPriceValue > priceValue
-        ? Math.round(((originalPriceValue - priceValue) / originalPriceValue) * 100)
+        ? Math.round(
+            ((originalPriceValue - priceValue) / originalPriceValue) * 100,
+          )
         : null;
 
   return (
@@ -136,7 +147,13 @@ function OptionChevronIcon() {
       width="16"
       xmlns="http://www.w3.org/2000/svg"
     >
-      <path d="M4 6L8 10L12 6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.6" />
+      <path
+        d="M4 6L8 10L12 6"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.6"
+      />
     </svg>
   );
 }
@@ -154,7 +171,10 @@ function VariantSelect({ groups, onAdd, disabled }) {
     if (!isOpen) return undefined;
 
     const handlePointerDown = (event) => {
-      if (containerRef.current && !containerRef.current.contains(event.target)) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target)
+      ) {
         setIsOpen(false);
       }
     };
@@ -205,12 +225,18 @@ function VariantSelect({ groups, onAdd, disabled }) {
           onClick={() => setIsOpen((prev) => !prev)}
           type="button"
         >
-          <span className="public-detail-option-row__trigger-label">옵션을 선택해 주세요</span>
+          <span className="public-detail-option-row__trigger-label">
+            옵션을 선택해 주세요
+          </span>
           <OptionChevronIcon />
         </button>
 
         {isOpen ? (
-          <ul aria-labelledby={labelId} className="public-detail-option-row__listbox" role="listbox">
+          <ul
+            aria-labelledby={labelId}
+            className="public-detail-option-row__listbox"
+            role="listbox"
+          >
             {groups.map((group) => (
               <li
                 aria-disabled={group.soldOut ? "true" : undefined}
@@ -220,8 +246,14 @@ function VariantSelect({ groups, onAdd, disabled }) {
                 onClick={() => handleSelect(group)}
                 role="option"
               >
-                <span className="public-detail-option-row__option-label">{group.label}</span>
-                {group.soldOut ? <span className="public-detail-option-row__option-badge">품절</span> : null}
+                <span className="public-detail-option-row__option-label">
+                  {group.label}
+                </span>
+                {group.soldOut ? (
+                  <span className="public-detail-option-row__option-badge">
+                    품절
+                  </span>
+                ) : null}
               </li>
             ))}
           </ul>
@@ -233,7 +265,15 @@ function VariantSelect({ groups, onAdd, disabled }) {
 
 // 선택된 회차 한 줄 — "라벨 + N개 남음" + 수량 stepper(재고로 캡) + 라인 합계 + 제거(✕).
 // label: 표시 라벨(무옵션 단일상품은 상품명). removable: 단일옵션이면 false로 ✕ 숨김.
-function SelectedOptionRow({ group, label, quantity, removable = true, onDecrease, onIncrease, onRemove }) {
+function SelectedOptionRow({
+  group,
+  label,
+  quantity,
+  removable = true,
+  onDecrease,
+  onIncrease,
+  onRemove,
+}) {
   const lineTotal = getLineTotalForGroup(group, quantity);
   const atMax = quantity >= group.availableCount;
   const displayLabel = label ?? group.label;
@@ -243,7 +283,9 @@ function SelectedOptionRow({ group, label, quantity, removable = true, onDecreas
       <div className="public-detail-selected-option__head">
         <span className="public-detail-selected-option__name">
           {displayLabel}
-          <span className="public-detail-selected-option__stock">{group.availableCount}개 남음</span>
+          <span className="public-detail-selected-option__stock">
+            {group.availableCount}개 남음
+          </span>
         </span>
         {removable ? (
           <button
@@ -280,7 +322,9 @@ function SelectedOptionRow({ group, label, quantity, removable = true, onDecreas
             +
           </button>
         </div>
-        <span className="public-detail-selected-option__price">{formatCurrency(lineTotal)}</span>
+        <span className="public-detail-selected-option__price">
+          {formatCurrency(lineTotal)}
+        </span>
       </div>
     </div>
   );
@@ -295,10 +339,12 @@ function ConditionReport({ display }) {
   if (gradeTone !== "a-plus" && gradeTone !== "a") return null;
 
   const writing =
-    typeof display?.writingPercentage === "number" && Number.isFinite(display.writingPercentage)
+    typeof display?.writingPercentage === "number" &&
+    Number.isFinite(display.writingPercentage)
       ? Math.max(0, Math.min(100, Math.trunc(display.writingPercentage)))
       : null;
-  const hasDamage = typeof display?.hasDamage === "boolean" ? display.hasDamage : null;
+  const hasDamage =
+    typeof display?.hasDamage === "boolean" ? display.hasDamage : null;
 
   // 보여줄 지표가 하나도 없으면(둘 다 미입력) 블록 자체를 숨긴다.
   if (writing === null && hasDamage === null) return null;
@@ -309,7 +355,9 @@ function ConditionReport({ display }) {
       <div className="public-detail-condition-report__items">
         {writing !== null ? (
           <span className="public-detail-condition-report__item">
-            <span className="public-detail-condition-report__key">필기·표시</span>
+            <span className="public-detail-condition-report__key">
+              필기·표시
+            </span>
             <span className="public-detail-condition-report__val">
               {writing === 0 ? "거의 없음" : `약 ${writing}%`}
             </span>
@@ -332,28 +380,98 @@ function ConditionReport({ display }) {
   );
 }
 
-// 교재 상세 정보 섹션 — 나중에 AI 요약 · 상세 사진 블록이 이 위에 추가된다.
+// AI 요약 — 아직 실제 모델 연동 전이라 틀만 제공. 데이터 연결 전까지 skeleton으로 표시.
+function AiSummarySection() {
+  return (
+    <div aria-label="AI 요약 (준비 중)" className="public-detail-ai-summary">
+      <div className="public-detail-ai-summary__header">
+        <svg
+          aria-hidden="true"
+          className="public-detail-ai-summary__icon"
+          fill="none"
+          height="18"
+          viewBox="0 0 24 24"
+          width="18"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M12 2L13.8 8.2L20 10L13.8 11.8L12 18L10.2 11.8L4 10L10.2 8.2L12 2Z"
+            fill="currentColor"
+          />
+        </svg>
+        <span>AI 요약</span>
+      </div>
+      <div className="public-detail-ai-summary__body">
+        <span className="public-detail-ai-summary__line public-store-skeleton" />
+        <span className="public-detail-ai-summary__line public-store-skeleton" />
+        <span className="public-detail-ai-summary__line public-detail-ai-summary__line--short public-store-skeleton" />
+      </div>
+    </div>
+  );
+}
+
+// 상품 상세 사진 — 아직 실제 이미지 연동 전이라 틀만 제공. 데스크톱 2열, 좁은 화면에서 1열.
+function DetailPhotoSection() {
+  return (
+    <div className="public-detail-photo-section">
+      <h3 className="public-detail-tab-content__heading">상품 상세 사진</h3>
+      <div
+        aria-label="상품 상세 사진 (준비 중)"
+        className="public-detail-photo-grid"
+      >
+        <div className="public-detail-photo-grid__item">
+          <span>교재 이미지</span>
+        </div>
+        <div className="public-detail-photo-grid__item">
+          <span>교재 이미지</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// 교재 상세 정보 섹션 — AI 요약 아래에 기존 상세 정보가 이어진다.
 function DetailInfoContent({ product, activeDisplay, onOpenLightbox }) {
   return (
     <>
       <h3 className="public-detail-tab-content__heading">교재 정보</h3>
       <dl className="public-detail-info-dl">
-        <div><dt>과목</dt><dd>{product.subject || "미등록"}</dd></div>
-        <div><dt>브랜드</dt><dd>{product.brand || "미등록"}</dd></div>
-        <div><dt>유형</dt><dd>{product.bookType || "미등록"}</dd></div>
-        <div><dt>연도</dt><dd>{product.publishedYear || "미등록"}</dd></div>
-        <div><dt>강사명</dt><dd>{product.instructorName || "미등록"}</dd></div>
+        <div>
+          <dt>과목</dt>
+          <dd>{product.subject || "미등록"}</dd>
+        </div>
+        <div>
+          <dt>브랜드</dt>
+          <dd>{product.brand || "미등록"}</dd>
+        </div>
+        <div>
+          <dt>유형</dt>
+          <dd>{product.bookType || "미등록"}</dd>
+        </div>
+        <div>
+          <dt>연도</dt>
+          <dd>{product.publishedYear || "미등록"}</dd>
+        </div>
+        <div>
+          <dt>강사명</dt>
+          <dd>{product.instructorName || "미등록"}</dd>
+        </div>
         {/* 검수일: 신뢰 지표. 검수 완료된 교재임을 명시. 값이 없으면 항목 자체를 숨긴다
             (없는데 "미등록"으로 두면 검수를 안 한 것처럼 보여 오히려 신뢰를 깎음). */}
         {activeDisplay?.inspectedAt ? (
-          <div><dt>검수일</dt><dd>{formatDate(activeDisplay.inspectedAt)}</dd></div>
+          <div>
+            <dt>검수일</dt>
+            <dd>{formatDate(activeDisplay.inspectedAt)}</dd>
+          </div>
         ) : null}
       </dl>
       <ConditionReport display={activeDisplay} />
       {activeDisplay?.inspectionNotes ? (
         <div className="public-detail-info-notes">
           <span className="public-detail-info-notes__label">검수 메모</span>
-          <p className="public-detail-info-notes__body">{activeDisplay.inspectionNotes}</p>
+          <p className="public-detail-info-notes__body">
+            {activeDisplay.inspectionNotes}
+          </p>
         </div>
       ) : null}
       {product.inspectionImageUrls?.length ? (
@@ -365,10 +483,20 @@ function DetailInfoContent({ product, activeDisplay, onOpenLightbox }) {
                 aria-label={`${product.title} 검수 사진 ${index + 1} 크게 보기`}
                 className="public-detail-info-images__item"
                 key={`${imageUrl}-${index}`}
-                onClick={() => onOpenLightbox?.(product.inspectionImageUrls ?? [], index, `${product.title} 검수 사진`)}
+                onClick={() =>
+                  onOpenLightbox?.(
+                    product.inspectionImageUrls ?? [],
+                    index,
+                    `${product.title} 검수 사진`,
+                  )
+                }
                 type="button"
               >
-                <img alt={`${product.title} 검수 사진 ${index + 1}`} loading="lazy" src={getThumbnailImageUrl(imageUrl)} />
+                <img
+                  alt={`${product.title} 검수 사진 ${index + 1}`}
+                  loading="lazy"
+                  src={getThumbnailImageUrl(imageUrl)}
+                />
               </button>
             ))}
           </div>
@@ -384,8 +512,14 @@ function DetailGradeContent() {
     <>
       <h3 className="public-detail-tab-content__heading">수북 검수 정책</h3>
       <ul className="public-detail-tab-content__list">
-        <li><strong>S (새 책)</strong> · 필기·형광펜이 전혀 없고 표지·내지가 양호한 미사용 교재. (비닐 개봉은 무관)</li>
-        <li><strong>A+ (사용감 적음)</strong> · 일부 페이지에 가벼운 필기/표시가 있으나 전반적으로 깨끗 (필기 10% 이하).</li>
+        <li>
+          <strong>S (새 책)</strong> · 필기·형광펜이 전혀 없고 표지·내지가
+          양호한 미사용 교재 (비닐 개봉은 무관)
+        </li>
+        <li>
+          <strong>A+ (사용감 적음)</strong> · 일부 페이지에 가벼운 필기/표시가
+          있으나 전반적으로 깨끗 (필기 10% 이하)
+        </li>
       </ul>
       <p className="public-detail-tab-content__note">
         모든 교재는 4단계 검수 (외관 · 내지 · 누락 · 훼손) 후 등급이 부여됩니다.
@@ -403,7 +537,8 @@ function DetailShippingContent() {
         <li>택배사: CJ대한통운</li>
         <li>발송 기준: 결제 확인 후 영업일 기준 1~2일 이내 출고</li>
         <li>
-          배송비: 일반 {formatCurrency(SHIPPING_FEE)} / {formatCurrency(FREE_SHIPPING_THRESHOLD)} 이상 구매 시 무료 배송
+          배송비: 일반 {formatCurrency(SHIPPING_FEE)} /{" "}
+          {formatCurrency(FREE_SHIPPING_THRESHOLD)} 이상 구매 시 무료 배송
         </li>
         <li>제주·도서산간 추가 배송비: 3,000원~</li>
         <li>주말 및 공휴일 발송은 익영업일 처리됩니다.</li>
@@ -413,12 +548,20 @@ function DetailShippingContent() {
         교환 및 반품 안내
       </h3>
       <ul className="public-detail-tab-content__list">
-        <li>수령 후 7일 이내 단순 변심으로 교환·반품 가능 (왕복 배송비 고객 부담)</li>
-        <li>교재의 상태가 검수 등급과 다르거나, 페이지 누락·심한 훼손이 발견된 경우 무료 교환·반품</li>
         <li>
-          <strong>포장을 개봉했거나 필기·표시가 추가된 경우</strong>에는 단순 변심에 의한 환불이 제한됩니다.
+          수령 후 7일 이내 단순 변심으로 교환·반품 가능 (왕복 배송비 고객 부담)
         </li>
-        <li>주문 제작 / 사용 흔적이 더해진 교재는 교환·반품이 제한될 수 있습니다.</li>
+        <li>
+          교재의 상태가 검수 등급과 다르거나, 페이지 누락·심한 훼손이 발견된
+          경우 무료 교환·반품
+        </li>
+        <li>
+          <strong>포장을 개봉했거나 필기·표시가 추가된 경우</strong>에는 단순
+          변심에 의한 환불이 제한됩니다.
+        </li>
+        <li>
+          주문 제작 / 사용 흔적이 더해진 교재는 교환·반품이 제한될 수 있습니다.
+        </li>
         <li>마이페이지 &gt; 구매 내역에서 신청해 주세요.</li>
       </ul>
     </>
@@ -427,13 +570,20 @@ function DetailShippingContent() {
 
 // 인라인 lightbox: 같은 페이지 내 closure로 구현. ESC 키로 닫기, 좌/우 화살표로 이전/다음.
 // 모바일 검수 사진 확대 + 메인 이미지 클릭 줌을 모두 처리.
-function ProductImageLightbox({ images, initialIndex, captionPrefix, onClose }) {
+function ProductImageLightbox({
+  images,
+  initialIndex,
+  captionPrefix,
+  onClose,
+}) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const overlayRef = useRef(null);
   const total = images?.length ?? 0;
 
   useEffect(() => {
-    setCurrentIndex(Math.min(Math.max(0, initialIndex), Math.max(0, total - 1)));
+    setCurrentIndex(
+      Math.min(Math.max(0, initialIndex), Math.max(0, total - 1)),
+    );
   }, [initialIndex, total]);
 
   // 모달 열린 동안 body 스크롤 잠금 (모바일에서 배경 스크롤 방지) — 공용 훅으로 중첩 모달 안전
@@ -491,7 +641,10 @@ function ProductImageLightbox({ images, initialIndex, captionPrefix, onClose }) 
         </button>
       ) : null}
       <figure className="public-detail-lightbox__figure">
-        <img alt={`${captionPrefix ?? "이미지"} ${currentIndex + 1}`} src={getZoomImageUrl(currentUrl)} />
+        <img
+          alt={`${captionPrefix ?? "이미지"} ${currentIndex + 1}`}
+          src={getZoomImageUrl(currentUrl)}
+        />
         {total > 1 ? (
           <figcaption className="public-detail-lightbox__caption">
             {currentIndex + 1} / {total}
@@ -527,7 +680,10 @@ function RelatedProductsRail({ products, favoriteIds, onToggleFavorite }) {
       const overflow = scrollWidth - clientWidth > SCROLL_EDGE_THRESHOLD_PX;
       setHasOverflow(overflow);
       setCanScrollPrev(scrollLeft > SCROLL_EDGE_THRESHOLD_PX);
-      setCanScrollNext(overflow && scrollLeft + clientWidth < scrollWidth - SCROLL_EDGE_THRESHOLD_PX);
+      setCanScrollNext(
+        overflow &&
+          scrollLeft + clientWidth < scrollWidth - SCROLL_EDGE_THRESHOLD_PX,
+      );
     };
 
     sync();
@@ -544,7 +700,8 @@ function RelatedProductsRail({ products, favoriteIds, onToggleFavorite }) {
     return () => {
       rail.removeEventListener("scroll", sync);
       if (resizeObserver) resizeObserver.disconnect();
-      else if (typeof window !== "undefined") window.removeEventListener("resize", sync);
+      else if (typeof window !== "undefined")
+        window.removeEventListener("resize", sync);
     };
   }, [products.length]);
 
@@ -553,8 +710,14 @@ function RelatedProductsRail({ products, favoriteIds, onToggleFavorite }) {
     if (!rail) return;
     const firstCard = rail.querySelector(".public-detail-related-rail__item");
     const cardWidth = firstCard ? firstCard.getBoundingClientRect().width : 220;
-    const visibleCards = Math.max(1, Math.floor(rail.clientWidth / (cardWidth + 16)));
-    rail.scrollBy({ left: (cardWidth + 16) * Math.max(1, visibleCards - 1) * direction, behavior: "smooth" });
+    const visibleCards = Math.max(
+      1,
+      Math.floor(rail.clientWidth / (cardWidth + 16)),
+    );
+    rail.scrollBy({
+      left: (cardWidth + 16) * Math.max(1, visibleCards - 1) * direction,
+      behavior: "smooth",
+    });
   };
 
   return (
@@ -562,7 +725,11 @@ function RelatedProductsRail({ products, favoriteIds, onToggleFavorite }) {
       <div className="public-detail-related__header">
         <h2 className="public-detail-related__title">비슷한 교재 추천</h2>
         {hasOverflow ? (
-          <div className="public-detail-related__nav-group" role="group" aria-label="가로 스크롤">
+          <div
+            className="public-detail-related__nav-group"
+            role="group"
+            aria-label="가로 스크롤"
+          >
             <button
               aria-label="이전 교재 보기"
               className="public-detail-related__nav"
@@ -588,7 +755,11 @@ function RelatedProductsRail({ products, favoriteIds, onToggleFavorite }) {
       {products.length ? (
         <div className="public-detail-related-rail" ref={railRef} role="list">
           {products.map((relatedProduct) => (
-            <div className="public-detail-related-rail__item" key={relatedProduct.id} role="listitem">
+            <div
+              className="public-detail-related-rail__item"
+              key={relatedProduct.id}
+              role="listitem"
+            >
               <ProductCard
                 isFavorite={favoriteIds.includes(String(relatedProduct.id))}
                 onToggleFavorite={onToggleFavorite}
@@ -598,7 +769,9 @@ function RelatedProductsRail({ products, favoriteIds, onToggleFavorite }) {
           ))}
         </div>
       ) : (
-        <div className="public-detail-related-empty">비슷한 교재가 아직 없어요.</div>
+        <div className="public-detail-related-empty">
+          비슷한 교재가 아직 없어요.
+        </div>
       )}
     </section>
   );
@@ -607,12 +780,16 @@ function RelatedProductsRail({ products, favoriteIds, onToggleFavorite }) {
 function PublicProductDetailPage() {
   const { productId } = useParams();
   const navigate = useNavigate();
-  const { requireMember, memberGateDialog, isAuthenticated } = usePublicMemberGate();
-  const { favoriteIds, isFavoritePending, toggleFavorite } = usePublicWishlist();
+  const { requireMember, memberGateDialog, isAuthenticated } =
+    usePublicMemberGate();
+  const { favoriteIds, isFavoritePending, toggleFavorite } =
+    usePublicWishlist();
   const [product, setProduct] = useState(null);
   // 상품명·과목 동적 title + description (SEO/공유 미리보기에 노출)
   usePageMeta({
-    title: product?.title ? `${product.title}${product.subject ? ` · ${product.subject}` : ""}` : undefined,
+    title: product?.title
+      ? `${product.title}${product.subject ? ` · ${product.subject}` : ""}`
+      : undefined,
     description: product?.title
       ? `${product.title}${product.instructor_name ? ` (${product.instructor_name})` : ""} ${product.subject ?? ""} 위탁판매 — 검수 완료된 새 책 수준의 교재를 합리적인 가격에.`
       : undefined,
@@ -626,7 +803,9 @@ function PublicProductDetailPage() {
   const [error, setError] = useState("");
   const [cartToast, setCartToast] = useState(null);
   // 섹션 nav는 스크롤스파이로 활성 항목을 표시 — 클릭 시 즉시 갱신, 스크롤 중엔 관찰로 갱신.
-  const [activeSectionKey, setActiveSectionKey] = useState(DETAIL_SECTIONS[0].key);
+  const [activeSectionKey, setActiveSectionKey] = useState(
+    DETAIL_SECTIONS[0].key,
+  );
   const sectionRefs = useRef({});
   const sectionNavRef = useRef(null);
   // P0: 옵션을 못 불러오면 사용자 책임으로 둔갑하는 토스트 대신 explicit error state.
@@ -683,11 +862,21 @@ function PublicProductDetailPage() {
         }
       }
       if (ok > 0 && fail === 0) {
-        showCartToast(demo ? `데모 장바구니에 ${ok}개 담았어요.` : `장바구니에 ${ok}개 담았어요.`);
+        showCartToast(
+          demo
+            ? `데모 장바구니에 ${ok}개 담았어요.`
+            : `장바구니에 ${ok}개 담았어요.`,
+        );
       } else if (ok > 0) {
-        showCartToast(`${ok}개는 담았지만 ${fail}개는 재고가 바뀌어 담지 못했어요.`, "error");
+        showCartToast(
+          `${ok}개는 담았지만 ${fail}개는 재고가 바뀌어 담지 못했어요.`,
+          "error",
+        );
       } else {
-        showCartToast("장바구니 담기에 실패했어요. 잠시 후 다시 시도해 주세요.", "error");
+        showCartToast(
+          "장바구니 담기에 실패했어요. 잠시 후 다시 시도해 주세요.",
+          "error",
+        );
       }
     },
     [showCartToast],
@@ -707,7 +896,9 @@ function PublicProductDetailPage() {
         setProduct(detailResult.product);
         // 옵션이 회차 하나뿐인 단권 상품은 자동 선택해 1-클릭 구매 동선을 유지한다.
         // 회차가 여러 개면 사용자가 직접 고르게 빈 선택으로 시작.
-        const initialGroups = groupOptionsByVariant(detailResult.product?.options ?? []);
+        const initialGroups = groupOptionsByVariant(
+          detailResult.product?.options ?? [],
+        );
         setSelections(
           initialGroups.length === 1 && !initialGroups[0].soldOut
             ? [{ key: initialGroups[0].key, quantity: 1 }]
@@ -716,7 +907,11 @@ function PublicProductDetailPage() {
         setSelectedImageIndex(0);
 
         if (!detailResult.product) {
-          setError(detailResult.error ? "교재 상세 정보를 불러오지 못했습니다." : "해당 교재를 찾지 못했습니다.");
+          setError(
+            detailResult.error
+              ? "교재 상세 정보를 불러오지 못했습니다."
+              : "해당 교재를 찾지 못했습니다.",
+          );
           return;
         }
 
@@ -728,9 +923,11 @@ function PublicProductDetailPage() {
         });
         if (!isActive) return;
 
-        const candidates = (broadResult.products ?? broadResult.books ?? []).filter(
-          (item) => String(item.id) !== String(detailResult.product.id),
-        );
+        const candidates = (
+          broadResult.products ??
+          broadResult.books ??
+          []
+        ).filter((item) => String(item.id) !== String(detailResult.product.id));
 
         // 점수: 동일 강사(+30) + 동일 유형(+15) + 동일 브랜드(+5)
         const scored = candidates.map((item) => {
@@ -741,10 +938,16 @@ function PublicProductDetailPage() {
           ) {
             score += 30;
           }
-          if (detailResult.product.bookType && item.bookType === detailResult.product.bookType) {
+          if (
+            detailResult.product.bookType &&
+            item.bookType === detailResult.product.bookType
+          ) {
             score += 15;
           }
-          if (detailResult.product.brand && item.brand === detailResult.product.brand) {
+          if (
+            detailResult.product.brand &&
+            item.brand === detailResult.product.brand
+          ) {
             score += 5;
           }
           return { item, score };
@@ -752,14 +955,20 @@ function PublicProductDetailPage() {
 
         // 점수 높은 순 → 동일 점수면 인기순(원래 정렬 유지)
         scored.sort((a, b) => b.score - a.score);
-        const ranked = scored.map((entry) => entry.item).slice(0, RELATED_RAIL_LIMIT);
+        const ranked = scored
+          .map((entry) => entry.item)
+          .slice(0, RELATED_RAIL_LIMIT);
 
         // 후보 부족 시 broadResult 의 popular 정렬 그대로 채워 넣음
         if (ranked.length < RELATED_RAIL_LIMIT) {
           const sorted = sortStorefrontProducts(candidates, "popular");
           for (const item of sorted) {
             if (ranked.length >= RELATED_RAIL_LIMIT) break;
-            if (!ranked.some((existing) => String(existing.id) === String(item.id))) {
+            if (
+              !ranked.some(
+                (existing) => String(existing.id) === String(item.id),
+              )
+            ) {
               ranked.push(item);
             }
           }
@@ -788,7 +997,9 @@ function PublicProductDetailPage() {
   useEffect(() => {
     if (!product) return undefined;
     const keys = DETAIL_SECTIONS.map((section) => section.key);
-    const elements = keys.map((key) => sectionRefs.current[key]).filter(Boolean);
+    const elements = keys
+      .map((key) => sectionRefs.current[key])
+      .filter(Boolean);
     if (elements.length === 0) return undefined;
 
     const navHeight = sectionNavRef.current?.offsetHeight ?? 52;
@@ -798,10 +1009,15 @@ function PublicProductDetailPage() {
           .filter((entry) => entry.isIntersecting)
           .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
         if (visible.length === 0) return;
-        const matchedKey = keys.find((key) => sectionRefs.current[key] === visible[0].target);
+        const matchedKey = keys.find(
+          (key) => sectionRefs.current[key] === visible[0].target,
+        );
         if (matchedKey) setActiveSectionKey(matchedKey);
       },
-      { rootMargin: `-${HEADER_OFFSET_PX + navHeight + 8}px 0px -55% 0px`, threshold: 0 },
+      {
+        rootMargin: `-${HEADER_OFFSET_PX + navHeight + 8}px 0px -55% 0px`,
+        threshold: 0,
+      },
     );
 
     elements.forEach((element) => observer.observe(element));
@@ -813,7 +1029,10 @@ function PublicProductDetailPage() {
     const element = sectionRefs.current[key];
     if (!element) return;
     const navHeight = sectionNavRef.current?.offsetHeight ?? 52;
-    const top = element.getBoundingClientRect().top + window.scrollY - (HEADER_OFFSET_PX + navHeight + 16);
+    const top =
+      element.getBoundingClientRect().top +
+      window.scrollY -
+      (HEADER_OFFSET_PX + navHeight + 16);
     window.scrollTo({ top, behavior: "smooth" });
     setActiveSectionKey(key);
   }, []);
@@ -839,7 +1058,10 @@ function PublicProductDetailPage() {
           changed = true;
           continue;
         }
-        const clampedQuantity = Math.max(1, Math.min(selection.quantity, group.availableCount));
+        const clampedQuantity = Math.max(
+          1,
+          Math.min(selection.quantity, group.availableCount),
+        );
         if (clampedQuantity !== selection.quantity) changed = true;
         next.push({ key: selection.key, quantity: clampedQuantity });
       }
@@ -876,7 +1098,8 @@ function PublicProductDetailPage() {
         setIsSubscribedRestock(false);
         return;
       }
-      const { supabase: sb } = await import("@shared-supabase/publicSupabaseClient");
+      const { supabase: sb } =
+        await import("@shared-supabase/publicSupabaseClient");
       if (!sb) return;
       const { data: sessionData } = await sb.auth.getSession();
       if (!sessionData.session) {
@@ -897,14 +1120,17 @@ function PublicProductDetailPage() {
   const handleToggleRestockSubscribe = async () => {
     if (!product?.id) return;
     if (!requireMember("restockSubscribe")) return;
-    const { supabase: sb } = await import("@shared-supabase/publicSupabaseClient");
+    const { supabase: sb } =
+      await import("@shared-supabase/publicSupabaseClient");
     if (!sb) return;
 
     setRestockBusy(true);
     try {
       const productIdNum = Number(product.id);
       if (isSubscribedRestock) {
-        const { error } = await sb.rpc("unsubscribe_restock", { p_product_id: productIdNum });
+        const { error } = await sb.rpc("unsubscribe_restock", {
+          p_product_id: productIdNum,
+        });
         if (error) {
           showCartToast(error.message || "구독 취소에 실패했어요.", "error");
         } else {
@@ -912,7 +1138,9 @@ function PublicProductDetailPage() {
           showCartToast("재입고 알림을 해제했어요.");
         }
       } else {
-        const { error } = await sb.rpc("subscribe_restock", { p_product_id: productIdNum });
+        const { error } = await sb.rpc("subscribe_restock", {
+          p_product_id: productIdNum,
+        });
         if (error) {
           showCartToast(error.message || "구독에 실패했어요.", "error");
         } else {
@@ -927,7 +1155,10 @@ function PublicProductDetailPage() {
 
   const galleryImages = useMemo(() => {
     if (!product) return [];
-    const nextImages = [product.coverImageUrl, ...(product.inspectionImageUrls ?? [])].filter(Boolean);
+    const nextImages = [
+      product.coverImageUrl,
+      ...(product.inspectionImageUrls ?? []),
+    ].filter(Boolean);
     return Array.from(new Set(nextImages));
   }, [product]);
 
@@ -935,13 +1166,18 @@ function PublicProductDetailPage() {
     if (selectedImageIndex >= galleryImages.length) setSelectedImageIndex(0);
   }, [galleryImages, selectedImageIndex]);
 
-  const selectedImageUrl = galleryImages[selectedImageIndex] ?? product?.coverImageUrl ?? "";
+  const selectedImageUrl =
+    galleryImages[selectedImageIndex] ?? product?.coverImageUrl ?? "";
   // 상단 큰 가격/할인/등급칩은 상품 대표값(최저가·대표 등급) 기준 — 회차마다 가격이 같은
   // 모의고사 세트가 대부분이라 대표값으로 충분하고, 라인별 정확 금액은 선택 목록이 보여준다.
   const priceValue = product?.price ?? null;
   const originalPriceValue = product?.originalPrice ?? null;
-  const isProductFavorite = product ? favoriteIds.includes(String(product.id)) : false;
-  const isProductFavoritePending = product ? isFavoritePending(product.id) : false;
+  const isProductFavorite = product
+    ? favoriteIds.includes(String(product.id))
+    : false;
+  const isProductFavoritePending = product
+    ? isFavoritePending(product.id)
+    : false;
   // 구매 가능 = 재고 있는 회차가 하나라도 있고, 구매 정보 로드 정상.
   const canPurchase = productHasStock && !optionLoadError;
 
@@ -959,7 +1195,9 @@ function PublicProductDetailPage() {
             return prev;
           }
           return prev.map((selection) =>
-            selection.key === key ? { ...selection, quantity: selection.quantity + 1 } : selection,
+            selection.key === key
+              ? { ...selection, quantity: selection.quantity + 1 }
+              : selection,
           );
         }
         return [...prev, { key, quantity: 1 }];
@@ -1026,13 +1264,21 @@ function PublicProductDetailPage() {
 
   const handleToggleFavorite = async (targetProductId) => {
     if (!targetProductId) return;
-    if (!requireMember("favorite", null, { type: "favorite", productId: targetProductId })) return;
+    if (
+      !requireMember("favorite", null, {
+        type: "favorite",
+        productId: targetProductId,
+      })
+    )
+      return;
     const result = await toggleFavorite(targetProductId);
     if (result.error) {
       showCartToast("찜 상태를 변경하지 못했어요.", "error");
       return;
     }
-    showCartToast(result.isFavorite ? "찜 목록에 추가했어요." : "찜을 해제했어요.");
+    showCartToast(
+      result.isFavorite ? "찜 목록에 추가했어요." : "찜을 해제했어요.",
+    );
   };
 
   // 비회원이 담기/바로구매/찜을 눌러 로그인한 경우, 로그인 후 같은 상품으로 돌아오면
@@ -1061,10 +1307,19 @@ function PublicProductDetailPage() {
           showCartToast("찜 상태를 변경하지 못했어요.", "error");
           return;
         }
-        showCartToast(result?.isFavorite ? "찜 목록에 추가했어요." : "찜을 해제했어요.");
+        showCartToast(
+          result?.isFavorite ? "찜 목록에 추가했어요." : "찜을 해제했어요.",
+        );
       });
     }
-  }, [isAuthenticated, product, runAddToCartBatch, navigate, toggleFavorite, showCartToast]);
+  }, [
+    isAuthenticated,
+    product,
+    runAddToCartBatch,
+    navigate,
+    toggleFavorite,
+    showCartToast,
+  ]);
 
   // 옵션 선택 목록(데스크톱·모바일 공용 렌더). 미선택 시엔 아무것도 노출하지 않는다.
   const renderSelectedOptions = () => {
@@ -1074,7 +1329,9 @@ function PublicProductDetailPage() {
     return (
       <div className="public-detail-selected-options">
         {selections.map((selection) => {
-          const group = variantGroups.find((item) => item.key === selection.key);
+          const group = variantGroups.find(
+            (item) => item.key === selection.key,
+          );
           if (!group) return null;
           const label = group.key === "" ? product.title : group.label;
           return (
@@ -1098,19 +1355,28 @@ function PublicProductDetailPage() {
     <div className="public-product-detail-page">
       <PublicSiteHeader />
 
-      <ContentContainer as="section" className="public-detail-route" aria-label="상품 경로">
+      <ContentContainer
+        as="section"
+        className="public-detail-route"
+        aria-label="상품 경로"
+      >
         <div className="public-detail-route__crumbs">
           <Link className="public-detail-route__crumb-link" to="/">
             홈
           </Link>
           <span aria-hidden="true">›</span>
-          <span className="is-muted">{product ? product.title : "교재 상세"}</span>
+          <span className="is-muted">
+            {product ? product.title : "교재 상세"}
+          </span>
         </div>
       </ContentContainer>
 
       <ContentContainer as="section" className="public-detail-content">
         {isLoading ? (
-          <div className="public-detail-skeleton" aria-label="교재 상세 정보를 불러오는 중입니다">
+          <div
+            className="public-detail-skeleton"
+            aria-label="교재 상세 정보를 불러오는 중입니다"
+          >
             <div className="public-detail-skeleton__media public-store-skeleton" />
             <div className="public-detail-skeleton__info public-store-skeleton" />
           </div>
@@ -1164,7 +1430,11 @@ function PublicProductDetailPage() {
                         onClick={() => setSelectedImageIndex(index)}
                         type="button"
                       >
-                        <img alt="" loading="lazy" src={getThumbnailImageUrl(imageUrl)} />
+                        <img
+                          alt=""
+                          loading="lazy"
+                          src={getThumbnailImageUrl(imageUrl)}
+                        />
                       </button>
                     ))}
                   </div>
@@ -1196,7 +1466,10 @@ function PublicProductDetailPage() {
                       방금 다른 분이 구매했어요. 재입고 알림을 받아 보세요.
                     </div>
                   ) : (
-                    <div className="public-detail-urgency-badge public-detail-urgency-badge--soldout" role="status">
+                    <div
+                      className="public-detail-urgency-badge public-detail-urgency-badge--soldout"
+                      role="status"
+                    >
                       품절
                     </div>
                   )
@@ -1205,7 +1478,8 @@ function PublicProductDetailPage() {
                 {/* P0: 구매 정보 누락 → explicit error */}
                 {optionLoadError ? (
                   <div className="public-detail-option-error" role="alert">
-                    구매 정보를 불러오지 못했어요. 새로고침 후에도 같은 문제면 고객센터로 알려주세요.
+                    구매 정보를 불러오지 못했어요. 새로고침 후에도 같은 문제면
+                    고객센터로 알려주세요.
                   </div>
                 ) : null}
 
@@ -1229,7 +1503,8 @@ function PublicProductDetailPage() {
                   <div>
                     <dt>배송비</dt>
                     <dd>
-                      {hasSelection && selectionSubtotal >= FREE_SHIPPING_THRESHOLD
+                      {hasSelection &&
+                      selectionSubtotal >= FREE_SHIPPING_THRESHOLD
                         ? "무료"
                         : formatCurrency(SHIPPING_FEE)}
                     </dd>
@@ -1253,7 +1528,9 @@ function PublicProductDetailPage() {
                     }}
                     type="button"
                   >
-                    <span aria-hidden="true">{isProductFavorite ? "♥" : "♡"}</span>
+                    <span aria-hidden="true">
+                      {isProductFavorite ? "♥" : "♡"}
+                    </span>
                   </button>
                   {canPurchase ? (
                     <>
@@ -1293,10 +1570,16 @@ function PublicProductDetailPage() {
             </div>
 
             {/* 섹션 nav — sticky. 클릭하면 아래 섹션으로 스크롤, 스크롤 중엔 현재 섹션을 하이라이트. */}
-            <nav aria-label="상품 안내 섹션" className="public-detail-tabs" ref={sectionNavRef}>
+            <nav
+              aria-label="상품 안내 섹션"
+              className="public-detail-tabs"
+              ref={sectionNavRef}
+            >
               {DETAIL_SECTIONS.map((section) => (
                 <button
-                  aria-current={activeSectionKey === section.key ? "true" : undefined}
+                  aria-current={
+                    activeSectionKey === section.key ? "true" : undefined
+                  }
                   className={`public-detail-tabs__btn${activeSectionKey === section.key ? " is-active" : ""}`}
                   key={section.key}
                   onClick={() => scrollToSection(section.key)}
@@ -1315,6 +1598,8 @@ function PublicProductDetailPage() {
                 sectionRefs.current.info = element;
               }}
             >
+              <AiSummarySection />
+              <DetailPhotoSection />
               <DetailInfoContent
                 activeDisplay={product}
                 onOpenLightbox={(images, initialIndex, captionPrefix) =>
@@ -1379,7 +1664,11 @@ function PublicProductDetailPage() {
       ) : null}
 
       {/* 모바일 sticky 구매바 — 모바일에서만 표시 (CSS @media로 제어) */}
-      <div className="public-detail-sticky-bar" role="region" aria-label="구매 액션 바">
+      <div
+        className="public-detail-sticky-bar"
+        role="region"
+        aria-label="구매 액션 바"
+      >
         <button
           aria-label={isProductFavorite ? "찜 취소" : "찜하기"}
           aria-pressed={isProductFavorite}
@@ -1393,7 +1682,9 @@ function PublicProductDetailPage() {
           <span aria-hidden="true">{isProductFavorite ? "♥" : "♡"}</span>
         </button>
         <div className="public-detail-sticky-bar__price">
-          <span className="public-detail-sticky-bar__price-label">총 {selectionCount}개</span>
+          <span className="public-detail-sticky-bar__price-label">
+            총 {selectionCount}개
+          </span>
           <span className="public-detail-sticky-bar__price-value">
             {hasSelection ? formatCurrency(selectionSubtotal) : "-"}
           </span>
