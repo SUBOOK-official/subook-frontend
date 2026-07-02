@@ -20,7 +20,12 @@ const RENDER_IMAGE_SEGMENT = "/storage/v1/render/image/public/";
 
 // Supabase 공개 객체 URL을 리사이즈·WebP 변환 URL로 바꾼다.
 // 스토리지 공개 객체가 아니면(외부 URL·data URI·빈 값·비문자열) 원본을 그대로 반환한다.
-export function toSupabaseRenderUrl(url, { width, height, quality = 70, resize } = {}) {
+//
+// ⚠️ resize 기본값은 반드시 'contain'. Supabase 변환은 width만 주고 resize를 생략하면
+// 원본 height를 유지한 채 width만 줄여 이미지를 가로로 찌부러뜨린다(2048×2048 → 400×2048).
+// resize='contain'이면 비율을 유지한 채 width에 맞춰 축소한다(2048×2048 → 400×400,
+// 세로형 1409×1775 → 400×504). 표시 크롭은 프론트 object-fit이 담당하므로 여기선 왜곡만 막는다.
+export function toSupabaseRenderUrl(url, { width, height, quality = 70, resize = "contain" } = {}) {
   if (typeof url !== "string") {
     return url;
   }

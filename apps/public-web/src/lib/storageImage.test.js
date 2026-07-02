@@ -11,12 +11,17 @@ import {
 const OBJECT_URL =
   "https://affeayqergefwudytfop.supabase.co/storage/v1/object/public/product-covers/sixshop/A.png";
 
-test("object/public URL을 render/image 변환 URL로 바꾸고 width·quality를 붙인다", () => {
+test("object/public URL을 render/image 변환 URL로 바꾸고 width·quality·resize를 붙인다", () => {
   const out = toSupabaseRenderUrl(OBJECT_URL, { width: 400, quality: 70 });
   assert.equal(
     out,
-    "https://affeayqergefwudytfop.supabase.co/storage/v1/render/image/public/product-covers/sixshop/A.png?width=400&quality=70",
+    "https://affeayqergefwudytfop.supabase.co/storage/v1/render/image/public/product-covers/sixshop/A.png?width=400&quality=70&resize=contain",
   );
+});
+
+test("resize 기본값은 contain — width만 줘도 비율 유지(이미지 가로 왜곡 방지)", () => {
+  const out = getThumbnailImageUrl(OBJECT_URL);
+  assert.ok(out.includes("resize=contain"));
 });
 
 test("data: URI(목업 SVG)는 변환하지 않고 원본 그대로 반환한다", () => {
