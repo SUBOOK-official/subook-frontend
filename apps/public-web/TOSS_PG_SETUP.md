@@ -14,7 +14,7 @@
                                                               │ POST /api/payments/confirm
                                                               ▼
                               ① 토스 POST /v1/payments/confirm (secretKey 검증)
-                              ② confirm_pg_payment RPC → pending→paid + books=reserved
+                              ② confirm_pg_payment RPC → pending→preparing + books=reserved
                               ③ order_confirmed 알림톡(best-effort)
                                                               ▼
                                                    /order/complete/:id (결제완료)

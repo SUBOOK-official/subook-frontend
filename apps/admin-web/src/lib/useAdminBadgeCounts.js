@@ -48,7 +48,9 @@ export function useAdminBadgeCounts() {
         // shipments.status enum은 scheduled/inspecting/inspected. (arrived는 pickup_requests 상태라
         // 여기서 쓰면 항상 0건 → 검수 대기 배지가 안 뜸) scheduled=입고 후 검수 대기, inspecting=검수중.
         fetchHeadCount("shipments", (q) => q.in("status", ["scheduled", "inspecting"])),
-        fetchHeadCount("orders", (q) => q.eq("status", "paid")),
+        // '결제완료(paid)' 단계 폐지 — 결제 확인 즉시 preparing으로 간다.
+        // 처리 필요 배지 = 송장 입력을 기다리는 '상품 준비 중' 주문 수.
+        fetchHeadCount("orders", (q) => q.eq("status", "preparing")),
         fetchHeadCount("settlements", (q) =>
           q.eq("status", "pending").lte("scheduled_date", today),
         ),

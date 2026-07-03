@@ -6,6 +6,7 @@ import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import StatusBadge from "@shared-domain/StatusBadge";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { formatCurrency, formatDate, maskEmail, maskName } from "@shared-domain/format";
+import { orderStatusLabel } from "@shared-domain/status";
 import {
   notifyDeliveryDone,
   notifyOrderConfirmed,
@@ -15,9 +16,10 @@ import {
 
 const PAGE_SIZE = 30;
 
+// '결제완료(paid)' 단계 폐지 — 결제 확인 즉시 preparing으로 간다. 필터 칩에서 제외.
+// (레거시 paid 주문의 라벨은 shared-domain orderStatusLabel로 fallback 렌더된다.)
 const ORDER_STATUS_OPTIONS = [
   { value: "pending", label: "입금대기" },
-  { value: "paid", label: "결제완료" },
   { value: "preparing", label: "상품 준비 중" },
   { value: "shipping", label: "배송중" },
   { value: "delivered", label: "배송완료" },
@@ -34,15 +36,19 @@ const CARRIER_OPTIONS = [
   "로젠택배",
 ];
 
-// 워크플로우: pending → paid → preparing → shipping → delivered → confirmed
-// preparing은 어드민이 결제 확인 후 명시적으로 전환하는 단계.
-// 운송장 입력은 preparing에서만 가능하도록 UI를 강제(백엔드는 paid→shipping 직행도 호환).
+// 워크플로우: pending → (무통장 입금확인 / PG 결제승인) → preparing → shipping → delivered → confirmed
+// '결제완료(paid)' 대기 단계는 2026-07 폐지 — 결제가 확인되면 곧바로 '상품 준비 중'으로 간다.
+//   · 무통장(bank_transfer): 입금확인 버튼(admin_confirm_payment)이 pending→preparing 전이
+//   · PG(카드 등): 토스 승인 서버리스(confirm_pg_payment)가 자동으로 pending→preparing 전이
+// paid 항목은 폐지 이전에 생성된 레거시 주문의 후속 처리용으로만 남겨둔다.
 // action: "refund"는 admin_refund_order RPC를 호출 (status 변경이 아닌 별도 흐름).
 const NEXT_STATUS_ACTIONS = {
   pending: [
-    { action: "confirm_payment", label: "입금확인", style: "btn-primary" },
+    // 입금확인은 무통장 주문에만 노출 — PG 주문은 결제 성공 시 자동 전이되므로 수동 확인 없음.
+    { action: "confirm_payment", label: "입금확인", style: "btn-primary", bankTransferOnly: true },
     { status: "cancelled", label: "주문취소", style: "btn-danger" },
   ],
+  // 레거시(폐지 전 paid에 남은 주문 전용) — 신규 주문은 이 상태를 거치지 않는다.
   paid: [
     { status: "preparing", label: "상품 준비 중", style: "btn-primary" },
     { status: "cancelled", label: "주문취소", style: "btn-danger" },
@@ -68,8 +74,28 @@ const NEXT_STATUS_ACTIONS = {
 };
 
 function getStatusLabel(status) {
-  return ORDER_STATUS_OPTIONS.find((o) => o.value === status)?.label ?? status;
+  return (
+    ORDER_STATUS_OPTIONS.find((o) => o.value === status)?.label
+    // 필터 칩에서 뺀 레거시 상태(paid 등)는 shared-domain 라벨로 fallback
+    ?? orderStatusLabel[status]
+    ?? status
+  );
 }
+
+// 주문별 가능한 액션 — bankTransferOnly 액션(입금확인)은 무통장 주문에만 노출
+function getOrderActions(order) {
+  return (NEXT_STATUS_ACTIONS[order.status] ?? []).filter(
+    (action) => !action.bankTransferOnly || order.payment_method === "bank_transfer",
+  );
+}
+
+const PAYMENT_METHOD_LABEL = {
+  bank_transfer: "계좌이체",
+  card: "카드",
+  kakao_pay: "카카오페이",
+  toss_pay: "토스페이",
+  naver_pay: "네이버페이",
+};
 
 // 택배사별 송장번호 패턴 검증.
 // CJ대한통운: 10~12자리 숫자 (12자리가 신규 표준이지만 10자리 구건도 호환)
@@ -177,26 +203,11 @@ function AdminOrdersPage() {
   };
 
   // 일괄 작업 진입점
+  // ('일괄 상품준비'는 paid 단계 폐지로 제거 — 결제 확인 시 자동으로 preparing이 된다.
+  //  무통장 입금확인은 금액 검증이 필요해 일괄 처리 대상이 아님.)
   const handleBulkAction = (action) => {
     const ids = Array.from(selectedIds);
     if (ids.length === 0) return;
-
-    if (action === "preparing") {
-      setDestructiveModal({
-        title: `상품 준비 중 일괄 전환 — ${ids.length}건`,
-        description:
-          `선택한 ${ids.length}건의 주문을 '상품 준비 중'으로 일괄 전환합니다.\n` +
-          `(paid 상태만 처리되고, 다른 상태는 자동 skip됩니다.)\n\n` +
-          `셀러·구매자에게 발송 시작 알림으로 이어질 수 있으므로 잘못된 일괄 변경에 주의하세요.`,
-        confirmPhrase: "상품준비",
-        reasonRequired: false,
-        confirmLabel: `${ids.length}건 전환`,
-        run: async () => {
-          await runBulkAction(action, ids);
-        },
-      });
-      return;
-    }
 
     if (action === "cancelled") {
       setDestructiveModal({
@@ -350,12 +361,11 @@ function AdminOrdersPage() {
     showToast(`주문 상태가 "${getStatusLabel(newStatus)}"(으)로 변경되었습니다.`, "success");
 
     // 알림톡 발송 (백그라운드 — 실패해도 상태 변경은 유지)
+    // 결제 확인 알림은 handleConfirmPayment(입금확인)에서 발송 — 여기선 배송 계열만.
     const order = orders.find((o) => o.id === orderId);
     if (order) {
       try {
-        if (newStatus === "paid") {
-          await notifyOrderConfirmed({ order });
-        } else if (newStatus === "shipping" && trackingNumber) {
+        if (newStatus === "shipping" && trackingNumber) {
           await notifyShippingStarted({ order, trackingNumber });
         } else if (newStatus === "delivered") {
           await notifyDeliveryDone({ order });
@@ -686,8 +696,9 @@ function AdminOrdersPage() {
     URL.revokeObjectURL(url);
   };
 
-  const paidOrderCount = useMemo(
-    () => orders.filter((o) => o.status === "paid").length,
+  // 송장 입력 대기 = 상품 준비 중 (+ 폐지 전 레거시 paid)
+  const awaitingTrackingCount = useMemo(
+    () => orders.filter((o) => o.status === "preparing" || o.status === "paid").length,
     [orders],
   );
 
@@ -700,7 +711,8 @@ function AdminOrdersPage() {
     ? [
         { label: "전체 주문", value: summary.total_count ?? 0 },
         { label: "입금대기", value: summary.pending_count ?? 0, hint: "확인 필요" },
-        { label: "결제완료/배송중", value: (summary.paid_count ?? 0) + (summary.shipping_count ?? 0), hint: "처리 필요" },
+        // paid 단계 폐지 — 결제 확인 주문은 preparing으로 직행. (paid_count는 레거시 잔여분)
+        { label: "준비 중/배송중", value: (summary.preparing_count ?? 0) + (summary.paid_count ?? 0) + (summary.shipping_count ?? 0), hint: "처리 필요" },
         { label: "구매확정", value: summary.confirmed_count ?? 0 },
         // 구매자가 환불 신청한 주문 — refunded 처리 전까지 큐에 남음. 0이면 표시 생략.
         ...((summary.refund_pending_count ?? 0) > 0
@@ -833,14 +845,6 @@ function AdminOrdersPage() {
           </button>
           <div className="flex-1" />
           <button
-            className="text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-md px-3 py-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
-            disabled={bulkProcessing}
-            onClick={() => handleBulkAction("preparing")}
-            type="button"
-          >
-            {bulkProcessing ? "처리 중..." : "일괄 상품준비"}
-          </button>
-          <button
             className="text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-md px-3 py-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
             disabled={bulkProcessing}
             onClick={() => handleBulkAction("cancelled")}
@@ -940,14 +944,14 @@ function AdminOrdersPage() {
                       <StatusBadge status={order.status} type="order" />
                     </td>
                     <td className="px-4 py-3 text-xs text-slate-500">
-                      {order.payment_method === "bank_transfer" ? "계좌이체" : order.payment_method}
+                      {PAYMENT_METHOD_LABEL[order.payment_method] ?? order.payment_method}
                     </td>
                     <td className="px-4 py-3 text-xs text-slate-500 whitespace-nowrap">
                       {formatDate(order.created_at)}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2 items-center">
-                        {order.status === "paid" && (
+                        {(order.status === "preparing" || order.status === "paid") && (
                           <button
                             className="text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-md px-2.5 py-1 whitespace-nowrap"
                             onClick={() => openTrackingModal(order)}
@@ -986,11 +990,11 @@ function AdminOrdersPage() {
         />
       </div>
 
-      {/* 결제완료 건 CSV 일괄 송장 입력 안내 */}
-      {!isLoading && paidOrderCount > 0 && (
+      {/* 상품 준비 중 건 CSV 일괄 송장 입력 안내 */}
+      {!isLoading && awaitingTrackingCount > 0 && (
         <div className="card p-4 flex items-center justify-between">
           <span className="text-sm text-slate-600">
-            결제완료 <strong className="text-blue-600">{paidOrderCount}건</strong> 송장 입력 대기 중
+            상품 준비 중 <strong className="text-blue-600">{awaitingTrackingCount}건</strong> 송장 입력 대기 중
           </span>
           <button
             className="btn-secondary !w-auto !px-4 !py-2 text-sm"
@@ -1114,7 +1118,7 @@ function AdminOrdersPage() {
           <div>
             <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">상태 변경</h4>
             <div className="flex flex-wrap gap-2 items-end">
-              {(NEXT_STATUS_ACTIONS[selectedOrder.status] ?? []).map((action) => {
+              {getOrderActions(selectedOrder).map((action) => {
                 if (action.requiresTracking) {
                   return (
                     <button
@@ -1180,7 +1184,7 @@ function AdminOrdersPage() {
                 </button>
               ) : null}
 
-              {(NEXT_STATUS_ACTIONS[selectedOrder.status] ?? []).length === 0 &&
+              {getOrderActions(selectedOrder).length === 0 &&
                 selectedOrder.status !== "confirmed" && (
                   <p className="text-xs text-slate-400">현재 상태에서 가능한 작업이 없습니다.</p>
                 )}

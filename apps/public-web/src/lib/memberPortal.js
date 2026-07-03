@@ -1140,7 +1140,7 @@ async function confirmMemberPurchase({ user, orderId, demoMode = false }) {
   }
 
   const purchaseInProgressCount = orders.filter((order) =>
-    ["paid", "shipping", "delivered"].includes(order.status),
+    ["paid", "preparing", "shipping", "delivered"].includes(order.status),
   ).length;
 
   writeStoredPortalState(user.id, {
@@ -1225,7 +1225,8 @@ async function cancelMemberOrder({ user, orderId, demoMode = false }) {
   const storedState = readStoredPortalState(user.id);
   const baseState = demoMode ? mergePortalDemoState(storedState, storedState.profile ?? DEMO_MEMBER_PROFILE) : storedState;
   const updatedOrders = (baseState.orders ?? []).map((order) =>
-    (order.id === orderId && ["pending", "paid"].includes(order.status))
+    // 백엔드 cancel_member_order와 동일 범위 (pending/paid(레거시)/preparing)
+    (order.id === orderId && ["pending", "paid", "preparing"].includes(order.status))
       ? { ...order, status: "cancelled" }
       : order,
   );

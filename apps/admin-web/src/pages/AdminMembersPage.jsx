@@ -28,7 +28,8 @@ const MEMBER_STATUS_BADGE = {
 
 const ORDER_STATUS_LABEL = {
   pending: "입금대기",
-  paid: "결제완료",
+  paid: "결제완료", // 레거시(폐지 전 주문) — 신규 주문은 결제 확인 즉시 preparing
+  preparing: "상품 준비 중",
   shipping: "배송중",
   delivered: "배송완료",
   confirmed: "구매확정",
@@ -45,6 +46,7 @@ const SETTLEMENT_STATUS_LABEL = {
 const STATUS_BADGE_STYLE = {
   pending: "bg-amber-100 text-amber-800",
   paid: "bg-blue-100 text-blue-800",
+  preparing: "bg-blue-100 text-blue-800",
   shipping: "bg-indigo-100 text-indigo-800",
   delivered: "bg-emerald-100 text-emerald-800",
   confirmed: "bg-slate-200 text-slate-700",

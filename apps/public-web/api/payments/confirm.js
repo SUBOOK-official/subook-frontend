@@ -3,7 +3,8 @@
 // 흐름: 결제위젯 requestPayment 성공 → successUrl(/order/payment/success)로 리다이렉트
 //   → 그 페이지가 이 엔드포인트에 { paymentKey, orderId, amount } POST
 //   → (1) 토스 POST /v1/payments/confirm 로 "서버에서" 승인 검증 (secretKey)
-//   → (2) confirm_pg_payment RPC(service_role)로 pending→paid + books=reserved 전이
+//   → (2) confirm_pg_payment RPC(service_role)로 pending→preparing + books=reserved 전이
+//        ('결제완료(paid)' 대기 단계는 2026-07 폐지 — 결제 승인 즉시 상품 준비 중)
 //   → (3) order_confirmed 알림톡 발사 (best-effort — 실패해도 결제는 성공으로 본다)
 //
 // ⚠ 의존성 없음(global fetch / Buffer만). 이 함수는 배포 스테이징 루트의 /api로 복사되어
@@ -157,7 +158,7 @@ export default async function handler(req, res) {
     ? Number(toss.totalAmount)
     : amountNum;
 
-  // ── 2) DB paid 전이 (confirm_pg_payment RPC, service_role) ───────────────────
+  // ── 2) DB 결제 확정 전이 — pending→preparing (confirm_pg_payment RPC, service_role) ──
   let confirm;
   try {
     const rpcResp = await fetchWithTimeout(`${supabaseUrl}/rest/v1/rpc/confirm_pg_payment`, {
@@ -179,7 +180,7 @@ export default async function handler(req, res) {
     if (!rpcResp.ok) {
       // RPC 실패: 금액불일치 / 책충돌 / pending 아님 등.
       // ⚠ 토스는 이미 승인된 상태인데 DB 전이가 실패한 케이스 → 운영 개입 필요(환불 대상).
-      //   명시적 로깅 후 에러 반환. (멱등 재호출 시 이미 paid면 RPC가 성공 반환)
+      //   명시적 로깅 후 에러 반환. (멱등 재호출 시 이미 결제 처리된 주문이면 RPC가 성공 반환)
       console.error("[payments/confirm] confirm_pg_payment failed", {
         orderId,
         paymentKey,
@@ -212,7 +213,7 @@ export default async function handler(req, res) {
     success: true,
     orderId: confirm?.order_id ?? null,
     orderNumber: confirm?.order_number ?? orderId,
-    status: confirm?.new_status ?? "paid",
+    status: confirm?.new_status ?? "preparing",
     idempotent: Boolean(confirm?.idempotent),
   });
 }
