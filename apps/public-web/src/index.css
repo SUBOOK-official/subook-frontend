@@ -3075,6 +3075,19 @@ img {
   opacity: 0.5;
 }
 
+/* 사업자등록번호 옆 공정위 사업자정보확인 링크 (무신사 스타일) */
+.public-footer__pair-action {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.public-footer__pair-action:hover {
+  color: #ffffff;
+}
+
 .public-footer__side {
   min-width: 240px;
   align-self: stretch;

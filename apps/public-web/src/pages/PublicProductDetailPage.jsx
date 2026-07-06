@@ -563,10 +563,10 @@ function DetailShippingContent() {
         <li>택배사: CJ대한통운</li>
         <li>발송 기준: 결제 확인 후 영업일 기준 1~2일 이내 출고</li>
         <li>
-          배송비: 일반 {formatCurrency(SHIPPING_FEE)} /{" "}
-          {formatCurrency(FREE_SHIPPING_THRESHOLD)} 이상 구매 시 무료 배송
+          배송비: 국내 일반 지역 {formatCurrency(SHIPPING_FEE)} ({formatCurrency(FREE_SHIPPING_THRESHOLD)} 이상 구매 시 무료 배송)
         </li>
-        <li>제주·도서산간 추가 배송비: 3,000원~</li>
+        <li>제주 지역 추가: 5,000원</li>
+        <li>제주 외 도서 산간 지역 추가: 5,000원</li>
         <li>주말 및 공휴일 발송은 익영업일 처리됩니다.</li>
       </ul>
 
@@ -575,20 +575,18 @@ function DetailShippingContent() {
       </h3>
       <ul className="public-detail-tab-content__list">
         <li>
-          수령 후 7일 이내 단순 변심으로 교환·반품 가능 (왕복 배송비 고객 부담)
+          상품 수령 후 7일 이내에는 단순 변심으로도 교환·반품이 가능합니다. 이 경우 반품
+          배송비(편도)는 구매자 부담입니다.
         </li>
         <li>
-          교재의 상태가 검수 등급과 다르거나, 페이지 누락·심한 훼손이 발견된
-          경우 무료 교환·반품
+          실제 상태가 검수 등급과 다르거나 페이지 누락·심한 훼손이 확인된 경우, 왕복 배송비
+          부담 없이 무료로 교환·반품해 드립니다.
         </li>
         <li>
-          <strong>포장을 개봉했거나 필기·표시가 추가된 경우</strong>에는 단순
-          변심에 의한 환불이 제한됩니다.
+          <strong>포장을 개봉해 사용 흔적이 생겼거나 필기·표시가 추가된 경우</strong>에는 단순
+          변심에 의한 교환·반품이 제한될 수 있습니다.
         </li>
-        <li>
-          주문 제작 / 사용 흔적이 더해진 교재는 교환·반품이 제한될 수 있습니다.
-        </li>
-        <li>마이페이지 &gt; 구매 내역에서 신청해 주세요.</li>
+        <li>교환·반품 신청은 마이페이지 &gt; 구매내역에서 해주세요.</li>
       </ul>
     </>
   );

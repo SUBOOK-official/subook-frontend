@@ -134,7 +134,7 @@ function PickupPolicyPreview() {
       </div>
       <ul className="pickup-policy-preview__list">
         <li>
-          <strong>교재 등록 불필요</strong> 어떤 책을 보내는지 일일이 적지 않아도 돼요. 검수하며 수북이 등록해 드려요.
+          <strong>교재 등록 불필요</strong> 어떤 책을 보내는지 일일이 적지 않아도 돼요. 검수 과정에서 수북이 대신 등록해 드려요.
         </li>
         <li>
           <strong>무료 수거</strong> 별도의 수거 비용은 없어요.
@@ -143,10 +143,10 @@ function PickupPolicyPreview() {
           <strong>박스당 5,000원</strong> 박스 1개당 상품화 비용 5,000원이 정산 시 차감돼요. 여러 박스보다 가장 큰 박스 하나에 담는 게 유리해요.
         </li>
         <li>
-          <strong>가격 책정</strong> 책별 가격은 검수 후 운영팀이 정해서 마이페이지에 안내해 드려요.
+          <strong>가격 책정</strong> 교재별 판매가는 검수 완료 후 운영팀이 산정하며, 마이페이지를 통해 안내해 드려요.
         </li>
         <li>
-          <strong>정산</strong> 구매확정된 판매분은 <strong>매월 1일 계좌이체</strong>
+          <strong>정산</strong> 구매확정이 완료된 판매 건에 한해, <strong>매월 1일</strong> 등록하신 계좌로 정산 금액이 입금돼요.
         </li>
         <li>
           <strong>검수 폐기·반송 없음</strong> 기준 미달 교재는 판매불가 → 자체 폐기(반송 없음)
@@ -300,7 +300,7 @@ function StepAddress({ address, setAddress, savedAddresses, onNext, showToast })
     <div className="pickup-step">
       <div className="pickup-step__header">
         <h2 className="pickup-step__title">수거 정보를 입력해주세요</h2>
-        <p className="pickup-step__subtitle">보낼 교재 수량과 수거 주소를 알려주세요. 어떤 책인지는 적지 않으셔도 돼요 — 검수하며 수북이 등록해 드려요.</p>
+        <p className="pickup-step__subtitle">보낼 교재 수량과 수거 주소를 알려주세요. 어떤 책인지는 적지 않으셔도 돼요 — 검수 과정에서 수북이 대신 등록해 드려요.</p>
       </div>
 
       <PickupPolicyPreview />
@@ -820,7 +820,7 @@ function StepConfirm({ address, account, isSubmitting, onPrev, onSubmit, goToSte
         <div className="pickup-confirm-detail">
           <p>예상 권수 <strong>{expectedCount}권</strong> · 박스 <strong>{boxCount}개</strong></p>
           <p className="pickup-confirm-detail__memo">
-            어떤 교재인지는 따로 적지 않으셔도 돼요. 검수하며 수북이 등록하고, 책별 가격은 마이페이지에서 안내해 드려요.
+            어떤 교재인지는 따로 적지 않으셔도 돼요. 검수 과정에서 수북이 대신 등록하고, 교재별 판매가는 마이페이지를 통해 안내해 드려요.
           </p>
         </div>
       </div>
@@ -892,7 +892,7 @@ function StepConfirm({ address, account, isSubmitting, onPrev, onSubmit, goToSte
           <span className="pickup-confirm-section__title">검수 탈락 교재 처리 안내</span>
         </div>
         <div className="pickup-confirm-detail">
-          <p className="pickup-confirm-detail__memo">실제 판매로 이어지는 교재 수량은 검수 완료 후 마이페이지에서 직접 확인하실 수 있어요.</p>
+          <p className="pickup-confirm-detail__memo">실제 판매로 등록되는 교재 수량은 검수가 완료된 후 마이페이지에서 직접 확인하실 수 있어요.</p>
           <p className="pickup-confirm-detail__memo">검수 기준 미달로 탈락한 교재는 수북에서 자체 폐기되며, <strong>반송은 진행되지 않습니다.</strong></p>
           <p className="pickup-confirm-detail__memo">반드시 <strong>새 교재 + 현재 수능 기준 3개년 이내</strong>의 교재만 접수해 주세요.</p>
         </div>

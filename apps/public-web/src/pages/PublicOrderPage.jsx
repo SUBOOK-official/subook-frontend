@@ -482,9 +482,9 @@ function PublicOrderPage() {
     // 배송 안내 SMS·알림톡 발송 대상이므로 휴대폰 형식을 검증한다(수거요청 페이지와 동일 기준).
     if (!isValidKoreanMobile(shipping.recipientPhone)) return "휴대폰 번호를 정확히 입력해주세요. (예: 010-1234-5678)";
     if (!shipping.postalCode.trim() || !shipping.addressLine1.trim()) return "배송지 주소를 입력해주세요.";
-    if (!agreementOrder) return "[필수] 주문 내용·개인정보 제공 동의에 체크해주세요.";
-    if (!isPg && !agreementPayment) return "[필수] 24시간 미입금 시 자동 취소 동의에 체크해주세요.";
-    if (!agreementRefund) return "[필수] 환불·교환 정책 확인에 체크해주세요.";
+    if (!agreementOrder) return "[필수] 주문 내용 확인 및 개인정보 수집·이용 동의에 체크해주세요.";
+    if (!isPg && !agreementPayment) return "[필수] 미입금 시 주문 자동 취소 동의에 체크해주세요.";
+    if (!agreementRefund) return "[필수] 환불·교환 정책 확인 동의에 체크해주세요.";
     return null;
   };
 
@@ -931,7 +931,16 @@ function PublicOrderPage() {
                       type="checkbox"
                     />
                     <span>
-                      <strong>[필수]</strong> 주문 내용·개인정보 제공에 동의합니다.
+                      <strong>[필수]</strong> 주문 내용 확인 및{" "}
+                      <a
+                        className="order-sidebar__agreement-link"
+                        href="/privacy"
+                        rel="noopener noreferrer"
+                        target="_blank"
+                      >
+                        개인정보 수집·이용
+                      </a>
+                      에 동의합니다.
                     </span>
                   </label>
                   {!isPg && (
@@ -943,7 +952,7 @@ function PublicOrderPage() {
                       />
                       <span>
                         <strong>[필수]</strong> 결제 후 {PAYMENT_DEADLINE_HOURS}시간 이내 미입금 시
-                        <strong> 자동 취소</strong>에 동의합니다.
+                        주문이 <strong>자동 취소</strong>됨에 동의합니다.
                       </span>
                     </label>
                   )}
@@ -963,7 +972,8 @@ function PublicOrderPage() {
                       >
                         환불·교환 정책
                       </a>
-                      을 확인했습니다. (포장 개봉/필기 추가 시 단순변심 환불 불가)
+                      을 확인했으며, 포장 개봉 또는 필기·표시 등 흔적이 추가된 경우 단순 변심에
+                      의한 환불이 제한될 수 있음에 동의합니다.
                     </span>
                   </label>
                 </div>
