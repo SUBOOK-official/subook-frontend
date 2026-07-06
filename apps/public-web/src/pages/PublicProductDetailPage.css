@@ -609,7 +609,7 @@
   align-items: center;
   justify-content: center;
   font-size: 24px;
-  color: var(--public-ds-text-muted, #94a3b8);
+  color: #d1d5db;
   transition: color 0.15s, border-color 0.15s, background 0.15s;
 }
 
@@ -661,12 +661,17 @@
   transform: scale(0.98);
 }
 
-/* ── 탭 ───────────────────────────────────────────────── */
+/* ── 섹션 nav (sticky) ────────────────────────────────── */
 .public-detail-tabs {
   display: flex;
   border-bottom: 1px solid var(--public-border, #e2e8f0);
   margin-bottom: 24px;
   gap: 0;
+  position: sticky;
+  /* 상단 고정 사이트 헤더 바로 아래 붙는다. */
+  top: 72px;
+  z-index: 40;
+  background: #ffffff;
 }
 
 .public-detail-tabs__btn {
@@ -710,6 +715,11 @@
   color: var(--public-ds-text, #0f172a);
 }
 
+/* 배송 안내 + 교환/반품 안내처럼 한 섹션에 소제목이 여러 개 붙을 때 위쪽 여백 */
+.public-detail-tab-content__heading--spaced {
+  margin-top: 24px;
+}
+
 .public-detail-tab-content__list {
   margin: 0;
   padding-left: 20px;
@@ -731,39 +741,185 @@
   color: var(--public-ds-text-muted, #94a3b8);
 }
 
-/* 정보 탭 — dl 격자 */
-.public-detail-info-dl {
+/* ── 수북 검수 정책: 강사 사진(준비 중) + 본문 2단 레이아웃 ── */
+.public-detail-grade-layout {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px 24px;
-  margin: 0 0 24px;
+  grid-template-columns: minmax(160px, 220px) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+  margin-top: 16px;
 }
 
-.public-detail-info-dl > div {
+@media (max-width: 640px) {
+  .public-detail-grade-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.public-detail-grade-layout__image {
+  aspect-ratio: 1 / 1;
+  border-radius: 12px;
+  background: var(--public-border, #e2e8f0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--public-ds-text-muted, #94a3b8);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.public-detail-grade-layout__image--photo {
+  overflow: hidden;
+}
+
+.public-detail-grade-layout__image--photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.public-detail-grade-layout__content {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 10px 14px;
-  background: #ffffff;
-  border-radius: 8px;
-  border: 1px solid var(--public-border, #e2e8f0);
+  gap: 14px;
 }
 
-.public-detail-info-dl dt {
-  font-size: 12px;
-  color: var(--public-ds-text-muted, #94a3b8);
-  margin: 0;
-}
-
-.public-detail-info-dl dd {
+.public-detail-grade-intro {
   margin: 0;
   font-size: 14px;
-  font-weight: 700;
+  color: var(--public-ds-text-secondary, #475569);
+  line-height: 1.6;
+}
+
+.public-detail-grade-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.public-detail-grade-checks__item {
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: #ffffff;
+  border: 1px solid var(--public-border, #e2e8f0);
+  font-size: 13px;
+  font-weight: 600;
   color: var(--public-ds-text, #0f172a);
 }
 
+.public-detail-grade-subheading {
+  margin: 4px 0 0;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--public-ds-text, #0f172a);
+}
+
+.public-detail-grade-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.public-detail-grade-list__item {
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: #eef1f5;
+}
+
+.public-detail-grade-list__title {
+  margin: 0;
+  font-size: 14px;
+  color: var(--public-ds-text, #0f172a);
+}
+
+.public-detail-grade-list__label {
+  color: #1d4ed8;
+  font-weight: 800;
+}
+
+.public-detail-grade-list__desc {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--public-ds-text-muted, #64748b);
+}
+
+/* ── AI 요약 (실제 연동 전 틀만 — skeleton) ──────────────── */
+.public-detail-ai-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px 24px;
+  margin-bottom: 24px;
+  background: #ffffff;
+  border: 1px solid var(--public-border, #e2e8f0);
+  border-radius: 12px;
+}
+
+.public-detail-ai-summary__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--public-ds-text, #0f172a);
+}
+
+.public-detail-ai-summary__icon {
+  flex-shrink: 0;
+  display: block;
+  object-fit: contain;
+  color: var(--public-ds-text, #0f172a);
+}
+
+.public-detail-ai-summary__body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.public-detail-ai-summary__line {
+  display: block;
+  height: 12px;
+  border-radius: 999px;
+}
+
+.public-detail-ai-summary__line--short {
+  width: 55%;
+}
+
+/* ── 상품 상세 사진 (실제 연동 전 틀만) ───────────────────── */
+.public-detail-photo-section {
+  margin-bottom: 24px;
+}
+
+.public-detail-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.public-detail-photo-grid__item {
+  aspect-ratio: 1 / 1;
+  border-radius: 16px;
+  background: var(--public-bg-soft, #f1f5f9);
+  border: 1px solid var(--public-border, #e2e8f0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--public-ds-text-muted, #94a3b8);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+@media (max-width: 767px) {
+  .public-detail-photo-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .public-detail-info-notes,
-.public-detail-info-images,
 .public-detail-condition-report {
   margin-top: 16px;
 }
@@ -822,26 +978,6 @@
   font-size: 14px;
   line-height: 1.7;
   color: var(--public-ds-text-secondary, #475569);
-}
-
-.public-detail-info-images__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 8px;
-}
-
-.public-detail-info-images__item {
-  display: block;
-  aspect-ratio: 1 / 1;
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.public-detail-info-images__item img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
 }
 
 /* ── 비슷한 교재 추천 (가로 스크롤) ───────────────────── */
@@ -1054,7 +1190,7 @@
     border: 1px solid #e5e7eb;
     border-radius: 10px;
     background: #ffffff;
-    color: #6b7280;
+    color: #d1d5db;
     font-size: 22px;
     display: inline-flex;
     align-items: center;
@@ -1288,18 +1424,3 @@
   }
 }
 
-/* P2-4: 등급 칩 색상 — 정보 탭 dl에 표시되는 grade pill에도 적용. */
-.public-detail-info-images__item {
-  display: block;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  aspect-ratio: 1 / 1;
-  border-radius: 8px;
-  overflow: hidden;
-  cursor: zoom-in;
-}
-.public-detail-info-images__item:focus-visible {
-  outline: 2px solid var(--public-primary, #1B3A5C);
-  outline-offset: 2px;
-}
