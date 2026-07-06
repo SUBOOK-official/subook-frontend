@@ -6,6 +6,9 @@ import PublicFooter from "../components/PublicFooter";
 import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
 import { usePageMeta } from "../lib/usePageMeta";
+// 공지 페이지는 FAQ 아코디언 스타일(public-faq-*)을 재사용한다.
+// lazy 청크가 분리돼 있어 이 import가 없으면 /notices 직접 진입 시 무스타일로 렌더됨.
+import "./PublicFaqPage.css";
 
 function formatKstDate(iso) {
   if (!iso) return "";
