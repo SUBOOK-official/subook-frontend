@@ -7263,9 +7263,9 @@ img {
 
 .public-home-hero-banner__viewport {
   position: relative;
-  /* 배너 이미지 비율(모바일 3:2)에 맞춰 폭에 따라 높이가 자동으로 늘어난다. */
+  /* 배너 이미지 비율(모바일 750:300 = 5:2)에 맞춰 폭에 따라 높이가 자동으로 늘어난다. */
   height: auto;
-  aspect-ratio: 3 / 2;
+  aspect-ratio: 5 / 2;
   max-width: 1152px;
   margin: 0 auto;
   overflow: hidden;
@@ -8097,8 +8097,8 @@ img {
   }
 
   .public-home-hero-banner__viewport {
-    /* 데스크톱 배너 이미지 비율 */
-    aspect-ratio: 3 / 1;
+    /* 데스크톱 배너 이미지 비율(1200:300 = 4:1) */
+    aspect-ratio: 4 / 1;
   }
 
   .public-home-hero-banner__content {
