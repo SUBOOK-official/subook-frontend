@@ -740,6 +740,12 @@ img {
     gap: 16px 12px;
   }
 
+  /* 2열 배치라 폭이 좁아 태그·메타데이터는 숨겨 카드를 간결하게 */
+  .public-home-store-grid__list .public-product-card__tags,
+  .public-home-store-grid__list .public-product-card__meta-line {
+    display: none;
+  }
+
   .public-home-store-grid__title {
     font-size: 18px;
   }
