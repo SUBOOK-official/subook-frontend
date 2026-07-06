@@ -7678,6 +7678,8 @@ img {
   gap: 12px;
   overflow-x: auto;
   scroll-snap-type: x mandatory;
+  /* 스냅이 선두 padding(왼쪽 여백)을 먹어치워 첫 카드가 잘리는 것을 방지 */
+  scroll-padding-left: 24px;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   margin: 0 -24px;
@@ -7740,6 +7742,18 @@ img {
 
 @media (max-width: 767px) {
   .public-home-best-books__nav-group {
+    display: none;
+  }
+
+  /* 모바일: 카드를 넓혀 다음 카드가 살짝 보이며 오른쪽으로 슬라이드되도록.
+     (뒤쪽 base 규칙에 덮이지 않도록 .__rail 하위로 명시도를 높임) */
+  .public-home-best-books__rail .public-home-best-books__card {
+    flex-basis: 240px;
+    min-width: 240px;
+  }
+
+  /* 메타데이터(연도·강사·과목) 줄은 모바일에선 숨겨 카드를 간결하게 */
+  .public-home-best-books__card .public-product-card__meta-line {
     display: none;
   }
 }
@@ -8172,8 +8186,27 @@ img {
 }
 
 @media (max-width: 767px) {
-  .public-home-hero-banner__arrow-group {
-    display: none;
+  /* 모바일에선 배너를 화면 가로에 꽉 차게(풀블리드) 노출 */
+  .public-home-hero-banner {
+    padding: 0;
+  }
+
+  .public-home-hero-banner__viewport {
+    max-width: none;
+    border-radius: 0;
+  }
+
+  /* 터치 기기엔 hover가 없어 화살표를 상시 노출 */
+  .public-home-hero-banner__arrow {
+    width: 30px;
+    height: 30px;
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .public-home-hero-banner__arrow-icon {
+    width: 18px;
+    height: 18px;
   }
 
   .public-home-hero-banner__content {
@@ -9118,10 +9151,6 @@ img {
   }
   .public-product-card__meta-line {
     font-size: 13px;
-  }
-  /* 좌우 화살표는 화면 좁아 도트만으로 충분 — 화살표는 계속 숨김 */
-  .public-home-hero-banner__arrow-group {
-    display: none;
   }
 }
 
