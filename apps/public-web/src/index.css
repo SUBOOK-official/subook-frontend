@@ -7827,6 +7827,15 @@ img {
     padding-bottom: 16px;
   }
 
+  /* 레일 full-bleed를 모바일 컨테이너 여백(16px)에 맞춘다.
+     기존 -24px는 데스크톱 컨테이너(24px) 기준이라 모바일에선 8px 넘쳐
+     가로 오버플로우 → 헤더·배너 등 width:100% 요소가 화면 밖으로 밀렸다. */
+  .public-home-best-books__rail {
+    margin: 0 -16px;
+    padding: 0 16px 4px;
+    scroll-padding-left: 16px;
+  }
+
   /* 모바일: 카드를 넓혀 다음 카드가 살짝 보이며 오른쪽으로 슬라이드되도록.
      (뒤쪽 base 규칙에 덮이지 않도록 .__rail 하위로 명시도를 높임) */
   .public-home-best-books__rail .public-home-best-books__card {
@@ -8369,6 +8378,17 @@ img {
 .public-home-sell-banner__button:hover .public-home-sell-banner__arrow {
   transform: translateX(3px);
   color: var(--public-ds-primary);
+}
+
+@media (max-width: 767px) {
+  /* 모바일에선 '포장만 하면~'을 다음 줄로 내리고 구분점 '·'은 숨김 */
+  .public-home-sell-banner__sub-sep {
+    display: none;
+  }
+
+  .public-home-sell-banner__sub-detail {
+    display: block;
+  }
 }
 
 .public-pickup-page {
