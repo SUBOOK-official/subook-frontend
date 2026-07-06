@@ -6708,6 +6708,47 @@ img {
   font-variant-numeric: tabular-nums;
 }
 
+/* 카드 하단 액션 슬롯 (찜 목록 품절 카드의 재입고 알림 버튼 등).
+   카드 전체를 덮는 overlay 링크(z-index:1) 위에서 클릭돼야 한다. */
+.public-product-card__footer {
+  position: relative;
+  z-index: 2;
+  margin-top: 10px;
+}
+
+.public-product-card__restock-btn {
+  display: inline-flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 12px;
+  border: 1px solid var(--public-primary, #1b3a5c);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--public-primary, #1b3a5c);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s, opacity 0.15s;
+}
+
+.public-product-card__restock-btn:hover:not(:disabled) {
+  background: var(--public-primary, #1b3a5c);
+  color: #ffffff;
+}
+
+.public-product-card__restock-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.public-product-card__restock-btn.is-subscribed {
+  border-color: var(--public-border, #e2e8f0);
+  background: var(--public-bg-soft, #f8fafc);
+  color: var(--public-ds-text-secondary, #475569);
+}
+
 .public-product-card--skeleton {
   overflow: hidden;
   pointer-events: none;

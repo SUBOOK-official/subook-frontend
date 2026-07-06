@@ -73,6 +73,9 @@ function ProductCard({
   badge = null,
   className = "",
   detailPath,
+  // 카드 하단 액션 슬롯(예: 찜 목록의 품절 카드 "재입고 알림" 버튼). 카드 전체를 덮는
+  // overlay 링크 위에서 클릭돼야 하므로 __footer가 z-index를 올린다.
+  footer = null,
   isFavorite = false,
   onToggleFavorite,
   product,
@@ -237,6 +240,8 @@ function ProductCard({
             <span className="public-product-card__original-price">{formatCurrency(originalPrice)}</span>
           ) : null}
         </div>
+
+        {footer ? <div className="public-product-card__footer">{footer}</div> : null}
       </div>
     </article>
   );

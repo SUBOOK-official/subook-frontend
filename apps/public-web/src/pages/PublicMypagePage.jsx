@@ -73,6 +73,11 @@ import {
 } from "../lib/publicMypageUtils";
 import { formatPhoneNumber, hasValidPhoneNumber } from "../lib/publicAuthFormUtils";
 import { fetchWishlistProducts } from "../lib/publicWishlist";
+import {
+  fetchMyRestockSubscribedProductIds,
+  subscribeRestock,
+  unsubscribeRestock,
+} from "../lib/publicRestock";
 import { getThumbnailImageUrl } from "../lib/storageImage";
 import {
   BANK_ACCOUNT,
@@ -201,6 +206,9 @@ function PublicMypagePage() {
   const [wishlistProducts, setWishlistProducts] = useState([]);
   const [wishlistError, setWishlistError] = useState("");
   const [isWishlistProductsLoading, setIsWishlistProductsLoading] = useState(false);
+  // 찜 목록의 품절 카드에서 재입고 알림을 바로 신청/해제하기 위한 구독 상태.
+  const [restockSubscribedIds, setRestockSubscribedIds] = useState(() => new Set());
+  const [restockBusyProductId, setRestockBusyProductId] = useState(null);
   const [expandedShipmentId, setExpandedShipmentId] = useState(null);
   const tabPanelRef = useRef(null);
   const addressDetailInputRef = useRef(null);
@@ -306,12 +314,19 @@ function PublicMypagePage() {
     const loadWishlist = async () => {
       setIsWishlistProductsLoading(true);
 
-      const result = await fetchWishlistProducts({
-        user: effectiveUser,
-        wishlistIds: favoriteIds,
-        limit: favoriteIds.length,
-        offset: 0,
-      });
+      // 품절 카드의 "재입고 알림" 버튼 상태용 구독 목록도 함께 로드.
+      // (데모 프리뷰는 실제 RPC가 없으므로 빈 집합 유지 → 버튼 미노출)
+      const [result, restockResult] = await Promise.all([
+        fetchWishlistProducts({
+          user: effectiveUser,
+          wishlistIds: favoriteIds,
+          limit: favoriteIds.length,
+          offset: 0,
+        }),
+        isDemoPreview
+          ? Promise.resolve({ productIds: new Set(), error: null })
+          : fetchMyRestockSubscribedProductIds(),
+      ]);
 
       if (isCancelled) {
         return;
@@ -321,6 +336,8 @@ function PublicMypagePage() {
       setWishlistError(
         result.error ? "찜한 교재를 불러오지 못했어요. 잠시 후 다시 시도해 주세요." : "",
       );
+      // 구독 목록 로드 실패는 치명적이지 않음 — 버튼이 "신청" 기본 상태로 보일 뿐.
+      setRestockSubscribedIds(restockResult.productIds);
       setIsWishlistProductsLoading(false);
     };
 
@@ -329,7 +346,43 @@ function PublicMypagePage() {
     return () => {
       isCancelled = true;
     };
-  }, [activeTabKey, effectiveUser, favoriteIds]);
+  }, [activeTabKey, effectiveUser, favoriteIds, isDemoPreview]);
+
+  // 찜 목록 품절 카드의 재입고 알림 신청/해제 토글.
+  const handleToggleRestockAlert = async (productId) => {
+    const productKey = String(productId);
+    const isSubscribed = restockSubscribedIds.has(productKey);
+
+    setRestockBusyProductId(productKey);
+    const result = isSubscribed
+      ? await unsubscribeRestock(productId)
+      : await subscribeRestock(productId);
+    setRestockBusyProductId(null);
+
+    if (result.error) {
+      setToastState({
+        message: "재입고 알림 처리에 실패했어요. 잠시 후 다시 시도해 주세요.",
+        tone: "error",
+      });
+      return;
+    }
+
+    setRestockSubscribedIds((currentIds) => {
+      const nextIds = new Set(currentIds);
+      if (isSubscribed) {
+        nextIds.delete(productKey);
+      } else {
+        nextIds.add(productKey);
+      }
+      return nextIds;
+    });
+    setToastState({
+      message: isSubscribed
+        ? "재입고 알림을 해제했어요."
+        : "재입고 알림을 신청했어요. 다시 입고되면 알려드릴게요.",
+      tone: "success",
+    });
+  };
 
   useEffect(() => {
     if (!isProfileEditing) {
@@ -1290,6 +1343,7 @@ function PublicMypagePage() {
       isWithdrawing={isWithdrawing}
       joinDateText={joinDateText}
       nicknameStatus={nicknameStatus}
+      onToggleRestockAlert={isDemoPreview ? null : handleToggleRestockAlert}
       onToggleWishlistProduct={handleToggleWishlistProduct}
       openAccountSheet={openAccountSheet}
       openAddressSheet={openAddressSheet}
@@ -1299,6 +1353,8 @@ function PublicMypagePage() {
       profileSnapshot={profileSnapshot}
       requestDeleteAccount={requestDeleteAccount}
       requestDeleteAddress={requestDeleteAddress}
+      restockBusyProductId={restockBusyProductId}
+      restockSubscribedIds={restockSubscribedIds}
       section={section}
       setIsProfileEditing={setIsProfileEditing}
       setProfileErrors={setProfileErrors}
@@ -1354,6 +1410,9 @@ function PublicMypagePage() {
         <WishlistTab
           isLoading={isWishlistLoading || isWishlistProductsLoading}
           onToggleFavorite={handleToggleWishlistProduct}
+          onToggleRestockAlert={isDemoPreview ? null : handleToggleRestockAlert}
+          restockBusyProductId={restockBusyProductId}
+          restockSubscribedIds={restockSubscribedIds}
           wishlistError={wishlistError}
           wishlistProducts={wishlistProducts}
         />
@@ -2554,7 +2613,43 @@ function SettlementsTab({ completedSettlements, onRequestPickup, scheduledSettle
   );
 }
 
-function WishlistTab({ isLoading, onToggleFavorite, wishlistError, wishlistProducts }) {
+// 찜 목록 품절 카드 전용 — 상세 페이지까지 가지 않고 카드에서 바로 재입고 알림 신청/해제.
+// 노출 조건(품절 + 핸들러 존재)은 호출부에서 판단한다.
+function WishlistRestockButton({ busyProductId, onToggle, product, subscribedIds }) {
+  const productKey = String(product.id);
+  const isSubscribed = Boolean(subscribedIds?.has(productKey));
+  const isBusy = busyProductId === productKey;
+
+  return (
+    <button
+      className={`public-product-card__restock-btn${isSubscribed ? " is-subscribed" : ""}`}
+      disabled={isBusy}
+      onClick={(event) => {
+        // 카드 전체를 덮는 상세 링크로 클릭이 전파되지 않도록 차단.
+        event.preventDefault();
+        event.stopPropagation();
+        onToggle(product.id);
+      }}
+      type="button"
+    >
+      {isBusy
+        ? "처리 중..."
+        : isSubscribed
+          ? "🔔 재입고 알림 받는 중 · 해제"
+          : "🔔 재입고 알림 신청"}
+    </button>
+  );
+}
+
+function WishlistTab({
+  isLoading,
+  onToggleFavorite,
+  onToggleRestockAlert,
+  restockBusyProductId,
+  restockSubscribedIds,
+  wishlistError,
+  wishlistProducts,
+}) {
   return (
     <div className="public-mypage-stack">
       <section className="public-mypage-section">
@@ -2585,6 +2680,16 @@ function WishlistTab({ isLoading, onToggleFavorite, wishlistError, wishlistProdu
           <div className="public-mypage-wishlist-grid">
             {wishlistProducts.map((product) => (
               <ProductCard
+                footer={
+                  product.isSoldOut && typeof onToggleRestockAlert === "function" ? (
+                    <WishlistRestockButton
+                      busyProductId={restockBusyProductId}
+                      onToggle={onToggleRestockAlert}
+                      product={product}
+                      subscribedIds={restockSubscribedIds}
+                    />
+                  ) : null
+                }
                 isFavorite
                 key={product.id}
                 onToggleFavorite={onToggleFavorite}
@@ -2625,6 +2730,7 @@ function SettingsTab({
   isWithdrawing,
   joinDateText,
   nicknameStatus,
+  onToggleRestockAlert,
   onToggleWishlistProduct,
   openAccountSheet,
   openAddressSheet,
@@ -2634,6 +2740,8 @@ function SettingsTab({
   profileSnapshot,
   requestDeleteAccount,
   requestDeleteAddress,
+  restockBusyProductId,
+  restockSubscribedIds,
   section,
   setIsProfileEditing,
   setProfileErrors,
@@ -2889,6 +2997,16 @@ function SettingsTab({
           <div className="public-mypage-wishlist-grid">
             {wishlistProducts.map((product) => (
               <ProductCard
+                footer={
+                  product.isSoldOut && typeof onToggleRestockAlert === "function" ? (
+                    <WishlistRestockButton
+                      busyProductId={restockBusyProductId}
+                      onToggle={onToggleRestockAlert}
+                      product={product}
+                      subscribedIds={restockSubscribedIds}
+                    />
+                  ) : null
+                }
                 isFavorite
                 key={product.id}
                 onToggleFavorite={onToggleWishlistProduct}

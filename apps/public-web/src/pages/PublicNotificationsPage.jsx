@@ -19,6 +19,8 @@ const TYPE_ICONS = {
   shipping_started: "🚚",
   delivery_done: "📬",
   restock: "🔔",
+  // 찜한 상품이 품절되는 순간 발송되는 인앱 알림 (DB 트리거) — 재입고 알림 신청 유도.
+  wishlist_soldout: "💔",
 };
 
 // P1-6: 카테고리 필터 칩. 각 카테고리에 매핑되는 알림 type 집합 정의.
@@ -28,7 +30,7 @@ const CATEGORY_FILTERS = [
   { key: "inspection", label: "검수", types: ["inspection_done"] },
   { key: "settlement", label: "정산", types: ["sold", "settlement_done"] },
   { key: "order", label: "주문", types: ["order_confirmed", "shipping_started", "delivery_done"] },
-  { key: "restock", label: "재입고", types: ["restock"] },
+  { key: "restock", label: "재입고", types: ["restock", "wishlist_soldout"] },
 ];
 
 const PAGE_SIZE = 30;
