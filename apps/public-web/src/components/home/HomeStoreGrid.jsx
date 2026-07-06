@@ -238,8 +238,20 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
   const selectedFilterCount = countSelectedStoreFilters(selectedFilters);
 
   // 필터/검색이 바뀌면 모바일 노출 카드 수 reset
+  const didMountFilterResetRef = useRef(false);
   useEffect(() => {
     setMobileVisibleCount(ITEMS_PER_PAGE);
+
+    // 최초 마운트(초기 URL 파싱)에는 스크롤을 건드리지 않는다.
+    if (!didMountFilterResetRef.current) {
+      didMountFilterResetRef.current = true;
+      return;
+    }
+
+    // 모바일에서 필터/정렬 적용 시 결과를 툴바(헤더 바로 아래)에 앵커링
+    if (isMobileViewport) {
+      scrollResultsUnderHeader();
+    }
   }, [selectedSubject, selectedFilters, sortOption, searchKeyword]);
 
   // 모바일: IntersectionObserver로 무한 스크롤
@@ -269,6 +281,18 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
     if (sectionTopRef.current) {
       sectionTopRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
     }
+  };
+
+  // 모바일: 필터/정렬을 적용하면 노출 카드 수가 리셋되며 목록이 짧아져 스크롤이
+  // 위(신규 입고)로 튕긴다. 대신 sticky 헤더 바로 아래(=필터·정렬 툴바 위치)에
+  // 결과가 붙도록 앵커링한다.
+  const scrollResultsUnderHeader = () => {
+    if (!sectionTopRef.current) return;
+    const scroller = document.scrollingElement || document.documentElement;
+    const headerHeight =
+      parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--public-sticky-header-height")) || 0;
+    const target = sectionTopRef.current.getBoundingClientRect().top + scroller.scrollTop - headerHeight;
+    scroller.scrollTo({ top: Math.max(0, target), behavior: "auto" });
   };
 
   const handleSelectSubject = (subject) => {
