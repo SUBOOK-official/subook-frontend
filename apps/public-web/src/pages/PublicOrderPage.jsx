@@ -6,6 +6,7 @@ import ContentContainer from "../components/ContentContainer";
 import PublicFooter from "../components/PublicFooter";
 import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
+import { CloseIcon, TicketIcon } from "../components/icons";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { supabase as publicSupabase } from "@shared-supabase/publicSupabaseClient";
 import { FREE_SHIPPING_THRESHOLD, calculateShippingFee, createOrder } from "../lib/cart";
@@ -881,7 +882,7 @@ function PublicOrderPage() {
                       onClick={() => setIsCouponPickerOpen(true)}
                     >
                       {selectedCoupon
-                        ? `🎟 ${selectedCoupon.title}`
+                        ? <><TicketIcon size={14} /> {selectedCoupon.title}</>
                         : `쿠폰 적용 (${applicableCoupons.length}장 사용 가능)`}
                       {selectedCoupon ? <span className="order-sidebar__coupon-change">변경</span> : null}
                     </button>
@@ -1008,11 +1009,12 @@ function PublicOrderPage() {
               <header className="order-coupon-modal__header">
                 <h2>쿠폰 선택</h2>
                 <button
+                  aria-label="닫기"
                   type="button"
                   className="order-coupon-modal__close"
                   onClick={() => setIsCouponPickerOpen(false)}
                 >
-                  ✕
+                  <CloseIcon size={18} />
                 </button>
               </header>
 

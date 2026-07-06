@@ -1,4 +1,5 @@
 import ContentContainer from "../ContentContainer";
+import { ArrowRightIcon } from "../icons";
 
 function PickupCTA({ onRequestPickup }) {
   return (
@@ -11,7 +12,7 @@ function PickupCTA({ onRequestPickup }) {
               <strong>안 쓴 교재(미사용) 한정</strong> · 포장만 하면 수거~정산까지 무료 대행
             </span>
           </span>
-          <span aria-hidden="true" className="public-home-sell-banner__arrow">→</span>
+          <ArrowRightIcon size={18} className="public-home-sell-banner__arrow" />
         </button>
       </ContentContainer>
     </section>

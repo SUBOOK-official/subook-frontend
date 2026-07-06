@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/publicSupabaseClient";
 import PublicToastMessage from "../components/PublicToastMessage";
+import { CheckCircleIcon, ClockIcon } from "../components/icons";
 import { clearSignupSuccessState, loadSignupSuccessState, saveSignupSuccessState } from "../lib/publicSignupSuccessState";
 
 const RESEND_COOLDOWN_SECONDS = 60;
@@ -198,7 +199,7 @@ function PublicSignupSuccessPage() {
               aria-hidden="true"
               className={`public-auth-success-badge ${isVerified ? "public-auth-success-badge--success" : ""}`}
             >
-              {isVerified ? "✓" : "✦"}
+              {isVerified ? <CheckCircleIcon size={34} /> : <ClockIcon size={34} />}
             </div>
 
             <div className="public-auth-card__heading">

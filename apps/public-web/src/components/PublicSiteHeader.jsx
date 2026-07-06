@@ -20,6 +20,7 @@ import {
   removeRecentSearchTerm,
 } from "../lib/publicStoreSearch";
 import { SEARCH_DEBOUNCE_MS } from "../lib/publicStoreNavigation";
+import { BellIcon, CartIcon, ClockIcon, MenuIcon, CloseIcon } from "./icons";
 
 // catalog snapshot은 헤더 단 한 곳에서만 캐싱하면 충분.
 // 30초 in-memory 캐시 — 사용자 한 명이 짧은 시간에 여러 글자를 치는 동안
@@ -104,7 +105,7 @@ function SearchSuggestionsPanel({
             className="public-search-suggestion__cta"
             to="/notifications"
           >
-            🔔 입고 알림 설정하기
+            <BellIcon size={14} /> 입고 알림 설정하기
           </Link>
         </div>
       );
@@ -185,7 +186,7 @@ function SearchSuggestionsPanel({
             onClick={() => onPickRecent(term)}
             type="button"
           >
-            <span aria-hidden="true" className="public-search-suggestion__recent-icon">🕘</span>
+            <span aria-hidden="true" className="public-search-suggestion__recent-icon"><ClockIcon size={13} /></span>
             <span>{term}</span>
           </button>
           <button
@@ -598,7 +599,7 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
                 className="public-nav-link public-nav-link--wishlist"
                 to="/notifications"
               >
-                <span aria-hidden="true" className="public-nav-link__icon" style={{ color: "#3B82F6" }}>🔔</span>
+                <BellIcon size={15} className="public-nav-link__icon" style={{ color: "var(--public-primary, #1b3a5c)" }} />
                 <span>알림</span>
                 {unreadNotifCount > 0 ? (
                   <span className="public-nav-link__badge">{unreadNotifCount > 99 ? "99+" : unreadNotifCount}</span>
@@ -610,7 +611,7 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
                 onClick={handleCartClick}
                 type="button"
               >
-                <span aria-hidden="true" className="public-nav-link__icon">🛒</span>
+                <CartIcon size={15} />
                 <span>장바구니</span>
                 {cartBadge !== null ? (
                   <span className="public-nav-link__badge">{cartBadge}</span>
@@ -660,7 +661,7 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
               onClick={handleCartClick}
               type="button"
             >
-              <span aria-hidden="true">🛒</span>
+              <CartIcon size={20} />
               {cartBadge !== null ? (
                 <span className="public-nav-mobile-cart__badge">{cartBadge}</span>
               ) : null}
@@ -673,7 +674,7 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
             onClick={() => setIsMobileMenuOpen((open) => !open)}
             type="button"
           >
-            <span aria-hidden="true">{isMobileMenuOpen ? "✕" : "☰"}</span>
+            {isMobileMenuOpen ? <CloseIcon size={22} /> : <MenuIcon size={22} />}
           </button>
         </div>
       </ContentContainer>
@@ -732,7 +733,7 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
                   onClick={() => { setIsMobileMenuOpen(false); handleCartClick(); }}
                   type="button"
                 >
-                  <span aria-hidden="true" style={{ marginRight: 8 }}>🛒</span>
+                  <CartIcon size={16} style={{ marginRight: 8 }} />
                   장바구니
                   {cartBadge !== null ? (
                     <span className="public-nav-link__badge" style={{ marginLeft: 8 }}>{cartBadge}</span>
@@ -743,7 +744,7 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
                   onClick={() => setIsMobileMenuOpen(false)}
                   to="/notifications"
                 >
-                  <span aria-hidden="true" style={{ marginRight: 8 }}>🔔</span>
+                  <BellIcon size={16} style={{ marginRight: 8 }} />
                   알림함
                   {unreadNotifCount > 0 ? (
                     <span className="public-nav-link__badge" style={{ marginLeft: 8 }}>

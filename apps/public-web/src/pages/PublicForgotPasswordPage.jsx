@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/publicSupabaseClient";
+import { MailIcon } from "../components/icons";
 import { isValidEmailFormat, normalizeEmail } from "../lib/publicAuthFormUtils";
 
 function PublicForgotPasswordPage() {
@@ -162,7 +163,7 @@ function PublicForgotPasswordPage() {
               <div className="public-auth-state-card public-auth-state-card--success">
                 <div className="public-auth-state-card__header">
                   <span aria-hidden="true" className="public-auth-state-card__icon">
-                    ✉
+                    <MailIcon size={20} />
                   </span>
                   <div className="public-auth-state-card__copy">
                     <p className="public-auth-state-card__title">재설정 메일을 발송했어요</p>

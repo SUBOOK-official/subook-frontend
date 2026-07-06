@@ -2,6 +2,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import PublicSiteHeader from "../components/PublicSiteHeader";
 import PublicFooter from "../components/PublicFooter";
+import {
+  AlertTriangleIcon,
+  ArrowRightIcon,
+  BoxIcon,
+  CheckCircleIcon,
+  CheckIcon,
+  CoinIcon,
+  InfoIcon,
+  MapPinIcon,
+  SearchIcon,
+} from "../components/icons";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import {
   BANK_LIST,
@@ -93,7 +104,7 @@ function ProgressBar({ currentStep }) {
         return (
           <li className={cls} key={label}>
             <span aria-hidden="true" className="pickup-progress__marker">
-              {isDone ? "✓" : index + 1}
+              {isDone ? <CheckIcon size={13} /> : index + 1}
             </span>
             <span className="pickup-progress__label">{label}</span>
           </li>
@@ -110,7 +121,14 @@ function Toast({ message, tone, onClose }) {
     return () => clearTimeout(timer);
   }, [onClose]);
 
-  const icon = tone === "error" ? "❌" : tone === "success" ? "✅" : "ℹ️";
+  const icon =
+    tone === "error" ? (
+      <AlertTriangleIcon size={16} />
+    ) : tone === "success" ? (
+      <CheckCircleIcon size={16} />
+    ) : (
+      <InfoIcon size={16} />
+    );
 
   return (
     <div className={`pickup-toast pickup-toast--${tone}`} role="alert">
@@ -127,7 +145,7 @@ function Toast({ message, tone, onClose }) {
 function PickupPolicyPreview() {
   return (
     <div className="pickup-policy-preview" role="region" aria-label="신청 전 꼭 알아두세요">
-      <p className="pickup-policy-preview__title">📌 신청 전 꼭 알아두세요</p>
+      <p className="pickup-policy-preview__title">신청 전 꼭 알아두세요</p>
       <div className="pickup-policy-preview__highlight">
         <strong>안 쓴 새 책(미사용)</strong>, <strong>수능 기준 3개년 이내</strong> 교재만 받습니다.
         <span> 비닐 개봉은 괜찮지만 필기·형광펜이 있거나 표지·내지가 손상된 책은 판매불가입니다.</span>
@@ -483,7 +501,7 @@ function StepAddress({ address, setAddress, savedAddresses, onNext, showToast })
 
       {/* 포장 안내 */}
       <div className="pickup-info-box">
-        <p className="pickup-info-box__title">📦 포장 안내</p>
+        <p className="pickup-info-box__title"><BoxIcon size={14} /> 포장 안내</p>
         <ul className="pickup-info-box__list">
           <li>빈 공간 없이 딱 맞는 박스에 담아주세요</li>
           <li>여러 박스로 나누지 말고 가장 큰 박스 하나에 담아주세요 (박스당 5,000원)</li>
@@ -515,7 +533,7 @@ function StepAddress({ address, setAddress, savedAddresses, onNext, showToast })
           onClick={onNext}
           type="button"
         >
-          다음 단계 →
+          다음 단계 <ArrowRightIcon size={13} />
         </button>
       </div>
     </div>
@@ -690,7 +708,7 @@ function StepSettlement({ account, setAccount, savedAccounts, memberProfileName 
                 && account.account_holder.trim().length > 0
                 && account.account_holder.trim() !== memberProfileName ? (
                 <p className="pickup-field-hint pickup-field-hint--warning">
-                  ⚠️ 예금주 "{account.account_holder.trim()}"가 가입자명 "{memberProfileName}"과 달라요.
+                  <AlertTriangleIcon size={13} /> 예금주 "{account.account_holder.trim()}"가 가입자명 "{memberProfileName}"과 달라요.
                   가족 계좌가 맞다면 그대로 진행하셔도 됩니다. 본인 계좌라면 다시 확인해주세요.
                 </p>
               ) : null}
@@ -792,7 +810,7 @@ function StepSettlement({ account, setAccount, savedAccounts, memberProfileName 
           onClick={onNext}
           type="button"
         >
-          다음 단계 →
+          다음 단계 <ArrowRightIcon size={13} />
         </button>
       </div>
     </div>
@@ -813,9 +831,9 @@ function StepConfirm({ address, account, isSubmitting, onPrev, onSubmit, goToSte
       {/* 수거 수량 요약 */}
       <div className="pickup-confirm-section">
         <div className="pickup-confirm-section__header">
-          <span className="pickup-confirm-section__icon">📦</span>
+          <span className="pickup-confirm-section__icon"><BoxIcon size={18} /></span>
           <span className="pickup-confirm-section__title">수거 수량</span>
-          <button className="pickup-link-button" onClick={() => goToStep(0)} type="button">수정 →</button>
+          <button className="pickup-link-button" onClick={() => goToStep(0)} type="button">수정 <ArrowRightIcon size={13} /></button>
         </div>
         <div className="pickup-confirm-detail">
           <p>예상 권수 <strong>{expectedCount}권</strong> · 박스 <strong>{boxCount}개</strong></p>
@@ -828,9 +846,9 @@ function StepConfirm({ address, account, isSubmitting, onPrev, onSubmit, goToSte
       {/* 수거 주소 요약 */}
       <div className="pickup-confirm-section">
         <div className="pickup-confirm-section__header">
-          <span className="pickup-confirm-section__icon">📍</span>
+          <span className="pickup-confirm-section__icon"><MapPinIcon size={18} /></span>
           <span className="pickup-confirm-section__title">수거 주소</span>
-          <button className="pickup-link-button" onClick={() => goToStep(0)} type="button">수정 →</button>
+          <button className="pickup-link-button" onClick={() => goToStep(0)} type="button">수정 <ArrowRightIcon size={13} /></button>
         </div>
         <div className="pickup-confirm-detail">
           <p>{address.recipient_name} · {address.recipient_phone}</p>
@@ -845,9 +863,9 @@ function StepConfirm({ address, account, isSubmitting, onPrev, onSubmit, goToSte
       {/* 정산 계좌 요약 — account_number는 P0-2로 인해 비어있음, 마스킹된 표시 사용 */}
       <div className="pickup-confirm-section">
         <div className="pickup-confirm-section__header">
-          <span className="pickup-confirm-section__icon">💰</span>
+          <span className="pickup-confirm-section__icon"><CoinIcon size={18} /></span>
           <span className="pickup-confirm-section__title">정산 계좌</span>
-          <button className="pickup-link-button" onClick={() => goToStep(1)} type="button">수정 →</button>
+          <button className="pickup-link-button" onClick={() => goToStep(1)} type="button">수정 <ArrowRightIcon size={13} /></button>
         </div>
         <div className="pickup-confirm-detail">
           <p>
@@ -867,7 +885,7 @@ function StepConfirm({ address, account, isSubmitting, onPrev, onSubmit, goToSte
       {/* 박스 포장 및 발송 규정 + 검수 탈락 교재 처리 안내 (제출 직전 정책 고지) */}
       <div className="pickup-confirm-section">
         <div className="pickup-confirm-section__header">
-          <span className="pickup-confirm-section__icon">📦</span>
+          <span className="pickup-confirm-section__icon"><BoxIcon size={18} /></span>
           <span className="pickup-confirm-section__title">박스 포장 및 발송 규정</span>
         </div>
         <div className="pickup-confirm-detail">
@@ -882,13 +900,13 @@ function StepConfirm({ address, account, isSubmitting, onPrev, onSubmit, goToSte
           <p className="pickup-confirm-detail__memo">
             사전 결제가 아니라, 교재 판매 후 <strong>정산 과정에서 차감</strong>되는 구조예요.
           </p>
-          <p className="pickup-confirm-detail__memo">📦 별도의 수거 비용은 없습니다. (무료 수거)</p>
+          <p className="pickup-confirm-detail__memo">별도의 수거 비용은 없습니다. (무료 수거)</p>
         </div>
       </div>
 
       <div className="pickup-confirm-section">
         <div className="pickup-confirm-section__header">
-          <span className="pickup-confirm-section__icon">🔎</span>
+          <span className="pickup-confirm-section__icon"><SearchIcon size={18} /></span>
           <span className="pickup-confirm-section__title">검수 탈락 교재 처리 안내</span>
         </div>
         <div className="pickup-confirm-detail">
@@ -901,7 +919,7 @@ function StepConfirm({ address, account, isSubmitting, onPrev, onSubmit, goToSte
       {/* 안내 */}
       <div className="pickup-info-box">
         <p className="pickup-info-box__tip">
-          💡 수거 요청 후 박스를 포장하여 문 앞에 놓아주세요. 택배기사가 1~2일 내에 수거합니다.
+          <InfoIcon size={13} /> 수거 요청 후 박스를 포장하여 문 앞에 놓아주세요. 택배기사가 1~2일 내에 수거합니다.
         </p>
       </div>
 
@@ -928,7 +946,9 @@ function PickupSuccess({ result, expectedCount, boxCount }) {
 
   return (
     <div className="pickup-success">
-      <span className="pickup-success__icon">✅</span>
+      <span className="pickup-success__icon" style={{ color: "var(--public-ds-success)" }}>
+        <CheckCircleIcon size={56} />
+      </span>
       <h2 className="pickup-success__title">수거 요청이 완료되었어요!</h2>
       <div className="pickup-success__info">
         <p>요청번호: <strong>{result.request_number}</strong></p>

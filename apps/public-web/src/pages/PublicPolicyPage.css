@@ -1,7 +1,7 @@
 .public-policy-page {
   min-height: 100vh;
-  background: #f8fafc;
-  color: #111827;
+  background: #f9f9f9;
+  color: #232323;
 }
 
 .public-policy-route {
@@ -20,9 +20,9 @@
 }
 
 .public-policy-tab {
-  border: 1px solid #d1d5db;
+  border: 1px solid #d4d4d6;
   border-radius: 8px;
-  color: #4b5563;
+  color: #55565b;
   font-size: 14px;
   font-weight: 800;
   padding: 10px 14px;
@@ -30,14 +30,14 @@
 }
 
 .public-policy-tab.is-active {
-  background: #111827;
-  border-color: #111827;
+  background: #232323;
+  border-color: #232323;
   color: #ffffff;
 }
 
 .public-policy-document {
   background: #ffffff;
-  border: 1px solid #e5e7eb;
+  border: 1px solid #e5e5e5;
   border-radius: 8px;
   padding: 36px;
 }
@@ -58,7 +58,7 @@
 }
 
 .public-policy-updated {
-  color: #6b7280;
+  color: #6e6e73;
   font-size: 14px;
   margin: 12px 0 0;
 }
@@ -70,7 +70,7 @@
 }
 
 .public-policy-section {
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid #e5e5e5;
   padding-top: 24px;
 }
 
@@ -80,7 +80,7 @@
 }
 
 .public-policy-section p {
-  color: #374151;
+  color: #3f4045;
   font-size: 15px;
   line-height: 1.8;
   margin: 0;
@@ -92,7 +92,7 @@
 
 /* 문서 전문(서두) — 시행일 아래 */
 .public-policy-intro {
-  color: #374151;
+  color: #3f4045;
   font-size: 15px;
   line-height: 1.8;
   margin: 20px 0 0;
@@ -109,7 +109,7 @@
 
 /* 조항 내 항목 리스트 */
 .public-policy-list {
-  color: #374151;
+  color: #3f4045;
   font-size: 15px;
   line-height: 1.8;
   margin: 8px 0 0;
@@ -136,16 +136,16 @@
 
 .public-policy-table th,
 .public-policy-table td {
-  border: 1px solid #e5e7eb;
-  color: #374151;
+  border: 1px solid #e5e5e5;
+  color: #3f4045;
   padding: 10px 12px;
   text-align: left;
   vertical-align: top;
 }
 
 .public-policy-table th {
-  background: #f9fafb;
-  color: #111827;
+  background: #f9f9f9;
+  color: #232323;
   font-weight: 800;
   white-space: nowrap;
 }

@@ -484,7 +484,7 @@ function PublicPolicyPage({ type = "privacy" }) {
             </nav>
 
             <article className="public-policy-document">
-              <p className="public-policy-eyebrow">SUBOOK Policy</p>
+              <p className="public-policy-eyebrow">수북 정책</p>
               <h1>{title}</h1>
               <p className="public-policy-updated">시행일: {POLICY_EFFECTIVE_DATES[pageType] ?? POLICY_EFFECTIVE_DATES.privacy}</p>
               {intro ? <p className="public-policy-intro">{intro}</p> : null}

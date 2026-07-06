@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { isNewHomeArrivalBadgeVisible } from "../../lib/publicHomeLatestBooksUtils";
 import ContentContainer from "../ContentContainer";
 import ProductCard, { ProductCardSkeleton } from "../ProductCard";
+import { ChevronLeftIcon, ChevronRightIcon } from "../icons";
 
 const MOBILE_BREAKPOINT_PX = 767;
 const MOBILE_SKELETON_CARD_COUNT = 4;
@@ -194,7 +195,7 @@ function ProductCarouselSection({
                   onClick={() => handleScrollByDirection(-1)}
                   type="button"
                 >
-                  <span aria-hidden="true">‹</span>
+                  <ChevronLeftIcon size={18} />
                 </button>
                 <button
                   aria-label="다음 교재 보기"
@@ -203,7 +204,7 @@ function ProductCarouselSection({
                   onClick={() => handleScrollByDirection(1)}
                   type="button"
                 >
-                  <span aria-hidden="true">›</span>
+                  <ChevronRightIcon size={18} />
                 </button>
               </div>
             ) : null}

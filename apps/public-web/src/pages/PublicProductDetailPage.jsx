@@ -7,6 +7,7 @@ import ProductCard, { HeartIcon } from "../components/ProductCard";
 import PublicFooter from "../components/PublicFooter";
 import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
+import { BellIcon, CloseIcon } from "../components/icons";
 import { usePublicWishlist } from "../contexts/PublicWishlistContext";
 import { FREE_SHIPPING_THRESHOLD, SHIPPING_FEE, addToCart } from "../lib/cart";
 import usePublicMemberGate from "../lib/publicMemberGate";
@@ -294,7 +295,7 @@ function SelectedOptionRow({
             onClick={onRemove}
             type="button"
           >
-            ✕
+            <CloseIcon size={14} />
           </button>
         ) : null}
       </div>
@@ -652,7 +653,7 @@ function ProductImageLightbox({
         onClick={onClose}
         type="button"
       >
-        ✕
+        <CloseIcon size={20} />
       </button>
       {hasPrev ? (
         <button
@@ -1598,8 +1599,8 @@ function PublicProductDetailPage() {
                       {restockBusy
                         ? "처리 중..."
                         : isSubscribedRestock
-                          ? "🔔 재입고 알림 받는 중 (해제)"
-                          : "🔔 재입고 알림 받기"}
+                          ? <><BellIcon size={14} /> 재입고 알림 받는 중 (해제)</>
+                          : <><BellIcon size={14} /> 재입고 알림 받기</>}
                     </button>
                   )}
                 </div>
@@ -1749,8 +1750,8 @@ function PublicProductDetailPage() {
             {restockBusy
               ? "처리 중..."
               : isSubscribedRestock
-                ? "🔔 알림 해제"
-                : "🔔 재입고 알림"}
+                ? <><BellIcon size={14} /> 알림 해제</>
+                : <><BellIcon size={14} /> 재입고 알림</>}
           </button>
         )}
       </div>

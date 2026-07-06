@@ -64,7 +64,7 @@ function LatestArrivalsSection({ favoriteIds, onToggleFavorite }) {
       onToggleFavorite={onToggleFavorite}
       products={products}
       subtitle="방금 들어온 따끈따끈한 교재"
-      title="📦 신규 입고"
+      title="신규 입고"
       titleId="public-home-latest-books-title"
     />
   );

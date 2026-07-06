@@ -1,8 +1,8 @@
 .public-mypage-demo-banner {
   padding: 14px 16px;
-  border: 1px solid rgba(59, 130, 246, 0.22);
+  border: 1px solid rgba(27, 58, 92, 0.22);
   border-radius: var(--public-ds-radius);
-  background: rgba(59, 130, 246, 0.08);
+  background: rgba(27, 58, 92, 0.08);
   color: var(--public-ds-text);
   font-size: 14px;
   line-height: 1.6;
@@ -189,7 +189,7 @@
 /* P1: 현재 단계 노드를 키워 "지금 어디" 인지속도 향상 */
 .public-mypage-progress-rail__node.is-current {
   transform: scale(1.6);
-  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.15);
+  box-shadow: var(--public-focus-ring);
 }
 
 .public-mypage-progress-rail__label {
@@ -220,7 +220,7 @@
   justify-content: space-between;
   gap: 12px;
   padding: 12px 14px;
-  border-radius: 10px;
+  border-radius: var(--public-radius-lg);
   background: var(--public-ds-background);
 }
 
@@ -271,7 +271,7 @@
 .public-mypage-sales-search__input {
   width: 100%;
   border: 1px solid var(--public-ds-border);
-  border-radius: 10px;
+  border-radius: var(--public-radius-lg);
   padding: 12px 16px;
   font-size: 14px;
   background: #ffffff;
@@ -304,7 +304,7 @@
   border-radius: 8px;
   font-size: 14px;
   font-weight: 600;
-  color: var(--public-ds-text-muted, #64748b);
+  color: var(--public-ds-text-muted, #6e6e73);
   cursor: pointer;
   padding: 0 10px;
 }
@@ -323,13 +323,13 @@
 .public-mypage-filter-chip {
   padding: 6px 14px;
   border: 1px solid var(--public-ds-border);
-  border-radius: 20px;
+  border-radius: var(--public-radius-xl);
   background: #ffffff;
   color: var(--public-ds-text-secondary);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
 }
 
 .public-mypage-filter-chip:hover {
@@ -368,33 +368,33 @@
 }
 
 .public-mypage-chip--neutral {
-  background: #f3f4f6;
-  color: #6b7280;
+  background: #f0f0f0;
+  color: #6e6e73;
 }
 
 .public-mypage-chip--accent {
-  background: #dbeafe;
-  color: #2563eb;
+  background: #dce6ef;
+  color: #1b3a5c;
 }
 
 .public-mypage-chip--info {
-  background: #e0e7ff;
-  color: #4f46e5;
+  background: #e9ebf5;
+  color: #4d5590;
 }
 
 .public-mypage-chip--warning {
-  background: #fef3c7;
-  color: #d97706;
+  background: #f8f0db;
+  color: #b3741a;
 }
 
 .public-mypage-chip--success {
-  background: #d1fae5;
-  color: #059669;
+  background: #d6e9dd;
+  color: #2e7d4f;
 }
 
 .public-mypage-chip--danger {
-  background: #fee2e2;
-  color: #dc2626;
+  background: #f9dedb;
+  color: #d0342c;
 }
 
 .public-mypage-settlement-summary {
@@ -481,15 +481,15 @@
 }
 
 .public-mypage-button--danger-outline {
-  border: 1px solid rgba(239, 68, 68, 0.24);
+  border: 1px solid rgba(208, 52, 44, 0.24);
   background: #ffffff;
   color: var(--public-ds-danger);
 }
 
 .public-mypage-button--danger-outline:hover,
 .public-mypage-button--danger-outline:focus-visible {
-  border-color: rgba(239, 68, 68, 0.4);
-  background: rgba(239, 68, 68, 0.04);
+  border-color: rgba(208, 52, 44, 0.4);
+  background: rgba(208, 52, 44, 0.04);
 }
 
 .public-mypage-wishlist-grid {
@@ -592,7 +592,7 @@
 .public-mypage-coupon-download-list {
   margin-top: 16px;
   padding: 16px;
-  background: #f8fafc;
+  background: #f9f9f9;
   border-radius: 8px;
 }
 
@@ -655,7 +655,7 @@
   display: flex;
   gap: 4px;
   margin-bottom: 16px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid #e5e5e5;
 }
 
 .public-mypage-coupon-tab {
@@ -743,7 +743,7 @@
 .public-mypage-coupon-card__expiry {
   margin: 4px 0 0;
   font-size: 12px;
-  color: var(--public-ds-text-muted, #94a3b8);
+  color: var(--public-ds-text-muted, #9a9aa0);
 }
 
 .public-mypage-coupon-toast {
@@ -753,15 +753,15 @@
   transform: translateX(-50%);
   padding: 12px 20px;
   border-radius: 8px;
-  background: var(--public-ds-text, #0f172a);
+  background: var(--public-ds-text, #232323);
   color: #fff;
   font-size: 14px;
   font-weight: 600;
   z-index: 1000;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--public-shadow-lg);
 }
 
-.public-mypage-coupon-toast--error { background: var(--public-ds-danger, #dc2626); }
+.public-mypage-coupon-toast--error { background: var(--public-ds-danger, #d0342c); }
 .public-mypage-coupon-toast--success { background: #16a34a; }
 
 /* ── 새 마이페이지 레이아웃 ────────────────────────────────────── */
@@ -787,7 +787,7 @@
 }
 
 .public-mypage-breadcrumb__sep {
-  color: #cbd5e1;
+  color: #d4d4d6;
   font-size: 16px;
 }
 
@@ -808,7 +808,7 @@
   display: flex;
   flex-direction: column;
   gap: 28px;
-  border-right: 1px solid #e5e7eb;
+  border-right: 1px solid #e5e5e5;
   padding-right: 24px;
   position: sticky;
   top: 24px;
@@ -930,8 +930,8 @@
 .public-mypage-book-row__dispute--primary {
   padding: 8px 14px;
   background: #fde047;
-  color: #1f2937;
-  border: 1px solid #f59e0b;
+  color: #2b2b2e;
+  border: 1px solid #c9861b;
 }
 
 .public-mypage-book-row__dispute--primary:hover {
@@ -958,7 +958,7 @@
   padding: 14px 16px;
   border-radius: 12px;
   border: 1px solid #fca5a5;
-  background: #fef2f2;
+  background: #fdf1f0;
   color: #7f1d1d;
   text-align: left;
   cursor: pointer;
@@ -966,7 +966,7 @@
 }
 
 .public-mypage-rejected-banner:hover {
-  background: #fee2e2;
+  background: #f9dedb;
   border-color: #f87171;
 }
 
@@ -1004,7 +1004,7 @@
   gap: 0;
   padding: 24px 16px;
   margin-bottom: 32px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid #e5e5e5;
   border-radius: 16px;
   background: #ffffff;
 }
@@ -1019,7 +1019,7 @@
   background: none;
   border: 0;
   cursor: pointer;
-  border-right: 1px solid #f1f5f9;
+  border-right: 1px solid #f4f4f4;
   transition: opacity 0.15s ease;
 }
 
@@ -1044,7 +1044,7 @@
 }
 
 .public-mypage-stat-card.is-active .public-mypage-stat-card__value {
-  color: #ef4444;
+  color: #d0342c;
 }
 
 .public-mypage-stat-card.is-active .public-mypage-stat-card__label {
@@ -1062,7 +1062,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 14px 4px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid #e5e5e5;
   margin-bottom: 12px;
 }
 
@@ -1085,7 +1085,7 @@
 }
 
 .public-mypage-order-group__detail:hover {
-  color: var(--public-ds-accent, #2563eb);
+  color: var(--public-ds-accent, #1b3a5c);
 }
 
 .public-mypage-order-cards {
@@ -1099,7 +1099,7 @@
   flex-direction: column;
   gap: 14px;
   padding: 18px 4px;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid #f4f4f4;
 }
 
 .public-mypage-purchase-card:last-child {
@@ -1121,7 +1121,7 @@
   width: 80px;
   height: 100px;
   border-radius: 8px;
-  background: #f1f5f9;
+  background: #f4f4f4;
   overflow: hidden;
   flex-shrink: 0;
 }
@@ -1158,7 +1158,7 @@
 
 .public-mypage-purchase-card__divider {
   margin: 0 6px;
-  color: #cbd5e1;
+  color: #d4d4d6;
 }
 
 .public-mypage-purchase-card__price {
@@ -1176,7 +1176,7 @@
 
 .public-mypage-purchase-card__btn {
   padding: 10px 14px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid #e5e5e5;
   border-radius: 6px;
   background: #ffffff;
   font-size: 13px;
@@ -1186,8 +1186,8 @@
 }
 
 .public-mypage-purchase-card__btn:hover:not(:disabled) {
-  background: #f8fafc;
-  border-color: #cbd5e1;
+  background: #f9f9f9;
+  border-color: #d4d4d6;
 }
 
 .public-mypage-purchase-card__btn:disabled {
@@ -1208,12 +1208,12 @@
 }
 
 .public-mypage-purchase-card__btn--danger {
-  color: #dc2626;
-  border-color: #fecaca;
+  color: #d0342c;
+  border-color: #f2c7c3;
 }
 
 .public-mypage-purchase-card__btn--danger:hover:not(:disabled) {
-  background: #fef2f2;
+  background: #fdf1f0;
   border-color: #fca5a5;
 }
 
@@ -1223,9 +1223,9 @@
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
-  border: 1px solid var(--public-ds-divider, #f3f4f6);
+  border: 1px solid var(--public-ds-divider, #f0f0f0);
   border-radius: 8px;
-  background: var(--public-ds-background, #f8fafc);
+  background: var(--public-ds-background, #f9f9f9);
   font-size: 13px;
   margin-top: 2px;
   flex-wrap: wrap;
@@ -1269,8 +1269,8 @@
   flex-direction: column;
   gap: 8px;
   padding: 14px;
-  border: 1px solid #fcd34d;
-  border-radius: 10px;
+  border: 1px solid #e7cf96;
+  border-radius: var(--public-radius-lg);
   background: #fffbeb;
 }
 
@@ -1278,7 +1278,7 @@
   margin: 0;
   font-size: 13px;
   font-weight: 700;
-  color: #92400e;
+  color: #7d5514;
 }
 
 .public-mypage-deposit__row {
@@ -1289,11 +1289,11 @@
   padding: 8px 10px;
   border-radius: 8px;
   background: #ffffff;
-  border: 1px solid #fef3c7;
+  border: 1px solid #f8f0db;
 }
 
 .public-mypage-deposit__row--highlight {
-  border-color: #f59e0b;
+  border-color: #c9861b;
   background: #fffaf0;
 }
 
@@ -1306,20 +1306,20 @@
 
 .public-mypage-deposit__label {
   font-size: 12px;
-  color: var(--public-ds-text-secondary, #64748b);
+  color: var(--public-ds-text-secondary, #6e6e73);
   font-weight: 600;
 }
 
 .public-mypage-deposit__value {
   font-size: 15px;
   font-weight: 700;
-  color: var(--public-ds-text, #0f172a);
+  color: var(--public-ds-text, #232323);
   word-break: break-all;
 }
 
 .public-mypage-deposit__hint {
   font-size: 11px;
-  color: #b45309;
+  color: #96600f;
   line-height: 1.4;
 }
 
@@ -1327,24 +1327,24 @@
   flex-shrink: 0;
   min-height: 30px;
   padding: 0 12px;
-  border: 1px solid var(--public-ds-border, #e2e8f0);
+  border: 1px solid var(--public-ds-border, #e5e5e5);
   border-radius: 6px;
   background: #ffffff;
   font-size: 12px;
   font-weight: 600;
-  color: var(--public-ds-text, #0f172a);
+  color: var(--public-ds-text, #232323);
   cursor: pointer;
 }
 
 .public-mypage-deposit__copy:hover {
-  border-color: #f59e0b;
-  color: #b45309;
+  border-color: #c9861b;
+  color: #96600f;
 }
 
 .public-mypage-deposit__notice {
   margin: 0;
   font-size: 12px;
-  color: #92400e;
+  color: #7d5514;
   line-height: 1.5;
 }
 
@@ -1369,7 +1369,7 @@
   .public-mypage-sidebar {
     position: static;
     border-right: 0;
-    border-bottom: 1px solid #e5e7eb;
+    border-bottom: 1px solid #e5e5e5;
     padding-right: 0;
     padding-bottom: 12px;
     flex-direction: row;
@@ -1432,7 +1432,7 @@
   margin-top: 8px;
   font-size: 13px;
   line-height: 1.5;
-  color: #6b7280;
+  color: #6e6e73;
 }
 
 /* ── 환불 신청 상태 표시 + ConfirmDialog reason 입력 (Phase 2 P0 launch fix) ── */
@@ -1440,8 +1440,8 @@
   display: inline-flex;
   align-items: center;
   padding: 6px 10px;
-  background: #fef3c7;
-  color: #92400e;
+  background: #f8f0db;
+  color: #7d5514;
   border-radius: 6px;
   font-size: 12px;
   font-weight: 600;
@@ -1457,13 +1457,13 @@
 .public-mypage-confirm__reason-label {
   font-size: 13px;
   font-weight: 600;
-  color: var(--public-ds-text, #1f2937);
+  color: var(--public-ds-text, #2b2b2e);
 }
 
 .public-mypage-confirm__reason-input {
   width: 100%;
   padding: 10px 12px;
-  border: 1px solid var(--public-ds-border, #d1d5db);
+  border: 1px solid var(--public-ds-border, #d4d4d6);
   border-radius: 8px;
   font-size: 14px;
   font-family: inherit;
@@ -1474,17 +1474,17 @@
 .public-mypage-confirm__reason-input:focus {
   outline: none;
   border-color: var(--public-primary, #1B3A5C);
-  box-shadow: 0 0 0 2px rgba(27, 58, 92, 0.1);
+  box-shadow: var(--public-focus-ring);
 }
 
 .public-mypage-confirm__reason-hint {
   font-size: 12px;
-  color: #dc2626;
+  color: #d0342c;
   margin: 0;
 }
 
 .public-mypage-confirm__reason-hint--info {
-  color: var(--public-ds-accent, #3b82f6);
+  color: var(--public-ds-accent, #1b3a5c);
 }
 
 /* P1-8: 환불 사유 카테고리 라디오 */
@@ -1507,5 +1507,5 @@
 }
 
 .public-mypage-confirm__category-option input[type="radio"] {
-  accent-color: var(--public-ds-accent, #3b82f6);
+  accent-color: var(--public-ds-accent, #1b3a5c);
 }

@@ -110,7 +110,7 @@ function PublicFooter() {
   const handleEmailClick = () => {
     if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
       navigator.clipboard.writeText(CONTACT_EMAIL).then(
-        () => flashEmailFeedback(`✓ 이메일 주소를 복사했어요 · ${CONTACT_EMAIL}`),
+        () => flashEmailFeedback(`이메일 주소를 복사했어요 · ${CONTACT_EMAIL}`),
         () => flashEmailFeedback(`문의 이메일 · ${CONTACT_EMAIL}`),
       );
       return;
