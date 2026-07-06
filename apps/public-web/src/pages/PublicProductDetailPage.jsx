@@ -1019,36 +1019,51 @@ function PublicProductDetailPage() {
     };
   }, [productId]);
 
-  // 섹션 nav 스크롤스파이 — 뷰포트 상단(헤더 + sticky nav 아래)에 가장 먼저 닿는 섹션을 활성화.
+  // 섹션 nav 스크롤스파이 — 기준선(헤더 + sticky nav 바로 아래)을 마지막으로 지난 섹션을 활성화.
+  // isLoading 동안엔 섹션 DOM이 없으므로 로딩이 끝난 뒤에 붙인다. (product만 보면
+  // 추천 상품 fetch를 기다리는 중간 렌더에 걸려 리스너가 영영 안 붙는다.)
   useEffect(() => {
-    if (!product) return undefined;
+    if (isLoading || !product) return undefined;
     const keys = DETAIL_SECTIONS.map((section) => section.key);
-    const elements = keys
-      .map((key) => sectionRefs.current[key])
-      .filter(Boolean);
-    if (elements.length === 0) return undefined;
+    if (keys.every((key) => !sectionRefs.current[key])) return undefined;
 
-    const navHeight = sectionNavRef.current?.offsetHeight ?? 52;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
-        if (visible.length === 0) return;
-        const matchedKey = keys.find(
-          (key) => sectionRefs.current[key] === visible[0].target,
-        );
-        if (matchedKey) setActiveSectionKey(matchedKey);
-      },
-      {
-        rootMargin: `-${HEADER_OFFSET_PX + navHeight + 8}px 0px -55% 0px`,
-        threshold: 0,
-      },
-    );
+    let rafId = null;
 
-    elements.forEach((element) => observer.observe(element));
-    return () => observer.disconnect();
-  }, [product]);
+    const updateActiveSection = () => {
+      rafId = null;
+      const navHeight = sectionNavRef.current?.offsetHeight ?? 52;
+      // 클릭 스크롤이 섹션 top을 (헤더 + nav + 16px)에 맞추므로 기준선은 그보다 살짝 아래.
+      const baselineY = HEADER_OFFSET_PX + navHeight + 24;
+      let nextKey = keys[0];
+      for (const key of keys) {
+        const element = sectionRefs.current[key];
+        if (!element) continue;
+        if (element.getBoundingClientRect().top <= baselineY) nextKey = key;
+      }
+      // 페이지 맨 아래에 닿으면 마지막 섹션 — 짧은 화면에서 기준선에 못 닿는 경우 보정.
+      if (
+        window.innerHeight + window.scrollY >=
+        document.documentElement.scrollHeight - 2
+      ) {
+        nextKey = keys[keys.length - 1];
+      }
+      setActiveSectionKey(nextKey);
+    };
+
+    const scheduleUpdate = () => {
+      if (rafId !== null) return;
+      rafId = window.requestAnimationFrame(updateActiveSection);
+    };
+
+    updateActiveSection();
+    window.addEventListener("scroll", scheduleUpdate, { passive: true });
+    window.addEventListener("resize", scheduleUpdate);
+    return () => {
+      window.removeEventListener("scroll", scheduleUpdate);
+      window.removeEventListener("resize", scheduleUpdate);
+      if (rafId !== null) window.cancelAnimationFrame(rafId);
+    };
+  }, [isLoading, product]);
 
   // nav 클릭 시 헤더 + sticky nav 높이만큼 오프셋을 빼고 해당 섹션으로 스크롤.
   const scrollToSection = useCallback((key) => {
