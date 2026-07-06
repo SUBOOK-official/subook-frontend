@@ -100,9 +100,9 @@ export function CjWaybillLabel({ data }) {
         <div style={{ width: "34mm", padding: "1mm", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", borderRight: "0.3mm solid #000" }}>
           <Barcode value={addr.clsfCd || ""} format="CODE128A" height={44} width={1.3} />
         </div>
-        <div style={{ flex: 1, textAlign: "center", fontSize: "15mm", lineHeight: 1, letterSpacing: "0.5mm" }}>
+        <div style={{ flex: 1, textAlign: "center", fontSize: "12mm", lineHeight: 1, letterSpacing: "0", whiteSpace: "nowrap", overflow: "hidden" }}>
           {clsfText || "-"}
-          {addr.p2pCd ? <span style={{ fontSize: "8mm", marginLeft: "2mm" }}>{addr.p2pCd}</span> : null}
+          {addr.p2pCd ? <span style={{ fontSize: "7mm", marginLeft: "1.5mm" }}>{addr.p2pCd}</span> : null}
         </div>
         <div style={{ width: "40mm", padding: "1mm", display: "flex", alignItems: "center", justifyContent: "center", borderLeft: "0.3mm solid #000" }}>
           <Barcode value={waybill} format="CODE128C" height={52} width={1.35} />
