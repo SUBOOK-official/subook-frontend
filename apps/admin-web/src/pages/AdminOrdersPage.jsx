@@ -13,6 +13,7 @@ import {
   notifyRefundCompleted,
   notifyShippingStarted,
 } from "../lib/adminNotification";
+import CjWaybillLabelModal from "../components/CjWaybillLabel";
 
 const PAGE_SIZE = 30;
 
@@ -55,7 +56,10 @@ const NEXT_STATUS_ACTIONS = {
     { action: "refund", label: "환불처리", style: "btn-danger" },
   ],
   preparing: [
-    { status: "shipping", label: "송장입력", style: "btn-primary", requiresTracking: true },
+    // CJ 송장 출력: 채번+예약접수(cj-delivery) 자동 처리 후 표준 라벨 인쇄, 배송중 전환.
+    { action: "cj_delivery", label: "CJ 송장 출력", style: "btn-primary" },
+    // 수동 송장입력(다른 택배/직접 발번 대비 fallback).
+    { status: "shipping", label: "송장 직접입력", style: "btn-secondary", requiresTracking: true },
     { status: "cancelled", label: "주문취소", style: "btn-danger" },
     { action: "refund", label: "환불처리", style: "btn-danger" },
   ],
@@ -177,6 +181,9 @@ function AdminOrdersPage() {
 
   // 비가역 작업 확인 모달 (환불, 일괄취소)
   const [destructiveModal, setDestructiveModal] = useState(null);
+
+  // CJ 송장 출력 라벨 모달 데이터 (cj-delivery 응답의 단건 result)
+  const [labelData, setLabelData] = useState(null);
 
   // 일괄 액션 실제 실행 (확인 단계 통과 후 호출)
   const runBulkAction = async (action, ids) => {
@@ -381,6 +388,50 @@ function AdminOrdersPage() {
     setTrackingCarrier("CJ대한통운");
     await loadOrders();
     return true;
+  };
+
+  // CJ 송장 출력: cj-delivery(채번+주소정제+예약접수) 호출 → 성공 시 배송중 전환 + 표준 라벨 모달.
+  const handleCjDelivery = async (orderId) => {
+    setBusyOrderId(orderId);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        showToast("인증이 만료되었습니다. 다시 로그인해 주세요.", "error");
+        return;
+      }
+      const resp = await fetch("/api/admin/cj-delivery", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ orderId }),
+      });
+      const result = await resp.json().catch(() => ({}));
+      const row = result?.results?.[0];
+      if (!resp.ok || !row?.success) {
+        showToast(row?.error || result?.error || "CJ 송장 발급에 실패했습니다.", "error");
+        return;
+      }
+
+      showToast(`운송장번호 ${row.trackingNumber} 발급 완료 — 배송중으로 전환되었습니다.`, "success");
+
+      // 배송 시작 알림톡 (백그라운드)
+      const order = orders.find((o) => o.id === orderId);
+      if (order) {
+        try {
+          await notifyShippingStarted({ order, trackingNumber: row.trackingNumber });
+        } catch {
+          console.warn("배송 알림톡 발송 실패 (송장 발급은 정상)");
+        }
+      }
+
+      setLabelData(row); // 라벨 모달 오픈
+      setSelectedOrderId(null);
+      await loadOrders();
+    } finally {
+      setBusyOrderId(null);
+    }
   };
 
   // 자동 정산 생성(주문 확정 트리거)이 누락된 경우 운영자가 수동으로 재실행.
@@ -1160,6 +1211,20 @@ function AdminOrdersPage() {
                   );
                 }
 
+                if (action.action === "cj_delivery") {
+                  return (
+                    <button
+                      className={`${action.style} !w-auto !px-4 !py-2 text-sm`}
+                      disabled={busyOrderId === selectedOrder.id}
+                      key="cj_delivery"
+                      onClick={() => handleCjDelivery(selectedOrder.id)}
+                      type="button"
+                    >
+                      {busyOrderId === selectedOrder.id ? "발급 중..." : action.label}
+                    </button>
+                  );
+                }
+
                 return (
                   <button
                     className={`${action.style} !w-auto !px-4 !py-2 text-sm`}
@@ -1539,6 +1604,12 @@ function AdminOrdersPage() {
         reasonPlaceholder={destructiveModal?.reasonPlaceholder}
         reasonRequired={destructiveModal?.reasonRequired}
         title={destructiveModal?.title ?? ""}
+      />
+
+      <CjWaybillLabelModal
+        data={labelData}
+        onClose={() => setLabelData(null)}
+        open={!!labelData}
       />
     </AdminShell>
   );
