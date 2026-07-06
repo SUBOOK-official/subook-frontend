@@ -4,6 +4,7 @@ import AdminDialog from "../components/AdminDialog";
 import AdminShell from "../components/AdminShell";
 import AdminPagination from "../components/AdminPagination";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
+import ProductMasterEditModal from "../components/ProductMasterEditModal";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { formatCurrency, formatDate } from "@shared-domain/format";
 
@@ -69,6 +70,8 @@ function AdminProductMastersPage() {
   const [detailData, setDetailData] = useState(null);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [bookBusyId, setBookBusyId] = useState(null);
+  // 수정 모달 (제목/가격/사진 — 2026-07-06 피드백)
+  const [editTarget, setEditTarget] = useState(null);
   const requestIdRef = useRef(0);
 
   // 일괄 선택
@@ -557,16 +560,25 @@ function AdminProductMastersPage() {
                       </span>
                     </td>
                     <td className="px-3 py-3 text-right" onClick={(e) => e.stopPropagation()}>
-                      <select
-                        value={product.status}
-                        onChange={(e) => handleStatusChange(product, e.target.value)}
-                        disabled={busyId === product.id}
-                        className="rounded-md border border-slate-300 px-2 py-1 text-xs disabled:opacity-50"
-                      >
-                        <option value="selling">판매중</option>
-                        <option value="sold_out">품절</option>
-                        <option value="hidden">숨김</option>
-                      </select>
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          className="rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:border-slate-500 hover:bg-slate-50"
+                          onClick={() => setEditTarget(product)}
+                          type="button"
+                        >
+                          수정
+                        </button>
+                        <select
+                          value={product.status}
+                          onChange={(e) => handleStatusChange(product, e.target.value)}
+                          disabled={busyId === product.id}
+                          className="rounded-md border border-slate-300 px-2 py-1 text-xs disabled:opacity-50"
+                        >
+                          <option value="selling">판매중</option>
+                          <option value="sold_out">품절</option>
+                          <option value="hidden">숨김</option>
+                        </select>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -618,13 +630,22 @@ function AdminProductMastersPage() {
                   ) : null}
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={closeDetail}
-                className="text-slate-400 hover:text-slate-700"
-              >
-                ✕
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-slate-500 hover:bg-slate-50"
+                  onClick={() => setEditTarget(detailTarget)}
+                  type="button"
+                >
+                  수정
+                </button>
+                <button
+                  type="button"
+                  onClick={closeDetail}
+                  className="text-slate-400 hover:text-slate-700"
+                >
+                  ✕
+                </button>
+              </div>
             </header>
 
             <div className="p-6">
@@ -728,6 +749,25 @@ function AdminProductMastersPage() {
         reasonPlaceholder={destructiveModal?.reasonPlaceholder}
         reasonRequired={destructiveModal?.reasonRequired}
         title={destructiveModal?.title ?? ""}
+      />
+
+      {/* 상품 수정 모달 (제목/옵션/정가/사진 + 인스턴스별 판매가·상세사진) */}
+      <ProductMasterEditModal
+        onClose={() => setEditTarget(null)}
+        onSaved={async (result) => {
+          setEditTarget(null);
+          const skipped = Array.isArray(result?.skipped) ? result.skipped : [];
+          showToast(
+            skipped.length > 0
+              ? `상품이 수정되었습니다. (제외 ${skipped.length}건: ${skipped[0]?.reason ?? ""})`
+              : "상품이 수정되었습니다.",
+            "success",
+          );
+          // 상세 모달이 같은 상품을 보고 있으면 갱신
+          if (detailTarget) await openDetail(detailTarget);
+          await loadProducts();
+        }}
+        product={editTarget}
       />
     </AdminShell>
   );

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import AdminShell from "../components/AdminShell";
 import AdminPagination from "../components/AdminPagination";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
@@ -107,6 +108,10 @@ function AdminSettlementsPage() {
   const [isExporting, setIsExporting] = useState(false);
   const [notificationResult, setNotificationResult] = useState(null);
   const [isRetryingNotifications, setIsRetryingNotifications] = useState(false);
+  // 구 사이트(식스샵)·수동 정산 요약 — 이 페이지의 settlements(회원 주문 자동 정산)와는
+  // 별개 트랙이지만, "기존 정산 내역이 안 보인다"는 혼선을 막기 위해 요약+진입점을
+  // 함께 노출한다. (2026-07-06 운영 피드백)
+  const [manualSummary, setManualSummary] = useState(null);
   const requestIdRef = useRef(0);
 
   const selectedRows = useMemo(
@@ -152,6 +157,26 @@ function AdminSettlementsPage() {
   const showToast = useCallback((message, tone = "info") => {
     setToast({ message, tone });
     window.setTimeout(() => setToast(null), 3500);
+  }, []);
+
+  // 구 사이트(수동) 정산 요약 로드 — 목록은 필요 없어 p_limit 1로 summary만 받는다.
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) return undefined;
+    let cancelled = false;
+
+    (async () => {
+      const { data, error } = await supabase.rpc("admin_list_manual_settlements", {
+        p_limit: 1,
+        p_offset: 0,
+      });
+      if (!cancelled && !error && data?.summary) {
+        setManualSummary(data.summary);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const loadSettlements = useCallback(async () => {
@@ -458,13 +483,16 @@ function AdminSettlementsPage() {
       activeModule="settlements"
       actions={
         <div className="flex flex-wrap items-center gap-2">
-          <label className="flex items-center gap-1.5 rounded-md border border-rose-200 bg-rose-50 px-2 py-1.5 text-[11px] font-bold text-rose-700">
+          <label
+            className="flex items-center gap-1.5 rounded-md border border-rose-200 bg-rose-50 px-2 py-1.5 text-[11px] font-bold text-rose-700"
+            title="체크하면 XLSX 내보내기에 계좌번호가 마스킹 없이(실계좌) 포함됩니다. 2단계 확인과 audit 기록을 거칩니다."
+          >
             <input
               checked={exportPlainAccount}
               onChange={(event) => setExportPlainAccount(event.target.checked)}
               type="checkbox"
             />
-            평문 계좌
+            엑셀에 실계좌 포함
           </label>
           <button
             className="btn-secondary !w-auto !px-3 !py-2 text-xs"
@@ -479,6 +507,32 @@ function AdminSettlementsPage() {
       summaryCards={summaryCards}
       title="정산 관리"
     >
+      {/* 구 사이트(식스샵)·수동 정산 연동 요약 — 회원 주문 자동 정산과 별개 트랙 (2026-07-06 피드백) */}
+      {manualSummary ? (
+        <section className="card p-4 flex flex-wrap items-center gap-3">
+          <div className="flex-1 min-w-[240px]">
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+              구 사이트(식스샵)·수동 정산 내역
+            </p>
+            <p className="mt-1 text-sm font-semibold text-slate-700">
+              미지급{" "}
+              <strong className="text-rose-600">
+                {manualSummary.unpaid_count ?? 0}건 · {formatCurrency(manualSummary.unpaid_amount ?? 0)}
+              </strong>
+              <span className="mx-1.5 text-slate-300">|</span>
+              지급완료 {manualSummary.paid_count ?? 0}건 · {formatCurrency(manualSummary.paid_amount ?? 0)}
+            </p>
+            <p className="mt-1 text-xs text-slate-400">
+              플랫폼 이전(식스샵) 판매분 정산은 수동 정산 메뉴에서 지급 처리·추적합니다.
+              아래 목록은 회원 주문의 자동 정산 전용입니다.
+            </p>
+          </div>
+          <Link className="btn-secondary !w-auto !px-4 !py-2 text-sm" to="/admin/manual-settlements">
+            수동 정산 관리 →
+          </Link>
+        </section>
+      ) : null}
+
       <section className="card space-y-4">
         <div className="flex flex-wrap gap-2">
           {STATUS_FILTERS.map((option) => (
@@ -603,8 +657,12 @@ function AdminSettlementsPage() {
         ) : rows.length === 0 ? (
           <div className="p-8 text-center text-sm font-semibold text-slate-400">
             정산 데이터가 없습니다.
+            <p className="mt-2 text-xs font-normal text-slate-400">
+              회원 주문 정산은 구매자의 구매확정(배송완료 후 7일 자동 확정) 시 자동 생성되고,
+              지급 예정일은 매월 1일로 잡힙니다.
+            </p>
             <p className="mt-1 text-xs font-normal text-slate-400">
-              권한 문제가 의심되면 시스템 관리자에게 문의해 주세요.
+              플랫폼 이전(식스샵) 판매분 정산 내역은 상단의 &lsquo;수동 정산 관리&rsquo;에서 확인하세요.
             </p>
           </div>
         ) : (
