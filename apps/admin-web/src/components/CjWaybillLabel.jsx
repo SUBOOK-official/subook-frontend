@@ -44,6 +44,9 @@ function formatWaybill(no) {
   return String(no ?? "");
 }
 
+// 규격서(표준운송장가이드 1.5인치) 19개 필드 + 개인정보 문구 + 운임 셀을 최대한 충실히 재현.
+// pt→mm: 1pt≈0.3528mm. 필드 폰트 pt: 운송장번호12·접수/매수/재출력8·분류코드36·주소약칭24·
+// 운임10·보내는분주소8·상품명9·배송메세지8·배달점소별칭18·특수문자30.
 export function CjWaybillLabel({ data }) {
   const order = data?.order ?? {};
   const addr = data?.addr ?? {};
@@ -51,16 +54,24 @@ export function CjWaybillLabel({ data }) {
   const items = Array.isArray(order.order_items) ? order.order_items : [];
 
   const waybill = String(data?.trackingNumber ?? "").replace(/\D/g, "");
-  const clsfText = [addr.clsfCd, addr.subClsfCd].filter(Boolean).join("-");
+  const clsfMain = String(addr.clsfCd ?? "").trim(); // 대분류코드 (분류코드 바코드 값)
+  const clsfSub = String(addr.subClsfCd ?? "").trim(); // SUB코드
+  const clsfText = [clsfMain, clsfSub].filter(Boolean).join("-");
   const branchAlias = [addr.clldlvBranNm, addr.clldlvEmpNickNm].filter(Boolean).join("-");
   const rcvrAddr = joinParts(order.shipping_address_line1, order.shipping_address_line2);
   const sndrAddr = joinParts(sender.addr1, sender.addr2);
+  const qty =
+    Number(order.item_count) ||
+    items.reduce((sum, it) => sum + (Number(it.quantity) || 1), 0) ||
+    1;
   const itemLine =
     items.length > 0
       ? items.map((it) => joinParts(it.title, it.quantity > 1 ? `x${it.quantity}` : "")).join(" / ")
-      : `중고 교재 ${order.item_count ?? 1}권`;
+      : `중고 교재 ${qty}권`;
+  // 재출력여부(필드4): 재인쇄 횟수(data.reprint)가 있을 때만 표기. 최초 출력은 공란.
+  const reprint = Number(data?.reprint) || 0;
 
-  const cell = { border: "0.3mm solid #000", padding: "0.5mm 1mm", boxSizing: "border-box" };
+  const L = "0.3mm solid #000"; // 내부 구분선
 
   return (
     <div
@@ -78,87 +89,115 @@ export function CjWaybillLabel({ data }) {
         overflow: "hidden",
       }}
     >
-      {/* 1행: 운송장번호 / 접수일자 / 출력매수 / 고객센터 */}
-      <div style={{ display: "flex", alignItems: "center", borderBottom: "0.3mm solid #000", height: "9mm" }}>
-        <div style={{ ...cell, flex: 1, borderLeft: "none", borderTop: "none", borderBottom: "none" }}>
-          <span style={{ fontSize: "2.6mm" }}>운송장번호 </span>
-          <span style={{ fontSize: "4.2mm" }}>{formatWaybill(waybill)}</span>
+      {/* 1행(9mm): 운송장번호(1) | 접수일자(2) | 출력매수(3) | 재출력(4) | 고객센터 */}
+      <div style={{ display: "flex", alignItems: "stretch", borderBottom: L, height: "9mm" }}>
+        <div style={{ flex: 1, padding: "0 1mm", display: "flex", alignItems: "center", gap: "1mm" }}>
+          <span style={{ fontSize: "2.4mm" }}>운송장번호</span>
+          <span style={{ fontSize: "4.2mm", letterSpacing: "0.2mm" }}>{formatWaybill(waybill)}</span>
         </div>
-        <div style={{ ...cell, width: "22mm", fontSize: "2.8mm", borderTop: "none", borderBottom: "none" }}>
+        <div style={{ width: "20mm", borderLeft: L, fontSize: "2.8mm", display: "flex", alignItems: "center", justifyContent: "center" }}>
           {todayDotYmd()}
         </div>
-        <div style={{ ...cell, width: "10mm", fontSize: "2.8mm", textAlign: "center", borderTop: "none", borderBottom: "none" }}>
+        <div style={{ width: "9mm", borderLeft: L, fontSize: "2.8mm", display: "flex", alignItems: "center", justifyContent: "center" }}>
           1/1
         </div>
-        <div style={{ ...cell, width: "26mm", fontSize: "2.6mm", textAlign: "center", borderTop: "none", borderRight: "none", borderBottom: "none" }}>
+        <div style={{ width: "13mm", borderLeft: L, fontSize: "2.4mm", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          {reprint > 0 ? `재출력 ${reprint}` : ""}
+        </div>
+        <div style={{ width: "26mm", borderLeft: L, fontSize: "2.5mm", display: "flex", alignItems: "center", justifyContent: "center" }}>
           고객센터 1588-1255
         </div>
       </div>
 
-      {/* 2행: 분류코드 바코드 / 분류코드(대) / 운송장번호 바코드 */}
-      <div style={{ display: "flex", alignItems: "center", borderBottom: "0.3mm solid #000", height: "26mm" }}>
-        <div style={{ width: "34mm", padding: "1mm", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", borderRight: "0.3mm solid #000" }}>
-          <Barcode value={addr.clsfCd || ""} format="CODE128A" height={44} width={1.3} />
+      {/* 2행(24mm): 분류코드바코드(5) | 분류코드 대+SUB(6) +특수문자(19) | 운송장바코드(8) */}
+      <div style={{ display: "flex", alignItems: "center", borderBottom: L, height: "24mm" }}>
+        <div style={{ width: "30mm", padding: "1mm", display: "flex", alignItems: "center", justifyContent: "center", borderRight: L }}>
+          <Barcode value={clsfMain} format="CODE128A" height={42} width={1.15} />
         </div>
-        <div style={{ flex: 1, textAlign: "center", fontSize: "12mm", lineHeight: 1, letterSpacing: "0", whiteSpace: "nowrap", overflow: "hidden" }}>
+        <div style={{ flex: 1, textAlign: "center", fontSize: "11mm", lineHeight: 1, letterSpacing: "0", whiteSpace: "nowrap" }}>
           {clsfText || "-"}
-          {addr.p2pCd ? <span style={{ fontSize: "7mm", marginLeft: "1.5mm" }}>{addr.p2pCd}</span> : null}
+          {addr.p2pCd ? <span style={{ fontSize: "8mm", marginLeft: "1.5mm" }}>{addr.p2pCd}</span> : null}
         </div>
-        <div style={{ width: "40mm", padding: "1mm", display: "flex", alignItems: "center", justifyContent: "center", borderLeft: "0.3mm solid #000" }}>
-          <Barcode value={waybill} format="CODE128C" height={52} width={1.35} />
+        <div style={{ width: "39mm", padding: "1mm", display: "flex", alignItems: "center", justifyContent: "center", borderLeft: L }}>
+          <Barcode value={waybill} format="CODE128C" height={50} width={1.25} />
         </div>
       </div>
 
-      {/* 받는분 */}
-      <div style={{ display: "flex", borderBottom: "0.3mm solid #000" }}>
-        <div style={{ width: "7mm", writingMode: "vertical-rl", textAlign: "center", fontSize: "3mm", borderRight: "0.3mm solid #000", padding: "1mm 0" }}>
+      {/* 받는분(21mm): 성명·전화(7) / 주소(9) / 주소약칭(10) */}
+      <div style={{ display: "flex", borderBottom: L, height: "21mm" }}>
+        <div style={{ width: "6mm", writingMode: "vertical-rl", textAlign: "center", fontSize: "3mm", borderRight: L, display: "flex", alignItems: "center", justifyContent: "center", letterSpacing: "1mm" }}>
           받는분
         </div>
-        <div style={{ flex: 1, padding: "1mm" }}>
-          <div style={{ fontSize: "3.2mm" }}>
-            {maskName(order.shipping_recipient_name)} &nbsp; {maskPhone(order.shipping_recipient_phone)}
+        <div style={{ flex: 1, padding: "1mm 1.5mm", display: "flex", flexDirection: "column", justifyContent: "flex-start" }}>
+          <div style={{ fontSize: "3.5mm" }}>
+            {maskName(order.shipping_recipient_name)}
+            <span style={{ marginLeft: "3mm" }}>{maskPhone(order.shipping_recipient_phone)}</span>
           </div>
-          <div style={{ fontSize: "3mm", marginTop: "0.5mm" }}>
+          <div style={{ fontSize: "3mm", marginTop: "0.8mm", lineHeight: 1.15 }}>
             [{order.shipping_postal_code || ""}] {rcvrAddr}
           </div>
-          <div style={{ fontSize: "6.5mm", marginTop: "1mm", lineHeight: 1.1 }}>{addr.clsfAddr || rcvrAddr}</div>
+          <div style={{ fontSize: "7mm", marginTop: "1mm", lineHeight: 1.05, overflow: "hidden" }}>
+            {addr.clsfAddr || rcvrAddr}
+          </div>
         </div>
       </div>
 
-      {/* 보내는분 + 운임 */}
-      <div style={{ display: "flex", borderBottom: "0.3mm solid #000", alignItems: "stretch" }}>
-        <div style={{ width: "7mm", writingMode: "vertical-rl", textAlign: "center", fontSize: "3mm", borderRight: "0.3mm solid #000", padding: "1mm 0" }}>
+      {/* 보내는분(12mm): 성명·전화(11)·주소(15) | 운임그룹+수량(12)·운임(13)·운임구분(14) */}
+      <div style={{ display: "flex", borderBottom: L, height: "12mm" }}>
+        <div style={{ width: "6mm", writingMode: "vertical-rl", textAlign: "center", fontSize: "2.4mm", borderRight: L, display: "flex", alignItems: "center", justifyContent: "center", letterSpacing: "0" }}>
           보내는분
         </div>
-        <div style={{ flex: 1, padding: "1mm", fontSize: "2.8mm" }}>
-          {sender.name || "수북"} &nbsp; {sender.phone || ""}
-          <div>[{sender.zip || ""}] {sndrAddr}</div>
+        <div style={{ flex: 1, padding: "1mm 1.5mm", fontSize: "2.8mm", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+          <div>
+            {sender.name || "수북"}
+            <span style={{ marginLeft: "3mm" }}>{sender.phone || ""}</span>
+          </div>
+          <div style={{ marginTop: "0.5mm", lineHeight: 1.15 }}>[{sender.zip || ""}] {sndrAddr}</div>
         </div>
-        <div style={{ width: "24mm", padding: "1mm", fontSize: "2.6mm", textAlign: "center", borderLeft: "0.3mm solid #000", display: "flex", flexDirection: "column", justifyContent: "center" }}>
-          <div>수량 {order.item_count ?? 1}</div>
-          <div>신용</div>
+        <div style={{ width: "13mm", borderLeft: L, fontSize: "2.5mm", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ fontSize: "2.1mm" }}>수량</div>
+          <div style={{ fontSize: "3.2mm" }}>{qty}</div>
+        </div>
+        <div style={{ width: "14mm", borderLeft: L, fontSize: "2.5mm", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ fontSize: "2.1mm" }}>운임</div>
+          <div style={{ fontSize: "3.2mm" }}>0</div>
+        </div>
+        <div style={{ width: "13mm", borderLeft: L, fontSize: "3mm", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          신용
         </div>
       </div>
 
-      {/* 상품명 */}
-      <div style={{ padding: "1mm", fontSize: "2.8mm", borderBottom: "0.3mm solid #000", minHeight: "9mm" }}>
-        <span style={{ fontSize: "2.4mm" }}>상품 </span>
+      {/* 상품명(6mm) (16) */}
+      <div style={{ height: "6mm", padding: "0 1.5mm", fontSize: "3mm", borderBottom: L, display: "flex", alignItems: "center", overflow: "hidden", whiteSpace: "nowrap" }}>
+        <span style={{ fontSize: "2.3mm", marginRight: "1.5mm" }}>상품명</span>
         {itemLine}
       </div>
 
-      {/* 배송메시지 */}
-      <div style={{ padding: "1mm", fontSize: "2.8mm", flex: 1 }}>
-        <span style={{ fontSize: "2.4mm" }}>메모 </span>
+      {/* 개인정보 보호 문구 + ONE 슬로건 (flex, 규격 표준 문구) */}
+      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 2mm", borderBottom: L }}>
+        <div style={{ fontSize: "2.5mm", lineHeight: 1.35, fontWeight: 600 }}>
+          <div>고객님(받는 분)의 소중한 상품을 안전하게 배송하겠습니다.</div>
+          <div>개인정보 유출우려가 있으니 운송장은 폐기 바랍니다.</div>
+        </div>
+        <div style={{ fontSize: "2.4mm", textAlign: "center", whiteSpace: "nowrap", marginLeft: "2mm" }}>
+          모두를 위한<br />단 하나의 배송, <span style={{ fontSize: "3.2mm" }}>ONE</span>
+        </div>
+      </div>
+
+      {/* 배송메세지(17) */}
+      <div style={{ height: "5mm", padding: "0 1.5mm", fontSize: "2.8mm", borderBottom: L, display: "flex", alignItems: "center", overflow: "hidden", whiteSpace: "nowrap" }}>
+        <span style={{ fontSize: "2.3mm", marginRight: "1.5mm" }}>배송메세지</span>
         {order.shipping_memo || ""}
       </div>
 
-      {/* 하단: 운송장 바코드 + 배달점소-별칭 */}
-      <div style={{ display: "flex", alignItems: "center", borderTop: "0.3mm solid #000", height: "13mm" }}>
-        <div style={{ flex: 1, padding: "1mm", display: "flex", alignItems: "center" }}>
-          <Barcode value={waybill} format="CODE128C" height={30} width={1.1} />
-        </div>
-        <div style={{ width: "55mm", padding: "1mm", textAlign: "center", fontSize: "5mm", borderLeft: "0.3mm solid #000" }}>
+      {/* 하단(13mm): 배달점소-별칭(18) | 운송장바코드(8)+번호 */}
+      <div style={{ display: "flex", alignItems: "center", height: "13mm" }}>
+        <div style={{ flex: 1, padding: "0 2mm", fontSize: "6mm", overflow: "hidden", whiteSpace: "nowrap" }}>
           {branchAlias || "—"}
+        </div>
+        <div style={{ width: "48mm", borderLeft: L, padding: "1mm", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+          <Barcode value={waybill} format="CODE128C" height={28} width={1.05} />
+          <div style={{ fontSize: "2.6mm", marginTop: "0.5mm", letterSpacing: "0.3mm" }}>{waybill}</div>
         </div>
       </div>
     </div>
