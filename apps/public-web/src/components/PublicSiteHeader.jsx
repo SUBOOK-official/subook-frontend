@@ -362,6 +362,18 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
     };
   }, [portalNode]);
 
+  // 고정 헤더의 실제 높이를 CSS 변수로 노출 → 하위 sticky 요소(예: 스토어 필터 툴바)가
+  // 헤더 바로 아래에 붙도록 top 오프셋으로 참조한다. (transform:scale 프레임 보정 포함)
+  useEffect(() => {
+    if (typeof document === "undefined") {
+      return undefined;
+    }
+
+    const value = frameScale > 0 ? headerHeight / frameScale : headerHeight;
+    document.documentElement.style.setProperty("--public-sticky-header-height", `${value}px`);
+    return undefined;
+  }, [headerHeight, frameScale]);
+
   useEffect(() => {
     if (typeof window === "undefined") {
       return undefined;
