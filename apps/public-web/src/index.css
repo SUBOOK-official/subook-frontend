@@ -3301,6 +3301,66 @@ img {
   }
 }
 
+/* ── 모바일 푸터 레이아웃 ─────────────────────────────────────── */
+@media (max-width: 767px) {
+  .public-footer__inner {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 28px;
+    padding: 32px 20px;
+  }
+
+  .public-footer__content {
+    align-items: stretch;
+    gap: 20px;
+    max-width: none;
+  }
+
+  /* 링크: 세로 1열 리스트 */
+  .public-footer__links {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+  }
+
+  .public-footer__text-button {
+    margin: 0;
+    padding: 0 0 11px;
+  }
+
+  /* 사업자 정보: 각 항목을 세로로 한 줄씩 정리 */
+  .public-footer__meta {
+    gap: 6px;
+  }
+
+  .public-footer__meta-line {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .public-footer__pair {
+    white-space: normal;
+  }
+
+  /* SNS·저작권: 가운데 정렬로 하단 배치 */
+  .public-footer__side {
+    align-items: center;
+    justify-content: flex-start;
+    gap: 16px;
+    margin-top: 4px;
+  }
+
+  .public-footer__socials {
+    justify-content: center;
+  }
+
+  .public-footer__copyright {
+    width: 100%;
+    text-align: center;
+  }
+}
+
 .public-home--locked .public-store-page__top {
   padding-bottom: 56px;
 }
@@ -6373,7 +6433,8 @@ img {
   border: 1px solid var(--public-ds-border);
   border-radius: 12px;
   background: var(--public-ds-card);
-  box-shadow: var(--public-ds-shadow);
+  /* default 상태에선 그림자 제거 (hover 시에만 그림자 노출) */
+  box-shadow: none;
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -7759,6 +7820,11 @@ img {
 @media (max-width: 767px) {
   .public-home-best-books__nav-group {
     display: none;
+  }
+
+  /* 하단 패딩을 절반으로 줄여 아래 섹션과의 간격 축소 */
+  .public-home-best-books {
+    padding-bottom: 16px;
   }
 
   /* 모바일: 카드를 넓혀 다음 카드가 살짝 보이며 오른쪽으로 슬라이드되도록.
