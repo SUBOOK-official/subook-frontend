@@ -732,7 +732,7 @@ img {
 
 @media (max-width: 767px) {
   .public-home-store-grid {
-    padding: 16px 0 48px;
+    padding: 0 0 48px;
   }
 
   /* 필터·정렬 툴바를 고정 헤더 바로 아래에 sticky 고정 */
@@ -740,9 +740,9 @@ img {
     position: sticky;
     top: var(--public-sticky-header-height, 137px);
     z-index: 20;
-    margin-bottom: 12px;
-    padding: 10px 0;
-    background: #ffffff;
+    margin-bottom: 10px;
+    padding: 10px 0 0;
+    background: transparent;
   }
 
   .public-home-store-grid__list {
