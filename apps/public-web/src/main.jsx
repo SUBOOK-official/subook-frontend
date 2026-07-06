@@ -23,7 +23,12 @@ ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <ErrorBoundary>
       <PublicAuthProvider>
-        <BrowserRouter>
+        {/* React Router v7 future 플래그 선적용 — v6 콘솔 경고 제거 + v7 업그레이드 대비.
+            startTransition: 컴포넌트 내부 lazy() 없음(전부 모듈 스코프)이라 영향 없음.
+            relativeSplatPath: 다중 세그먼트 splat 라우트 없음(404 catch-all뿐)이라 영향 없음. */}
+        <BrowserRouter
+          future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+        >
           <PublicWishlistProvider>
             <App />
           </PublicWishlistProvider>
