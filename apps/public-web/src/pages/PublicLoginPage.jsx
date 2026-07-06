@@ -238,7 +238,7 @@ function PublicLoginPage() {
                 로그인
               </h1>
               <p className="public-auth-card__description">
-                가입한 이메일과 비밀번호로 로그인해 수북의 서비스를 이어서 이용해보세요.
+                가입한 이메일과 비밀번호로 로그인한 뒤 수북의 서비스를 이용해보세요.
               </p>
             </div>
 
