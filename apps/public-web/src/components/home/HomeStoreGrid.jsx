@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
 import ContentContainer from "../ContentContainer";
 import ProductCard, { ProductCardSkeleton } from "../ProductCard";
-import { SlidersIcon, CheckIcon, ChevronLeftIcon, ChevronRightIcon, CloseIcon } from "../icons";
+import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, CloseIcon } from "../icons";
 import {
   HOME_SIDEBAR_FILTER_GROUP_KEYS,
   STORE_DEFAULT_SUBJECT,
@@ -253,7 +253,7 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
     if (isMobileViewport) {
       scrollResultsUnderHeader();
     }
-  }, [selectedSubject, selectedFilters, sortOption, searchKeyword]);
+  }, [selectedSubject, selectedFilters, sortOption, searchKeyword]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 모바일: IntersectionObserver로 무한 스크롤
   const loadMoreRef = useRef(null);
