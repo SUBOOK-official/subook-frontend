@@ -4198,14 +4198,15 @@ img {
     box-shadow 160ms ease;
 }
 
+.public-auth-field-row__control:hover,
 .public-auth-field-row__control:focus-within {
   border-color: var(--public-ds-accent);
-  box-shadow: var(--public-focus-ring);
+  box-shadow: none;
 }
 
 .public-auth-field-row.is-error .public-auth-field-row__control {
   border-color: var(--public-ds-danger);
-  box-shadow: 0 0 0 3px rgba(208, 52, 44, 0.14);
+  box-shadow: none;
 }
 
 .public-auth-field-row__control--with-action {

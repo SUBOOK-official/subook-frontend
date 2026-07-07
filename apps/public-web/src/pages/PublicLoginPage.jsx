@@ -272,10 +272,6 @@ function PublicLoginPage() {
               <h1 className="public-auth-card__title" id="public-login-heading">
                 로그인
               </h1>
-              <p className="public-auth-card__description">
-                가입한 이메일과 비밀번호로 로그인한 뒤 수북의 서비스를
-                이용해보세요.
-              </p>
             </div>
 
             {hasSession && isAdminAccount ? (
@@ -443,8 +439,8 @@ function PublicLoginPage() {
                   <p>기존 수북 회원이시네요! </p>
                   <p>
                     <strong>
-                      사이트 정책 변경에 따라, 7월 11일 이전 가입 회원은 비밀번호
-                      재설정이 필요합니다.
+                      사이트 정책 변경에 따라, 7월 11일 이전 가입 회원은
+                      비밀번호 재설정이 필요합니다.
                     </strong>
                   </p>
                   <p>
