@@ -4012,7 +4012,7 @@ img {
 .public-auth-route {
   min-height: 100vh;
   padding: 24px 16px 40px;
-  background: var(--public-ds-background);
+  background: #ffffff;
 }
 
 .public-auth-route--success {
@@ -4029,10 +4029,10 @@ img {
   width: min(100%, 560px);
   margin: 0 auto;
   padding: 24px 20px;
-  border: 1px solid var(--public-ds-border);
-  border-radius: var(--public-radius-xl);
-  background: var(--public-ds-card);
-  box-shadow: var(--public-ds-shadow);
+  border: 0;
+  border-radius: 0;
+  background: #ffffff;
+  box-shadow: none;
 }
 
 .public-auth-card--signup {

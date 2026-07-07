@@ -263,7 +263,7 @@ function PublicLoginPage() {
               SUBOOK
             </Link>
             <p className="public-auth-brand-lockup__tagline">
-              수능 교재, 똑똑하게 거래
+              수능을 위한 가장 똑똑한 선택
             </p>
           </div>
 
