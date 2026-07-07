@@ -194,6 +194,23 @@ function canRegisterCjPickup(pickupRequest) {
   );
 }
 
+// 취소 가능 조건 — admin_bulk_cancel_pickup_requests RPC가 실제로 처리하는 범위와 동일.
+// (기존에는 선택 자체가 CJ 접수 가능 행으로 제한돼, 운송장이 발급된 pickup_scheduled 건을
+//  화면에서 영영 취소할 수 없는 버그가 있었다 — 2026-07-06 수거 사이클 검토에서 수정)
+function canCancelPickup(pickupRequest) {
+  return ["pending", "pickup_scheduled"].includes(pickupRequest.status);
+}
+
+// 체크박스 선택 허용 = CJ 접수 대상 ∪ 취소 대상
+function canSelectPickupRow(pickupRequest) {
+  return canRegisterCjPickup(pickupRequest) || canCancelPickup(pickupRequest);
+}
+
+// 수동 상태 전환 대상 상태 (cancelled 제외 — 취소는 사유 입력이 있는 기존 흐름 전용)
+const MANUAL_STATUS_OPTIONS = PICKUP_STATUS_OPTIONS.filter(
+  (option) => option.value !== "cancelled",
+);
+
 function buildCjTrackingUrl(trackingNumber) {
   if (!trackingNumber) {
     return "";
@@ -256,6 +273,9 @@ function AdminPickupRequestsPage() {
   // 요청 상세 모달 — 목록엔 안 보이는 현관비번·희망일·메모·이메일·박스수·품목 전체를 본다.
   const [detailModal, setDetailModal] = useState(null);
   const [destructiveModal, setDestructiveModal] = useState(null);
+  // 수동 상태 전환 확인 모달 { pickupRequest, nextStatus } — CJ 미연동 기간 운영용
+  const [statusChangeModal, setStatusChangeModal] = useState(null);
+  const [statusChangingId, setStatusChangingId] = useState(null);
   // 알림톡/RPC 부분 실패를 전체 노출 — 이전엔 setError에 3건만 보여 4건 이후가 사라지는 P0 사고
   const [cjFailureModal, setCjFailureModal] = useState(null);
   const [notificationResult, setNotificationResult] = useState(null);
@@ -275,14 +295,30 @@ function AdminPickupRequestsPage() {
     [pickupRequests],
   );
 
+  // 선택 가능 행 = CJ 접수 대상 ∪ 취소 대상 (운송장 발급된 pickup_scheduled도 취소를 위해 선택 가능)
+  const selectablePickupIds = useMemo(
+    () => pickupRequests.filter(canSelectPickupRow).map((pickupRequest) => pickupRequest.id),
+    [pickupRequests],
+  );
+
+  const cancellablePickupIds = useMemo(
+    () => pickupRequests.filter(canCancelPickup).map((pickupRequest) => pickupRequest.id),
+    [pickupRequests],
+  );
+
   const selectedEligibleIds = useMemo(
     () => selectedIds.filter((id) => eligiblePickupIds.includes(id)),
     [eligiblePickupIds, selectedIds],
   );
 
-  const allEligibleSelected =
-    eligiblePickupIds.length > 0 &&
-    eligiblePickupIds.every((id) => selectedEligibleIds.includes(id));
+  const selectedCancellableIds = useMemo(
+    () => selectedIds.filter((id) => cancellablePickupIds.includes(id)),
+    [cancellablePickupIds, selectedIds],
+  );
+
+  const allSelectableSelected =
+    selectablePickupIds.length > 0 &&
+    selectablePickupIds.every((id) => selectedIds.includes(id));
 
   const statusSummary = useMemo(
     () =>
@@ -358,8 +394,8 @@ function AdminPickupRequestsPage() {
   );
 
   useEffect(() => {
-    setSelectedIds((currentIds) => currentIds.filter((id) => eligiblePickupIds.includes(id)));
-  }, [eligiblePickupIds]);
+    setSelectedIds((currentIds) => currentIds.filter((id) => selectablePickupIds.includes(id)));
+  }, [selectablePickupIds]);
 
   const handleSearchSubmit = (event) => {
     event.preventDefault();
@@ -393,7 +429,7 @@ function AdminPickupRequestsPage() {
   };
 
   const handleToggleSelection = (pickupRequest) => {
-    if (!canRegisterCjPickup(pickupRequest)) {
+    if (!canSelectPickupRow(pickupRequest)) {
       return;
     }
 
@@ -405,7 +441,34 @@ function AdminPickupRequestsPage() {
   };
 
   const handleToggleAllEligible = () => {
-    setSelectedIds(allEligibleSelected ? [] : eligiblePickupIds);
+    setSelectedIds(allSelectableSelected ? [] : selectablePickupIds);
+  };
+
+  // 수동 상태 전환 (CJ 미연동 기간 운영용) — admin_update_pickup_status RPC.
+  // 알림톡은 발송하지 않는다 (셀러 안내는 운영자 재량).
+  const performManualStatusChange = async () => {
+    if (!statusChangeModal) return;
+    const { pickupRequest, nextStatus } = statusChangeModal;
+
+    setError("");
+    setNotice("");
+    setStatusChangingId(pickupRequest.id);
+    try {
+      const { error: rpcError } = await supabase.rpc("admin_update_pickup_status", {
+        p_id: pickupRequest.id,
+        p_status: nextStatus,
+      });
+      if (rpcError) throw rpcError;
+      setNotice(
+        `${pickupRequest.request_number} 상태를 '${pickupRequestStatusLabel[nextStatus] ?? nextStatus}'(으)로 변경했습니다. (알림톡 미발송)`,
+      );
+      setStatusChangeModal(null);
+      await loadPickupRequests();
+    } catch (apiError) {
+      setError(apiError instanceof Error ? apiError.message : "상태 변경에 실패했습니다.");
+    } finally {
+      setStatusChangingId(null);
+    }
   };
 
   const handleRegisterPickups = (targetIds) => {
@@ -488,7 +551,8 @@ function AdminPickupRequestsPage() {
           total: payload.successCount + failedResults.length,
           failures: failedResults.map((r) => ({
             id: r.pickupRequestId,
-            requestNumber: r.requestNumber || `#${r.pickupRequestId}`,
+            // NotificationResultModal은 label을 렌더한다 — 미지정 시 요청번호가 안 보였음
+            label: r.requestNumber || `#${r.pickupRequestId}`,
             error: r.error || "알 수 없는 오류",
           })),
         });
@@ -524,8 +588,10 @@ function AdminPickupRequestsPage() {
       title: `수거 일괄 취소 — ${targetIds.length}건`,
       description:
         `선택한 ${targetIds.length}건의 수거 요청을 일괄 취소합니다.\n\n` +
-        `(아직 수거 전 — 접수 대기·수거 예정 상태만 취소됩니다.\n` +
+        `(아직 수거 전 — 접수 대기·수거접수 상태만 취소됩니다.\n` +
         `이미 수거가 시작/완료된 건은 취소되지 않아요.)\n\n` +
+        `⚠ 이미 CJ에 접수된 건(운송장 발급)은 CJ 측 예약이 자동 취소되지 않습니다.\n` +
+        `CJ 연동 운영 시에는 CJ 시스템에서 별도 취소가 필요합니다.\n\n` +
         `이 작업은 되돌릴 수 없습니다.`,
       confirmPhrase: "취소",
       reasonRequired: true,
@@ -692,7 +758,9 @@ function AdminPickupRequestsPage() {
           <div>
             <h2 className="section-title">CJ 수거 접수</h2>
             <p className="mt-1 text-sm font-semibold text-slate-500">
-              운송장이 없는 요청만 선택할 수 있습니다. 접수 성공 시 판매자에게 수거 접수 알림톡을 보냅니다.
+              CJ 접수는 운송장이 없는 요청만, 취소는 수거 시작 전(대기·수거접수) 요청만 대상입니다.
+              접수 성공 시 판매자에게 수거 접수 알림톡을 보냅니다.
+              CJ 연동 전에는 각 행의 &lsquo;상태변경&rsquo;으로 검수중 등 다음 단계로 직접 전환할 수 있습니다.
             </p>
           </div>
           <div className="flex gap-2">
@@ -708,11 +776,11 @@ function AdminPickupRequestsPage() {
             </button>
             <button
               className="!w-auto !px-4 !py-2.5 text-sm rounded-lg border border-rose-300 text-rose-700 font-bold hover:bg-rose-50 disabled:opacity-60 disabled:cursor-not-allowed"
-              disabled={selectedEligibleIds.length === 0 || registeringIds.length > 0}
-              onClick={() => void handleBulkCancelPickups(selectedEligibleIds)}
+              disabled={selectedCancellableIds.length === 0 || registeringIds.length > 0}
+              onClick={() => void handleBulkCancelPickups(selectedCancellableIds)}
               type="button"
             >
-              선택 {selectedEligibleIds.length}건 취소
+              선택 {selectedCancellableIds.length}건 취소
             </button>
           </div>
         </div>
@@ -723,8 +791,8 @@ function AdminPickupRequestsPage() {
               <tr>
                 <th className="w-12 px-4 py-3 text-left">
                   <input
-                    checked={allEligibleSelected}
-                    disabled={eligiblePickupIds.length === 0 || registeringIds.length > 0}
+                    checked={allSelectableSelected}
+                    disabled={selectablePickupIds.length === 0 || registeringIds.length > 0}
                     onChange={handleToggleAllEligible}
                     type="checkbox"
                   />
@@ -775,7 +843,8 @@ function AdminPickupRequestsPage() {
               {!isLoading
                 ? pickupRequests.map((pickupRequest) => {
                     const isEligible = canRegisterCjPickup(pickupRequest);
-                    const isSelected = selectedEligibleIds.includes(pickupRequest.id);
+                    const isSelectable = canSelectPickupRow(pickupRequest);
+                    const isSelected = selectedIds.includes(pickupRequest.id);
                     const isRegistering = registeringIds.includes(pickupRequest.id);
                     const trackingUrl = buildCjTrackingUrl(pickupRequest.tracking_number);
 
@@ -784,7 +853,7 @@ function AdminPickupRequestsPage() {
                         <td className="px-4 py-4">
                           <input
                             checked={isSelected}
-                            disabled={!isEligible || isRegistering || registeringIds.length > 0}
+                            disabled={!isSelectable || isRegistering || registeringIds.length > 0}
                             onChange={() => handleToggleSelection(pickupRequest)}
                             type="checkbox"
                           />
@@ -883,6 +952,30 @@ function AdminPickupRequestsPage() {
                                 {trackingLookupId === pickupRequest.id ? "조회 중..." : "추적 조회"}
                               </button>
                             ) : null}
+
+                            {/* 수동 상태 전환 — CJ 미연동 기간에도 검수중 등으로 진행 가능 (취소 상태 제외) */}
+                            {pickupRequest.status !== "cancelled" ? (
+                              <select
+                                aria-label={`${pickupRequest.request_number} 상태변경`}
+                                className="rounded-lg border border-slate-300 bg-white px-2 py-2 text-xs font-semibold text-slate-700 disabled:opacity-60"
+                                disabled={statusChangingId === pickupRequest.id || registeringIds.length > 0}
+                                onChange={(event) => {
+                                  const nextStatus = event.target.value;
+                                  if (nextStatus && nextStatus !== pickupRequest.status) {
+                                    setStatusChangeModal({ pickupRequest, nextStatus });
+                                  }
+                                }}
+                                value={pickupRequest.status}
+                              >
+                                {MANUAL_STATUS_OPTIONS.map((option) => (
+                                  <option key={option.value} value={option.value}>
+                                    {option.value === pickupRequest.status
+                                      ? `${option.label} (현재)`
+                                      : option.label}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : null}
                           </div>
                         </td>
                       </tr>
@@ -939,6 +1032,57 @@ function AdminPickupRequestsPage() {
       </section>
 
       <PickupDetailModal request={detailModal} onClose={() => setDetailModal(null)} />
+
+      {/* 수동 상태 전환 확인 모달 — 입력 없이 확인만 (CJ 미연동 기간 운영용) */}
+      <AdminDialog
+        busy={statusChangeModal ? statusChangingId === statusChangeModal.pickupRequest.id : false}
+        onClose={() => setStatusChangeModal(null)}
+        open={Boolean(statusChangeModal)}
+        size="md"
+        title={statusChangeModal ? `상태변경 — ${statusChangeModal.pickupRequest.request_number}` : ""}
+      >
+        {statusChangeModal ? (
+          <div className="p-6 space-y-4">
+            <p className="text-sm text-slate-700">
+              <strong>{maskName(statusChangeModal.pickupRequest.pickup_recipient_name)}</strong>님의 수거
+              요청 상태를{" "}
+              <strong>
+                {pickupRequestStatusLabel[statusChangeModal.pickupRequest.status] ??
+                  statusChangeModal.pickupRequest.status}
+              </strong>
+              {" → "}
+              <strong className="text-blue-700">
+                {pickupRequestStatusLabel[statusChangeModal.nextStatus] ?? statusChangeModal.nextStatus}
+              </strong>
+              (으)로 변경합니다.
+            </p>
+            <ul className="rounded-lg bg-slate-50 px-4 py-3 text-xs text-slate-600 space-y-1 list-disc list-inside">
+              <li>판매자 마이페이지의 진행 단계 표시가 즉시 바뀝니다.</li>
+              <li>알림톡은 발송되지 않습니다 — 필요하면 판매자에게 별도로 안내하세요.</li>
+              <li>CJ 접수 없이 진행하는 수동 운영용 기능입니다. (잘못 바꿨다면 같은 방법으로 되돌릴 수 있어요)</li>
+            </ul>
+            <div className="flex gap-2">
+              <button
+                className="btn-ghost flex-1"
+                onClick={() => setStatusChangeModal(null)}
+                type="button"
+              >
+                취소
+              </button>
+              <button
+                className="btn-primary flex-1"
+                disabled={statusChangingId === statusChangeModal.pickupRequest.id}
+                onClick={() => void performManualStatusChange()}
+                type="button"
+              >
+                {statusChangingId === statusChangeModal.pickupRequest.id
+                  ? "변경 중..."
+                  : "상태 변경"}
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </AdminDialog>
 
       {trackingModal ? (
         <div
@@ -1005,11 +1149,13 @@ function AdminPickupRequestsPage() {
 
       {/* CJ 부분 실패 — 전체 실패 건을 모달로 노출 */}
       <NotificationResultModal
+        failureHeading="아래 수거 요청의 CJ 접수가 실패했습니다. (CJ 연동 전에는 각 행의 '상태변경'으로 수동 진행하세요)"
         failures={cjFailureModal?.failures ?? []}
         onClose={() => setCjFailureModal(null)}
         onRetry={null}
         open={Boolean(cjFailureModal)}
         successCount={cjFailureModal ? (cjFailureModal.total - cjFailureModal.failures.length) : 0}
+        successMessage="선택한 수거 요청이 모두 정상 접수되었습니다."
         title="CJ 수거 접수 결과"
       />
 

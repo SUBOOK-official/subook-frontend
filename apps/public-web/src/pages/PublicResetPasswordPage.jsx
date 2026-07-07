@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/publicSupabaseClient";
+import { AlertTriangleIcon, CheckIcon, EyeIcon, EyeOffIcon } from "../components/icons";
 import { getPasswordStrengthState, hasRequiredPasswordConditions } from "../lib/publicAuthFormUtils";
 
 function buildResetLinkErrorState({ error, errorCode, errorDescription } = {}) {
@@ -296,7 +297,7 @@ function PublicResetPasswordPage() {
                       onClick={() => setShowPassword((currentValue) => !currentValue)}
                       type="button"
                     >
-                      <span aria-hidden="true">{showPassword ? "🙈" : "👁"}</span>
+                      <span aria-hidden="true">{showPassword ? <EyeOffIcon size={18} /> : <EyeIcon size={18} />}</span>
                       <span className="public-auth-sr-only">{showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}</span>
                     </button>
                   </div>
@@ -306,7 +307,7 @@ function PublicResetPasswordPage() {
                       className="public-auth-inline-message public-auth-inline-message--warning"
                       role="status"
                     >
-                      ⚠ Caps Lock이 켜져 있습니다.
+                      <AlertTriangleIcon size={13} /> Caps Lock이 켜져 있습니다.
                     </p>
                   ) : null}
                   <div
@@ -341,7 +342,7 @@ function PublicResetPasswordPage() {
                             }`}
                             key={rule.key}
                           >
-                            <span aria-hidden="true">{rule.satisfied ? "✓" : "•"}</span>
+                            <span aria-hidden="true">{rule.satisfied ? <CheckIcon size={12} /> : "•"}</span>
                             <span>
                               {rule.label}{" "}
                               <span className="public-password-strength__rule-tag">{tagLabel}</span>
@@ -407,7 +408,7 @@ function PublicResetPasswordPage() {
               <div className="public-auth-state-card public-auth-state-card--success">
                 <div className="public-auth-state-card__header">
                   <span aria-hidden="true" className="public-auth-state-card__icon">
-                    ✓
+                    <CheckIcon size={18} />
                   </span>
                   <div className="public-auth-state-card__copy">
                     <p className="public-auth-state-card__title">비밀번호가 변경되었습니다</p>

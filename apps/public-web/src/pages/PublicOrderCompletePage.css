@@ -27,13 +27,12 @@
   width: 68px;
   height: 68px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+  background: var(--public-ds-success);
   color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
   margin: 0 auto 24px;
-  box-shadow: 0 8px 24px rgba(16, 185, 129, 0.25);
   animation: oc-check 500ms 200ms ease-out both;
 }
 
@@ -69,12 +68,12 @@
   display: flex;
   justify-content: space-between;
   font-size: 14px;
-  color: #374151;
+  color: #3f4045;
   padding: 10px 0;
 }
 
 .order-complete-card__row + .order-complete-card__row {
-  border-top: 1px solid #f3f4f6;
+  border-top: 1px solid #f0f0f0;
 }
 
 .order-complete-card__value {
@@ -85,7 +84,7 @@
 /* ── Bank Info ── */
 .order-complete-card__bank-info {
   background: #fffbeb;
-  border: 1px solid #fcd34d;
+  border: 1px solid #e7cf96;
   border-radius: var(--public-ds-radius);
   padding: 20px;
   margin-bottom: 32px;
@@ -95,7 +94,7 @@
 .order-complete-card__bank-title {
   font-size: 13px;
   font-weight: 700;
-  color: #92400e;
+  color: #7d5514;
   margin-bottom: 10px;
   letter-spacing: 0.02em;
 }
@@ -103,14 +102,14 @@
 .order-complete-card__bank-account {
   font-size: 18px;
   font-weight: 700;
-  color: #78350f;
+  color: #6b4a12;
   letter-spacing: 0.01em;
   margin: 0;
 }
 
 .order-complete-card__bank-holder {
   font-size: 13px;
-  color: #92400e;
+  color: #7d5514;
   margin-top: 4px;
 }
 
@@ -120,7 +119,7 @@
   justify-content: space-between;
   gap: 12px;
   padding: 12px 0;
-  border-top: 1px solid #fde68a;
+  border-top: 1px solid #edd9a3;
 }
 
 .order-complete-card__bank-row:first-of-type {
@@ -129,16 +128,16 @@
 }
 
 .order-complete-card__bank-row--highlight {
-  background: #fef3c7;
+  background: #f8f0db;
   border-radius: 8px;
   margin: 8px -8px 0;
   padding: 12px;
-  border-top: 1px solid #f59e0b;
+  border-top: 1px solid #c9861b;
 }
 
 .order-complete-card__bank-label {
   font-size: 12px;
-  color: #92400e;
+  color: #7d5514;
   margin-bottom: 4px;
   font-weight: 600;
 }
@@ -146,21 +145,21 @@
 .order-complete-card__bank-amount {
   font-size: 17px;
   font-weight: 700;
-  color: #78350f;
+  color: #6b4a12;
   margin: 0;
 }
 
 .order-complete-card__bank-depositor {
   font-size: 18px;
   font-weight: 800;
-  color: #b91c1c;
+  color: #b02a23;
   letter-spacing: 0.02em;
   margin: 0;
 }
 
 .order-complete-card__bank-hint {
   font-size: 11px;
-  color: #92400e;
+  color: #7d5514;
   margin-top: 4px;
   line-height: 1.4;
 }
@@ -169,9 +168,9 @@
   flex-shrink: 0;
   padding: 6px 12px;
   border-radius: 6px;
-  border: 1px solid #d97706;
+  border: 1px solid #b3741a;
   background: #fff;
-  color: #b45309;
+  color: #96600f;
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
@@ -179,39 +178,39 @@
 }
 
 .order-complete-card__copy-btn:hover {
-  background: #fbbf24;
-  color: #78350f;
+  background: #d9a62e;
+  color: #6b4a12;
 }
 
 .order-complete-card__bank-notice {
   font-size: 12px;
-  color: #b45309;
+  color: #96600f;
   line-height: 1.5;
   margin-top: 12px;
   padding-top: 12px;
-  border-top: 1px solid #fde68a;
+  border-top: 1px solid #edd9a3;
 }
 
 /* 마감 30분 전부터 강조 — 입금 매칭률 끌어올리기 위해 시각적으로 도드라지게 */
 .order-complete-card__bank-notice--urgent {
-  color: var(--public-ds-danger, #ef4444);
+  color: var(--public-ds-danger, #d0342c);
   font-weight: 700;
 }
 
 /* P0-6: 비로그인/state 소실 회복 안내 */
 .order-complete-card__bank-recovery {
   font-size: 12px;
-  color: #92400e;
+  color: #7d5514;
   line-height: 1.5;
   margin-top: 10px;
   padding: 8px 10px;
   background: #fffefa;
-  border: 1px dashed #fde68a;
+  border: 1px dashed #edd9a3;
   border-radius: 6px;
 }
 
 .order-complete-card__bank-recovery-link {
-  color: #78350f;
+  color: #6b4a12;
   font-weight: 700;
   text-decoration: underline;
 }
@@ -240,7 +239,6 @@
 
 .order-complete-card__btn:hover {
   opacity: 0.9;
-  transform: translateY(-1px);
 }
 
 .order-complete-card__btn--primary {

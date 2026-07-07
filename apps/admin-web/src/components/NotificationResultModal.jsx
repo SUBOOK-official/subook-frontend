@@ -15,6 +15,10 @@ function NotificationResultModal({
   successCount = 0,
   failures = [],
   title = "알림톡 발송 결과",
+  // 알림톡 외 용도(CJ 접수 결과 등)로 재사용할 때 문구를 바꿔 낀다.
+  // 기본값은 기존 알림톡 카피 그대로 — 기존 호출부 동작 불변.
+  failureHeading = "아래 대상자에게 알림톡 발송이 실패했습니다.",
+  successMessage = "모든 대상자에게 알림톡이 정상 발송되었습니다.",
   onClose,
   onRetry,
   busy = false,
@@ -69,7 +73,7 @@ function NotificationResultModal({
 
         {hasFailures ? (
           <div className="mt-4 max-h-72 overflow-y-auto rounded-lg border border-rose-200 bg-rose-50/40 p-3">
-            <p className="text-xs font-bold text-rose-700">아래 대상자에게 알림톡 발송이 실패했습니다.</p>
+            <p className="text-xs font-bold text-rose-700">{failureHeading}</p>
             <ul className="mt-2 space-y-2 text-xs text-slate-800">
               {failures.map((failure) => (
                 <li
@@ -86,7 +90,7 @@ function NotificationResultModal({
           </div>
         ) : (
           <p className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-700">
-            모든 대상자에게 알림톡이 정상 발송되었습니다.
+            {successMessage}
           </p>
         )}
 

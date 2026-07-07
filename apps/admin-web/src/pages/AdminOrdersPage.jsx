@@ -13,6 +13,7 @@ import {
   notifyRefundCompleted,
   notifyShippingStarted,
 } from "../lib/adminNotification";
+import CjWaybillLabelModal from "../components/CjWaybillLabel";
 
 const PAGE_SIZE = 30;
 
@@ -55,7 +56,10 @@ const NEXT_STATUS_ACTIONS = {
     { action: "refund", label: "환불처리", style: "btn-danger" },
   ],
   preparing: [
-    { status: "shipping", label: "송장입력", style: "btn-primary", requiresTracking: true },
+    // CJ 송장 출력: 채번+예약접수(cj-delivery) 자동 처리 후 표준 라벨 인쇄, 배송중 전환.
+    { action: "cj_delivery", label: "CJ 송장 출력", style: "btn-primary" },
+    // 수동 송장입력(다른 택배/직접 발번 대비 fallback).
+    { status: "shipping", label: "송장 직접입력", style: "btn-secondary", requiresTracking: true },
     { status: "cancelled", label: "주문취소", style: "btn-danger" },
     { action: "refund", label: "환불처리", style: "btn-danger" },
   ],
@@ -170,60 +174,72 @@ function AdminOrdersPage() {
   // 일괄 선택
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [bulkProcessing, setBulkProcessing] = useState(false);
+  // 일괄 입금확인 확인 모달 (입력 없는 확인 단계만 거침)
+  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
 
   // 페이지네이션
   const [currentPage, setCurrentPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
 
-  // 비가역 작업 확인 모달 (환불, 일괄취소)
+  // 비가역 작업 확인 모달 (환불)
   const [destructiveModal, setDestructiveModal] = useState(null);
 
-  // 일괄 액션 실제 실행 (확인 단계 통과 후 호출)
-  const runBulkAction = async (action, ids) => {
+  // CJ 송장 출력 라벨 모달 데이터 (cj-delivery 응답의 단건 result)
+  const [labelData, setLabelData] = useState(null);
+
+  // 일괄 입금확인 대상 — 선택된 주문 중 무통장(bank_transfer) + 입금대기(pending)만.
+  // (2026-07-06 운영 피드백: 건별 금액 검증 모달이 번거로움 → 선택 후 입력 없이 일괄 처리.
+  //  기존 '일괄 주문취소' 버튼은 이 버튼으로 대체 — 취소는 상세 패널에서 건별로 가능.)
+  const selectedBulkConfirmTargets = useMemo(
+    () =>
+      orders.filter(
+        (o) =>
+          selectedIds.has(o.id)
+          && o.payment_method === "bank_transfer"
+          && o.status === "pending",
+      ),
+    [orders, selectedIds],
+  );
+
+  // 일괄 입금확인 실행 — admin_bulk_confirm_payment RPC (금액 검증 없이 pending→preparing)
+  const handleBulkConfirmPayment = async () => {
+    const targets = selectedBulkConfirmTargets;
+    if (targets.length === 0) return;
+
     setBulkProcessing(true);
-    const { data, error } = await supabase.rpc("admin_bulk_update_order_status", {
-      p_ids: ids,
-      p_status: action,
+    const { data, error } = await supabase.rpc("admin_bulk_confirm_payment", {
+      p_ids: targets.map((o) => o.id),
     });
     setBulkProcessing(false);
+    setBulkConfirmOpen(false);
 
     if (error) {
-      showToast(error.message || "일괄 작업에 실패했습니다.", "error");
+      showToast(error.message || "일괄 입금확인에 실패했습니다.", "error");
       return;
     }
 
     const successCount = data?.success_count ?? 0;
     const failCount = data?.fail_count ?? 0;
+    const failures = Array.isArray(data?.failures) ? data.failures : [];
+    const failureDetail = failures.length > 0
+      ? ` — ${failures
+          .slice(0, 2)
+          .map((f) => `${f.order_number ?? `#${f.order_id}`}: ${f.error}`)
+          .join(" / ")}${failures.length > 2 ? " 외" : ""}`
+      : "";
     showToast(
-      `일괄 처리 완료 — 성공 ${successCount}건${failCount > 0 ? ` / 실패 ${failCount}건` : ""}`,
+      `일괄 입금확인 완료 — 성공 ${successCount}건${failCount > 0 ? ` / 실패 ${failCount}건${failureDetail}` : ""}`,
       failCount > 0 ? "info" : "success",
     );
+
+    // 입금확인 알림톡 (백그라운드, 실패해도 처리 자체는 유지) — 단건 흐름과 동일
+    const successIds = new Set((data?.success_ids ?? []).map((id) => Number(id)));
+    const confirmedOrders = targets.filter((o) => successIds.has(Number(o.id)));
+    await Promise.allSettled(confirmedOrders.map((order) => notifyOrderConfirmed({ order })));
+
     setSelectedIds(new Set());
     await loadOrders();
-  };
-
-  // 일괄 작업 진입점
-  // ('일괄 상품준비'는 paid 단계 폐지로 제거 — 결제 확인 시 자동으로 preparing이 된다.
-  //  무통장 입금확인은 금액 검증이 필요해 일괄 처리 대상이 아님.)
-  const handleBulkAction = (action) => {
-    const ids = Array.from(selectedIds);
-    if (ids.length === 0) return;
-
-    if (action === "cancelled") {
-      setDestructiveModal({
-        title: `주문 일괄 취소 — ${ids.length}건`,
-        description:
-          `선택한 ${ids.length}건의 주문을 일괄 취소합니다.\n` +
-          `(pending/paid/preparing 상태의 주문만 처리됩니다.)\n\n` +
-          `이 작업은 되돌릴 수 없습니다.`,
-        confirmPhrase: "취소",
-        reasonRequired: false,
-        confirmLabel: `${ids.length}건 취소`,
-        run: async () => {
-          await runBulkAction(action, ids);
-        },
-      });
-    }
+    await loadSummary();
   };
 
   const toggleSelectId = (id) => {
@@ -381,6 +397,50 @@ function AdminOrdersPage() {
     setTrackingCarrier("CJ대한통운");
     await loadOrders();
     return true;
+  };
+
+  // CJ 송장 출력: cj-delivery(채번+주소정제+예약접수) 호출 → 성공 시 배송중 전환 + 표준 라벨 모달.
+  const handleCjDelivery = async (orderId) => {
+    setBusyOrderId(orderId);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        showToast("인증이 만료되었습니다. 다시 로그인해 주세요.", "error");
+        return;
+      }
+      const resp = await fetch("/api/admin/cj-delivery", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ orderId }),
+      });
+      const result = await resp.json().catch(() => ({}));
+      const row = result?.results?.[0];
+      if (!resp.ok || !row?.success) {
+        showToast(row?.error || result?.error || "CJ 송장 발급에 실패했습니다.", "error");
+        return;
+      }
+
+      showToast(`운송장번호 ${row.trackingNumber} 발급 완료 — 배송중으로 전환되었습니다.`, "success");
+
+      // 배송 시작 알림톡 (백그라운드)
+      const order = orders.find((o) => o.id === orderId);
+      if (order) {
+        try {
+          await notifyShippingStarted({ order, trackingNumber: row.trackingNumber });
+        } catch {
+          console.warn("배송 알림톡 발송 실패 (송장 발급은 정상)");
+        }
+      }
+
+      setLabelData(row); // 라벨 모달 오픈
+      setSelectedOrderId(null);
+      await loadOrders();
+    } finally {
+      setBusyOrderId(null);
+    }
   };
 
   // 자동 정산 생성(주문 확정 트리거)이 누락된 경우 운영자가 수동으로 재실행.
@@ -844,13 +904,18 @@ function AdminOrdersPage() {
             선택 해제
           </button>
           <div className="flex-1" />
+          {selectedIds.size > selectedBulkConfirmTargets.length && (
+            <span className="text-xs text-amber-700">
+              무통장·입금대기 주문만 입금확인 대상입니다
+            </span>
+          )}
           <button
-            className="text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-md px-3 py-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
-            disabled={bulkProcessing}
-            onClick={() => handleBulkAction("cancelled")}
+            className="text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-md px-3 py-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
+            disabled={bulkProcessing || selectedBulkConfirmTargets.length === 0}
+            onClick={() => setBulkConfirmOpen(true)}
             type="button"
           >
-            {bulkProcessing ? "처리 중..." : "일괄 주문취소"}
+            {bulkProcessing ? "처리 중..." : `일괄 입금확인 (${selectedBulkConfirmTargets.length}건)`}
           </button>
         </div>
       ) : null}
@@ -1038,10 +1103,30 @@ function AdminOrdersPage() {
                 </div>
               ))}
             </div>
-            <div className="flex justify-between mt-2 pt-2 border-t border-slate-100 text-sm">
-              <span>상품 {formatCurrency(selectedOrder.subtotal)} + 배송비 {selectedOrder.shipping_fee === 0 ? "무료" : formatCurrency(selectedOrder.shipping_fee)}</span>
-              <span className="font-black text-lg">{formatCurrency(selectedOrder.total_amount)}</span>
-            </div>
+            {(() => {
+              // 쿠폰 할인액 — coupon_discount_amount가 쿠폰 전용 필드, discount_amount는 총 할인(현재 동일 값)
+              const couponDiscount = Number(
+                selectedOrder.coupon_discount_amount ?? selectedOrder.discount_amount ?? 0,
+              );
+              return (
+                <div className="mt-2 pt-2 border-t border-slate-100 text-sm space-y-1">
+                  <div className="flex justify-between">
+                    <span>상품 {formatCurrency(selectedOrder.subtotal)} + 배송비 {selectedOrder.shipping_fee === 0 ? "무료" : formatCurrency(selectedOrder.shipping_fee)}</span>
+                    {couponDiscount > 0 ? (
+                      <span className="font-semibold text-rose-600">쿠폰 −{formatCurrency(couponDiscount)}</span>
+                    ) : (
+                      <span className="font-black text-lg">{formatCurrency(selectedOrder.total_amount)}</span>
+                    )}
+                  </div>
+                  {couponDiscount > 0 && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-slate-400">쿠폰 할인 적용 후 결제 금액</span>
+                      <span className="font-black text-lg">{formatCurrency(selectedOrder.total_amount)}</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
 
           {/* 배송지 */}
@@ -1160,6 +1245,20 @@ function AdminOrdersPage() {
                   );
                 }
 
+                if (action.action === "cj_delivery") {
+                  return (
+                    <button
+                      className={`${action.style} !w-auto !px-4 !py-2 text-sm`}
+                      disabled={busyOrderId === selectedOrder.id}
+                      key="cj_delivery"
+                      onClick={() => handleCjDelivery(selectedOrder.id)}
+                      type="button"
+                    >
+                      {busyOrderId === selectedOrder.id ? "발급 중..." : action.label}
+                    </button>
+                  );
+                }
+
                 return (
                   <button
                     className={`${action.style} !w-auto !px-4 !py-2 text-sm`}
@@ -1193,6 +1292,55 @@ function AdminOrdersPage() {
         </div>
       )}
 
+      {/* 일괄 입금확인 확인 모달 — 별도 입력 없이 대상 목록 확인 후 즉시 처리 */}
+      <AdminDialog
+        busy={bulkProcessing}
+        onClose={() => setBulkConfirmOpen(false)}
+        open={bulkConfirmOpen}
+        size="md"
+        title={`일괄 입금확인 — ${selectedBulkConfirmTargets.length}건`}
+      >
+        <div className="p-6 space-y-4">
+          <p className="text-sm text-slate-700">
+            선택한 무통장·입금대기 주문 <strong>{selectedBulkConfirmTargets.length}건</strong>을
+            금액 입력 없이 바로 입금확인 처리합니다.
+          </p>
+          <div className="max-h-56 overflow-y-auto rounded-lg border border-slate-100 divide-y divide-slate-50">
+            {selectedBulkConfirmTargets.map((order) => (
+              <div className="flex items-center justify-between px-3 py-2 text-sm" key={order.id}>
+                <span className="font-mono text-xs font-bold">{order.order_number}</span>
+                <span className="text-xs text-slate-500">
+                  {order.shipping_recipient_name}
+                  {String(order.order_number ?? "").replace(/\D/g, "").slice(-4)}
+                </span>
+                <span className="font-bold">{formatCurrency(order.total_amount)}</span>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-amber-700">
+            통장 입금 내역과 위 금액(예상 입금자명)이 맞는지 확인한 뒤 처리하세요.
+            처리 즉시 &lsquo;상품 준비 중&rsquo;으로 전환되고 구매자에게 결제 확인 알림이 발송됩니다.
+          </p>
+          <div className="flex gap-2">
+            <button
+              className="btn-ghost flex-1"
+              onClick={() => setBulkConfirmOpen(false)}
+              type="button"
+            >
+              취소
+            </button>
+            <button
+              className="btn-primary flex-1"
+              disabled={bulkProcessing || selectedBulkConfirmTargets.length === 0}
+              onClick={handleBulkConfirmPayment}
+              type="button"
+            >
+              {bulkProcessing ? "처리 중..." : `${selectedBulkConfirmTargets.length}건 입금확인 처리`}
+            </button>
+          </div>
+        </div>
+      </AdminDialog>
+
       {/* 입금확인 모달 (금액 검증) */}
       <AdminDialog
         busy={paymentModal ? busyOrderId === paymentModal.id : false}
@@ -1209,6 +1357,14 @@ function AdminOrdersPage() {
                 <span className="text-slate-500">주문 금액</span>
                 <span className="font-bold">{formatCurrency(paymentModal.total_amount)}</span>
               </div>
+              {Number(paymentModal.coupon_discount_amount ?? 0) > 0 && (
+                <div className="flex justify-between text-xs text-slate-400">
+                  <span>구성</span>
+                  <span>
+                    상품 {formatCurrency(paymentModal.subtotal)} + 배송비 {formatCurrency(paymentModal.shipping_fee)} − 쿠폰 {formatCurrency(paymentModal.coupon_discount_amount)}
+                  </span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span className="text-slate-500">수령인</span>
                 <span>{paymentModal.shipping_recipient_name}</span>
@@ -1539,6 +1695,12 @@ function AdminOrdersPage() {
         reasonPlaceholder={destructiveModal?.reasonPlaceholder}
         reasonRequired={destructiveModal?.reasonRequired}
         title={destructiveModal?.title ?? ""}
+      />
+
+      <CjWaybillLabelModal
+        data={labelData}
+        onClose={() => setLabelData(null)}
+        open={!!labelData}
       />
     </AdminShell>
   );

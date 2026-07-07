@@ -57,7 +57,7 @@
   color: var(--public-ds-text);
   margin-bottom: 16px;
   padding-bottom: 12px;
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid #f0f0f0;
 }
 
 /* ── Order Items ── */
@@ -79,7 +79,7 @@
   flex-shrink: 0;
   border-radius: 6px;
   overflow: hidden;
-  background: #f3f4f6;
+  background: #f0f0f0;
 }
 
 .order-item__image img {
@@ -96,7 +96,7 @@
   justify-content: center;
   font-size: 9px;
   font-weight: 700;
-  color: #9ca3af;
+  color: #9a9aa0;
 }
 
 .order-item__info {
@@ -117,13 +117,13 @@
 
 .order-item__meta {
   font-size: 12px;
-  color: #6b7280;
+  color: #6e6e73;
   margin-top: 2px;
 }
 
 .order-item__qty {
   font-size: 12px;
-  color: #9ca3af;
+  color: #9a9aa0;
   margin-top: 4px;
 }
 
@@ -148,7 +148,7 @@
   flex-shrink: 0;
   text-align: left;
   padding: 10px 14px;
-  border: 1px solid #d1d5db;
+  border: 1px solid #d4d4d6;
   border-radius: 8px;
   background: #fff;
   cursor: pointer;
@@ -179,7 +179,7 @@
   font-size: 10px;
   font-weight: 600;
   color: var(--public-ds-accent);
-  background: #eff6ff;
+  background: #eef2f7;
   padding: 1px 6px;
   border-radius: 4px;
 }
@@ -187,7 +187,7 @@
 .order-saved-addr__address {
   display: block;
   font-size: 12px;
-  color: #6b7280;
+  color: #6e6e73;
   margin-top: 4px;
   white-space: nowrap;
   overflow: hidden;
@@ -229,13 +229,13 @@
 .order-form__label {
   font-size: 13px;
   font-weight: 600;
-  color: #374151;
+  color: #3f4045;
 }
 
 .order-form__input {
   width: 100%;
   padding: 10px 12px;
-  border: 1px solid #d1d5db;
+  border: 1px solid #d4d4d6;
   border-radius: 8px;
   font-size: 14px;
   color: var(--public-ds-text);
@@ -249,8 +249,8 @@
 }
 
 .order-form__input:disabled {
-  background: #f9fafb;
-  color: #6b7280;
+  background: #f9f9f9;
+  color: #6e6e73;
 }
 
 .order-form__address-group {
@@ -296,7 +296,7 @@
 .order-payment-btn {
   position: relative;
   padding: 12px;
-  border: 1px solid #d1d5db;
+  border: 1px solid #d4d4d6;
   border-radius: 8px;
   background: #fff;
   cursor: pointer;
@@ -317,13 +317,13 @@
 .order-payment-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
-  background: #f9fafb;
-  color: #9ca3af;
+  background: #f9f9f9;
+  color: #9a9aa0;
 }
 
 .order-payment-btn.is-disabled .order-payment-btn__label,
 .order-payment-btn:disabled .order-payment-btn__label {
-  color: #9ca3af;
+  color: #9a9aa0;
 }
 
 .order-payment-btn__label {
@@ -337,10 +337,10 @@
   margin-top: 4px;
   padding: 2px 6px;
   border-radius: 999px;
-  background: #f3f4f6;
+  background: #f0f0f0;
   font-size: 10px;
   font-weight: 700;
-  color: #6b7280;
+  color: #6e6e73;
   letter-spacing: 0.02em;
 }
 
@@ -349,28 +349,28 @@
   margin-top: 16px;
   padding: 16px;
   background: #fffbeb;
-  border: 1px solid #fcd34d;
+  border: 1px solid #e7cf96;
   border-radius: var(--public-ds-radius);
 }
 
 .order-bank-info__title {
   font-size: 14px;
   font-weight: 700;
-  color: #92400e;
+  color: #7d5514;
   margin-bottom: 8px;
 }
 
 .order-bank-info__account {
   font-size: 17px;
   font-weight: 800;
-  color: #78350f;
+  color: #6b4a12;
   letter-spacing: 0.01em;
   margin: 0 0 4px;
 }
 
 .order-bank-info__holder {
   font-size: 13px;
-  color: #92400e;
+  color: #7d5514;
   margin: 0 0 12px;
 }
 
@@ -378,7 +378,7 @@
   margin: 0;
   padding-left: 18px;
   font-size: 12px;
-  color: #b45309;
+  color: #96600f;
   line-height: 1.6;
 }
 
@@ -387,12 +387,12 @@
 }
 
 .order-bank-info__bullets strong {
-  color: #92400e;
+  color: #7d5514;
 }
 
 .order-bank-info__notice {
   font-size: 12px;
-  color: #b45309;
+  color: #96600f;
 }
 
 /* ── Sidebar ── */
@@ -414,7 +414,7 @@
   display: flex;
   justify-content: space-between;
   font-size: 14px;
-  color: #374151;
+  color: #3f4045;
   margin-bottom: 10px;
 }
 
@@ -444,13 +444,13 @@
 
 .order-sidebar__hint {
   font-size: 12px;
-  color: #9ca3af;
+  color: #9a9aa0;
   margin-bottom: 10px;
 }
 
 .order-sidebar__divider {
   height: 1px;
-  background: #e5e7eb;
+  background: #e5e5e5;
   margin: 14px 0;
 }
 
@@ -470,17 +470,16 @@
 
 .order-sidebar__submit-btn:hover:not(:disabled) {
   opacity: 0.9;
-  transform: translateY(-1px);
 }
 
 .order-sidebar__submit-btn:disabled {
-  background: #9ca3af;
+  background: #9a9aa0;
   cursor: default;
 }
 
 .order-sidebar__agreement {
   font-size: 11px;
-  color: #9ca3af;
+  color: #9a9aa0;
   text-align: center;
   margin-top: 10px;
 }
@@ -499,8 +498,8 @@
   margin: 0;
   padding: 10px 12px;
   border-radius: 8px;
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
+  background: #f9f9f9;
+  border: 1px solid #e5e5e5;
   font-size: 12px;
   line-height: 1.5;
   color: var(--public-ds-text);
@@ -514,7 +513,7 @@
 }
 
 .order-sidebar__agreement-check strong {
-  color: #c2410c;
+  color: #a04e1a;
 }
 
 .order-sidebar__agreement-link {
@@ -535,9 +534,9 @@
   font-weight: 600;
   color: #fff;
   background: var(--public-ds-text);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--public-shadow-lg);
   z-index: 1000;
-  animation: order-toast-in 0.3s ease;
+  animation: public-toast-in 0.3s ease;
   white-space: nowrap;
 }
 
@@ -546,19 +545,8 @@
 }
 
 .order-toast--pg {
-  background: #f59e0b;
-  color: #78350f;
-}
-
-@keyframes order-toast-in {
-  from {
-    opacity: 0;
-    transform: translateX(-50%) translateY(12px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-  }
+  background: #c9861b;
+  color: #6b4a12;
 }
 
 /* ── Mobile bottom bar ── */
@@ -576,7 +564,7 @@
 
   .order-sidebar__card {
     border-radius: 16px 16px 0 0;
-    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 -4px 16px rgba(20, 24, 28, 0.08);
     /* iOS home-indicator(safe-area)에 결제 버튼이 가려져 탭 시 홈으로 빠지는 문제 방어 */
     padding: 16px 20px calc(16px + env(safe-area-inset-bottom)) 20px;
   }
@@ -616,7 +604,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 10px 12px;
-  background: #f8fafc;
+  background: #f9f9f9;
   border: 1px dashed var(--public-ds-border);
   border-radius: 6px;
   font-size: 13px;
@@ -628,7 +616,7 @@
 }
 
 .order-sidebar__coupon-button:hover:not(:disabled) {
-  background: #f1f5f9;
+  background: #f4f4f4;
   border-color: var(--public-ds-primary, #1B3A5C);
 }
 
@@ -654,8 +642,8 @@
 }
 
 .order-sidebar__coupon-clear:hover {
-  color: var(--public-ds-danger, #dc2626);
-  border-color: var(--public-ds-danger, #dc2626);
+  color: var(--public-ds-danger, #d0342c);
+  border-color: var(--public-ds-danger, #d0342c);
 }
 
 .order-sidebar__row--discount {
@@ -670,7 +658,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(15, 23, 42, 0.5);
+  background: rgba(20, 24, 28, 0.5);
   padding: 16px;
 }
 
@@ -683,7 +671,7 @@
   background: #fff;
   border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+  box-shadow: var(--public-shadow-lg);
 }
 
 .order-coupon-modal__header {
@@ -691,7 +679,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid #e5e5e5;
 }
 
 .order-coupon-modal__header h2 {
@@ -704,7 +692,7 @@
   background: none;
   border: 0;
   font-size: 18px;
-  color: var(--public-ds-text-muted, #94a3b8);
+  color: var(--public-ds-text-muted, #9a9aa0);
   cursor: pointer;
 }
 
@@ -775,7 +763,7 @@
 }
 
 .order-coupon-modal__item-expiry {
-  color: var(--public-ds-text-muted, #94a3b8) !important;
+  color: var(--public-ds-text-muted, #9a9aa0) !important;
 }
 
 /* P1-7: 쿠폰 추천/만료 임박 태그 */
@@ -797,13 +785,13 @@
 }
 
 .order-coupon-modal__tag--recommend {
-  background: #DCFCE7;
-  color: #15803D;
+  background: #dff0e5;
+  color: #2a6e46;
 }
 
 .order-coupon-modal__tag--expiring {
-  background: #FEF2F2;
-  color: #DC2626;
+  background: #fdf1f0;
+  color: #d0342c;
 }
 
 .order-coupon-modal__footer {
@@ -812,15 +800,15 @@
   justify-content: space-between;
   gap: 8px;
   padding: 12px 16px;
-  border-top: 1px solid #e5e7eb;
-  background: #f8fafc;
+  border-top: 1px solid #e5e5e5;
+  background: #f9f9f9;
 }
 
 .order-coupon-modal__clear {
   background: none;
   border: 0;
   padding: 8px 12px;
-  color: var(--public-ds-danger, #dc2626);
+  color: var(--public-ds-danger, #d0342c);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -829,7 +817,7 @@
 .order-coupon-modal__close-button {
   margin-left: auto;
   padding: 8px 16px;
-  background: var(--public-ds-text, #0f172a);
+  background: var(--public-ds-text, #232323);
   color: #fff;
   border: 0;
   border-radius: 6px;
@@ -842,8 +830,8 @@
 .order-drift-warning {
   margin: 12px 0 20px 0;
   padding: 14px 16px;
-  background: #fef3c7;
-  border: 1px solid #f59e0b;
+  background: #f8f0db;
+  border: 1px solid #c9861b;
   border-radius: 12px;
   display: flex;
   flex-direction: column;
@@ -851,14 +839,14 @@
 }
 
 .order-drift-warning > strong {
-  color: #92400e;
+  color: #7d5514;
   font-size: 14px;
 }
 
 .order-drift-warning__detail {
   margin: 0;
   font-size: 13px;
-  color: #92400e;
+  color: #7d5514;
   white-space: pre-wrap;
   word-break: break-word;
   overflow-wrap: anywhere;
@@ -869,9 +857,9 @@
   align-self: flex-end;
   padding: 6px 12px;
   background: #fff;
-  border: 1px solid #f59e0b;
+  border: 1px solid #c9861b;
   border-radius: 6px;
-  color: #92400e;
+  color: #7d5514;
   font-weight: 600;
   cursor: pointer;
   font-size: 13px;
@@ -889,7 +877,7 @@
 
 .order-empty__text {
   margin: 0;
-  color: var(--public-ds-text-secondary, #475569);
+  color: var(--public-ds-text-secondary, #55565b);
   font-size: 15px;
   line-height: 1.6;
   font-weight: 600;
@@ -899,8 +887,8 @@
 .order-empty__back {
   padding: 12px 24px;
   border: none;
-  border-radius: 10px;
-  background: var(--public-ds-text, #0f172a);
+  border-radius: var(--public-radius-lg);
+  background: var(--public-ds-text, #232323);
   color: #ffffff;
   font-size: 14px;
   font-weight: 700;

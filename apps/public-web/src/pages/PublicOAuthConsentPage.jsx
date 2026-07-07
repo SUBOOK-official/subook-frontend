@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@shared-supabase/publicSupabaseClient";
 import PublicAgreementDialog from "../components/PublicAgreementDialog";
+import { CheckIcon } from "../components/icons";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { usePageMeta } from "../lib/usePageMeta";
 import { formatPhoneNumber, hasRequiredPasswordConditions, hasValidPhoneNumber } from "../lib/publicAuthFormUtils";
@@ -412,7 +413,7 @@ function PublicOAuthConsentPage() {
                         type="checkbox"
                       />
                       <span aria-hidden="true" className="public-auth-checkmark__indicator">
-                        ✓
+                        <CheckIcon size={14} />
                       </span>
                     </span>
                     <span>
@@ -436,7 +437,7 @@ function PublicOAuthConsentPage() {
                                 type="checkbox"
                               />
                               <span aria-hidden="true" className="public-auth-checkmark__indicator">
-                                ✓
+                                <CheckIcon size={14} />
                               </span>
                             </span>
                             <span className="public-auth-agreement-box__item-copy">
@@ -472,7 +473,7 @@ function PublicOAuthConsentPage() {
                                 type="checkbox"
                               />
                               <span aria-hidden="true" className="public-auth-checkmark__indicator">
-                                ✓
+                                <CheckIcon size={14} />
                               </span>
                             </span>
                             <span className="public-auth-agreement-box__item-copy">

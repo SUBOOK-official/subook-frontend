@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/publicSupabaseClient";
 import PublicOAuthButtons from "../components/PublicOAuthButtons";
 import PublicToastMessage from "../components/PublicToastMessage";
+import { ArrowRightIcon, CheckIcon, EyeIcon, EyeOffIcon } from "../components/icons";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { getPublicAccountAccessState } from "../lib/publicAuthAccess";
 import {
@@ -370,7 +371,7 @@ function PublicSignupPage() {
             <span className="public-auth-checkmark">
               <input checked={agreements[item.key]} onChange={() => handleToggleAgreement(item.key)} type="checkbox" />
               <span aria-hidden="true" className="public-auth-checkmark__indicator">
-                ✓
+                <CheckIcon size={14} />
               </span>
             </span>
             <span className="public-auth-agreement-box__item-copy">
@@ -775,7 +776,7 @@ function PublicSignupPage() {
                   <p className="public-auth-inline-message public-auth-inline-message--error">
                     <span>{emailStatus.message}</span>
                     <Link className="public-auth-inline-message__link" to="/login">
-                      로그인하기 →
+                      로그인하기 <ArrowRightIcon size={13} />
                     </Link>
                   </p>
                 ) : fieldErrors.email ? (
@@ -795,7 +796,7 @@ function PublicSignupPage() {
                     </p>
                     {isLegacyEmail && emailStatus.state === "available" ? (
                       <p className="public-auth-inline-message public-auth-inline-message--info">
-                        ✨ 이전 수북(식스샵) 회원이시네요! 회원가입 완료 시 기존 배송지·연락처가 자동으로 연결돼요.
+                        이전 수북(식스샵) 회원이시네요! 회원가입 완료 시 기존 배송지·연락처가 자동으로 연결돼요.
                       </p>
                     ) : null}
                   </>
@@ -848,7 +849,9 @@ function PublicSignupPage() {
                     {verificationStatus === "verifying" ? (
                       <span aria-hidden="true" className="public-auth-spinner public-auth-spinner--button" />
                     ) : verificationStatus === "verified" ? (
-                      <span aria-hidden="true" style={{ color: "#059669", fontWeight: 800, fontSize: 18 }}>✓</span>
+                      <span aria-hidden="true" style={{ color: "var(--public-ds-success)" }}>
+                        <CheckIcon size={16} />
+                      </span>
                     ) : null}
                   </div>
                   {codeError ? (
@@ -885,7 +888,7 @@ function PublicSignupPage() {
                     onClick={() => setShowPassword((currentValue) => !currentValue)}
                     type="button"
                   >
-                    <span aria-hidden="true">{showPassword ? "🙈" : "👁"}</span>
+                    <span aria-hidden="true">{showPassword ? <EyeOffIcon size={18} /> : <EyeIcon size={18} />}</span>
                     <span className="public-auth-sr-only">{showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}</span>
                   </button>
                 </div>
@@ -921,7 +924,7 @@ function PublicSignupPage() {
                           }`}
                           key={rule.key}
                         >
-                          <span aria-hidden="true">{rule.satisfied ? "✓" : "•"}</span>
+                          <span aria-hidden="true">{rule.satisfied ? <CheckIcon size={12} /> : "•"}</span>
                           <span>
                             {rule.label}{" "}
                             <span className="public-password-strength__rule-tag">{tagLabel}</span>
@@ -1013,7 +1016,7 @@ function PublicSignupPage() {
                   <span className="public-auth-checkmark">
                     <input checked={isAllAgreed} onChange={handleToggleRequiredAgreements} type="checkbox" />
                     <span aria-hidden="true" className="public-auth-checkmark__indicator">
-                      ✓
+                      <CheckIcon size={14} />
                     </span>
                   </span>
                   <span>

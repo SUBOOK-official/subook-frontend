@@ -6,6 +6,7 @@ import PublicFooter from "../components/PublicFooter";
 import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
 import { usePageMeta } from "../lib/usePageMeta";
+import { ChevronRightIcon, ChevronUpIcon } from "../components/icons";
 import "./PublicFaqPage.css";
 
 const FAQ_ITEMS = [
@@ -206,13 +207,13 @@ function PublicFaqPage() {
           <Link className="public-faq-route__crumb-link" to="/">
             홈
           </Link>
-          <span aria-hidden="true">›</span>
+          <span aria-hidden="true"><ChevronRightIcon size={12} /></span>
           <span className="is-muted">자주 묻는 질문</span>
         </div>
       </ContentContainer>
 
       <ContentContainer as="section" className="public-faq-hero" aria-label="페이지 안내">
-        <p className="public-faq-hero__eyebrow">FAQ</p>
+        <p className="public-faq-hero__eyebrow">도움말</p>
         <h1 className="public-faq-hero__title">자주 묻는 질문</h1>
         <p className="public-faq-hero__subtitle">
           수북 이용 전후 가장 많이 받는 질문을 모았어요.
@@ -249,7 +250,7 @@ function PublicFaqPage() {
                   <span className="public-faq-item__category">{item.category}</span>
                   <span className="public-faq-item__question">{item.question}</span>
                   <span aria-hidden="true" className={`public-faq-item__chevron ${isOpen ? "is-open" : ""}`}>
-                    ▾
+                    <ChevronUpIcon size={14} style={{ transform: "rotate(180deg)" }} />
                   </span>
                 </button>
                 {isOpen ? (

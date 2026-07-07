@@ -6,6 +6,10 @@ import PublicFooter from "../components/PublicFooter";
 import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
 import { usePageMeta } from "../lib/usePageMeta";
+import { ChevronRightIcon, ChevronUpIcon, PinIcon } from "../components/icons";
+// 공지 페이지는 FAQ 아코디언 스타일(public-faq-*)을 재사용한다.
+// lazy 청크가 분리돼 있어 이 import가 없으면 /notices 직접 진입 시 무스타일로 렌더됨.
+import "./PublicFaqPage.css";
 
 function formatKstDate(iso) {
   if (!iso) return "";
@@ -92,13 +96,13 @@ function PublicNoticesPage() {
             <Link className="public-faq-route__crumb-link" to="/">
               홈
             </Link>
-            <span aria-hidden="true">›</span>
+            <span aria-hidden="true"><ChevronRightIcon size={12} /></span>
             <span className="is-muted">공지사항</span>
           </div>
         </ContentContainer>
 
         <ContentContainer as="section" className="public-faq-hero" aria-label="페이지 안내">
-          <p className="public-faq-hero__eyebrow">NOTICE</p>
+          <p className="public-faq-hero__eyebrow">수북 소식</p>
           <h1 className="public-faq-hero__title">공지사항</h1>
           <p className="public-faq-hero__subtitle">
             서비스 운영, 점검, 정책 변경 등 안내드릴 사항이 있을 때 게시됩니다.
@@ -130,7 +134,11 @@ function PublicNoticesPage() {
                         type="button"
                       >
                         <span className="public-faq-item__category">
-                          {notice.is_pinned ? "📌 공지" : formatKstDate(notice.published_at)}
+                          {notice.is_pinned ? (
+                            <><PinIcon size={12} /> 공지</>
+                          ) : (
+                            formatKstDate(notice.published_at)
+                          )}
                         </span>
                         <span className="public-faq-item__question">
                           {notice.title}
@@ -142,7 +150,7 @@ function PublicNoticesPage() {
                           aria-hidden="true"
                           className={`public-faq-item__chevron ${isOpen ? "is-open" : ""}`}
                         >
-                          ▾
+                          <ChevronUpIcon size={14} style={{ transform: "rotate(180deg)" }} />
                         </span>
                       </button>
                       {isOpen ? (

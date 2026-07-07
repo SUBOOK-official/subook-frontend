@@ -19,15 +19,16 @@ const PICKUP_REQUEST_PATH = "/pickup/new";
 const HOME_HERO_SLIDES = [
   {
     id: "shop-textbooks",
-    eyebrow: "BUY UNUSED TEXTBOOKS",
+    eyebrow: "미사용 교재 구매",
     titleLines: ["수능 끝, 안 쓴 교재를", "합리적인 가격에"],
     descriptionLines: [
-      "검수 완료, 정가 대비 최대 60% 할인",
-      "지금 바로 원하는 교재를 찾아보세요",
+      "검수 완료 · 정가 대비 최대 60% 할인",
+      "원하는 교재를 바로 찾아보세요",
     ],
     ctaLabel: "교재 보러가기",
-    ctaTextColor: "#0B1F47",
-    gradient: "135deg, #1D4ED8 0%, #3B82F6 50%, #60A5FA 100%",
+    ctaTextColor: "#1b3a5c",
+    /* 폴백 슬라이드(이미지 미로드 시)도 브랜드 네이비 계열만 사용 */
+    gradient: "135deg, #142d49 0%, #1b3a5c 55%, #2e5578 100%",
     actionType: "shop",
     imageDesktop: "/banners/hero-banner-1-desktop.png",
     imageMobile: "/banners/hero-banner-1-mobile.png",
@@ -35,15 +36,16 @@ const HOME_HERO_SLIDES = [
   },
   {
     id: "pickup-request",
-    eyebrow: "SELL YOUR BOOKS",
-    titleLines: ["집에 쌓인 교재를", "합리적인 정산금으로!"],
+    eyebrow: "교재 판매 신청",
+    titleLines: ["집에 쌓인 교재,", "정산금으로 돌려받으세요"],
     descriptionLines: [
       "수거부터 검수, 판매, 정산까지 한 번에",
-      "지금 바로 판매 신청하세요",
+      "포장만 해두시면 나머지는 수북이 합니다",
     ],
     ctaLabel: "판매 신청하기",
-    ctaTextColor: "#9F1239",
-    gradient: "135deg, #BE123C 0%, #E11D48 50%, #F43F5E 100%",
+    ctaTextColor: "#056b70",
+    /* 브랜드 teal(--public-teal) 계열 */
+    gradient: "135deg, #056b70 0%, #0a8f84 100%",
     actionType: "pickup",
     imageDesktop: "/banners/hero-banner-2-desktop.png",
     imageMobile: "/banners/hero-banner-2-mobile.png",

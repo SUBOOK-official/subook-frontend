@@ -13,6 +13,23 @@ import {
 } from "../components/PublicMypageUi.jsx";
 import PublicPageFrame from "../components/PublicPageFrame";
 import PublicToastMessage from "../components/PublicToastMessage";
+import {
+  AlertTriangleIcon,
+  ArrowRightIcon,
+  BellIcon,
+  BookIcon,
+  BoxIcon,
+  CardIcon,
+  CartIcon,
+  ChevronRightIcon,
+  ChevronUpIcon,
+  CoinIcon,
+  HeartIcon,
+  LockIcon,
+  MapPinIcon,
+  TicketIcon,
+  UserIcon,
+} from "../components/icons";
 import { supabase as publicSupabase } from "@shared-supabase/publicSupabaseClient";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { usePublicWishlist } from "../contexts/PublicWishlistContext";
@@ -73,6 +90,11 @@ import {
 } from "../lib/publicMypageUtils";
 import { formatPhoneNumber, hasValidPhoneNumber } from "../lib/publicAuthFormUtils";
 import { fetchWishlistProducts } from "../lib/publicWishlist";
+import {
+  fetchMyRestockSubscribedProductIds,
+  subscribeRestock,
+  unsubscribeRestock,
+} from "../lib/publicRestock";
 import { getThumbnailImageUrl } from "../lib/storageImage";
 import {
   BANK_ACCOUNT,
@@ -201,6 +223,9 @@ function PublicMypagePage() {
   const [wishlistProducts, setWishlistProducts] = useState([]);
   const [wishlistError, setWishlistError] = useState("");
   const [isWishlistProductsLoading, setIsWishlistProductsLoading] = useState(false);
+  // 찜 목록의 품절 카드에서 재입고 알림을 바로 신청/해제하기 위한 구독 상태.
+  const [restockSubscribedIds, setRestockSubscribedIds] = useState(() => new Set());
+  const [restockBusyProductId, setRestockBusyProductId] = useState(null);
   const [expandedShipmentId, setExpandedShipmentId] = useState(null);
   const tabPanelRef = useRef(null);
   const addressDetailInputRef = useRef(null);
@@ -306,12 +331,19 @@ function PublicMypagePage() {
     const loadWishlist = async () => {
       setIsWishlistProductsLoading(true);
 
-      const result = await fetchWishlistProducts({
-        user: effectiveUser,
-        wishlistIds: favoriteIds,
-        limit: favoriteIds.length,
-        offset: 0,
-      });
+      // 품절 카드의 "재입고 알림" 버튼 상태용 구독 목록도 함께 로드.
+      // (데모 프리뷰는 실제 RPC가 없으므로 빈 집합 유지 → 버튼 미노출)
+      const [result, restockResult] = await Promise.all([
+        fetchWishlistProducts({
+          user: effectiveUser,
+          wishlistIds: favoriteIds,
+          limit: favoriteIds.length,
+          offset: 0,
+        }),
+        isDemoPreview
+          ? Promise.resolve({ productIds: new Set(), error: null })
+          : fetchMyRestockSubscribedProductIds(),
+      ]);
 
       if (isCancelled) {
         return;
@@ -321,6 +353,8 @@ function PublicMypagePage() {
       setWishlistError(
         result.error ? "찜한 교재를 불러오지 못했어요. 잠시 후 다시 시도해 주세요." : "",
       );
+      // 구독 목록 로드 실패는 치명적이지 않음 — 버튼이 "신청" 기본 상태로 보일 뿐.
+      setRestockSubscribedIds(restockResult.productIds);
       setIsWishlistProductsLoading(false);
     };
 
@@ -329,7 +363,43 @@ function PublicMypagePage() {
     return () => {
       isCancelled = true;
     };
-  }, [activeTabKey, effectiveUser, favoriteIds]);
+  }, [activeTabKey, effectiveUser, favoriteIds, isDemoPreview]);
+
+  // 찜 목록 품절 카드의 재입고 알림 신청/해제 토글.
+  const handleToggleRestockAlert = async (productId) => {
+    const productKey = String(productId);
+    const isSubscribed = restockSubscribedIds.has(productKey);
+
+    setRestockBusyProductId(productKey);
+    const result = isSubscribed
+      ? await unsubscribeRestock(productId)
+      : await subscribeRestock(productId);
+    setRestockBusyProductId(null);
+
+    if (result.error) {
+      setToastState({
+        message: "재입고 알림 처리에 실패했어요. 잠시 후 다시 시도해 주세요.",
+        tone: "error",
+      });
+      return;
+    }
+
+    setRestockSubscribedIds((currentIds) => {
+      const nextIds = new Set(currentIds);
+      if (isSubscribed) {
+        nextIds.delete(productKey);
+      } else {
+        nextIds.add(productKey);
+      }
+      return nextIds;
+    });
+    setToastState({
+      message: isSubscribed
+        ? "재입고 알림을 해제했어요."
+        : "재입고 알림을 신청했어요. 다시 입고되면 알려드릴게요.",
+      tone: "success",
+    });
+  };
 
   useEffect(() => {
     if (!isProfileEditing) {
@@ -1290,6 +1360,7 @@ function PublicMypagePage() {
       isWithdrawing={isWithdrawing}
       joinDateText={joinDateText}
       nicknameStatus={nicknameStatus}
+      onToggleRestockAlert={isDemoPreview ? null : handleToggleRestockAlert}
       onToggleWishlistProduct={handleToggleWishlistProduct}
       openAccountSheet={openAccountSheet}
       openAddressSheet={openAddressSheet}
@@ -1299,6 +1370,8 @@ function PublicMypagePage() {
       profileSnapshot={profileSnapshot}
       requestDeleteAccount={requestDeleteAccount}
       requestDeleteAddress={requestDeleteAddress}
+      restockBusyProductId={restockBusyProductId}
+      restockSubscribedIds={restockSubscribedIds}
       section={section}
       setIsProfileEditing={setIsProfileEditing}
       setProfileErrors={setProfileErrors}
@@ -1354,6 +1427,9 @@ function PublicMypagePage() {
         <WishlistTab
           isLoading={isWishlistLoading || isWishlistProductsLoading}
           onToggleFavorite={handleToggleWishlistProduct}
+          onToggleRestockAlert={isDemoPreview ? null : handleToggleRestockAlert}
+          restockBusyProductId={restockBusyProductId}
+          restockSubscribedIds={restockSubscribedIds}
           wishlistError={wishlistError}
           wishlistProducts={wishlistProducts}
         />
@@ -1423,7 +1499,7 @@ function PublicMypagePage() {
                   </h1>
                   {activeSidebarItem ? (
                     <>
-                      <span className="public-mypage-breadcrumb__sep" aria-hidden="true">›</span>
+                      <span className="public-mypage-breadcrumb__sep" aria-hidden="true"><ChevronRightIcon size={12} /></span>
                       <span className="public-mypage-breadcrumb__leaf">{activeSidebarItem.label}</span>
                     </>
                   ) : null}
@@ -1565,7 +1641,7 @@ function RejectableBookRow({ item, requestNumber }) {
   return (
     <div className="public-mypage-book-row" id={`public-mypage-book-${item.id}`} key={item.id}>
       <div className="public-mypage-book-row__copy">
-        <strong>[📚] {item.title}</strong>
+        <strong>{item.title}</strong>
         {isRejected ? (
           <>
             <p>판매불가 · 사유: {item.rejectionReason || "사유 미입력"}</p>
@@ -1601,7 +1677,7 @@ function RejectableBookRow({ item, requestNumber }) {
                 rel="noopener noreferrer"
                 target="_blank"
               >
-                카카오톡으로 이의 신청하기 →
+                카카오톡으로 이의 신청하기 <ArrowRightIcon size={13} />
               </a>
               <a
                 className="public-mypage-book-row__dispute public-mypage-book-row__dispute--secondary"
@@ -1886,7 +1962,7 @@ function SalesTab({
         actionLabel="수거 요청하기"
         actionOnClick={onRequestPickup}
         description="집에 잠자는 교재를 보내보세요!"
-        icon="📚"
+        icon={<BookIcon size={40} />}
         title="아직 판매 내역이 없어요"
       />
     );
@@ -1897,7 +1973,7 @@ function SalesTab({
       <section className="public-mypage-section">
         <MypageSectionHeader
           description="등록한 판매 교재의 상태와 정산 현황을 한 번에 확인하세요."
-          icon="📦"
+          icon={<BoxIcon size={18} />}
           title="판매 내역"
         />
 
@@ -1916,11 +1992,11 @@ function SalesTab({
             onClick={handleJumpToFirstRejected}
             type="button"
           >
-            <span aria-hidden="true" className="public-mypage-rejected-banner__icon">⚠️</span>
+            <span aria-hidden="true" className="public-mypage-rejected-banner__icon"><AlertTriangleIcon size={18} /></span>
             <span className="public-mypage-rejected-banner__copy">
               <strong>판매불가 {rejectedBooks.length}권</strong> 발생했어요. 사유와 검수 사진을 확인하고 필요하면 이의 신청해주세요.
             </span>
-            <span aria-hidden="true" className="public-mypage-rejected-banner__chevron">→</span>
+            <span aria-hidden="true" className="public-mypage-rejected-banner__chevron"><ChevronRightIcon size={16} /></span>
           </button>
         ) : null}
 
@@ -1980,7 +2056,11 @@ function SalesTab({
                         onClick={() => onToggleShipment(isExpanded ? null : shipment.id)}
                         type="button"
                       >
-                        {isExpanded ? "접기 ↑" : "상세 →"}
+                        {isExpanded ? (
+                          <>접기 <ChevronUpIcon size={13} /></>
+                        ) : (
+                          <>상세 <ArrowRightIcon size={13} /></>
+                        )}
                       </button>
                     )}
                   </div>
@@ -1996,7 +2076,7 @@ function SalesTab({
 
                       {shipment.trackingNumber ? (
                         <button className="public-mypage-inline-link" onClick={() => onTrackParcel(shipment.trackingNumber)} type="button">
-                          배송추적 →
+                          배송추적 <ArrowRightIcon size={13} />
                         </button>
                       ) : null}
                     </div>
@@ -2083,7 +2163,7 @@ function SalesTab({
               onClick={() => setCurrentPage(Math.min(totalPages, safePage + 1))}
               type="button"
             >
-              ›
+              <ChevronRightIcon size={16} />
             </button>
           </nav>
         ) : null}
@@ -2173,7 +2253,7 @@ function CouponsView() {
       <section className="public-mypage-section">
         <MypageSectionHeader
           description="쿠폰 코드를 입력하거나 다운로드 가능한 쿠폰을 받아보세요."
-          icon="🎟"
+          icon={<TicketIcon size={18} />}
           title="쿠폰함"
         />
 
@@ -2249,7 +2329,7 @@ function CouponsView() {
                   ? "사용한 쿠폰이 없습니다."
                   : "만료된 쿠폰이 없습니다."
             }
-            icon="🎟"
+            icon={<TicketIcon size={40} />}
             title={statusFilter === "available" ? "보유 쿠폰 없음" : statusFilter === "used" ? "사용 이력 없음" : "만료 이력 없음"}
           />
         ) : (
@@ -2335,7 +2415,7 @@ function PurchasesView({
         actionLabel="교재 둘러보기"
         actionTo="/"
         description="마음에 드는 교재를 구매해보세요!"
-        icon="🛒"
+        icon={<CartIcon size={40} />}
         title="아직 구매 내역이 없어요"
       />
     );
@@ -2498,7 +2578,7 @@ function SettlementsTab({ completedSettlements, onRequestPickup, scheduledSettle
         actionLabel="수거 요청하기"
         actionOnClick={onRequestPickup}
         description="교재를 판매하면 정산 내역이 여기에 표시돼요."
-        icon="💰"
+        icon={<CoinIcon size={40} />}
         title="아직 정산 내역이 없어요"
       />
     );
@@ -2509,7 +2589,7 @@ function SettlementsTab({ completedSettlements, onRequestPickup, scheduledSettle
       <section className="public-mypage-section">
         <MypageSectionHeader
           description="이번 달 정산 흐름과 누적 정산 금액을 함께 보여드려요."
-          icon="💰"
+          icon={<CoinIcon size={18} />}
           title="정산 내역"
         />
 
@@ -2554,7 +2634,45 @@ function SettlementsTab({ completedSettlements, onRequestPickup, scheduledSettle
   );
 }
 
-function WishlistTab({ isLoading, onToggleFavorite, wishlistError, wishlistProducts }) {
+// 찜 목록 품절 카드 전용 — 상세 페이지까지 가지 않고 카드에서 바로 재입고 알림 신청/해제.
+// 노출 조건(품절 + 핸들러 존재)은 호출부에서 판단한다.
+function WishlistRestockButton({ busyProductId, onToggle, product, subscribedIds }) {
+  const productKey = String(product.id);
+  const isSubscribed = Boolean(subscribedIds?.has(productKey));
+  const isBusy = busyProductId === productKey;
+
+  return (
+    <button
+      className={`public-product-card__restock-btn${isSubscribed ? " is-subscribed" : ""}`}
+      disabled={isBusy}
+      onClick={(event) => {
+        // 카드 전체를 덮는 상세 링크로 클릭이 전파되지 않도록 차단.
+        event.preventDefault();
+        event.stopPropagation();
+        onToggle(product.id);
+      }}
+      type="button"
+    >
+      {isBusy ? (
+        "처리 중..."
+      ) : isSubscribed ? (
+        <><BellIcon size={14} /> 재입고 알림 받는 중 · 해제</>
+      ) : (
+        <><BellIcon size={14} /> 재입고 알림 신청</>
+      )}
+    </button>
+  );
+}
+
+function WishlistTab({
+  isLoading,
+  onToggleFavorite,
+  onToggleRestockAlert,
+  restockBusyProductId,
+  restockSubscribedIds,
+  wishlistError,
+  wishlistProducts,
+}) {
   return (
     <div className="public-mypage-stack">
       <section className="public-mypage-section">
@@ -2565,7 +2683,7 @@ function WishlistTab({ isLoading, onToggleFavorite, wishlistError, wishlistProdu
             </Link>
           }
           description="찜해 둔 교재를 모아보고 품절 여부까지 한 번에 확인할 수 있어요."
-          icon="♥"
+          icon={<HeartIcon filled size={18} style={{ color: "var(--public-danger, #ff4a4a)" }} />}
           title="찜한 교재"
         />
 
@@ -2585,6 +2703,16 @@ function WishlistTab({ isLoading, onToggleFavorite, wishlistError, wishlistProdu
           <div className="public-mypage-wishlist-grid">
             {wishlistProducts.map((product) => (
               <ProductCard
+                footer={
+                  product.isSoldOut && typeof onToggleRestockAlert === "function" ? (
+                    <WishlistRestockButton
+                      busyProductId={restockBusyProductId}
+                      onToggle={onToggleRestockAlert}
+                      product={product}
+                      subscribedIds={restockSubscribedIds}
+                    />
+                  ) : null
+                }
                 isFavorite
                 key={product.id}
                 onToggleFavorite={onToggleFavorite}
@@ -2597,7 +2725,7 @@ function WishlistTab({ isLoading, onToggleFavorite, wishlistError, wishlistProdu
             actionLabel="스토어 둘러보기"
             actionTo="/"
             description="마음에 드는 교재를 찜해두면 마이페이지에서 다시 빠르게 확인할 수 있어요."
-            icon="♥"
+            icon={<HeartIcon filled size={40} style={{ color: "var(--public-danger, #ff4a4a)" }} />}
             title="아직 찜한 교재가 없어요"
           />
         )}
@@ -2625,6 +2753,7 @@ function SettingsTab({
   isWithdrawing,
   joinDateText,
   nicknameStatus,
+  onToggleRestockAlert,
   onToggleWishlistProduct,
   openAccountSheet,
   openAddressSheet,
@@ -2634,6 +2763,8 @@ function SettingsTab({
   profileSnapshot,
   requestDeleteAccount,
   requestDeleteAddress,
+  restockBusyProductId,
+  restockSubscribedIds,
   section,
   setIsProfileEditing,
   setProfileErrors,
@@ -2686,7 +2817,7 @@ function SettingsTab({
             )
           }
           description="기본 정보는 수거 요청과 주문 수령 정보에 함께 사용됩니다."
-          icon="👤"
+          icon={<UserIcon size={18} />}
           title="프로필 정보"
         />
 
@@ -2745,7 +2876,7 @@ function SettingsTab({
             </button>
           }
           description="주문 때 자주 쓰는 배송지를 최대 5개까지 등록할 수 있습니다."
-          icon="📍"
+          icon={<MapPinIcon size={18} />}
           title="배송지 관리"
         />
 
@@ -2795,7 +2926,7 @@ function SettingsTab({
             ))}
           </div>
         ) : (
-          <MypageEmptyState description="주문 전에 기본 배송지를 미리 등록해 두면 더 편하게 이용할 수 있어요." icon="📍" title="등록한 배송지가 없어요" />
+          <MypageEmptyState description="주문 전에 기본 배송지를 미리 등록해 두면 더 편하게 이용할 수 있어요." icon={<MapPinIcon size={40} />} title="등록한 배송지가 없어요" />
         )}
       </section>
       ) : null}
@@ -2809,7 +2940,7 @@ function SettingsTab({
             </button>
           }
           description="계좌 정보는 정산 시에만 사용되며 암호화되어 안전하게 보관됩니다."
-          icon="💰"
+          icon={<CoinIcon size={18} />}
           title="정산 계좌 관리"
         />
 
@@ -2855,7 +2986,7 @@ function SettingsTab({
             ))}
           </div>
         ) : (
-          <MypageEmptyState description="판매 정산을 받으려면 기본 계좌를 먼저 등록해 주세요." icon="💳" title="등록한 정산 계좌가 없어요" />
+          <MypageEmptyState description="판매 정산을 받으려면 기본 계좌를 먼저 등록해 주세요." icon={<CardIcon size={40} />} title="등록한 정산 계좌가 없어요" />
         )}
       </section>
       ) : null}
@@ -2869,7 +3000,7 @@ function SettingsTab({
             </Link>
           }
           description="찜해 둔 교재를 모아보고 품절 여부까지 한 번에 확인할 수 있어요."
-          icon="♡"
+          icon={<HeartIcon size={18} />}
           title="찜한 교재"
         />
 
@@ -2889,6 +3020,16 @@ function SettingsTab({
           <div className="public-mypage-wishlist-grid">
             {wishlistProducts.map((product) => (
               <ProductCard
+                footer={
+                  product.isSoldOut && typeof onToggleRestockAlert === "function" ? (
+                    <WishlistRestockButton
+                      busyProductId={restockBusyProductId}
+                      onToggle={onToggleRestockAlert}
+                      product={product}
+                      subscribedIds={restockSubscribedIds}
+                    />
+                  ) : null
+                }
                 isFavorite
                 key={product.id}
                 onToggleFavorite={onToggleWishlistProduct}
@@ -2901,7 +3042,7 @@ function SettingsTab({
             actionLabel="스토어 둘러보기"
             actionTo="/"
             description="마음에 드는 교재를 찜해두면 설정 탭에서 다시 빠르게 확인할 수 있어요."
-            icon="♡"
+            icon={<HeartIcon size={40} />}
             title="아직 찜한 교재가 없어요"
           />
         )}
@@ -2912,7 +3053,7 @@ function SettingsTab({
       <section className="public-mypage-section public-mypage-section--compact">
         <MypageSectionHeader
           description={isDemoPreview ? "데모에서는 로그아웃 대신 홈으로 돌아갑니다." : "로그아웃과 회원탈퇴 관련 작업을 여기서 관리합니다."}
-          icon="🔒"
+          icon={<LockIcon size={18} />}
           title="계정"
         />
         <div className="public-mypage-account-actions public-mypage-account-actions--split">
@@ -2984,7 +3125,7 @@ function ProfileEditor({
         </div>
       </div>
       <Link className="public-auth-ghost-link" to="/forgot-password">
-        비밀번호 변경 →
+        비밀번호 변경 <ArrowRightIcon size={13} />
       </Link>
     </form>
   );

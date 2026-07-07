@@ -107,8 +107,8 @@ export const SHIPMENT_PROGRESS_STEPS = [
   { key: "scheduled", label: "접수" },
   { key: "collecting", label: "수거중" },
   { key: "received", label: "입고" },
-  { key: "inspecting", label: "검수" },
-  { key: "listed", label: "판매" },
+  { key: "inspecting", label: "검수중" },
+  { key: "listed", label: "판매중" },
 ];
 
 export const initialProfileForm = {
