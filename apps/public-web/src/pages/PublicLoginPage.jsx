@@ -299,30 +299,6 @@ function PublicLoginPage() {
                 {pageNotice}
               </div>
             ) : null}
-            {legacyHint ? (
-              <div className="public-auth-alert public-auth-alert--info">
-                <p>기존 수북 회원이시네요! </p>
-                <p>
-                  <strong>
-                    사이트 정책 변경에 따라, 7월 11일 이전 가입 회원은 비밀번호
-                    재설정이 필요합니다.
-                  </strong>
-                </p>
-                <p>
-                  아래 버튼을 눌러 비밀번호를 재설정하시면, 기존에 등록된
-                  배송지와 연락처 정보가 자동으로 연동됩니다.
-                </p>
-                <div className="public-auth-alert__actions">
-                  <Link
-                    className="public-auth-inline-button public-auth-inline-button--cta"
-                    state={{ prefillEmail: legacyHint }}
-                    to="/forgot-password"
-                  >
-                    비밀번호 재설정하기 <ArrowRightIcon size={13} />
-                  </Link>
-                </div>
-              </div>
-            ) : null}
             {pageError ? (
               <div className="public-auth-alert public-auth-alert--error">
                 <p>{pageError}</p>
@@ -461,6 +437,31 @@ function PublicLoginPage() {
                   </p>
                 ) : null}
               </div>
+
+              {legacyHint ? (
+                <div className="public-auth-alert public-auth-alert--info">
+                  <p>기존 수북 회원이시네요! </p>
+                  <p>
+                    <strong>
+                      사이트 정책 변경에 따라, 7월 11일 이전 가입 회원은 비밀번호
+                      재설정이 필요합니다.
+                    </strong>
+                  </p>
+                  <p>
+                    아래 버튼을 눌러 비밀번호를 재설정하시면, 기존에 등록된
+                    배송지와 연락처 정보가 자동으로 연동됩니다.
+                  </p>
+                  <div className="public-auth-alert__actions">
+                    <Link
+                      className="public-auth-inline-button public-auth-inline-button--cta"
+                      state={{ prefillEmail: legacyHint }}
+                      to="/forgot-password"
+                    >
+                      비밀번호 재설정하기 <ArrowRightIcon size={13} />
+                    </Link>
+                  </div>
+                </div>
+              ) : null}
 
               <label className="public-auth-check">
                 <input
