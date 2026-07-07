@@ -235,10 +235,10 @@ function ProductCard({
           {discountRate !== null ? (
             <span className="public-product-card__discount">{discountRate}%</span>
           ) : null}
-          <span className="public-product-card__sale-price">{saleLabel}</span>
           {originalPrice !== null ? (
             <span className="public-product-card__original-price">{formatCurrency(originalPrice)}</span>
           ) : null}
+          <span className="public-product-card__sale-price">{saleLabel}</span>
         </div>
 
         {footer ? <div className="public-product-card__footer">{footer}</div> : null}
