@@ -145,10 +145,23 @@ function AdminNoticesPage() {
   };
 
   return (
-    <AdminShell activeModule="notices" description="사이트 /notices에 표시 · 핀 공지는 상단 노출" title="공지사항 관리">
+    <AdminShell
+      activeModule="notices"
+      description="게시한 공지는 고객 사이트 하단 푸터의 '공지사항' 링크(/notices)에 노출 · 핀 공지는 목록 상단 고정"
+      title="공지사항 관리"
+    >
       <div className="flex items-center justify-between mb-4">
         <p className="text-sm text-slate-500">
           전체 {notices.length}건 · 게시 {notices.filter((n) => n.is_published).length}건 · 핀 {notices.filter((n) => n.is_pinned && n.is_published).length}건
+          {/* subook.kr은 아직 구 사이트(식스샵) — 정식 도메인 전환 후 subook.kr/notices로 교체 */}
+          <a
+            className="ml-3 font-semibold text-blue-600 hover:underline"
+            href="https://subook-public-web-temp.vercel.app/notices"
+            rel="noreferrer"
+            target="_blank"
+          >
+            사이트에서 보기 ↗
+          </a>
         </p>
         <button className="btn-primary !w-auto !px-4 !py-2 text-sm" onClick={openNew} type="button">
           + 공지 추가

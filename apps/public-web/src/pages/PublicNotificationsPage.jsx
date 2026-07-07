@@ -7,18 +7,33 @@ import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { usePageMeta } from "../lib/usePageMeta";
+import {
+  BankIcon,
+  BellIcon,
+  BoxIcon,
+  CardIcon,
+  ChevronRightIcon,
+  CoinIcon,
+  HeartOffIcon,
+  InboxIcon,
+  MailIcon,
+  SearchIcon,
+  TruckIcon,
+} from "../components/icons";
 import "./PublicNotificationsPage.css";
 
 const TYPE_ICONS = {
-  pickup_accepted: "📦",
-  arrived: "📥",
-  inspection_done: "🔍",
-  sold: "💰",
-  settlement_done: "🏦",
-  order_confirmed: "💳",
-  shipping_started: "🚚",
-  delivery_done: "📬",
-  restock: "🔔",
+  pickup_accepted: BoxIcon,
+  arrived: InboxIcon,
+  inspection_done: SearchIcon,
+  sold: CoinIcon,
+  settlement_done: BankIcon,
+  order_confirmed: CardIcon,
+  shipping_started: TruckIcon,
+  delivery_done: MailIcon,
+  restock: BellIcon,
+  // 찜한 상품이 품절되는 순간 발송되는 인앱 알림 (DB 트리거) — 재입고 알림 신청 유도.
+  wishlist_soldout: HeartOffIcon,
 };
 
 // P1-6: 카테고리 필터 칩. 각 카테고리에 매핑되는 알림 type 집합 정의.
@@ -28,7 +43,7 @@ const CATEGORY_FILTERS = [
   { key: "inspection", label: "검수", types: ["inspection_done"] },
   { key: "settlement", label: "정산", types: ["sold", "settlement_done"] },
   { key: "order", label: "주문", types: ["order_confirmed", "shipping_started", "delivery_done"] },
-  { key: "restock", label: "재입고", types: ["restock"] },
+  { key: "restock", label: "재입고", types: ["restock", "wishlist_soldout"] },
 ];
 
 const PAGE_SIZE = 30;
@@ -164,13 +179,13 @@ function PublicNotificationsPage() {
             <Link className="public-faq-route__crumb-link" to="/">
               홈
             </Link>
-            <span aria-hidden="true">›</span>
+            <span aria-hidden="true"><ChevronRightIcon size={12} /></span>
             <span className="is-muted">알림함</span>
           </div>
         </ContentContainer>
 
         <ContentContainer as="section" className="public-faq-hero" aria-label="페이지 안내">
-          <p className="public-faq-hero__eyebrow">NOTIFICATIONS</p>
+          <p className="public-faq-hero__eyebrow">내 활동</p>
           <h1 className="public-faq-hero__title">알림함</h1>
           <p className="public-faq-hero__subtitle">
             주문/검수/정산/재입고 등 활동 알림을 한 곳에서 확인하세요.
@@ -186,7 +201,7 @@ function PublicNotificationsPage() {
             <p className="public-faq-list__count">불러오는 중...</p>
           ) : items.length === 0 ? (
             <div className="public-notifications-empty">
-              <p className="public-notifications-empty__icon" aria-hidden="true">🔔</p>
+              <p className="public-notifications-empty__icon" aria-hidden="true"><BellIcon size={40} /></p>
               <p className="public-faq-list__count">아직 받은 알림이 없어요.</p>
             </div>
           ) : (
@@ -232,7 +247,7 @@ function PublicNotificationsPage() {
               ) : (
                 <ul className="public-faq-list__items" role="list">
                   {filteredItems.map((item) => {
-                    const icon = TYPE_ICONS[item.type] ?? "🔔";
+                    const Icon = TYPE_ICONS[item.type] ?? BellIcon;
                     const isUnread = !item.read_at;
                     return (
                       <li className="public-notifications-item" key={item.id}>
@@ -243,7 +258,7 @@ function PublicNotificationsPage() {
                         >
                           <div className="public-notifications-item__body">
                             <span aria-hidden="true" className="public-notifications-item__icon">
-                              {icon}
+                              <Icon size={20} />
                             </span>
                             <div className="public-notifications-item__content">
                               <div className="public-notifications-item__head">

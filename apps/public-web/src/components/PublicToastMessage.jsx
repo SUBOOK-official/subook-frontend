@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { CheckIcon, AlertTriangleIcon, InfoIcon } from "./icons";
 
 function PublicToastMessage({ actionLabel, message, onAction, onClose, tone = "info" }) {
   // onClose가 인라인 화살표 함수로 들어오면 매 render마다 reference가 바뀐다.
@@ -38,7 +39,13 @@ function PublicToastMessage({ actionLabel, message, onAction, onClose, tone = "i
     >
       <div className="public-toast__body">
         <span aria-hidden="true" className="public-toast__icon">
-          {tone === "success" ? "✓" : tone === "error" ? "!" : "i"}
+          {tone === "success" ? (
+            <CheckIcon size={14} />
+          ) : tone === "error" ? (
+            <AlertTriangleIcon size={14} />
+          ) : (
+            <InfoIcon size={14} />
+          )}
         </span>
         <p className="public-toast__message">{message}</p>
       </div>

@@ -64,7 +64,7 @@ function BestBooksSection({ favoriteIds, onToggleFavorite }) {
       onToggleFavorite={onToggleFavorite}
       products={products}
       subtitle="지금 가장 많이 팔리는 교재"
-      title="🏆 BEST 교재"
+      title="BEST 교재"
       titleId="public-home-best-books-title"
     />
   );

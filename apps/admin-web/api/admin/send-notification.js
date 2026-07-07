@@ -102,11 +102,15 @@ function buildMessageBody(type, vars) {
         `7일 후 자동 확정됩니다.`
       );
 
+    // 카카오 검수 정책: 찜(단순 관심) 기반 문구는 광고성으로 반려됨.
+    // 수신자 액션("재입고 알림을 신청")을 고정값으로 명시해야 알림톡 승인 가능.
+    // 솔라피에 등록하는 템플릿 본문과 반드시 동일하게 유지할 것.
     case "restock":
       return (
         `[수북] 재입고 알림\n` +
-        `찜하신 교재 "${vars.productTitle}"이(가) 재입고되었습니다.\n` +
-        `마이페이지 찜 목록에서 확인하실 수 있습니다.`
+        `회원님이 재입고 알림을 신청하신 교재 "${vars.productTitle}"이(가) 재입고되었습니다.\n` +
+        `상품 페이지에서 바로 구매하실 수 있습니다.\n\n` +
+        `※ 본 메시지는 회원님의 재입고 알림 신청에 의해 발송되는 정보성 메시지입니다.`
       );
 
     case "refund_completed":
@@ -134,7 +138,7 @@ function buildInAppTitle(type, vars) {
     case "order_confirmed": return "주문 결제가 확인되었어요";
     case "shipping_started":return "배송이 시작되었어요";
     case "delivery_done":   return "교재가 도착했어요";
-    case "restock":         return `"${vars.productTitle ?? "찜한 교재"}" 재입고`;
+    case "restock":         return `"${vars.productTitle ?? "알림 신청한 교재"}" 재입고`;
     case "refund_completed": return "환불이 완료되었어요";
     default:                return "알림";
   }

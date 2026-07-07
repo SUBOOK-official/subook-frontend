@@ -26,13 +26,13 @@
   min-height: 36px;
   padding: 6px 14px;
   border: 1px solid var(--public-ds-border);
-  border-radius: 20px;
+  border-radius: var(--public-radius-xl);
   background: #ffffff;
   color: var(--public-ds-text-secondary);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
 }
 
 .public-notifications-filter__chip:hover {
@@ -68,8 +68,8 @@
 }
 
 .public-notifications-item__button.is-unread {
-  background: #eff6ff;
-  border-color: #dbeafe;
+  background: #eef2f7;
+  border-color: #dce6ef;
 }
 
 .public-notifications-item__body {
@@ -138,7 +138,7 @@
   width: 100%;
   margin-top: 16px;
   padding: 14px 16px;
-  border-radius: 10px;
+  border-radius: var(--public-radius-lg);
   border: 1px solid var(--public-ds-border);
   background: #ffffff;
   color: var(--public-ds-text);

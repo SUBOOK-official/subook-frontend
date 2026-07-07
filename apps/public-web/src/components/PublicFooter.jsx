@@ -60,12 +60,21 @@ const footerMetaLines = [
     ["주소", "서울 서대문구 연세로 50 제1공학관"],
   ],
   [
-    ["사업자등록번호", "421-99-01928"],
+    [
+      "사업자등록번호",
+      "421-99-01928",
+      // 공정거래위원회 통신판매 사업자정보 조회 팝업 (무신사 등 커머스 표준 패턴).
+      // 통신판매업 신고 완료 후 자동으로 조회 결과가 표시된다 — 별도 코드 변경 불필요.
+      {
+        label: "사업자정보확인",
+        href: "https://www.ftc.go.kr/bizCommPop.do?wrkr_no=4219901928",
+      },
+    ],
     ["통신판매업신고번호", "정식 등록 진행 중"],
   ],
 ];
 
-function FooterMetaPair({ label, value }) {
+function FooterMetaPair({ label, value, action }) {
   return (
     <span className="public-footer__pair">
       <span>{label}</span>
@@ -73,6 +82,16 @@ function FooterMetaPair({ label, value }) {
         |
       </span>
       <span>{value}</span>
+      {action ? (
+        <a
+          className="public-footer__pair-action"
+          href={action.href}
+          rel="noopener noreferrer"
+          target="_blank"
+        >
+          {action.label}
+        </a>
+      ) : null}
     </span>
   );
 }
@@ -91,7 +110,7 @@ function PublicFooter() {
   const handleEmailClick = () => {
     if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
       navigator.clipboard.writeText(CONTACT_EMAIL).then(
-        () => flashEmailFeedback(`✓ 이메일 주소를 복사했어요 · ${CONTACT_EMAIL}`),
+        () => flashEmailFeedback(`이메일 주소를 복사했어요 · ${CONTACT_EMAIL}`),
         () => flashEmailFeedback(`문의 이메일 · ${CONTACT_EMAIL}`),
       );
       return;
@@ -135,8 +154,8 @@ function PublicFooter() {
           <div className="public-footer__meta">
             {footerMetaLines.map((line, index) => (
               <div className="public-footer__meta-line" key={`footer-meta-line-${index + 1}`}>
-                {line.map(([label, value]) => (
-                  <FooterMetaPair key={`${label}-${value}`} label={label} value={value} />
+                {line.map(([label, value, action]) => (
+                  <FooterMetaPair action={action} key={`${label}-${value}`} label={label} value={value} />
                 ))}
               </div>
             ))}

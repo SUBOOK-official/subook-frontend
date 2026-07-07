@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useFocusTrap } from "@shared-domain/useFocusTrap";
 import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
+import { LockIcon } from "./icons";
 
 function PublicMemberGateDialog({ onClose, onLogin, onSignup, open }) {
   const [offsetY, setOffsetY] = useState(0);
@@ -98,7 +99,7 @@ function PublicMemberGateDialog({ onClose, onLogin, onSignup, open }) {
         <div className="public-member-gate__copy">
           <h2 className="public-member-gate__title" id="public-member-gate-title">
             <span>로그인이 필요해요</span>
-            <span aria-hidden="true">🔒</span>
+            <LockIcon size={18} />
           </h2>
           <p className="public-member-gate__description">
             수북 회원이 되면

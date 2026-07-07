@@ -1,7 +1,7 @@
 .public-policy-page {
   min-height: 100vh;
-  background: #f8fafc;
-  color: #111827;
+  background: #f9f9f9;
+  color: #232323;
 }
 
 .public-policy-route {
@@ -20,9 +20,9 @@
 }
 
 .public-policy-tab {
-  border: 1px solid #d1d5db;
+  border: 1px solid #d4d4d6;
   border-radius: 8px;
-  color: #4b5563;
+  color: #55565b;
   font-size: 14px;
   font-weight: 800;
   padding: 10px 14px;
@@ -30,14 +30,14 @@
 }
 
 .public-policy-tab.is-active {
-  background: #111827;
-  border-color: #111827;
+  background: #232323;
+  border-color: #232323;
   color: #ffffff;
 }
 
 .public-policy-document {
   background: #ffffff;
-  border: 1px solid #e5e7eb;
+  border: 1px solid #e5e5e5;
   border-radius: 8px;
   padding: 36px;
 }
@@ -58,7 +58,7 @@
 }
 
 .public-policy-updated {
-  color: #6b7280;
+  color: #6e6e73;
   font-size: 14px;
   margin: 12px 0 0;
 }
@@ -70,7 +70,7 @@
 }
 
 .public-policy-section {
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid #e5e5e5;
   padding-top: 24px;
 }
 
@@ -80,7 +80,7 @@
 }
 
 .public-policy-section p {
-  color: #374151;
+  color: #3f4045;
   font-size: 15px;
   line-height: 1.8;
   margin: 0;
@@ -88,6 +88,75 @@
 
 .public-policy-section p + p {
   margin-top: 8px;
+}
+
+/* 문서 전문(서두) — 시행일 아래 */
+.public-policy-intro {
+  color: #3f4045;
+  font-size: 15px;
+  line-height: 1.8;
+  margin: 20px 0 0;
+}
+
+/* 이용약관의 장(章) 구분 헤딩 */
+.public-policy-chapter {
+  color: #0f766e;
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  margin: 20px 0 -12px;
+}
+
+/* 조항 내 항목 리스트 */
+.public-policy-list {
+  color: #3f4045;
+  font-size: 15px;
+  line-height: 1.8;
+  margin: 8px 0 0;
+  padding-left: 22px;
+}
+
+.public-policy-list li + li {
+  margin-top: 4px;
+}
+
+/* 법정 보존기간·위탁현황·사업자 정보 표 */
+.public-policy-table-wrap {
+  margin-top: 12px;
+  overflow-x: auto;
+}
+
+.public-policy-table {
+  border-collapse: collapse;
+  font-size: 14px;
+  line-height: 1.6;
+  min-width: 420px;
+  width: 100%;
+}
+
+.public-policy-table th,
+.public-policy-table td {
+  border: 1px solid #e5e5e5;
+  color: #3f4045;
+  padding: 10px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.public-policy-table th {
+  background: #f9f9f9;
+  color: #232323;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+/* 표 뒤에 이어지는 문단 간격 */
+.public-policy-table-wrap + p {
+  margin-top: 12px;
+}
+
+.public-policy-list + p {
+  margin-top: 12px;
 }
 
 @media (max-width: 640px) {

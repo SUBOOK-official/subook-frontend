@@ -2,9 +2,7 @@
 
 .pickup-page {
   min-height: 100vh;
-  background:
-    radial-gradient(circle at top, rgba(59, 130, 246, 0.08), transparent 24%),
-    linear-gradient(180deg, #ffffff 0%, var(--public-ds-background) 100%);
+  background: var(--public-ds-background);
 }
 
 .pickup-route {
@@ -35,7 +33,7 @@
 
 .pickup-card {
   border: 1px solid var(--public-ds-border);
-  border-radius: 20px;
+  border-radius: var(--public-radius-xl);
   background: var(--public-ds-card);
   box-shadow: var(--public-ds-shadow);
   overflow: hidden;
@@ -99,7 +97,7 @@
   width: 32px;
   height: 32px;
   border-radius: 999px;
-  background: #e5e7eb;
+  background: #e5e5e5;
   color: var(--public-ds-text-muted);
   display: inline-flex;
   align-items: center;
@@ -107,14 +105,14 @@
   font-size: 13px;
   font-weight: 700;
   line-height: 1;
-  transition: all 0.2s ease;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
 }
 
 .pickup-progress__label {
   color: var(--public-ds-text-secondary);
   font-size: 12px;
   line-height: 1.5;
-  transition: all 0.2s ease;
+  transition: color 0.2s ease;
 }
 
 .pickup-progress__item.is-current .pickup-progress__marker {
@@ -170,7 +168,7 @@
 
 .pickup-field-label {
   display: block;
-  color: #374151;
+  color: #3f4045;
   font-size: 13px;
   font-weight: 600;
   line-height: 1.5;
@@ -186,7 +184,7 @@
 }
 
 .pickup-field-hint--warn {
-  color: #b45309;
+  color: #96600f;
   font-weight: 600;
 }
 
@@ -195,10 +193,10 @@
   display: block;
   margin-top: 8px;
   padding: 8px 12px;
-  background: #fef3c7;
-  border: 1px solid #fcd34d;
+  background: #f8f0db;
+  border: 1px solid #e7cf96;
   border-radius: 8px;
-  color: #92400e;
+  color: #7d5514;
   font-size: 13px;
   font-weight: 600;
   line-height: 1.5;
@@ -212,7 +210,7 @@
   gap: 16px;
   padding: 14px 16px;
   margin-bottom: 14px;
-  border: 1px solid #bae6fd;
+  border: 1px solid #ccdcea;
   background: #f0f9ff;
   border-radius: 12px;
   flex-wrap: wrap;
@@ -244,36 +242,36 @@
   padding: 14px 16px;
   border-radius: 12px;
   background: #fffbeb;
-  border: 1px solid #fde68a;
+  border: 1px solid #edd9a3;
 }
 
 .pickup-policy-preview__title {
   font-size: 14px;
   font-weight: 700;
-  color: #92400e;
+  color: #7d5514;
   margin: 0 0 8px;
 }
 
 .pickup-policy-preview__highlight {
-  background: #fef3c7;
+  background: #f8f0db;
   border-radius: 8px;
   padding: 10px 12px;
   font-size: 13.5px;
-  color: #78350f;
+  color: #6b4a12;
   line-height: 1.55;
   margin-bottom: 10px;
 }
 
 .pickup-policy-preview__highlight strong {
   font-weight: 800;
-  color: #92400e;
+  color: #7d5514;
 }
 
 .pickup-policy-preview__highlight span {
   display: block;
   margin-top: 4px;
   font-size: 12.5px;
-  color: #92400e;
+  color: #7d5514;
   opacity: 0.85;
 }
 
@@ -290,7 +288,7 @@
 }
 
 .pickup-policy-preview__list strong {
-  color: #b45309;
+  color: #96600f;
   margin-right: 4px;
 }
 
@@ -303,7 +301,7 @@
 
 .pickup-checkbox-label--all {
   background: #f0f9ff;
-  border-color: #bae6fd;
+  border-color: #ccdcea;
   font-weight: 600;
 }
 
@@ -450,7 +448,7 @@
   cursor: pointer;
   padding: 14px 16px;
   border: 1px solid var(--public-ds-border);
-  border-radius: 10px;
+  border-radius: var(--public-radius-lg);
   background: #ffffff;
 }
 
@@ -531,9 +529,9 @@
 
 .pickup-search-results {
   border: 1px solid var(--public-ds-border);
-  border-radius: 10px;
+  border-radius: var(--public-radius-lg);
   background: #ffffff;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--public-shadow-md);
   max-height: 280px;
   overflow-y: auto;
 }
@@ -592,7 +590,7 @@
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
 .pickup-search-result__add:hover {
@@ -674,8 +672,8 @@
   flex-shrink: 0;
   padding: 2px 8px;
   border-radius: 4px;
-  background: #dbeafe;
-  color: #2563eb;
+  background: #dce6ef;
+  color: #1b3a5c;
   font-size: 11px;
   font-weight: 600;
 }
@@ -750,7 +748,7 @@
 
 .pickup-saved-card.is-selected {
   border-color: var(--public-ds-accent);
-  background: #eff6ff;
+  background: #eef2f7;
 }
 
 .pickup-saved-card__radio {
@@ -782,8 +780,8 @@
 .pickup-saved-card__default {
   padding: 1px 6px;
   border-radius: 4px;
-  background: #fef3c7;
-  color: #d97706;
+  background: #f8f0db;
+  color: #b3741a;
   font-size: 11px;
   font-weight: 600;
 }
@@ -819,7 +817,7 @@
   padding: 16px;
   border-radius: var(--public-ds-radius);
   background: #f0f9ff;
-  border: 1px solid #bae6fd;
+  border: 1px solid #ccdcea;
 }
 
 .pickup-info-box__title {
@@ -988,12 +986,12 @@
 
 .pickup-confirm-shipping.is-warning {
   background: #fff7ed;
-  border-color: #fed7aa;
+  border-color: #efd6b4;
 }
 
 .pickup-confirm-shipping.is-ok {
   background: #f0fdf4;
-  border-color: #bbf7d0;
+  border-color: #c4e5d0;
 }
 
 .pickup-confirm-shipping__icon {
@@ -1017,11 +1015,11 @@
 }
 
 .pickup-confirm-shipping.is-warning .pickup-confirm-shipping__copy strong {
-  color: #c2410c;
+  color: #a04e1a;
 }
 
 .pickup-confirm-shipping.is-ok .pickup-confirm-shipping__copy strong {
-  color: #15803d;
+  color: #2a6e46;
 }
 
 .pickup-confirm-shipping__copy p {
@@ -1041,7 +1039,7 @@
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, opacity 0.15s ease;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1057,7 +1055,7 @@
 }
 
 .pickup-btn--primary:disabled {
-  background: #f3f4f6;
+  background: #f0f0f0;
   color: var(--public-ds-text-muted);
   cursor: not-allowed;
   filter: none;
@@ -1081,7 +1079,7 @@
 }
 
 .pickup-btn--ghost:hover {
-  background: #eff6ff;
+  background: #eef2f7;
   border-color: var(--public-ds-accent);
 }
 
@@ -1101,8 +1099,8 @@
   padding: 10px 14px;
   border-radius: 8px;
   background: #fff7ed;
-  border: 1px solid #fed7aa;
-  color: #c2410c;
+  border: 1px solid #efd6b4;
+  color: #a04e1a;
   font-size: 13px;
   font-weight: 600;
   text-align: center;
@@ -1138,7 +1136,7 @@
 
 .pickup-success {
   border: 1px solid var(--public-ds-border);
-  border-radius: 20px;
+  border-radius: var(--public-radius-xl);
   background: var(--public-ds-card);
   box-shadow: var(--public-ds-shadow);
   padding: 48px 24px;
@@ -1205,7 +1203,7 @@
 .pickup-success__guide-hint {
   margin-top: 6px;
   padding-top: 12px;
-  border-top: 1px dashed #93c5fd;
+  border-top: 1px dashed #bccbdb;
   font-size: 13px;
   color: var(--public-ds-text-secondary);
 }
@@ -1335,7 +1333,7 @@
   padding: 12px 16px;
   border-radius: 8px;
   background: #ffffff;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--public-shadow-md);
   display: flex;
   align-items: center;
   gap: 10px;

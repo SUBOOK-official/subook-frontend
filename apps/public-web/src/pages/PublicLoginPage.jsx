@@ -7,6 +7,7 @@ import {
   supabase,
 } from "@shared-supabase/publicSupabaseClient";
 import PublicOAuthButtons from "../components/PublicOAuthButtons";
+import { AlertTriangleIcon, ArrowRightIcon, EyeIcon, EyeOffIcon } from "../components/icons";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { getPublicAccountAccessState } from "../lib/publicAuthAccess";
 import { isValidEmailFormat, normalizeEmail } from "../lib/publicAuthFormUtils";
@@ -264,7 +265,7 @@ function PublicLoginPage() {
                     state={{ prefillEmail: legacyHint }}
                     to="/signup"
                   >
-                    회원가입 (이메일 자동 입력) →
+                    회원가입 (이메일 자동 입력) <ArrowRightIcon size={13} />
                   </Link>
                 </div>
               </div>
@@ -351,7 +352,7 @@ function PublicLoginPage() {
                     onClick={() => setShowPassword((currentValue) => !currentValue)}
                     type="button"
                   >
-                    <span aria-hidden="true">{showPassword ? "🙈" : "👁"}</span>
+                    <span aria-hidden="true">{showPassword ? <EyeOffIcon size={18} /> : <EyeIcon size={18} />}</span>
                     <span className="public-auth-sr-only">{showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}</span>
                   </button>
                 </div>
@@ -361,7 +362,7 @@ function PublicLoginPage() {
                     role="status"
                     aria-live="polite"
                   >
-                    ⚠ Caps Lock이 켜져 있습니다.
+                    <AlertTriangleIcon size={13} /> Caps Lock이 켜져 있습니다.
                   </p>
                 ) : null}
                 {fieldErrors.password ? (

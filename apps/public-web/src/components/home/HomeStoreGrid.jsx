@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
 import ContentContainer from "../ContentContainer";
 import ProductCard, { ProductCardSkeleton } from "../ProductCard";
+import { SlidersIcon, CheckIcon, ChevronLeftIcon, ChevronRightIcon, CloseIcon } from "../icons";
 import {
   HOME_SIDEBAR_FILTER_GROUP_KEYS,
   STORE_DEFAULT_SUBJECT,
@@ -480,7 +481,7 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
                       type="button"
                     >
                       <span>{option.label}</span>
-                      {sortOption === option.value ? <span aria-hidden="true">✓</span> : null}
+                      {sortOption === option.value ? <CheckIcon size={14} /> : null}
                     </button>
                   ))}
                 </div>
@@ -640,7 +641,7 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
               onClick={() => handleChangePage(safeCurrentPage - 1)}
               type="button"
             >
-              ‹
+              <ChevronLeftIcon size={18} />
             </button>
 
             <div className="public-home-store-grid__pagination-pages">
@@ -670,7 +671,7 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
               onClick={() => handleChangePage(safeCurrentPage + 1)}
               type="button"
             >
-              ›
+              <ChevronRightIcon size={18} />
             </button>
           </nav>
         ) : null}
@@ -702,7 +703,7 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
                 onClick={() => setIsFilterSheetOpen(false)}
                 type="button"
               >
-                ✕
+                <CloseIcon size={18} />
               </button>
             </header>
             <div className="public-home-store-grid__filter-sheet-body">
