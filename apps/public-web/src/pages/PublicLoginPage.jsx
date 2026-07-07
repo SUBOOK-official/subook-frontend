@@ -301,12 +301,12 @@ function PublicLoginPage() {
             ) : null}
             {legacyHint ? (
               <div className="public-auth-alert public-auth-alert--info">
+                <p>기존 수북 회원이시네요! </p>
                 <p>
-                  <strong>기존 수북 회원이시네요!</strong>{" "}
-                </p>
-                <p>
-                  사이트 정책 변경에 따라, 7월 11일 이전 가입 회원은 비밀번호
-                  재설정이 필요합니다.
+                  <strong>
+                    사이트 정책 변경에 따라, 7월 11일 이전 가입 회원은 비밀번호
+                    재설정이 필요합니다.
+                  </strong>
                 </p>
                 <p>
                   아래 버튼을 눌러 비밀번호를 재설정하시면, 기존에 등록된
@@ -316,9 +316,9 @@ function PublicLoginPage() {
                   <Link
                     className="public-auth-inline-button public-auth-inline-button--cta"
                     state={{ prefillEmail: legacyHint }}
-                    to="/signup"
+                    to="/forgot-password"
                   >
-                    회원가입 (이메일 자동 입력) <ArrowRightIcon size={13} />
+                    비밀번호 재설정하기 <ArrowRightIcon size={13} />
                   </Link>
                 </div>
               </div>

@@ -1,16 +1,22 @@
 import { useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/publicSupabaseClient";
 import { MailIcon } from "../components/icons";
 import { isValidEmailFormat, normalizeEmail } from "../lib/publicAuthFormUtils";
 
 function PublicForgotPasswordPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const emailInputRef = useRef(null);
+
+  const prefillEmail =
+    typeof location.state?.prefillEmail === "string"
+      ? location.state.prefillEmail
+      : "";
 
   const [formValues, setFormValues] = useState({
     name: "",
-    email: "",
+    email: prefillEmail,
   });
   const [fieldErrors, setFieldErrors] = useState({
     name: "",
