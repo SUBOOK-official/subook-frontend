@@ -7,7 +7,12 @@ import {
   supabase,
 } from "@shared-supabase/publicSupabaseClient";
 import PublicOAuthButtons from "../components/PublicOAuthButtons";
-import { AlertTriangleIcon, ArrowRightIcon, EyeIcon, EyeOffIcon } from "../components/icons";
+import {
+  AlertTriangleIcon,
+  ArrowRightIcon,
+  EyeIcon,
+  EyeOffIcon,
+} from "../components/icons";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { getPublicAccountAccessState } from "../lib/publicAuthAccess";
 import { isValidEmailFormat, normalizeEmail } from "../lib/publicAuthFormUtils";
@@ -17,7 +22,8 @@ function PublicLoginPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const passwordInputRef = useRef(null);
-  const { hasSession, isAdminAccount, isAuthenticated, signOut } = usePublicAuth();
+  const { hasSession, isAdminAccount, isAuthenticated, signOut } =
+    usePublicAuth();
   // from은 두 형태 모두 받는다:
   // - object: { pathname, search?, hash? } (publicMemberGate 등 권장 형식)
   // - string: "/cart" 같은 단순 경로 (legacy 호출자 호환 — 사라지면 안 됨)
@@ -37,7 +43,9 @@ function PublicLoginPage() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [rememberMe, setRememberMe] = useState(() => getPublicAuthSessionPersistence());
+  const [rememberMe, setRememberMe] = useState(() =>
+    getPublicAuthSessionPersistence(),
+  );
   const [showPassword, setShowPassword] = useState(false);
   const [isCapsLockOn, setIsCapsLockOn] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({
@@ -156,7 +164,10 @@ function PublicLoginPage() {
 
       if (rawMessage.includes("email not confirmed")) {
         setIsSubmitting(false);
-        redirectToVerification(normalized, "이메일 인증코드를 입력하면 회원가입을 완료할 수 있어요.");
+        redirectToVerification(
+          normalized,
+          "이메일 인증코드를 입력하면 회원가입을 완료할 수 있어요.",
+        );
         return;
       }
 
@@ -169,7 +180,10 @@ function PublicLoginPage() {
         // 이전 수북(식스샵 버전) 회원 안내 — 같은 이메일이면 친절히 가입 유도.
         // RPC는 boolean만 반환 (PII 노출 X).
         try {
-          const { data: isLegacy } = await supabase.rpc("is_legacy_sixshop_email", { p_email: normalized });
+          const { data: isLegacy } = await supabase.rpc(
+            "is_legacy_sixshop_email",
+            { p_email: normalized },
+          );
           if (isLegacy) {
             setLegacyHint(normalized);
           }
@@ -177,7 +191,10 @@ function PublicLoginPage() {
           /* RPC 실패는 무시 — 일반 안내만 노출 */
         }
       } else {
-        setPageError(loginError.message || "로그인에 실패했습니다. 잠시 후 다시 시도해주세요.");
+        setPageError(
+          loginError.message ||
+            "로그인에 실패했습니다. 잠시 후 다시 시도해주세요.",
+        );
       }
 
       setIsSubmitting(false);
@@ -185,16 +202,23 @@ function PublicLoginPage() {
     }
 
     const { data: sessionData } = await supabase.auth.getSession();
-    const accessState = await getPublicAccountAccessState(sessionData.session?.user ?? null);
+    const accessState = await getPublicAccountAccessState(
+      sessionData.session?.user ?? null,
+    );
 
     if (accessState.accountRole === "admin") {
       await supabase.auth.signOut();
-      setPageError("관리자 계정은 공개 사용자 페이지에서 로그인할 수 없습니다. 관리자 페이지에서 로그인해주세요.");
+      setPageError(
+        "관리자 계정은 공개 사용자 페이지에서 로그인할 수 없습니다. 관리자 페이지에서 로그인해주세요.",
+      );
       setIsSubmitting(false);
       return;
     }
 
-    if (accessState.accountRole === "withdrawal_pending" || accessState.accountRole === "withdrawn") {
+    if (
+      accessState.accountRole === "withdrawal_pending" ||
+      accessState.accountRole === "withdrawn"
+    ) {
       await supabase.auth.signOut();
       setWithdrawalRecoveryEmail(normalized);
       setPageError(
@@ -206,7 +230,9 @@ function PublicLoginPage() {
 
     if (accessState.accountRole !== "member") {
       await supabase.auth.signOut();
-      setPageError("회원 계정 정보를 확인하지 못했습니다. 잠시 후 다시 시도해주세요.");
+      setPageError(
+        "회원 계정 정보를 확인하지 못했습니다. 잠시 후 다시 시도해주세요.",
+      );
       setIsSubmitting(false);
       return;
     }
@@ -214,7 +240,10 @@ function PublicLoginPage() {
     if (!accessState.profile?.email_verified_at) {
       await supabase.auth.signOut();
       setIsSubmitting(false);
-      redirectToVerification(normalized, "이메일 인증코드를 먼저 입력해주세요.");
+      redirectToVerification(
+        normalized,
+        "이메일 인증코드를 먼저 입력해주세요.",
+      );
       return;
     }
 
@@ -225,12 +254,17 @@ function PublicLoginPage() {
   return (
     <main className="public-auth-route">
       <div className="public-auth-shell">
-        <section aria-labelledby="public-login-heading" className="public-auth-card public-auth-card--login">
+        <section
+          aria-labelledby="public-login-heading"
+          className="public-auth-card public-auth-card--login"
+        >
           <div className="public-auth-brand-lockup">
             <Link className="public-auth-brand" to="/">
               SUBOOK
             </Link>
-            <p className="public-auth-brand-lockup__tagline">수능 교재, 똑똑하게 거래</p>
+            <p className="public-auth-brand-lockup__tagline">
+              수능 교재, 똑똑하게 거래
+            </p>
           </div>
 
           <div className="public-auth-card__body">
@@ -239,25 +273,44 @@ function PublicLoginPage() {
                 로그인
               </h1>
               <p className="public-auth-card__description">
-                가입한 이메일과 비밀번호로 로그인한 뒤 수북의 서비스를 이용해보세요.
+                가입한 이메일과 비밀번호로 로그인한 뒤 수북의 서비스를
+                이용해보세요.
               </p>
             </div>
 
             {hasSession && isAdminAccount ? (
               <div className="public-auth-alert public-auth-alert--info public-auth-alert--action">
-                <span>관리자 세션이 연결되어 있습니다. 공개 사용자 페이지에는 회원 계정만 로그인할 수 있어요.</span>
-                <button className="public-auth-inline-button" onClick={handleClearSession} type="button">
+                <span>
+                  관리자 세션이 연결되어 있습니다. 공개 사용자 페이지에는 회원
+                  계정만 로그인할 수 있어요.
+                </span>
+                <button
+                  className="public-auth-inline-button"
+                  onClick={handleClearSession}
+                  type="button"
+                >
                   현재 세션 로그아웃
                 </button>
               </div>
             ) : null}
 
-            {pageNotice ? <div className="public-auth-alert public-auth-alert--success">{pageNotice}</div> : null}
+            {pageNotice ? (
+              <div className="public-auth-alert public-auth-alert--success">
+                {pageNotice}
+              </div>
+            ) : null}
             {legacyHint ? (
               <div className="public-auth-alert public-auth-alert--info">
                 <p>
-                  <strong>이전 수북 회원이시네요!</strong> 새 사이트로 옮기면서 보안상 비밀번호는 가져오지 못했어요.
-                  같은 이메일로 회원가입을 다시 해주시면 <strong>기존 배송지·연락처가 자동으로 연결</strong>됩니다.
+                  <strong>기존 수북 회원이시네요!</strong>{" "}
+                </p>
+                <p>
+                  사이트 정책 변경에 따라, 7월 11일 이전 가입 회원은 비밀번호
+                  재설정이 필요합니다.
+                </p>
+                <p>
+                  아래 버튼을 눌러 비밀번호를 재설정하시면, 기존에 등록된
+                  배송지와 연락처 정보가 자동으로 연동됩니다.
                 </p>
                 <div className="public-auth-alert__actions">
                   <Link
@@ -277,12 +330,18 @@ function PublicLoginPage() {
                   <div className="public-auth-alert__actions">
                     <a
                       className="public-auth-inline-button public-auth-inline-button--cta"
-                      href={buildWithdrawalRecoveryMailto(withdrawalRecoveryEmail)}
+                      href={buildWithdrawalRecoveryMailto(
+                        withdrawalRecoveryEmail,
+                      )}
                     >
                       탈퇴 철회 요청하기
                     </a>
                     <span className="public-auth-alert__hint">
-                      또는 <a href="mailto:subook2025@gmail.com">subook2025@gmail.com</a> 으로 직접 메일 주세요.
+                      또는{" "}
+                      <a href="mailto:subook2025@gmail.com">
+                        subook2025@gmail.com
+                      </a>{" "}
+                      으로 직접 메일 주세요.
                     </span>
                   </div>
                 ) : null}
@@ -297,9 +356,18 @@ function PublicLoginPage() {
               redirectTo={`${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`}
             />
 
-            <form className="public-auth-form-card" noValidate onSubmit={handleSubmit}>
-              <div className={`public-auth-field-row ${fieldErrors.email ? "is-error" : ""}`}>
-                <label className="public-auth-field-row__label" htmlFor="public-login-email">
+            <form
+              className="public-auth-form-card"
+              noValidate
+              onSubmit={handleSubmit}
+            >
+              <div
+                className={`public-auth-field-row ${fieldErrors.email ? "is-error" : ""}`}
+              >
+                <label
+                  className="public-auth-field-row__label"
+                  htmlFor="public-login-email"
+                >
                   이메일
                 </label>
                 <div className="public-auth-field-row__control">
@@ -310,7 +378,10 @@ function PublicLoginPage() {
                     onChange={handleEmailChange}
                     onKeyDown={(event) => {
                       // IME composition 중 Enter는 후보 확정으로 사용되므로 무시.
-                      if (event.nativeEvent?.isComposing || event.keyCode === 229) {
+                      if (
+                        event.nativeEvent?.isComposing ||
+                        event.keyCode === 229
+                      ) {
                         return;
                       }
                       if (event.key === "Enter") {
@@ -324,12 +395,19 @@ function PublicLoginPage() {
                   />
                 </div>
                 {fieldErrors.email ? (
-                  <p className="public-auth-inline-message public-auth-inline-message--error">{fieldErrors.email}</p>
+                  <p className="public-auth-inline-message public-auth-inline-message--error">
+                    {fieldErrors.email}
+                  </p>
                 ) : null}
               </div>
 
-              <div className={`public-auth-field-row ${fieldErrors.password ? "is-error" : ""}`}>
-                <label className="public-auth-field-row__label" htmlFor="public-login-password">
+              <div
+                className={`public-auth-field-row ${fieldErrors.password ? "is-error" : ""}`}
+              >
+                <label
+                  className="public-auth-field-row__label"
+                  htmlFor="public-login-password"
+                >
                   비밀번호
                 </label>
                 <div className="public-auth-field-row__control public-auth-field-row__control--with-action">
@@ -347,13 +425,25 @@ function PublicLoginPage() {
                     value={password}
                   />
                   <button
-                    aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
+                    aria-label={
+                      showPassword ? "비밀번호 숨기기" : "비밀번호 보기"
+                    }
                     className="public-auth-field-row__toggle public-auth-field-row__toggle--icon"
-                    onClick={() => setShowPassword((currentValue) => !currentValue)}
+                    onClick={() =>
+                      setShowPassword((currentValue) => !currentValue)
+                    }
                     type="button"
                   >
-                    <span aria-hidden="true">{showPassword ? <EyeOffIcon size={18} /> : <EyeIcon size={18} />}</span>
-                    <span className="public-auth-sr-only">{showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}</span>
+                    <span aria-hidden="true">
+                      {showPassword ? (
+                        <EyeOffIcon size={18} />
+                      ) : (
+                        <EyeIcon size={18} />
+                      )}
+                    </span>
+                    <span className="public-auth-sr-only">
+                      {showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
+                    </span>
                   </button>
                 </div>
                 {isCapsLockOn ? (
@@ -366,7 +456,9 @@ function PublicLoginPage() {
                   </p>
                 ) : null}
                 {fieldErrors.password ? (
-                  <p className="public-auth-inline-message public-auth-inline-message--error">{fieldErrors.password}</p>
+                  <p className="public-auth-inline-message public-auth-inline-message--error">
+                    {fieldErrors.password}
+                  </p>
                 ) : null}
               </div>
 
@@ -379,10 +471,17 @@ function PublicLoginPage() {
                 <span>로그인 상태 유지</span>
               </label>
 
-              <button className="public-auth-button public-auth-button--primary" disabled={isSubmitting} type="submit">
+              <button
+                className="public-auth-button public-auth-button--primary"
+                disabled={isSubmitting}
+                type="submit"
+              >
                 {isSubmitting ? (
                   <>
-                    <span aria-hidden="true" className="public-auth-spinner public-auth-spinner--button" />
+                    <span
+                      aria-hidden="true"
+                      className="public-auth-spinner public-auth-spinner--button"
+                    />
                     <span>로그인 중...</span>
                   </>
                 ) : (
@@ -392,10 +491,16 @@ function PublicLoginPage() {
             </form>
 
             <div className="public-auth-link-row">
-              <Link className="public-auth-link-row__link" to="/forgot-password">
+              <Link
+                className="public-auth-link-row__link"
+                to="/forgot-password"
+              >
                 비밀번호 찾기
               </Link>
-              <span aria-hidden="true" className="public-auth-link-row__separator" />
+              <span
+                aria-hidden="true"
+                className="public-auth-link-row__separator"
+              />
               <Link className="public-auth-link-row__link" to="/signup">
                 회원가입
               </Link>
