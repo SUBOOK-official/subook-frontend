@@ -925,6 +925,25 @@ function PublicOrderPage() {
 
                 {/* P0-3: 동의 체크박스 3분리 — 주문 내용 / 자동 취소 / 환불 정책 */}
                 <div className="order-sidebar__agreements">
+                  <label className="order-sidebar__agreement-check order-sidebar__agreement-check--all">
+                    <input
+                      checked={
+                        agreementOrder &&
+                        agreementRefund &&
+                        (isPg || agreementPayment)
+                      }
+                      onChange={(e) => {
+                        const next = e.target.checked;
+                        setAgreementOrder(next);
+                        setAgreementPayment(next);
+                        setAgreementRefund(next);
+                      }}
+                      type="checkbox"
+                    />
+                    <span>
+                      <strong>모두 동의하기</strong>
+                    </span>
+                  </label>
                   <label className="order-sidebar__agreement-check">
                     <input
                       checked={agreementOrder}

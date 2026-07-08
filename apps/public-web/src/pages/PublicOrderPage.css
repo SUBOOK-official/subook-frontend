@@ -516,6 +516,19 @@
   color: #a04e1a;
 }
 
+/* '모두 동의하기' 마스터 체크 — 개별 항목과 구분되도록 강조 + 하단 구분선 */
+.order-sidebar__agreement-check--all {
+  background: #ffffff;
+  border-color: var(--public-ds-primary);
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+.order-sidebar__agreement-check--all strong {
+  color: var(--public-ds-text);
+}
+
 .order-sidebar__agreement-link {
   color: var(--public-ds-primary);
   text-decoration: underline;
