@@ -4,7 +4,6 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import ContentContainer from "./ContentContainer";
 import searchIconImage from "../assets/search-icon.svg";
 import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
-import { supabase } from "@shared-supabase/publicSupabaseClient";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { createDisplayName } from "../lib/memberPortal";
 import { getCartItems } from "../lib/cart";
@@ -207,30 +206,7 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { isAuthenticated, profile, user, signOut } = usePublicAuth();
-  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
   const [cartItemCount, setCartItemCount] = useState(0);
-
-  // 안 읽은 알림 카운트 폴링.
-  // - 라우트 변경 시 매번 fetch하면 페이지 이동마다 RPC가 호출되어 Supabase 비용 증가.
-  // - 인증 상태가 바뀔 때만 새 interval을 설정하고, 폴링 주기를 120초로 늘려 트래픽 절반으로.
-  useEffect(() => {
-    if (!isAuthenticated || !supabase) {
-      setUnreadNotifCount(0);
-      return undefined;
-    }
-    let cancelled = false;
-    const fetchCount = async () => {
-      const { data, error } = await supabase.rpc("count_my_unread_notifications");
-      if (cancelled || error) return;
-      setUnreadNotifCount(Number(data) || 0);
-    };
-    void fetchCount();
-    const interval = window.setInterval(fetchCount, 120_000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(interval);
-    };
-  }, [isAuthenticated]);
 
   // 카트 카운트 갱신 트리거 3가지:
   //   1) 인증 상태 변화 (로그인/로그아웃)
@@ -606,17 +582,6 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
           </Link>
           {isAuthenticated ? (
             <>
-              <Link
-                aria-label={`알림 ${unreadNotifCount}개`}
-                className="public-nav-link public-nav-link--wishlist"
-                to="/notifications"
-              >
-                <BellIcon size={15} className="public-nav-link__icon" style={{ color: "var(--public-primary, #1b3a5c)" }} />
-                <span>알림</span>
-                {unreadNotifCount > 0 ? (
-                  <span className="public-nav-link__badge">{unreadNotifCount > 99 ? "99+" : unreadNotifCount}</span>
-                ) : null}
-              </Link>
               <button
                 aria-label={`장바구니 ${cartItemCount}개`}
                 className="public-nav-link public-nav-link--cart"
@@ -751,19 +716,6 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
                     <span className="public-nav-link__badge" style={{ marginLeft: 8 }}>{cartBadge}</span>
                   ) : null}
                 </button>
-                <Link
-                  className="public-nav-drawer__item"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  to="/notifications"
-                >
-                  <BellIcon size={16} style={{ marginRight: 8 }} />
-                  알림함
-                  {unreadNotifCount > 0 ? (
-                    <span className="public-nav-link__badge" style={{ marginLeft: 8 }}>
-                      {unreadNotifCount > 99 ? "99+" : unreadNotifCount}
-                    </span>
-                  ) : null}
-                </Link>
                 <Link className="public-nav-drawer__item" to="/mypage" onClick={() => setIsMobileMenuOpen(false)}>
                   마이페이지
                 </Link>
