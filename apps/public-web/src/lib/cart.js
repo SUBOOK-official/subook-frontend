@@ -257,12 +257,15 @@ async function createOrder({
   shippingMemo,
   paymentMethod = "bank_transfer",
   memberCouponId = null,
+  refundBank = null,
+  refundAccountNumber = null,
+  refundAccountHolder = null,
 }) {
   if (!isSupabaseConfigured || !supabase) {
     return { data: null, error: new Error("서비스에 연결할 수 없습니다.") };
   }
 
-  const { data, error } = await supabase.rpc("create_order", {
+  const baseParams = {
     p_book_ids: bookIds,
     p_quantities: quantities,
     p_shipping_recipient_name: shippingRecipientName,
@@ -273,7 +276,27 @@ async function createOrder({
     p_shipping_memo: shippingMemo || null,
     p_payment_method: paymentMethod,
     p_member_coupon_id: memberCouponId,
-  });
+  };
+
+  const hasRefundAccount = Boolean(refundBank || refundAccountNumber || refundAccountHolder);
+  const refundParams = hasRefundAccount
+    ? {
+        p_refund_bank: refundBank,
+        p_refund_account_number: refundAccountNumber,
+        p_refund_account_holder: refundAccountHolder,
+      }
+    : {};
+
+  let { data, error } = await supabase.rpc("create_order", { ...baseParams, ...refundParams });
+
+  // 백엔드가 아직 환불계좌 파라미터를 지원하지 않으면(함수 시그니처 불일치) 계좌 없이 재시도해 주문은 성공시킨다.
+  if (
+    error &&
+    hasRefundAccount &&
+    /p_refund|could not find|does not exist|PGRST202/i.test(error.message ?? "")
+  ) {
+    ({ data, error } = await supabase.rpc("create_order", baseParams));
+  }
 
   if (error) {
     return { data: null, error };
