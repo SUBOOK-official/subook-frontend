@@ -1200,7 +1200,7 @@ async function requestMemberRefund({ user, orderId, reason, demoMode = false }) 
   return { error: null, source: "supabase" };
 }
 
-async function cancelMemberOrder({ user, orderId, demoMode = false }) {
+async function cancelMemberOrder({ user, orderId, reason = "", demoMode = false }) {
   if (!user) {
     return {
       error: new Error("로그인된 회원 정보를 찾지 못했습니다."),
@@ -1208,9 +1208,26 @@ async function cancelMemberOrder({ user, orderId, demoMode = false }) {
     };
   }
 
+  const trimmedReason = (reason ?? "").trim();
+
   // RPC를 통한 주문 취소 (서버사이드 검증)
   if (isSupabaseConfigured && supabase && !demoMode && typeof orderId === "number") {
-    const { error } = await supabase.rpc("cancel_member_order", { p_order_id: orderId });
+    // p_reason 파라미터를 지원하는 백엔드면 취소 사유를 함께 전달.
+    let { error } = await supabase.rpc(
+      "cancel_member_order",
+      trimmedReason
+        ? { p_order_id: orderId, p_reason: trimmedReason }
+        : { p_order_id: orderId },
+    );
+
+    // 아직 p_reason 미지원 백엔드(함수 시그니처 불일치)면 사유 없이 재시도해 취소 자체는 성공시킨다.
+    if (
+      error &&
+      trimmedReason &&
+      /p_reason|could not find|does not exist|PGRST202/i.test(error.message ?? "")
+    ) {
+      ({ error } = await supabase.rpc("cancel_member_order", { p_order_id: orderId }));
+    }
 
     if (error && !shouldUseLocalSchemaFallback(error)) {
       return { error, source: "fallback" };
@@ -1227,7 +1244,7 @@ async function cancelMemberOrder({ user, orderId, demoMode = false }) {
   const updatedOrders = (baseState.orders ?? []).map((order) =>
     // 백엔드 cancel_member_order와 동일 범위 (pending/paid(레거시)/preparing)
     (order.id === orderId && ["pending", "paid", "preparing"].includes(order.status))
-      ? { ...order, status: "cancelled" }
+      ? { ...order, status: "cancelled", cancelReason: trimmedReason || order.cancelReason }
       : order,
   );
 

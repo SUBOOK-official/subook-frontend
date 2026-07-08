@@ -6,6 +6,7 @@ import ContentContainer from "../components/ContentContainer";
 import ProductCard, { ProductCardSkeleton } from "../components/ProductCard";
 import PublicFooter from "../components/PublicFooter";
 import {
+  CANCEL_REASON_CATEGORIES,
   ConfirmDialog,
   MypageEmptyState,
   MypageSectionHeader,
@@ -889,14 +890,20 @@ function PublicMypagePage() {
   };
 
   const requestCancelOrder = (order) => {
+    setConfirmReason("");
+    setConfirmReasonCategory("");
     setConfirmState({
       open: true,
       type: "cancel_order",
       itemId: order.id,
       title: "주문을 취소하시겠습니까?",
-      body: "취소 후에는 되돌릴 수 없습니다.",
+      body: "취소 후에는 되돌릴 수 없습니다. 취소 사유를 선택해 주세요.",
       confirmLabel: "주문 취소",
       confirmTone: "danger",
+      reasonInput: true,
+      reasonPlaceholder: "기타 사유는 여기에 직접 입력해 주세요.",
+      // '기타' 선택 시에만 상세 사유를 필수(최소 4자)로 받는다.
+      reasonMinLength: 4,
     });
   };
 
@@ -1006,9 +1013,17 @@ function PublicMypagePage() {
 
     if (confirmState.type === "cancel_order") {
       setBusyOrderId(confirmState.itemId);
+      // 취소 사유: 카테고리 라벨 + (있으면) 상세 사유를 한 문자열로 합쳐 전달.
+      const cancelCategoryLabel =
+        CANCEL_REASON_CATEGORIES.find((opt) => opt.value === confirmReasonCategory)?.label ?? "기타";
+      const cancelDetail = confirmReason.trim();
+      const cancelReason = cancelDetail
+        ? `[${cancelCategoryLabel}] ${cancelDetail}`
+        : `[${cancelCategoryLabel}]`;
       const result = await cancelMemberOrder({
         user: effectiveUser,
         orderId: confirmState.itemId,
+        reason: cancelReason,
         demoMode: isDemoPreview,
       });
       setBusyOrderId(null);
@@ -1585,12 +1600,28 @@ function PublicMypagePage() {
         onConfirm={() => {
           void handleConfirmAction();
         }}
-        onReasonCategoryChange={confirmState.type === "refund_order" ? setConfirmReasonCategory : undefined}
+        onReasonCategoryChange={
+          confirmState.type === "refund_order" || confirmState.type === "cancel_order"
+            ? setConfirmReasonCategory
+            : undefined
+        }
         onReasonChange={setConfirmReason}
         open={confirmState.open}
+        reasonCategories={
+          confirmState.type === "cancel_order" ? CANCEL_REASON_CATEGORIES : undefined
+        }
+        reasonCategoryLegend={
+          confirmState.type === "cancel_order" ? "취소 사유" : undefined
+        }
+        changeOfMindHint={confirmState.type === "cancel_order" ? null : undefined}
         reasonCategoryValue={confirmReasonCategory}
         reasonInput={confirmState.reasonInput}
-        reasonMinLength={confirmState.reasonMinLength}
+        reasonMinLength={
+          // 취소는 '기타'일 때만 상세 사유 필수, 그 외 카테고리는 상세 사유 선택.
+          confirmState.type === "cancel_order" && confirmReasonCategory !== "other"
+            ? 0
+            : confirmState.reasonMinLength
+        }
         reasonPlaceholder={confirmState.reasonPlaceholder}
         reasonValue={confirmReason}
         title={confirmState.title}
