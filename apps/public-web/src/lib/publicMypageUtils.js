@@ -576,6 +576,24 @@ export function formatCompactDate(dateString) {
   return `${year}.${month}.${day}`;
 }
 
+// 결제일시 표기용 — 날짜 + 시:분. (결제일시가 없으면 "-")
+export function formatDateTime(dateString) {
+  if (!dateString) {
+    return "-";
+  }
+
+  const date = new Date(dateString);
+
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+
+  const base = formatCompactDate(dateString);
+  const hours = `${date.getHours()}`.padStart(2, "0");
+  const minutes = `${date.getMinutes()}`.padStart(2, "0");
+  return `${base} ${hours}:${minutes}`;
+}
+
 export function formatShipmentReference(reference) {
   if (!reference) {
     return "PU-0000";
@@ -770,6 +788,20 @@ export function mapPickupRequestToShipment(pr) {
 }
 
 // 주문 DB row → PurchasesTab의 order 형태로 변환
+// 결제수단 코드 → 한글 라벨. 미확인/미지원 값은 기본 문구로.
+const PAYMENT_METHOD_LABELS = {
+  bank_transfer: "무통장입금 (계좌이체)",
+  card: "신용/체크카드",
+  kakao_pay: "카카오페이",
+  naver_pay: "네이버페이",
+  toss_pay: "토스페이",
+};
+
+export function getPaymentMethodLabel(method) {
+  if (!method) return "-";
+  return PAYMENT_METHOD_LABELS[method] ?? method;
+}
+
 export function mapOrderToDisplayOrder(order) {
   const items = (order.items ?? []).map((item) => ({
     id: item.id,
@@ -806,6 +838,8 @@ export function mapOrderToDisplayOrder(order) {
     reference: order.order_number,
     recipientName: order.shipping_recipient_name ?? null,
     paymentStatus: order.payment_status ?? null,
+    paymentMethod: order.payment_method ?? null,
+    paidAt: order.paid_at ?? null,
     createdAt: order.created_at,
     status: order.status,
     subtotal: order.subtotal ?? 0,

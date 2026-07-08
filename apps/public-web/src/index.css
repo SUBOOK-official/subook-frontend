@@ -4144,6 +4144,11 @@ img {
   align-items: flex-start;
 }
 
+/* 회원가입: 설명 문구 제거로 타이틀과 OAuth 버튼이 붙어 보여 여백 보강 */
+.public-auth-card--signup .public-auth-card__heading {
+  margin-bottom: 16px;
+}
+
 .public-auth-card__title {
   margin: 0;
   color: var(--public-ds-text);
@@ -4172,8 +4177,8 @@ img {
   margin-bottom: 16px;
   background: transparent;
   color: var(--public-ds-accent);
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 18px;
+  font-weight: 700;
   line-height: 1.5;
 }
 
@@ -8926,18 +8931,18 @@ img {
 .public-auth-back-link {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
 }
 
 .public-auth-back-link__chevron {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 999px;
-  background: rgba(20, 24, 28, 0.05);
-  font-size: 18px;
+  /* 회색 원 배경 제거 — chevron만 크게 노출 */
+  background: transparent;
+  /* ‹ 글리프가 '뒤로' 텍스트와 수직 중앙에 맞도록 텍스트와 동일 높이의 라인박스를 준다 */
+  height: 1em;
+  font-size: 26px;
   font-weight: 800;
   line-height: 1;
   color: var(--public-ds-accent);

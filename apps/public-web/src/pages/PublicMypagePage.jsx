@@ -70,10 +70,12 @@ import {
   filterShipmentsByStatus,
   findSidebarItem,
   formatCompactDate,
+  formatDateTime,
   formatShipmentReference,
   getDefaultTabForMember,
   getOrderStatusLabel,
   getOrderStatusTone,
+  getPaymentMethodLabel,
   getShipmentProgressIndex,
   getShipmentStatusLabel,
   getShipmentStatusTone,
@@ -2414,6 +2416,62 @@ function describeCouponDiscount(coupon) {
 // 새 구매 내역 화면. 상단 통계 카드 5개 + 날짜별로 묶인 주문 카드 리스트.
 // 한 주문(order) 안의 각 item을 별개의 카드로 보여주고, 액션은 배송 조회 / 재구매로 단순화.
 // 배송 전(canCancel) 상태에서는 "주문 취소"가 추가로 노출되고, 반품은 주문 상세 흐름으로 위임.
+// 주문내역 상세보기 팝업 — 결제일시/결제방법/금액 내역(상품·쿠폰·배송비·합산)을 노출.
+function OrderDetailSheet({ order, onClose }) {
+  if (!order) {
+    return null;
+  }
+
+  const couponDiscount = Number(order.couponDiscountAmount) || 0;
+  const shippingFee = Number(order.shippingFee) || 0;
+  const totalAmount = Number(order.totalAmount) || 0;
+  // 총 상품금액: subtotal 컬럼 우선, 없으면 합산금액에서 역산(결제금액 + 쿠폰할인 − 배송비).
+  const productTotal =
+    Number(order.subtotal) || Math.max(0, totalAmount + couponDiscount - shippingFee);
+
+  return (
+    <ResponsiveSheet
+      eyebrow="주문 상세"
+      onClose={onClose}
+      open={Boolean(order)}
+      title="결제 정보"
+    >
+      <dl className="public-mypage-order-detail">
+        <div className="public-mypage-order-detail__row">
+          <dt>결제일시</dt>
+          <dd>{formatDateTime(order.paidAt || order.createdAt)}</dd>
+        </div>
+        <div className="public-mypage-order-detail__row">
+          <dt>결제방법</dt>
+          <dd>{getPaymentMethodLabel(order.paymentMethod)}</dd>
+        </div>
+
+        <div className="public-mypage-order-detail__divider" aria-hidden="true" />
+
+        <div className="public-mypage-order-detail__row">
+          <dt>총 상품금액</dt>
+          <dd>{formatCurrency(productTotal)}</dd>
+        </div>
+        <div className="public-mypage-order-detail__row">
+          <dt>쿠폰할인</dt>
+          <dd>{couponDiscount > 0 ? `−${formatCurrency(couponDiscount)}` : formatCurrency(0)}</dd>
+        </div>
+        <div className="public-mypage-order-detail__row">
+          <dt>배송비</dt>
+          <dd>{shippingFee > 0 ? formatCurrency(shippingFee) : "무료"}</dd>
+        </div>
+
+        <div className="public-mypage-order-detail__divider" aria-hidden="true" />
+
+        <div className="public-mypage-order-detail__row public-mypage-order-detail__row--total">
+          <dt>결제금액</dt>
+          <dd>{formatCurrency(totalAmount)}</dd>
+        </div>
+      </dl>
+    </ResponsiveSheet>
+  );
+}
+
 function PurchasesView({
   busyOrderId,
   onCancelOrder,
@@ -2422,6 +2480,7 @@ function PurchasesView({
   onTrackParcel,
   orders,
 }) {
+  const [detailOrder, setDetailOrder] = useState(null);
   const [activeFilter, setActiveFilter] = useState("all");
   const navigate = useNavigate();
 
@@ -2491,6 +2550,15 @@ function PurchasesView({
                       <span className={`public-mypage-chip public-mypage-chip--${getOrderStatusTone(order.status)}`}>
                         {getOrderStatusLabel(order.status)}
                       </span>
+                      <button
+                        aria-label="주문 상세보기"
+                        className="public-mypage-purchase-card__detail-btn"
+                        onClick={() => setDetailOrder(order)}
+                        type="button"
+                      >
+                        <span>상세보기</span>
+                        <ChevronRightIcon size={16} />
+                      </button>
                     </div>
 
                     {/* 입금 대기 주문: 계좌·입금자명·금액 재확인 (주문완료 화면 놓쳐도 입금 가능) */}
@@ -2592,6 +2660,8 @@ function PurchasesView({
           </section>
         ))
       )}
+
+      <OrderDetailSheet order={detailOrder} onClose={() => setDetailOrder(null)} />
     </div>
   );
 }
