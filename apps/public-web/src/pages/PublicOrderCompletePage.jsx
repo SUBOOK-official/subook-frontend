@@ -323,15 +323,6 @@ function PublicOrderCompletePage() {
                         </>
                       )}
                     </p>
-
-                    {/* P0-6: 비로그인 / state 소실 시에도 다시 확인할 수 있도록 회복 경로 명시 */}
-                    <p className="order-complete-card__bank-recovery">
-                      이 정보는 카카오톡으로도 발송됩니다.{" "}
-                      <Link className="order-complete-card__bank-recovery-link" to="/mypage">
-                        마이페이지 &gt; 주문내역
-                      </Link>
-                      에서 언제든지 다시 확인할 수 있어요.
-                    </p>
                   </div>
                 ) : null}
 
