@@ -7372,6 +7372,11 @@ img {
   position: absolute;
   inset: 0;
   z-index: 2;
+  /* 풀블리드 배너에 맞춰 컨트롤도 컨테이너 max-width/여백 없이 배너 폭 전체로 확장
+     → 화살표가 배너 양끝 가까이 붙는다 (ContentContainer 기본값 상쇄) */
+  max-width: none;
+  margin: 0;
+  padding-inline: 0;
   /* 컨트롤 컨테이너의 빈 영역이 CTA 클릭을 가로채지 않도록 */
   pointer-events: none;
 }
@@ -7493,7 +7498,7 @@ img {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 16px;
+  padding: 0 50px;
   pointer-events: none;
 }
 
@@ -8142,14 +8147,16 @@ img {
 }
 
 @media (min-width: 768px) {
+  /* 데스크톱에서도 배너를 화면 가로에 꽉 차게(풀블리드) 노출 — 위아래·옆 여백 제거 */
   .public-home-hero-banner {
-    padding-top: 24px;
-    padding-bottom: 32px;
+    padding: 0;
   }
 
   .public-home-hero-banner__viewport {
-    /* 데스크톱 배너 이미지 비율(1200:300 = 4:1) */
-    aspect-ratio: 4 / 1;
+    /* 데스크톱 배너 이미지 비율(3200:500 = 32:5) */
+    aspect-ratio: 32 / 5;
+    max-width: none;
+    border-radius: 0;
   }
 
   .public-home-hero-banner__content {
@@ -9155,8 +9162,9 @@ img {
 
 /* ── ProductCard 메타라인 (year · teacher · subject) ───────────── */
 .public-product-card__meta-line {
+  /* 상품 정보 메타(연도·강사·과목)는 모바일에 이어 웹에서도 노출하지 않는다 */
   margin: 0;
-  display: flex;
+  display: none;
   flex-wrap: wrap;
   align-items: center;
   gap: 4px 6px;
