@@ -23,7 +23,7 @@
   --public-teal-start: rgb(1, 205, 171);
   --public-teal-end: rgb(7, 126, 132);
   /* index.html에서 실제 로드하는 폰트만 선언한다 (미로드 폰트를 앞세우지 않음) */
-  --public-font: "Pretendard Variable", "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  --public-font: "LINE Seed Sans KR", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
 
   /* Design System tokens — cart/order/auth/mypage 계열.
      accent·포커스·상태색을 전부 브랜드 네이비(#1B3A5C)와 무채색 뉴트럴에서 파생시킨다.
