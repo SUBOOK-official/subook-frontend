@@ -7,6 +7,10 @@ import { ArrowRightIcon, CheckIcon, EyeIcon, EyeOffIcon } from "../components/ic
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { getPublicAccountAccessState } from "../lib/publicAuthAccess";
 import {
+  buildSocialDuplicateSignupMessage,
+  isSocialOnlyAccount,
+} from "../lib/publicAuthProviders";
+import {
   formatPhoneNumber,
   getPasswordStrengthState,
   hasRequiredPasswordConditions,
@@ -252,12 +256,29 @@ function PublicSignupPage() {
       // available 아니면 hint 끔
       setIsLegacyEmail(false);
 
-      if (row?.account_role === "member") {
+      // 'member' = member_profiles 보유 회원, 'registered' = auth.users에만 존재(안전망).
+      // 어느 쪽이든 "이미 가입된 이메일" — 소셜로만 가입한 이메일이면 가입 수단까지 안내.
+      if (row?.account_role === "member" || row?.account_role === "registered") {
         setEmailStatus({
           state: "duplicate",
           email: normalizedEmail,
           message: "이미 가입된 이메일입니다.",
         });
+        try {
+          const { data: providerData } = await supabase.rpc(
+            "get_member_auth_providers",
+            { p_email: normalizedEmail },
+          );
+          if (isMounted && isSocialOnlyAccount(providerData)) {
+            setEmailStatus({
+              state: "duplicate",
+              email: normalizedEmail,
+              message: buildSocialDuplicateSignupMessage(providerData),
+            });
+          }
+        } catch {
+          /* provider 조회 실패 시 기본 안내 유지 */
+        }
         return;
       }
 

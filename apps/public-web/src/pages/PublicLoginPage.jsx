@@ -16,6 +16,10 @@ import {
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { getPublicAccountAccessState } from "../lib/publicAuthAccess";
 import { isValidEmailFormat, normalizeEmail } from "../lib/publicAuthFormUtils";
+import {
+  buildSocialOnlyLoginMessage,
+  isSocialOnlyAccount,
+} from "../lib/publicAuthProviders";
 import { saveSignupSuccessState } from "../lib/publicSignupSuccessState";
 
 function PublicLoginPage() {
@@ -58,6 +62,8 @@ function PublicLoginPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   // 이전 수북(식스샵) 회원 hint — 매칭 이메일이면 가입 유도 안내 표시
   const [legacyHint, setLegacyHint] = useState("");
+  // 소셜 전용 계정 hint — 카카오/구글로만 가입한 이메일이 비밀번호 로그인을 시도한 경우
+  const [socialOnlyHint, setSocialOnlyHint] = useState("");
 
   const handlePasswordKeyEvent = (event) => {
     if (typeof event.getModifierState === "function") {
@@ -99,6 +105,7 @@ function PublicLoginPage() {
     setEmail(event.target.value);
     setPageError("");
     setWithdrawalRecoveryEmail("");
+    setSocialOnlyHint("");
     setFieldErrors((currentValue) => ({
       ...currentValue,
       email: "",
@@ -140,6 +147,7 @@ function PublicLoginPage() {
     event.preventDefault();
     setPageError("");
     setPageNotice("");
+    setSocialOnlyHint("");
 
     if (!isSupabaseConfigured || !supabase) {
       setPageError("로그인 기능을 사용하려면 Supabase 환경 설정이 필요합니다.");
@@ -172,23 +180,41 @@ function PublicLoginPage() {
       }
 
       if (rawMessage.includes("invalid login credentials")) {
-        setFieldErrors((currentValue) => ({
-          ...currentValue,
-          password: "이메일 또는 비밀번호가 일치하지 않습니다.",
-        }));
-
-        // 이전 수북(식스샵 버전) 회원 안내 — 같은 이메일이면 친절히 가입 유도.
-        // RPC는 boolean만 반환 (PII 노출 X).
+        // 소셜 전용 계정(비밀번호 없음) 확인 — RPC는 provider 목록만 반환 (PII 노출 X).
+        // 카카오/구글로만 가입한 이메일이면 "비밀번호 불일치" 대신 가입 수단을 안내한다.
+        let handledAsSocialOnly = false;
         try {
-          const { data: isLegacy } = await supabase.rpc(
-            "is_legacy_sixshop_email",
+          const { data: providerData } = await supabase.rpc(
+            "get_member_auth_providers",
             { p_email: normalized },
           );
-          if (isLegacy) {
-            setLegacyHint(normalized);
+          if (isSocialOnlyAccount(providerData)) {
+            setSocialOnlyHint(buildSocialOnlyLoginMessage(providerData));
+            handledAsSocialOnly = true;
           }
         } catch {
-          /* RPC 실패는 무시 — 일반 안내만 노출 */
+          /* RPC 실패는 무시 — 아래 일반 안내로 진행 */
+        }
+
+        if (!handledAsSocialOnly) {
+          setFieldErrors((currentValue) => ({
+            ...currentValue,
+            password: "이메일 또는 비밀번호가 일치하지 않습니다.",
+          }));
+
+          // 이전 수북(식스샵 버전) 회원 안내 — 같은 이메일이면 친절히 가입 유도.
+          // RPC는 boolean만 반환 (PII 노출 X).
+          try {
+            const { data: isLegacy } = await supabase.rpc(
+              "is_legacy_sixshop_email",
+              { p_email: normalized },
+            );
+            if (isLegacy) {
+              setLegacyHint(normalized);
+            }
+          } catch {
+            /* RPC 실패는 무시 — 일반 안내만 노출 */
+          }
         }
       } else {
         setPageError(
@@ -433,6 +459,15 @@ function PublicLoginPage() {
                   </p>
                 ) : null}
               </div>
+
+              {socialOnlyHint ? (
+                <div
+                  className="public-auth-alert public-auth-alert--info"
+                  role="status"
+                >
+                  <p>{socialOnlyHint}</p>
+                </div>
+              ) : null}
 
               {legacyHint ? (
                 <div className="public-auth-alert public-auth-alert--info">
