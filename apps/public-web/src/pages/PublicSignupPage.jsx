@@ -724,16 +724,13 @@ function PublicSignupPage() {
               <Link className="public-auth-brand" to="/">
                 SUBOOK
               </Link>
-              <p className="public-auth-brand-lockup__tagline">수능 교재, 똑똑하게 거래</p>
+              <p className="public-auth-brand-lockup__tagline">수능을 위한 가장 똑똑한 선택</p>
             </div>
 
-            <div className="public-auth-card__heading public-auth-card__heading--left">
+            <div className="public-auth-card__heading">
               <h1 className="public-auth-card__title" id="public-signup-heading">
                 회원가입
               </h1>
-              <p className="public-auth-card__description">
-                기본 정보와 약관 동의를 완료하면 바로 회원가입을 진행할 수 있어요.
-              </p>
             </div>
 
             <PublicOAuthButtons

@@ -201,6 +201,8 @@ function PublicOrderPage() {
   const [savedAddresses, setSavedAddresses] = useState([]);
   const [selectedAddressId, setSelectedAddressId] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState(TOSS_READY ? "card" : "bank_transfer");
+  // 무통장입금 환불 대비 계좌 정보 (PG 안정화 전까지 수동 환불용). 관리자 주문 상세에서 확인.
+  const [refundAccount, setRefundAccount] = useState({ bank: "", number: "", holder: "" });
   const [isSubmitting, setIsSubmitting] = useState(false);
   // P0-3: 동의 체크박스 3개로 분리 — 주문 내용/결제 및 자동 취소/환불 정책
   const [agreementOrder, setAgreementOrder] = useState(false);
@@ -517,6 +519,12 @@ function PublicOrderPage() {
       shippingMemo: shipping.memo.trim() || null,
       paymentMethod,
       memberCouponId: selectedCouponId,
+      // 무통장입금일 때만 환불 계좌 전달 (PG 결제는 원결제수단으로 자동 환불).
+      refundBank: paymentMethod === "bank_transfer" ? refundAccount.bank.trim() || null : null,
+      refundAccountNumber:
+        paymentMethod === "bank_transfer" ? refundAccount.number.replace(/[^0-9]/g, "") || null : null,
+      refundAccountHolder:
+        paymentMethod === "bank_transfer" ? refundAccount.holder.trim() || null : null,
     });
 
     if (error) {
@@ -848,6 +856,41 @@ function PublicOrderPage() {
                   </div>
                 )}
               </div>
+
+              {/* 환불 계좌 정보 — 무통장입금 결제 시에만. PG 안정화 전까지 수동 환불 대비.
+                  관리자 주문 상세에서 확인 가능. */}
+              {paymentMethod === "bank_transfer" && (
+                <div className="order-section">
+                  <h2 className="order-section__title">환불 계좌 정보</h2>
+                  <p className="order-section__hint">
+                    무통장입금 결제는 환불 시 아래 계좌로 돌려드려요. (선택 입력 · 미입력 시 환불 단계에서 확인)
+                  </p>
+                  <div className="order-refund-account">
+                    <input
+                      className="order-refund-account__input"
+                      onChange={(e) => setRefundAccount((prev) => ({ ...prev, bank: e.target.value }))}
+                      placeholder="은행명 (예: 카카오뱅크)"
+                      type="text"
+                      value={refundAccount.bank}
+                    />
+                    <input
+                      className="order-refund-account__input"
+                      inputMode="numeric"
+                      onChange={(e) => setRefundAccount((prev) => ({ ...prev, number: e.target.value }))}
+                      placeholder="계좌번호 (‘-’ 없이 숫자만)"
+                      type="text"
+                      value={refundAccount.number}
+                    />
+                    <input
+                      className="order-refund-account__input"
+                      onChange={(e) => setRefundAccount((prev) => ({ ...prev, holder: e.target.value }))}
+                      placeholder="예금주"
+                      type="text"
+                      value={refundAccount.holder}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* 결제 요약 사이드바 — 모바일 키보드 활성 시 가려지지 않도록 bottom 동적 보정 */}
@@ -925,6 +968,25 @@ function PublicOrderPage() {
 
                 {/* P0-3: 동의 체크박스 3분리 — 주문 내용 / 자동 취소 / 환불 정책 */}
                 <div className="order-sidebar__agreements">
+                  <label className="order-sidebar__agreement-check order-sidebar__agreement-check--all">
+                    <input
+                      checked={
+                        agreementOrder &&
+                        agreementRefund &&
+                        (isPg || agreementPayment)
+                      }
+                      onChange={(e) => {
+                        const next = e.target.checked;
+                        setAgreementOrder(next);
+                        setAgreementPayment(next);
+                        setAgreementRefund(next);
+                      }}
+                      type="checkbox"
+                    />
+                    <span>
+                      <strong>모두 동의하기</strong>
+                    </span>
+                  </label>
                   <label className="order-sidebar__agreement-check">
                     <input
                       checked={agreementOrder}

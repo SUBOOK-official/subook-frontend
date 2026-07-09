@@ -15,7 +15,8 @@ test("parseStorefrontQuery falls back to the default subject for invalid values"
   const parsed = parseStorefrontQuery("?subject=없는과목&sort=unknown&page=-2");
 
   assert.equal(parsed.selectedSubject, STORE_DEFAULT_SUBJECT);
-  assert.equal(parsed.sortOption, "latest");
+  // 기본 정렬은 '인기순(popular)' — 유효하지 않은 sort 값은 이 기본값으로 폴백.
+  assert.equal(parsed.sortOption, "popular");
   assert.equal(parsed.page, 1);
 });
 
@@ -52,14 +53,15 @@ test("serializeStorefrontQuery uses spec query keys and omits defaults", () => {
       years: ["2026"],
       conditionGrades: ["S"],
     },
-    sortOption: "popular",
+    // 'popular'는 이제 기본 정렬이라 URL에서 생략됨 → 비기본 정렬(latest)로 직렬화 검증.
+    sortOption: "latest",
     searchKeyword: "파이널",
     currentPage: 3,
   });
 
   assert.equal(
     serialized,
-    "subject=%EC%98%81%EC%96%B4&type=%EA%B8%B0%EC%B6%9C&brand=%EC%8B%9C%EB%8C%80%EC%9D%B8%EC%9E%AC&year=2026&grade=S&sort=popular&q=%ED%8C%8C%EC%9D%B4%EB%84%90&page=3",
+    "subject=%EC%98%81%EC%96%B4&type=%EA%B8%B0%EC%B6%9C&brand=%EC%8B%9C%EB%8C%80%EC%9D%B8%EC%9E%AC&year=2026&grade=S&sort=latest&q=%ED%8C%8C%EC%9D%B4%EB%84%90&page=3",
   );
 });
 

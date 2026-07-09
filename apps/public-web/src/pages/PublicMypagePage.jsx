@@ -6,6 +6,7 @@ import ContentContainer from "../components/ContentContainer";
 import ProductCard, { ProductCardSkeleton } from "../components/ProductCard";
 import PublicFooter from "../components/PublicFooter";
 import {
+  CANCEL_REASON_CATEGORIES,
   ConfirmDialog,
   MypageEmptyState,
   MypageSectionHeader,
@@ -69,10 +70,12 @@ import {
   filterShipmentsByStatus,
   findSidebarItem,
   formatCompactDate,
+  formatDateTime,
   formatShipmentReference,
   getDefaultTabForMember,
   getOrderStatusLabel,
   getOrderStatusTone,
+  getPaymentMethodLabel,
   getShipmentProgressIndex,
   getShipmentStatusLabel,
   getShipmentStatusTone,
@@ -889,14 +892,20 @@ function PublicMypagePage() {
   };
 
   const requestCancelOrder = (order) => {
+    setConfirmReason("");
+    setConfirmReasonCategory("");
     setConfirmState({
       open: true,
       type: "cancel_order",
       itemId: order.id,
       title: "주문을 취소하시겠습니까?",
-      body: "취소 후에는 되돌릴 수 없습니다.",
+      body: "취소 후에는 되돌릴 수 없습니다. 취소 사유를 선택해 주세요.",
       confirmLabel: "주문 취소",
       confirmTone: "danger",
+      reasonInput: true,
+      reasonPlaceholder: "기타 사유는 여기에 직접 입력해 주세요.",
+      // '기타' 선택 시에만 상세 사유를 필수(최소 4자)로 받는다.
+      reasonMinLength: 4,
     });
   };
 
@@ -1006,9 +1015,17 @@ function PublicMypagePage() {
 
     if (confirmState.type === "cancel_order") {
       setBusyOrderId(confirmState.itemId);
+      // 취소 사유: 카테고리 라벨 + (있으면) 상세 사유를 한 문자열로 합쳐 전달.
+      const cancelCategoryLabel =
+        CANCEL_REASON_CATEGORIES.find((opt) => opt.value === confirmReasonCategory)?.label ?? "기타";
+      const cancelDetail = confirmReason.trim();
+      const cancelReason = cancelDetail
+        ? `[${cancelCategoryLabel}] ${cancelDetail}`
+        : `[${cancelCategoryLabel}]`;
       const result = await cancelMemberOrder({
         user: effectiveUser,
         orderId: confirmState.itemId,
+        reason: cancelReason,
         demoMode: isDemoPreview,
       });
       setBusyOrderId(null);
@@ -1585,12 +1602,28 @@ function PublicMypagePage() {
         onConfirm={() => {
           void handleConfirmAction();
         }}
-        onReasonCategoryChange={confirmState.type === "refund_order" ? setConfirmReasonCategory : undefined}
+        onReasonCategoryChange={
+          confirmState.type === "refund_order" || confirmState.type === "cancel_order"
+            ? setConfirmReasonCategory
+            : undefined
+        }
         onReasonChange={setConfirmReason}
         open={confirmState.open}
+        reasonCategories={
+          confirmState.type === "cancel_order" ? CANCEL_REASON_CATEGORIES : undefined
+        }
+        reasonCategoryLegend={
+          confirmState.type === "cancel_order" ? "취소 사유" : undefined
+        }
+        changeOfMindHint={confirmState.type === "cancel_order" ? null : undefined}
         reasonCategoryValue={confirmReasonCategory}
         reasonInput={confirmState.reasonInput}
-        reasonMinLength={confirmState.reasonMinLength}
+        reasonMinLength={
+          // 취소는 '기타'일 때만 상세 사유 필수, 그 외 카테고리는 상세 사유 선택.
+          confirmState.type === "cancel_order" && confirmReasonCategory !== "other"
+            ? 0
+            : confirmState.reasonMinLength
+        }
         reasonPlaceholder={confirmState.reasonPlaceholder}
         reasonValue={confirmReason}
         title={confirmState.title}
@@ -2383,6 +2416,62 @@ function describeCouponDiscount(coupon) {
 // 새 구매 내역 화면. 상단 통계 카드 5개 + 날짜별로 묶인 주문 카드 리스트.
 // 한 주문(order) 안의 각 item을 별개의 카드로 보여주고, 액션은 배송 조회 / 재구매로 단순화.
 // 배송 전(canCancel) 상태에서는 "주문 취소"가 추가로 노출되고, 반품은 주문 상세 흐름으로 위임.
+// 주문내역 상세보기 팝업 — 결제일시/결제방법/금액 내역(상품·쿠폰·배송비·합산)을 노출.
+function OrderDetailSheet({ order, onClose }) {
+  if (!order) {
+    return null;
+  }
+
+  const couponDiscount = Number(order.couponDiscountAmount) || 0;
+  const shippingFee = Number(order.shippingFee) || 0;
+  const totalAmount = Number(order.totalAmount) || 0;
+  // 총 상품금액: subtotal 컬럼 우선, 없으면 합산금액에서 역산(결제금액 + 쿠폰할인 − 배송비).
+  const productTotal =
+    Number(order.subtotal) || Math.max(0, totalAmount + couponDiscount - shippingFee);
+
+  return (
+    <ResponsiveSheet
+      eyebrow="주문 상세"
+      onClose={onClose}
+      open={Boolean(order)}
+      title="결제 정보"
+    >
+      <dl className="public-mypage-order-detail">
+        <div className="public-mypage-order-detail__row">
+          <dt>결제일시</dt>
+          <dd>{formatDateTime(order.paidAt || order.createdAt)}</dd>
+        </div>
+        <div className="public-mypage-order-detail__row">
+          <dt>결제방법</dt>
+          <dd>{getPaymentMethodLabel(order.paymentMethod)}</dd>
+        </div>
+
+        <div className="public-mypage-order-detail__divider" aria-hidden="true" />
+
+        <div className="public-mypage-order-detail__row">
+          <dt>총 상품금액</dt>
+          <dd>{formatCurrency(productTotal)}</dd>
+        </div>
+        <div className="public-mypage-order-detail__row">
+          <dt>쿠폰할인</dt>
+          <dd>{couponDiscount > 0 ? `−${formatCurrency(couponDiscount)}` : formatCurrency(0)}</dd>
+        </div>
+        <div className="public-mypage-order-detail__row">
+          <dt>배송비</dt>
+          <dd>{shippingFee > 0 ? formatCurrency(shippingFee) : "무료"}</dd>
+        </div>
+
+        <div className="public-mypage-order-detail__divider" aria-hidden="true" />
+
+        <div className="public-mypage-order-detail__row public-mypage-order-detail__row--total">
+          <dt>결제금액</dt>
+          <dd>{formatCurrency(totalAmount)}</dd>
+        </div>
+      </dl>
+    </ResponsiveSheet>
+  );
+}
+
 function PurchasesView({
   busyOrderId,
   onCancelOrder,
@@ -2391,6 +2480,7 @@ function PurchasesView({
   onTrackParcel,
   orders,
 }) {
+  const [detailOrder, setDetailOrder] = useState(null);
   const [activeFilter, setActiveFilter] = useState("all");
   const navigate = useNavigate();
 
@@ -2460,6 +2550,15 @@ function PurchasesView({
                       <span className={`public-mypage-chip public-mypage-chip--${getOrderStatusTone(order.status)}`}>
                         {getOrderStatusLabel(order.status)}
                       </span>
+                      <button
+                        aria-label="주문 상세보기"
+                        className="public-mypage-purchase-card__detail-btn"
+                        onClick={() => setDetailOrder(order)}
+                        type="button"
+                      >
+                        <span>상세보기</span>
+                        <ChevronRightIcon size={16} />
+                      </button>
                     </div>
 
                     {/* 입금 대기 주문: 계좌·입금자명·금액 재확인 (주문완료 화면 놓쳐도 입금 가능) */}
@@ -2561,6 +2660,8 @@ function PurchasesView({
           </section>
         ))
       )}
+
+      <OrderDetailSheet order={detailOrder} onClose={() => setDetailOrder(null)} />
     </div>
   );
 }

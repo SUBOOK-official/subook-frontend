@@ -1,16 +1,22 @@
 import { useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/publicSupabaseClient";
 import { MailIcon } from "../components/icons";
 import { isValidEmailFormat, normalizeEmail } from "../lib/publicAuthFormUtils";
 
 function PublicForgotPasswordPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const emailInputRef = useRef(null);
+
+  const prefillEmail =
+    typeof location.state?.prefillEmail === "string"
+      ? location.state.prefillEmail
+      : "";
 
   const [formValues, setFormValues] = useState({
     name: "",
-    email: "",
+    email: prefillEmail,
   });
   const [fieldErrors, setFieldErrors] = useState({
     name: "",
@@ -173,7 +179,7 @@ function PublicForgotPasswordPage() {
                     <p className="public-auth-state-card__hint">
                       메일이 도착하지 않는다면 스팸함을 확인하고, 가입 시 입력한 이름과
                       이메일이 모두 정확한지 확인해 주세요. 5분 이내 도착하지 않으면
-                      고객센터(subook2025@gmail.com)로 문의해 주세요.
+                      고객센터(카카오톡 공식 채널 @subook)로 문의해 주세요.
                     </p>
                   </div>
                 </div>

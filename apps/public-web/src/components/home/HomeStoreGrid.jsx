@@ -317,6 +317,13 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
     setCurrentPage(1);
   };
 
+  // 사이드바 '선택 초기화하기' — 과목 + 필터(유형·브랜드 등)를 모두 초기 상태로.
+  const handleResetAllSelections = () => {
+    setSelectedSubject(STORE_DEFAULT_SUBJECT);
+    setSelectedFilters(createStoreInitialFilters());
+    setCurrentPage(1);
+  };
+
   const handleClearSearchKeyword = () => {
     setSearchKeyword("");
     setCurrentPage(1);
@@ -345,6 +352,40 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
     });
     return candidates.slice(0, 2);
   }, [selectedFilters]);
+
+  // 사이드바 하단 '선택한 항목' 요약 칩. 과목(전체 제외) + 유형·브랜드 선택값.
+  // 각 칩 클릭 시 개별 해제, 아래 '선택 초기화하기'로 전체 해제.
+  const selectedSummaryChips = useMemo(() => {
+    const chips = [];
+    if (selectedSubject && selectedSubject !== STORE_DEFAULT_SUBJECT) {
+      chips.push({
+        key: `subject:${selectedSubject}`,
+        label: selectedSubject,
+        onRemove: () => {
+          setSelectedSubject(STORE_DEFAULT_SUBJECT);
+          setCurrentPage(1);
+        },
+      });
+    }
+    HOME_SIDEBAR_FILTER_GROUPS.forEach((group) => {
+      (selectedFilters[group.key] ?? []).forEach((value) => {
+        const option = group.options.find(
+          (opt) => (typeof opt === "string" ? opt : opt.value) === value,
+        );
+        chips.push({
+          key: `${group.key}:${value}`,
+          label: option ? getFilterOptionLabel(option) : value,
+          onRemove: () => {
+            setSelectedFilters((current) =>
+              toggleStoreFilterSelection(current, group.key, value),
+            );
+            setCurrentPage(1);
+          },
+        });
+      });
+    });
+    return chips;
+  }, [selectedSubject, selectedFilters]);
 
   const handleNotifyRestock = () => {
     if (typeof window === "undefined") return;
@@ -432,6 +473,33 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
           <aside className="public-home-store-grid__sidebar" aria-label="필터">
             {subjectGroupJsx}
             {filterGroupsJsx}
+            {selectedSummaryChips.length > 0 ? (
+              <div className="public-home-store-grid__sidebar-selected">
+                <h3 className="public-home-store-grid__sidebar-label">선택한 항목</h3>
+                <ul className="public-home-store-grid__selected-chips" role="list">
+                  {selectedSummaryChips.map((chip) => (
+                    <li key={chip.key}>
+                      <button
+                        aria-label={`${chip.label} 선택 해제`}
+                        className="public-home-store-grid__selected-chip"
+                        onClick={chip.onRemove}
+                        type="button"
+                      >
+                        <span>{chip.label}</span>
+                        <CloseIcon size={12} aria-hidden="true" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                <button
+                  className="public-home-store-grid__reset-link"
+                  onClick={handleResetAllSelections}
+                  type="button"
+                >
+                  선택 초기화하기
+                </button>
+              </div>
+            ) : null}
           </aside>
 
           {/* 우측 메인 — 툴바 + 그리드 + 페이지네이션 (과목 선택은 좌측 사이드바로 이동) */}

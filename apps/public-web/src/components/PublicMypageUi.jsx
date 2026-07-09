@@ -170,6 +170,18 @@ const REFUND_REASON_CATEGORIES = [
   { value: "other", label: "기타" },
 ];
 
+// 주문 취소 사유 카테고리. 배송 전 취소라 배송비 안내는 불필요.
+const CANCEL_REASON_CATEGORIES = [
+  { value: "change_of_mind", label: "단순 변심" },
+  { value: "shipping_delay", label: "배송 지연" },
+  { value: "change_item", label: "다른 상품으로 변경" },
+  { value: "wrong_order", label: "상품을 잘못 주문함" },
+  { value: "other", label: "기타 (직접 입력)" },
+];
+
+const DEFAULT_CHANGE_OF_MIND_HINT =
+  "단순 변심은 전자상거래법상 왕복 배송비를 구매자가 부담합니다.";
+
 function ConfirmDialog({
   body,
   confirmLabel,
@@ -185,6 +197,9 @@ function ConfirmDialog({
   reasonMinLength = 4,
   reasonCategoryValue,
   onReasonCategoryChange,
+  reasonCategories = REFUND_REASON_CATEGORIES,
+  reasonCategoryLegend = "환불 사유 분류",
+  changeOfMindHint = DEFAULT_CHANGE_OF_MIND_HINT,
   busy = false,
 }) {
   const confirmClassName =
@@ -233,13 +248,13 @@ function ConfirmDialog({
           {requireCategory ? (
             <>
               <fieldset className="public-mypage-confirm__category">
-                <legend className="public-mypage-confirm__reason-label">환불 사유 분류</legend>
-                {REFUND_REASON_CATEGORIES.map((opt) => (
+                <legend className="public-mypage-confirm__reason-label">{reasonCategoryLegend}</legend>
+                {reasonCategories.map((opt) => (
                   <label className="public-mypage-confirm__category-option" key={opt.value}>
                     <input
                       checked={reasonCategoryValue === opt.value}
                       disabled={busy}
-                      name="public-mypage-refund-category"
+                      name="public-mypage-reason-category"
                       onChange={() => onReasonCategoryChange(opt.value)}
                       type="radio"
                       value={opt.value}
@@ -248,21 +263,21 @@ function ConfirmDialog({
                   </label>
                 ))}
               </fieldset>
-              {isChangeOfMind ? (
+              {isChangeOfMind && changeOfMindHint ? (
                 <p className="public-mypage-confirm__reason-hint public-mypage-confirm__reason-hint--info">
-                  단순 변심은 전자상거래법상 왕복 배송비를 구매자가 부담합니다.
+                  {changeOfMindHint}
                 </p>
               ) : null}
               {isCategoryMissing ? (
                 <p className="public-mypage-confirm__reason-hint" role="alert">
-                  환불 사유를 선택해주세요.
+                  사유를 선택해주세요.
                 </p>
               ) : null}
             </>
           ) : null}
 
           <label className="public-mypage-confirm__reason-label" htmlFor="public-mypage-confirm-reason">
-            상세 사유 (최소 {reasonMinLength}자)
+            상세 사유 {reasonMinLength > 0 ? `(최소 ${reasonMinLength}자)` : "(선택)"}
           </label>
           <textarea
             id="public-mypage-confirm-reason"
@@ -285,6 +300,7 @@ function ConfirmDialog({
 }
 
 export {
+  CANCEL_REASON_CATEGORIES,
   ConfirmDialog,
   MypageEmptyState,
   MypageSectionHeader,

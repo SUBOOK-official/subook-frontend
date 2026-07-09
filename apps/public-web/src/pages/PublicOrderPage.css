@@ -253,6 +253,37 @@
   color: #6e6e73;
 }
 
+/* 섹션 보조 안내 문구 (환불 계좌 등) */
+.order-section__hint {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #6e6e73;
+}
+
+/* 환불 계좌 입력 그룹 */
+.order-refund-account {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.order-refund-account__input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d4d4d6;
+  border-radius: 8px;
+  font-size: 14px;
+  color: var(--public-ds-text);
+  background: #fff;
+  transition: border-color 0.15s;
+}
+
+.order-refund-account__input:focus {
+  outline: none;
+  border-color: var(--public-ds-primary);
+}
+
 .order-form__address-group {
   display: flex;
   flex-direction: column;
@@ -514,6 +545,19 @@
 
 .order-sidebar__agreement-check strong {
   color: #a04e1a;
+}
+
+/* '모두 동의하기' 마스터 체크 — 개별 항목과 구분되도록 강조 + 하단 구분선 */
+.order-sidebar__agreement-check--all {
+  background: #ffffff;
+  border-color: var(--public-ds-primary);
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+.order-sidebar__agreement-check--all strong {
+  color: var(--public-ds-text);
 }
 
 .order-sidebar__agreement-link {

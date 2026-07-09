@@ -9,6 +9,9 @@ export const STORE_SORT_OPTIONS = [
   { value: "popular", label: "인기순" },
 ];
 
+// 스토어 기본 정렬 — 드롭다운 노출 순서와 무관하게 초기 선택값만 '인기순'으로 지정.
+export const STORE_DEFAULT_SORT = "popular";
+
 export const STORE_FILTER_GROUPS = [
   {
     key: "types",
@@ -124,7 +127,7 @@ export function parseStorefrontQuery(search) {
   const requestedSort = params.get("sort");
   const sortOption = STORE_SORT_OPTIONS.some((option) => option.value === requestedSort)
     ? requestedSort
-    : STORE_SORT_OPTIONS[0].value;
+    : STORE_DEFAULT_SORT;
   const searchKeyword = normalizeQueryValue(params.get("q"));
   const pageValue = Number.parseInt(params.get("page") ?? "1", 10);
 
@@ -157,7 +160,7 @@ export function serializeStorefrontQuery({
     }
   });
 
-  if (sortOption && sortOption !== STORE_SORT_OPTIONS[0].value) {
+  if (sortOption && sortOption !== STORE_DEFAULT_SORT) {
     params.set("sort", sortOption);
   }
 

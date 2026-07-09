@@ -23,7 +23,7 @@
   --public-teal-start: rgb(1, 205, 171);
   --public-teal-end: rgb(7, 126, 132);
   /* index.html에서 실제 로드하는 폰트만 선언한다 (미로드 폰트를 앞세우지 않음) */
-  --public-font: "Pretendard Variable", "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  --public-font: "LINE Seed Sans KR", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
 
   /* Design System tokens — cart/order/auth/mypage 계열.
      accent·포커스·상태색을 전부 브랜드 네이비(#1B3A5C)와 무채색 뉴트럴에서 파생시킨다.
@@ -537,6 +537,61 @@ img {
 .public-home-store-grid__sidebar-option.is-active {
   background: var(--public-primary, #1B3A5C);
   color: #ffffff;
+}
+
+/* 사이드바 하단 '선택한 항목' 요약 + 선택 초기화 */
+.public-home-store-grid__sidebar-selected {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+  padding-top: 16px;
+  border-top: 1px solid var(--public-ds-border, #e5e5e5);
+}
+
+.public-home-store-grid__selected-chips {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.public-home-store-grid__selected-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border: 1px solid var(--public-primary, #1b3a5c);
+  border-radius: 999px;
+  background: rgba(27, 58, 92, 0.06);
+  color: var(--public-primary, #1b3a5c);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.public-home-store-grid__selected-chip:hover {
+  background: rgba(27, 58, 92, 0.12);
+}
+
+.public-home-store-grid__reset-link {
+  align-self: flex-start;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--public-text-muted, #6e6e73);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.public-home-store-grid__reset-link:hover {
+  color: var(--public-text, #232323);
 }
 
 .public-home-store-grid__main {
@@ -4012,7 +4067,7 @@ img {
 .public-auth-route {
   min-height: 100vh;
   padding: 24px 16px 40px;
-  background: var(--public-ds-background);
+  background: #ffffff;
 }
 
 .public-auth-route--success {
@@ -4029,10 +4084,10 @@ img {
   width: min(100%, 560px);
   margin: 0 auto;
   padding: 24px 20px;
-  border: 1px solid var(--public-ds-border);
-  border-radius: var(--public-radius-xl);
-  background: var(--public-ds-card);
-  box-shadow: var(--public-ds-shadow);
+  border: 0;
+  border-radius: 0;
+  background: #ffffff;
+  box-shadow: none;
 }
 
 .public-auth-card--signup {
@@ -4089,6 +4144,11 @@ img {
   align-items: flex-start;
 }
 
+/* 회원가입: 설명 문구 제거로 타이틀과 OAuth 버튼이 붙어 보여 여백 보강 */
+.public-auth-card--signup .public-auth-card__heading {
+  margin-bottom: 16px;
+}
+
 .public-auth-card__title {
   margin: 0;
   color: var(--public-ds-text);
@@ -4117,8 +4177,8 @@ img {
   margin-bottom: 16px;
   background: transparent;
   color: var(--public-ds-accent);
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 18px;
+  font-weight: 700;
   line-height: 1.5;
 }
 
@@ -4198,14 +4258,15 @@ img {
     box-shadow 160ms ease;
 }
 
+.public-auth-field-row__control:hover,
 .public-auth-field-row__control:focus-within {
   border-color: var(--public-ds-accent);
-  box-shadow: var(--public-focus-ring);
+  box-shadow: none;
 }
 
 .public-auth-field-row.is-error .public-auth-field-row__control {
   border-color: var(--public-ds-danger);
-  box-shadow: 0 0 0 3px rgba(208, 52, 44, 0.14);
+  box-shadow: none;
 }
 
 .public-auth-field-row__control--with-action {
@@ -7371,6 +7432,11 @@ img {
   position: absolute;
   inset: 0;
   z-index: 2;
+  /* 풀블리드 배너에 맞춰 컨트롤도 컨테이너 max-width/여백 없이 배너 폭 전체로 확장
+     → 화살표가 배너 양끝 가까이 붙는다 (ContentContainer 기본값 상쇄) */
+  max-width: none;
+  margin: 0;
+  padding-inline: 0;
   /* 컨트롤 컨테이너의 빈 영역이 CTA 클릭을 가로채지 않도록 */
   pointer-events: none;
 }
@@ -7492,7 +7558,7 @@ img {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 16px;
+  padding: 0 50px;
   pointer-events: none;
 }
 
@@ -8141,14 +8207,16 @@ img {
 }
 
 @media (min-width: 768px) {
+  /* 데스크톱에서도 배너를 화면 가로에 꽉 차게(풀블리드) 노출 — 위아래·옆 여백 제거 */
   .public-home-hero-banner {
-    padding-top: 24px;
-    padding-bottom: 32px;
+    padding: 0;
   }
 
   .public-home-hero-banner__viewport {
-    /* 데스크톱 배너 이미지 비율(1200:300 = 4:1) */
-    aspect-ratio: 4 / 1;
+    /* 데스크톱 배너 이미지 비율(3200:500 = 32:5) */
+    aspect-ratio: 32 / 5;
+    max-width: none;
+    border-radius: 0;
   }
 
   .public-home-hero-banner__content {
@@ -8845,8 +8913,9 @@ img {
   min-height: 40px;
   padding: 0 14px;
   border-radius: 8px;
-  background: currentColor;
-  color: #ffffff !important;
+  background: #ffffff;
+  border: 1px solid rgba(27, 58, 92, 0.25);
+  color: #111111 !important;
   font-size: 13px;
   font-weight: 700;
   text-decoration: none;
@@ -8862,18 +8931,18 @@ img {
 .public-auth-back-link {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
 }
 
 .public-auth-back-link__chevron {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 999px;
-  background: rgba(20, 24, 28, 0.05);
-  font-size: 18px;
+  /* 회색 원 배경 제거 — chevron만 크게 노출 */
+  background: transparent;
+  /* ‹ 글리프가 '뒤로' 텍스트와 수직 중앙에 맞도록 텍스트와 동일 높이의 라인박스를 준다 */
+  height: 1em;
+  font-size: 26px;
   font-weight: 800;
   line-height: 1;
   color: var(--public-ds-accent);
@@ -9153,8 +9222,9 @@ img {
 
 /* ── ProductCard 메타라인 (year · teacher · subject) ───────────── */
 .public-product-card__meta-line {
+  /* 상품 정보 메타(연도·강사·과목)는 모바일에 이어 웹에서도 노출하지 않는다 */
   margin: 0;
-  display: flex;
+  display: none;
   flex-wrap: wrap;
   align-items: center;
   gap: 4px 6px;

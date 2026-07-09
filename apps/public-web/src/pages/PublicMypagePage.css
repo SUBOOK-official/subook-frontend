@@ -1108,6 +1108,72 @@
 
 .public-mypage-purchase-card__status-row {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* 주문 상세보기 버튼 — 카드 우측 상단 '> 상세보기' */
+.public-mypage-purchase-card__detail-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  border: 0;
+  padding: 4px 4px 4px 8px;
+  background: transparent;
+  color: var(--public-ds-text-secondary, #55565b);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.public-mypage-purchase-card__detail-btn:hover {
+  color: var(--public-ds-primary, #1b3a5c);
+}
+
+/* 주문 상세 팝업 — 결제 정보 내역 */
+.public-mypage-order-detail {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.public-mypage-order-detail__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.public-mypage-order-detail__row dt {
+  color: var(--public-ds-text-secondary, #55565b);
+  font-size: 14px;
+}
+
+.public-mypage-order-detail__row dd {
+  margin: 0;
+  color: var(--public-ds-text, #232323);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: right;
+}
+
+.public-mypage-order-detail__divider {
+  height: 1px;
+  background: var(--public-ds-border, #e5e5e5);
+  margin: 2px 0;
+}
+
+.public-mypage-order-detail__row--total dt {
+  color: var(--public-ds-text, #232323);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.public-mypage-order-detail__row--total dd {
+  color: var(--public-ds-primary, #1b3a5c);
+  font-size: 18px;
+  font-weight: 800;
 }
 
 .public-mypage-purchase-card__body {

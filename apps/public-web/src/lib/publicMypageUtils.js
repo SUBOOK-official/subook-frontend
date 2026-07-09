@@ -516,12 +516,14 @@ export function getTabKeyFromHash(hash) {
 // - 상품 준비 중(preparing): 결제 확인(무통장 입금확인 / PG 승인) 즉시 진입하는 상태.
 //   '결제 완료(paid)' 카드는 2026-07 paid 단계 폐지로 제거 — 레거시 paid 주문은 '전체'에서 확인.
 // - 배송중(shipping): 운송장이 등록된 상태
+// - 배송 완료(delivered): 배송이 도착 완료된 상태 (구매확정 전)
 // - 구매 확정(confirmed): 배송 도착 후 7일 자동 또는 사용자 임의 확정
-// (delivered/pending/cancelled/refunded/returned 등은 별도 카드로 노출하지 않음)
+// (pending/cancelled/refunded/returned 등은 별도 카드로 노출하지 않음)
 export const PURCHASE_SUMMARY_CARDS = [
   { key: "all",       label: "전체",       statuses: null },
   { key: "preparing", label: "상품 준비 중", statuses: ["preparing"] },
   { key: "shipping",  label: "배송중",     statuses: ["shipping"] },
+  { key: "delivered", label: "배송 완료",   statuses: ["delivered"] },
   { key: "confirmed", label: "구매 확정",   statuses: ["confirmed"] },
 ];
 
@@ -572,6 +574,24 @@ export function formatCompactDate(dateString) {
   const month = `${date.getMonth() + 1}`.padStart(2, "0");
   const day = `${date.getDate()}`.padStart(2, "0");
   return `${year}.${month}.${day}`;
+}
+
+// 결제일시 표기용 — 날짜 + 시:분. (결제일시가 없으면 "-")
+export function formatDateTime(dateString) {
+  if (!dateString) {
+    return "-";
+  }
+
+  const date = new Date(dateString);
+
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+
+  const base = formatCompactDate(dateString);
+  const hours = `${date.getHours()}`.padStart(2, "0");
+  const minutes = `${date.getMinutes()}`.padStart(2, "0");
+  return `${base} ${hours}:${minutes}`;
 }
 
 export function formatShipmentReference(reference) {
@@ -768,6 +788,20 @@ export function mapPickupRequestToShipment(pr) {
 }
 
 // 주문 DB row → PurchasesTab의 order 형태로 변환
+// 결제수단 코드 → 한글 라벨. 미확인/미지원 값은 기본 문구로.
+const PAYMENT_METHOD_LABELS = {
+  bank_transfer: "무통장입금 (계좌이체)",
+  card: "신용/체크카드",
+  kakao_pay: "카카오페이",
+  naver_pay: "네이버페이",
+  toss_pay: "토스페이",
+};
+
+export function getPaymentMethodLabel(method) {
+  if (!method) return "-";
+  return PAYMENT_METHOD_LABELS[method] ?? method;
+}
+
 export function mapOrderToDisplayOrder(order) {
   const items = (order.items ?? []).map((item) => ({
     id: item.id,
@@ -804,6 +838,8 @@ export function mapOrderToDisplayOrder(order) {
     reference: order.order_number,
     recipientName: order.shipping_recipient_name ?? null,
     paymentStatus: order.payment_status ?? null,
+    paymentMethod: order.payment_method ?? null,
+    paidAt: order.paid_at ?? null,
     createdAt: order.created_at,
     status: order.status,
     subtotal: order.subtotal ?? 0,
