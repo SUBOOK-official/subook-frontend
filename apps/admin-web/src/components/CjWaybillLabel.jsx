@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import JsBarcode from "jsbarcode";
 import { maskName, maskPhone } from "../lib/waybillMask";
+import { PrinterIcon } from "./icons";
 
 // CJ 표준 운송장 라벨 (123 x 100 mm, 1.5인치 가이드 기준).
 // 데이터 출처: /api/admin/cj-delivery 응답 (trackingNumber, addr[주소정제], sender[수북], order[구매자]).
@@ -237,14 +238,14 @@ export function CjWaybillLabelModal({ open, data, onClose }) {
         <button
           type="button"
           onClick={() => window.print()}
-          style={{ background: "#2563eb", color: "#fff", border: "none", borderRadius: "8px", padding: "10px 20px", fontWeight: 700, cursor: "pointer" }}
+          style={{ background: "#1b3a5c", color: "#fff", border: "none", borderRadius: "8px", padding: "10px 20px", fontWeight: 700, cursor: "pointer" }}
         >
-          🖨 송장 인쇄
+          <PrinterIcon size={14} /> 송장 인쇄
         </button>
         <button
           type="button"
           onClick={onClose}
-          style={{ background: "#fff", color: "#334155", border: "1px solid #cbd5e1", borderRadius: "8px", padding: "10px 20px", fontWeight: 600, cursor: "pointer" }}
+          style={{ background: "#fff", color: "#3f4045", border: "1px solid #d1d1d4", borderRadius: "8px", padding: "10px 20px", fontWeight: 600, cursor: "pointer" }}
         >
           닫기
         </button>

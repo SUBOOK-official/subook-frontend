@@ -5,6 +5,7 @@ import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseCl
 import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
 import { useAdminBadgeCounts } from "../lib/useAdminBadgeCounts";
 import { adminNavigationGroups, resolveActiveAdminModule } from "./adminNavigation";
+import { MenuIcon } from "./icons";
 
 function formatBadgeValue(value) {
   if (!Number.isFinite(value) || value <= 0) return null;
@@ -25,6 +26,8 @@ function NavList({ groups, resolvedModuleKey, badgeCounts, onItemClick }) {
           {group.items.map((item) => {
             const isActive = item.key === resolvedModuleKey;
             const badgeValue = formatBadgeValue(badgeCounts[item.key]);
+            // adminNavigation.js가 아이콘을 컴포넌트 참조로 제공 (이모지 문자열 폐지)
+            const ItemIcon = item.icon;
             return (
               <Link
                 className={`flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
@@ -36,7 +39,9 @@ function NavList({ groups, resolvedModuleKey, badgeCounts, onItemClick }) {
                 onClick={onItemClick}
                 to={item.to}
               >
-                <span aria-hidden="true" className="text-base leading-none">{item.icon}</span>
+                <span aria-hidden="true" className="leading-none">
+                  {ItemIcon ? <ItemIcon size={16} /> : null}
+                </span>
                 <span className="flex-1">{item.label}</span>
                 {badgeValue ? (
                   <span
@@ -131,7 +136,7 @@ function AdminShell({ title, description = "", activeModule, actions = null, sum
                   onClick={() => setIsMobileNavOpen(true)}
                   type="button"
                 >
-                  <span aria-hidden="true">☰</span>
+                  <span aria-hidden="true"><MenuIcon size={20} /></span>
                 </button>
                 <div className="min-w-0">
                   <h1 className="text-2xl font-black tracking-tight text-slate-950">{title}</h1>

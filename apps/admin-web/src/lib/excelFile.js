@@ -72,7 +72,7 @@ export async function exportRowsToXlsx({ rows, columns, fileName, sheetName }) {
     value: column.header ?? column.key,
     type: String,
     fontWeight: "bold",
-    backgroundColor: "#f1f5f9",
+    backgroundColor: "#f2f2f3",
   }));
   const dataRows = rows.map((row) =>
     columns.map((column) => toExportCell(getColumnValue(row, column), column)),

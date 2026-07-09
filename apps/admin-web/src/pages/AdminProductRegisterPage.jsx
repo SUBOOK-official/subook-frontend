@@ -4,6 +4,7 @@ import AdminShell from "../components/AdminShell";
 import AdminDialog from "../components/AdminDialog";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { formatCurrency } from "@shared-domain/format";
+import { CheckIcon, CloseIcon, PlusIcon } from "../components/icons";
 
 // 통합 상품 등록 플로우 (Frame 2~4 프로토타입).
 //   고객(수거) 선택/생성 → 교재 목록 작성(기존 검색 + 신규 표) → 사진 일괄 → 등록 완료
@@ -155,7 +156,7 @@ function StepBadge({ index, label, active, done }) {
           active ? "bg-slate-900 text-white" : done ? "bg-emerald-500 text-white" : "bg-slate-200 text-slate-500"
         }`}
       >
-        {done ? "✓" : index}
+        {done ? <CheckIcon size={13} /> : index}
       </span>
       <span className={`text-sm font-bold ${active ? "text-slate-900" : "text-slate-400"}`}>{label}</span>
     </div>
@@ -827,7 +828,7 @@ function AdminProductRegisterPage() {
                                   className="text-slate-300 hover:text-rose-600"
                                   aria-label="행 삭제"
                                 >
-                                  ✕
+                                  <CloseIcon size={14} />
                                 </button>
                               ) : null}
                             </td>
@@ -934,7 +935,7 @@ function AdminProductRegisterPage() {
                             onClick={() => clearCover(t.kind, t.uid)}
                             className="absolute right-1 top-1 rounded-full bg-slate-900/70 px-1.5 text-xs font-bold text-white"
                           >
-                            ✕
+                            <CloseIcon size={12} />
                           </button>
                         </div>
                       ) : (
@@ -943,7 +944,7 @@ function AdminProductRegisterPage() {
                           disabled={t.coverBusy}
                           onFiles={(files) => uploadCover(t.kind, t.uid, files[0])}
                         >
-                          <span className="text-2xl">＋</span>
+                          <span className="text-2xl leading-none"><PlusIcon size={22} /></span>
                           <span className="mt-1 text-[10px]">{t.coverBusy ? "업로드 중..." : "표지 추가"}</span>
                         </DropBox>
                       )}
@@ -962,7 +963,7 @@ function AdminProductRegisterPage() {
                               onClick={() => removeDetail(t.kind, t.uid, url)}
                               className="absolute right-1 top-1 rounded-full bg-slate-900/70 px-1.5 text-xs font-bold text-white"
                             >
-                              ✕
+                              <CloseIcon size={12} />
                             </button>
                           </div>
                         ))}
@@ -972,7 +973,7 @@ function AdminProductRegisterPage() {
                           disabled={t.detailBusy}
                           onFiles={(files) => uploadDetails(t.kind, t.uid, files)}
                         >
-                          <span className="text-xl">＋</span>
+                          <span className="text-xl leading-none"><PlusIcon size={18} /></span>
                           <span className="mt-1 text-[10px]">{t.detailBusy ? "업로드 중..." : "사진 추가"}</span>
                         </DropBox>
                       </div>

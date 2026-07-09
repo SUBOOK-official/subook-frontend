@@ -14,6 +14,7 @@ import {
   notifyShippingStarted,
 } from "../lib/adminNotification";
 import CjWaybillLabelModal from "../components/CjWaybillLabel";
+import { AlertTriangleIcon, CheckIcon } from "../components/icons";
 
 const PAGE_SIZE = 30;
 
@@ -560,7 +561,11 @@ function AdminOrdersPage() {
   // 정산완료(송금됨) 주문을 환불하면 그 정산금은 회사 손실. 셀러 정산은 회수하지 않음.
   const confirmRecoveryLoss = (orderId, order, reason) => {
     setDestructiveModal({
-      title: "⚠️ 회사 손실 확인",
+      title: (
+        <>
+          <AlertTriangleIcon size={16} /> 회사 손실 확인
+        </>
+      ),
       description:
         "이 주문은 셀러에게 정산금이 이미 송금 완료된 상태입니다.\n\n" +
         "환불을 진행하면 이미 지급된 정산금은 회사가 손실로 부담합니다.\n" +
@@ -1422,8 +1427,8 @@ function AdminOrdersPage() {
                 return (
                   <p className={`text-xs mt-1 ${matches ? "text-emerald-700" : "text-amber-700 font-semibold"}`}>
                     {matches
-                      ? "✓ 예상 입금자명과 일치합니다."
-                      : `⚠️ 예상값 "${expected}"과 다릅니다. 본인 입금이 확실한지 한 번 더 확인해주세요.`}
+                      ? <><CheckIcon size={13} /> 예상 입금자명과 일치합니다.</>
+                      : <><AlertTriangleIcon size={13} /> 예상값 "{expected}"과 다릅니다. 본인 입금이 확실한지 한 번 더 확인해주세요.</>}
                   </p>
                 );
               })()}

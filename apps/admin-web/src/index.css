@@ -3,10 +3,11 @@
 @tailwind utilities;
 
 :root {
+  /* 뉴트럴은 blue-cast 없는 순수 회색 계열만 사용 (tailwind.config 램프와 동일 앵커) */
   --surface: #ffffff;
-  --surface-muted: #f5f7fb;
-  --text-main: #0f172a;
-  --text-muted: #64748b;
+  --surface-muted: #f4f4f5;
+  --text-main: #1c1d20;
+  --text-muted: #6e6e73;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -28,8 +29,9 @@ body {
   margin: 0;
   min-height: 100vh;
   color: var(--text-main);
-  font-family: "Pretendard", "Noto Sans KR", "Apple SD Gothic Neo", sans-serif;
-  background: #f5f7fa;
+  /* index.html에서 실제 로드하는 폰트만 선언 (미로드 폰트를 앞세우지 않음) */
+  font-family: "Pretendard Variable", "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  background: #f6f6f7;
 }
 
 input,

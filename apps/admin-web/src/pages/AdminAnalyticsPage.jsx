@@ -24,7 +24,8 @@ const PRESETS = [
   { key: "90d", label: "최근 90일", days: 90 },
 ];
 
-const SUBJECT_COLORS = ["#1B3A5C", "#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#A855F7", "#6B7280"];
+/* 차트 카테고리 팔레트 — 브랜드 파생(네이비·틸·그린·웜·레드·페리윙클·뉴트럴)만 사용 */
+const SUBJECT_COLORS = ["#1B3A5C", "#077E84", "#2E7D4F", "#C9861B", "#D0342C", "#565E9E", "#6E6E73"];
 
 function toIsoDate(date) {
   const yyyy = date.getFullYear();
@@ -220,16 +221,16 @@ function AdminAnalyticsPage() {
             <div style={{ width: "100%", height: 280 }}>
               <ResponsiveContainer>
                 <LineChart data={seriesData} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="label" stroke="#9ca3af" fontSize={12} />
-                  <YAxis stroke="#9ca3af" fontSize={12} tickFormatter={(v) => `${Math.round(v / 1000)}K`} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e4e4e6" />
+                  <XAxis dataKey="label" stroke="#9d9da3" fontSize={12} />
+                  <YAxis stroke="#9d9da3" fontSize={12} tickFormatter={(v) => `${Math.round(v / 1000)}K`} />
                   <Tooltip
                     formatter={(value) => formatCurrency(value)}
-                    labelStyle={{ color: "#1f2937" }}
+                    labelStyle={{ color: "#2a2b2f" }}
                   />
                   <Legend />
-                  <Line type="monotone" dataKey="결제완료" stroke="#3B82F6" strokeWidth={2.5} dot={false} />
-                  <Line type="monotone" dataKey="구매확정" stroke="#10B981" strokeWidth={2.5} dot={false} />
+                  <Line type="monotone" dataKey="결제완료" stroke="#24507C" strokeWidth={2.5} dot={false} />
+                  <Line type="monotone" dataKey="구매확정" stroke="#2E7D4F" strokeWidth={2.5} dot={false} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -266,9 +267,9 @@ function AdminAnalyticsPage() {
         <div style={{ width: "100%", height: 220 }}>
           <ResponsiveContainer>
             <BarChart data={seriesData} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-              <XAxis dataKey="label" stroke="#9ca3af" fontSize={12} />
-              <YAxis stroke="#9ca3af" fontSize={12} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#e4e4e6" />
+              <XAxis dataKey="label" stroke="#9d9da3" fontSize={12} />
+              <YAxis stroke="#9d9da3" fontSize={12} />
               <Tooltip />
               <Bar dataKey="주문수" fill="#1B3A5C" radius={[6, 6, 0, 0]} />
             </BarChart>
