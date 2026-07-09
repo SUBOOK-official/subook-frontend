@@ -256,9 +256,14 @@ function PublicSignupPage() {
       // available 아니면 hint 끔
       setIsLegacyEmail(false);
 
-      // 'member' = member_profiles 보유 회원, 'registered' = auth.users에만 존재(안전망).
+      // 'member' = member_profiles 보유 회원, 'registered' = auth.users에만 존재(안전망),
+      // 'admin' = 관리자 이메일 (dual-role 정책상 기존 계정으로 로그인하면 됨).
       // 어느 쪽이든 "이미 가입된 이메일" — 소셜로만 가입한 이메일이면 가입 수단까지 안내.
-      if (row?.account_role === "member" || row?.account_role === "registered") {
+      if (
+        row?.account_role === "member" ||
+        row?.account_role === "registered" ||
+        row?.account_role === "admin"
+      ) {
         setEmailStatus({
           state: "duplicate",
           email: normalizedEmail,
