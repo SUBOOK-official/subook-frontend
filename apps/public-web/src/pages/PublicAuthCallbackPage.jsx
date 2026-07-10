@@ -9,6 +9,9 @@ import {
 const WITHDRAWAL_RECOVERY_NOTICE =
   "탈퇴 처리 중인 계정입니다. 복구가 필요하면 subook2025@gmail.com 으로 메일을 보내거나 아래 안내를 따라주세요.";
 
+const BLOCKED_ACCOUNT_NOTICE =
+  "이용이 제한된 계정입니다. 문의가 필요하시면 subook2025@gmail.com 으로 연락해 주세요.";
+
 /**
  * OAuth provider 콜백 후 도착하는 페이지.
  * Supabase가 URL fragment의 access_token을 처리하고 onAuthStateChange가 발화되면
@@ -82,6 +85,13 @@ function PublicAuthCallbackPage() {
     if (accountRole === "withdrawal_pending" || accountRole === "withdrawn") {
       void signOut();
       navigate("/login", { replace: true, state: { notice: WITHDRAWAL_RECOVERY_NOTICE } });
+      return;
+    }
+
+    // 차단된 회원 — OAuth 로그인은 밴 반영 전 토큰이 발급될 수 있어 여기서도 차단
+    if (accountRole === "blocked") {
+      void signOut();
+      navigate("/login", { replace: true, state: { notice: BLOCKED_ACCOUNT_NOTICE } });
       return;
     }
 

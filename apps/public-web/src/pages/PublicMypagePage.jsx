@@ -1334,7 +1334,9 @@ function PublicMypagePage() {
         ? "탈퇴 처리 중인 계정입니다. 30일 유예 기간 동안 로그인할 수 있도록 고객센터(subook2025@gmail.com)로 문의해 주세요."
         : accountRole === "withdrawn"
           ? "탈퇴 완료된 계정입니다. 동일 이메일로 재가입은 불가능합니다."
-          : "";
+          : accountRole === "blocked"
+            ? "이용이 제한된 계정입니다. 문의가 필요하시면 subook2025@gmail.com 으로 연락해 주세요."
+            : "";
     return (
       <Navigate
         replace

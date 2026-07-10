@@ -23,6 +23,10 @@ import {
 } from "../lib/publicAuthProviders";
 import { saveSignupSuccessState } from "../lib/publicSignupSuccessState";
 
+// 차단(제재) 계정 공통 안내 — GoTrue 밴(user_banned) 또는 role RPC 'blocked' 감지 시 노출
+const BLOCKED_ACCOUNT_NOTICE =
+  "이용이 제한된 계정입니다. 문의가 필요하시면 subook2025@gmail.com 으로 연락해 주세요.";
+
 function PublicLoginPage() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -180,6 +184,13 @@ function PublicLoginPage() {
         return;
       }
 
+      // 차단 계정 — GoTrue가 auth 레벨 밴(user_banned)으로 로그인 자체를 거부한 경우
+      if (rawMessage.includes("banned")) {
+        setPageError(BLOCKED_ACCOUNT_NOTICE);
+        setIsSubmitting(false);
+        return;
+      }
+
       if (rawMessage.includes("invalid login credentials")) {
         // 소셜 전용 계정(비밀번호 없음) 확인 — RPC는 provider 목록만 반환 (PII 노출 X).
         // 카카오/구글로만 가입한 이메일이면 "비밀번호 불일치" 대신 가입 수단을 안내한다.
@@ -232,6 +243,14 @@ function PublicLoginPage() {
     const accessState = await getPublicAccountAccessState(
       sessionData.session?.user ?? null,
     );
+
+    // 밴 반영 전(액세스 토큰이 아직 유효한 창구)에도 role RPC의 blocked로 차단
+    if (accessState.accountRole === "blocked") {
+      await supabase.auth.signOut();
+      setPageError(BLOCKED_ACCOUNT_NOTICE);
+      setIsSubmitting(false);
+      return;
+    }
 
     if (accessState.accountRole === "admin") {
       await supabase.auth.signOut();
