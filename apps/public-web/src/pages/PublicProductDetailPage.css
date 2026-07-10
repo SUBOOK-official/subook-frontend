@@ -118,10 +118,11 @@
   color: var(--public-ds-text-muted, #6e6e73);
 }
 
-.public-detail-hero__placeholder span {
-  font-family: "Caprasimo", serif;
-  font-size: 24px;
-  color: var(--public-primary, #1B3A5C);
+.public-detail-hero__placeholder img {
+  display: block;
+  height: 28px;
+  width: auto;
+  opacity: 0.55;
 }
 
 .public-detail-hero__placeholder p {

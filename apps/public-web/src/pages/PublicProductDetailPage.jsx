@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { formatCurrency } from "@shared-domain/format";
 import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
 import ContentContainer from "../components/ContentContainer";
+import brandLogoImage from "../assets/brand/logo-horizontal.png";
 import ProductCard, { HeartIcon } from "../components/ProductCard";
 import PublicFooter from "../components/PublicFooter";
 import PublicPageFrame from "../components/PublicPageFrame";
@@ -1455,7 +1456,7 @@ function PublicProductDetailPage() {
                     />
                   ) : (
                     <div className="public-detail-hero__placeholder">
-                      <span>SUBOOK</span>
+                      <img alt="수북 SUBOOK" src={brandLogoImage} />
                       <p>이미지 준비 중</p>
                     </div>
                   )}
