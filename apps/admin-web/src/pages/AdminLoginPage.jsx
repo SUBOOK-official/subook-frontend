@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { getAdminAccessState } from "../lib/adminAuth";
 import { getSellerLookupOrigin } from "../lib/portalLinks";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
+import brandLogoImage from "../assets/brand/logo-horizontal.png";
 
 const initialForm = {
   email: "",
@@ -135,7 +136,7 @@ function AdminLoginPage() {
     <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-12">
       <div className="w-full max-w-md">
         <header className="mb-8 text-center">
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">SUBOOK</p>
+          <img alt="SUBOOK" className="mx-auto h-5 w-auto" src={brandLogoImage} />
           <h1 className="mt-2 text-2xl font-black tracking-tight text-slate-900">관리자 로그인</h1>
           <p className="mt-2 text-sm text-slate-500">
             관리자 계정으로 로그인해 주세요

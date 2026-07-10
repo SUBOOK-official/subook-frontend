@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@shared-supabase/publicSupabaseClient";
 import PublicAgreementDialog from "../components/PublicAgreementDialog";
+import brandLogoImage from "../assets/brand/logo-horizontal.png";
 import { CheckIcon } from "../components/icons";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { usePageMeta } from "../lib/usePageMeta";
@@ -302,7 +303,7 @@ function PublicOAuthConsentPage() {
           <section aria-labelledby="public-oauth-consent-heading" className="public-auth-card public-auth-card--signup">
             <div className="public-auth-brand-lockup">
               <Link className="public-auth-brand" to="/">
-                SUBOOK
+                <img alt="수북 SUBOOK" className="public-auth-brand__logo" src={brandLogoImage} />
               </Link>
               <p className="public-auth-brand-lockup__tagline">수능 교재, 똑똑하게 거래</p>
             </div>

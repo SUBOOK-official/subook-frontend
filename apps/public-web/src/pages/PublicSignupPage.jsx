@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/publicSupabaseClient";
 import PublicOAuthButtons from "../components/PublicOAuthButtons";
+import brandLogoImage from "../assets/brand/logo-horizontal.png";
 import PublicToastMessage from "../components/PublicToastMessage";
 import { ArrowRightIcon, CheckIcon, EyeIcon, EyeOffIcon } from "../components/icons";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
@@ -748,7 +749,7 @@ function PublicSignupPage() {
 
             <div className="public-auth-brand-lockup">
               <Link className="public-auth-brand" to="/">
-                SUBOOK
+                <img alt="수북 SUBOOK" className="public-auth-brand__logo" src={brandLogoImage} />
               </Link>
               <p className="public-auth-brand-lockup__tagline">수능을 위한 가장 똑똑한 선택</p>
             </div>

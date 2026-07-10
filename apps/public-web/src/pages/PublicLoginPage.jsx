@@ -7,6 +7,7 @@ import {
   supabase,
 } from "@shared-supabase/publicSupabaseClient";
 import PublicOAuthButtons from "../components/PublicOAuthButtons";
+import brandLogoImage from "../assets/brand/logo-horizontal.png";
 import {
   AlertTriangleIcon,
   ArrowRightIcon,
@@ -286,7 +287,7 @@ function PublicLoginPage() {
         >
           <div className="public-auth-brand-lockup">
             <Link className="public-auth-brand" to="/">
-              SUBOOK
+              <img alt="수북 SUBOOK" className="public-auth-brand__logo" src={brandLogoImage} />
             </Link>
             <p className="public-auth-brand-lockup__tagline">
               수능을 위한 가장 똑똑한 선택

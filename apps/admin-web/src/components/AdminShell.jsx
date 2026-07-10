@@ -6,6 +6,7 @@ import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
 import { useAdminBadgeCounts } from "../lib/useAdminBadgeCounts";
 import { adminNavigationGroups, resolveActiveAdminModule } from "./adminNavigation";
 import { MenuIcon } from "./icons";
+import brandLogoImage from "../assets/brand/logo-horizontal.png";
 
 function formatBadgeValue(value) {
   if (!Number.isFinite(value) || value <= 0) return null;
@@ -113,7 +114,7 @@ function AdminShell({ title, description = "", activeModule, actions = null, sum
         {/* 데스크탑 sticky 사이드바 */}
         <aside className="hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:sticky lg:top-6 lg:block lg:self-start">
           <div className="mb-5">
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">SUBOOK</p>
+            <img alt="SUBOOK" className="h-4 w-auto" src={brandLogoImage} />
             <p className="mt-1 text-lg font-black text-slate-950">관리자</p>
           </div>
           <NavList
@@ -204,7 +205,7 @@ function AdminShell({ title, description = "", activeModule, actions = null, sum
           >
             <div className="mb-5 flex items-center justify-between">
               <div>
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">SUBOOK</p>
+                <img alt="SUBOOK" className="h-4 w-auto" src={brandLogoImage} />
                 <p className="mt-1 text-lg font-black text-slate-950">관리자</p>
               </div>
               <button
