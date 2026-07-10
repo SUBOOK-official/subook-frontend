@@ -238,7 +238,7 @@ export function CjWaybillLabelModal({ open, data, onClose }) {
         <button
           type="button"
           onClick={() => window.print()}
-          style={{ background: "#1b3a5c", color: "#fff", border: "none", borderRadius: "8px", padding: "10px 20px", fontWeight: 700, cursor: "pointer" }}
+          style={{ background: "#080f47", color: "#fff", border: "none", borderRadius: "8px", padding: "10px 20px", fontWeight: 700, cursor: "pointer" }}
         >
           <PrinterIcon size={14} /> 송장 인쇄
         </button>

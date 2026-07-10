@@ -5,7 +5,7 @@ const DEFAULT_ORIGINAL_PRICE = 32000;
 const DEFAULT_INSPECTION_DATE = "2026-03-01T09:00:00.000+09:00";
 
 const subjectPalette = {
-  전체: ["#1b3a5c", "#3b82f6"],
+  전체: ["#080f47", "#3b82f6"],
   국어: ["#8b1e3f", "#f97316"],
   수학: ["#163d7a", "#2563eb"],
   영어: ["#14532d", "#10b981"],

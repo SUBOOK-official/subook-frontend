@@ -460,11 +460,11 @@
 .order-sidebar__savings {
   margin: 12px 0 0;
   padding: 10px 12px;
-  background: rgba(27, 58, 92, 0.06);
+  background: rgba(8, 15, 71, 0.06);
   border-radius: 8px;
   font-size: 13px;
   font-weight: 600;
-  color: var(--public-ds-primary, #1b3a5c);
+  color: var(--public-ds-primary, #080f47);
   text-align: center;
   line-height: 1.45;
 }
@@ -661,7 +661,7 @@
 
 .order-sidebar__coupon-button:hover:not(:disabled) {
   background: #f4f4f4;
-  border-color: var(--public-ds-primary, #1B3A5C);
+  border-color: var(--public-ds-primary, #080F47);
 }
 
 .order-sidebar__coupon-button:disabled {
@@ -671,7 +671,7 @@
 
 .order-sidebar__coupon-change {
   font-size: 11px;
-  color: var(--public-ds-primary, #1B3A5C);
+  color: var(--public-ds-primary, #080F47);
   font-weight: 700;
 }
 
@@ -691,7 +691,7 @@
 }
 
 .order-sidebar__row--discount {
-  color: var(--public-ds-primary, #1B3A5C);
+  color: var(--public-ds-primary, #080F47);
   font-weight: 600;
 }
 
@@ -771,18 +771,18 @@
 }
 
 .order-coupon-modal__item:hover {
-  border-color: var(--public-ds-primary, #1B3A5C);
+  border-color: var(--public-ds-primary, #080F47);
 }
 
 .order-coupon-modal__item.is-selected {
-  border-color: var(--public-ds-primary, #1B3A5C);
+  border-color: var(--public-ds-primary, #080F47);
   background: #f5f9ff;
 }
 
 .order-coupon-modal__item-amount {
   font-size: 14px;
   font-weight: 700;
-  color: var(--public-ds-primary, #1B3A5C);
+  color: var(--public-ds-primary, #080F47);
   text-align: center;
   border-right: 1px dashed var(--public-ds-border);
   padding-right: 12px;

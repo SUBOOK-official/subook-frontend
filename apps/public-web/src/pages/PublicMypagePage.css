@@ -1,8 +1,8 @@
 .public-mypage-demo-banner {
   padding: 14px 16px;
-  border: 1px solid rgba(27, 58, 92, 0.22);
+  border: 1px solid rgba(8, 15, 71, 0.22);
   border-radius: var(--public-ds-radius);
-  background: rgba(27, 58, 92, 0.08);
+  background: rgba(8, 15, 71, 0.08);
   color: var(--public-ds-text);
   font-size: 14px;
   line-height: 1.6;
@@ -310,8 +310,8 @@
 }
 
 .public-mypage-pagination__page.is-active {
-  border-color: var(--public-ds-primary, #1B3A5C);
-  color: var(--public-ds-primary, #1B3A5C);
+  border-color: var(--public-ds-primary, #080F47);
+  color: var(--public-ds-primary, #080F47);
   font-weight: 800;
 }
 
@@ -374,7 +374,7 @@
 
 .public-mypage-chip--accent {
   background: #dce6ef;
-  color: #1b3a5c;
+  color: #080f47;
 }
 
 .public-mypage-chip--info {
@@ -570,7 +570,7 @@
 
 .public-mypage-coupon-code-submit {
   padding: 10px 20px;
-  background: var(--public-ds-primary, #1B3A5C);
+  background: var(--public-ds-primary, #080F47);
   color: #fff;
   border: 0;
   border-radius: 8px;
@@ -637,7 +637,7 @@
 
 .public-mypage-coupon-download-button {
   padding: 8px 16px;
-  background: var(--public-ds-primary, #1B3A5C);
+  background: var(--public-ds-primary, #080F47);
   color: #fff;
   border: 0;
   border-radius: 6px;
@@ -676,7 +676,7 @@
 
 .public-mypage-coupon-tab.is-active {
   color: var(--public-ds-text);
-  border-bottom-color: var(--public-ds-primary, #1B3A5C);
+  border-bottom-color: var(--public-ds-primary, #080F47);
 }
 
 .public-mypage-coupon-list {
@@ -708,7 +708,7 @@
 .public-mypage-coupon-card__amount {
   font-size: 16px;
   font-weight: 700;
-  color: var(--public-ds-primary, #1B3A5C);
+  color: var(--public-ds-primary, #080F47);
   text-align: center;
   border-right: 1px dashed var(--public-ds-border);
   padding-right: 16px;
@@ -866,7 +866,7 @@
   justify-content: center;
   margin: 4px 0 6px;
   padding: 10px 12px;
-  background: var(--public-ds-primary, #1b3a5c);
+  background: var(--public-ds-primary, #080f47);
   color: #ffffff;
   text-decoration: none;
   font-size: 13px;
@@ -1085,7 +1085,7 @@
 }
 
 .public-mypage-order-group__detail:hover {
-  color: var(--public-ds-accent, #1b3a5c);
+  color: var(--public-ds-accent, #080f47);
 }
 
 .public-mypage-order-cards {
@@ -1127,7 +1127,7 @@
 }
 
 .public-mypage-purchase-card__detail-btn:hover {
-  color: var(--public-ds-primary, #1b3a5c);
+  color: var(--public-ds-primary, #080f47);
 }
 
 /* 주문 상세 팝업 — 결제 정보 내역 */
@@ -1171,7 +1171,7 @@
 }
 
 .public-mypage-order-detail__row--total dd {
-  color: var(--public-ds-primary, #1b3a5c);
+  color: var(--public-ds-primary, #080f47);
   font-size: 18px;
   font-weight: 800;
 }
@@ -1262,14 +1262,14 @@
 }
 
 .public-mypage-purchase-card__btn--primary {
-  background: var(--public-ds-primary, #1B3A5C);
-  border-color: var(--public-ds-primary, #1B3A5C);
+  background: var(--public-ds-primary, #080F47);
+  border-color: var(--public-ds-primary, #080F47);
   color: #ffffff;
   font-weight: 600;
 }
 
 .public-mypage-purchase-card__btn--primary:hover:not(:disabled) {
-  background: var(--public-ds-primary, #1B3A5C);
+  background: var(--public-ds-primary, #080F47);
   opacity: 0.92;
 }
 
@@ -1539,7 +1539,7 @@
 
 .public-mypage-confirm__reason-input:focus {
   outline: none;
-  border-color: var(--public-primary, #1B3A5C);
+  border-color: var(--public-primary, #080F47);
   box-shadow: var(--public-focus-ring);
 }
 
@@ -1550,7 +1550,7 @@
 }
 
 .public-mypage-confirm__reason-hint--info {
-  color: var(--public-ds-accent, #1b3a5c);
+  color: var(--public-ds-accent, #080f47);
 }
 
 /* P1-8: 환불 사유 카테고리 라디오 */
@@ -1573,5 +1573,5 @@
 }
 
 .public-mypage-confirm__category-option input[type="radio"] {
-  accent-color: var(--public-ds-accent, #1b3a5c);
+  accent-color: var(--public-ds-accent, #080f47);
 }

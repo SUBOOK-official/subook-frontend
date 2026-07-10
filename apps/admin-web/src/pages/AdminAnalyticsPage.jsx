@@ -25,7 +25,7 @@ const PRESETS = [
 ];
 
 /* 차트 카테고리 팔레트 — 브랜드 파생(네이비·틸·그린·웜·레드·페리윙클·뉴트럴)만 사용 */
-const SUBJECT_COLORS = ["#1B3A5C", "#077E84", "#2E7D4F", "#C9861B", "#D0342C", "#565E9E", "#6E6E73"];
+const SUBJECT_COLORS = ["#080F47", "#077E84", "#2E7D4F", "#C9861B", "#D0342C", "#565E9E", "#6E6E73"];
 
 function toIsoDate(date) {
   const yyyy = date.getFullYear();
@@ -271,7 +271,7 @@ function AdminAnalyticsPage() {
               <XAxis dataKey="label" stroke="#9d9da3" fontSize={12} />
               <YAxis stroke="#9d9da3" fontSize={12} />
               <Tooltip />
-              <Bar dataKey="주문수" fill="#1B3A5C" radius={[6, 6, 0, 0]} />
+              <Bar dataKey="주문수" fill="#080F47" radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>

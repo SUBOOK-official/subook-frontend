@@ -9,7 +9,7 @@ const appRoot = dirname(fileURLToPath(import.meta.url));
    기존 799곳의 유틸리티 사용처를 수정할 필요가 없다.
    명도는 Tailwind 원본 스텝과 근사하게 유지 → 기존 대비(AA) 조합 보존.
    public-web의 --public-ds-* 토큰과 같은 앵커를 쓴다:
-   네이비 #1B3A5C · 레드 #D0342C · 그린 #2E7D4F · 웜 #C9861B · 순수 뉴트럴 */
+   네이비 #080F47 · 레드 #D0342C · 그린 #2E7D4F · 웜 #C9861B · 순수 뉴트럴 */
 
 // slate/gray 혼용을 막기 위해 두 이름 모두 같은 뉴트럴 램프를 가리킨다.
 const neutralRamp = {
@@ -26,19 +26,19 @@ const neutralRamp = {
   950: "#121215",
 };
 
-// 브랜드 네이비 — blue/sky 공용
+// 브랜드 네이비 — blue/sky 공용. 앵커: 700=#080F47(primary), 50=#F3FBFF(secondary)
 const navyRamp = {
-  50: "#eef3f8",
-  100: "#dbe5ee",
-  200: "#bccfe0",
-  300: "#92b0cb",
-  400: "#5d87ab",
-  500: "#35648d",
-  600: "#24507c",
-  700: "#1b3a5c",
-  800: "#16304c",
-  900: "#12273d",
-  950: "#0a1826",
+  50: "#f3fbff",
+  100: "#e2ecf9",
+  200: "#c6d4ef",
+  300: "#9fb0e0",
+  400: "#7186c9",
+  500: "#4859ab",
+  600: "#25308b",
+  700: "#080f47",
+  800: "#070c3a",
+  900: "#050a2e",
+  950: "#03061d",
 };
 
 // 브랜드 레드(danger) — rose/red 공용 (admin은 danger를 rose-*로 사용)
@@ -107,8 +107,8 @@ export default {
   theme: {
     extend: {
       colors: {
-        brand: "#1B3A5C",
-        "brand-soft": "#2A4D78",
+        brand: "#080F47",
+        "brand-soft": "#111D73",
         slate: neutralRamp,
         gray: neutralRamp,
         blue: navyRamp,
