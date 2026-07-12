@@ -1172,6 +1172,19 @@ function AdminOrdersPage() {
               <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">
                 {selectedOrder.refund_request_reason || "사유 미기재"}
               </p>
+              {/* 무통장입금 환불계좌 — 주문 시 구매자가 입력 (2026-07-12부터 필수 수집) */}
+              {selectedOrder.refund_bank_name ? (
+                <p className="mt-2 text-sm font-semibold text-slate-800">
+                  환불 계좌: {selectedOrder.refund_bank_name} {selectedOrder.refund_account_number}{" "}
+                  (예금주 {selectedOrder.refund_account_holder})
+                </p>
+              ) : (
+                selectedOrder.payment_method === "bank_transfer" && (
+                  <p className="mt-2 text-xs text-rose-600">
+                    환불 계좌 미입력 주문 — 구매자에게 입금자 본인 명의 계좌를 확인해 주세요.
+                  </p>
+                )
+              )}
               <p className="mt-2 text-xs text-rose-600">
                 아래 "환불처리" 버튼으로 처리하거나, 구매자와 협의 후 보류할 수 있습니다.
               </p>

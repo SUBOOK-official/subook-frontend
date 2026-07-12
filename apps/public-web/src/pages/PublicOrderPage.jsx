@@ -19,6 +19,7 @@ import {
   BANK_NAME,
   PAYMENT_DEADLINE_HOURS,
 } from "../lib/paymentBankInfo";
+import { BANK_OPTIONS } from "../lib/publicMypageUtils";
 import "./PublicOrderPage.css";
 
 // 백엔드 create_order가 던지는 영문/시스템 메시지를 사용자 친화 한국어로 매핑.
@@ -488,6 +489,14 @@ function PublicOrderPage() {
     if (!agreementOrder) return "[필수] 주문 내용 확인 및 개인정보 수집·이용 동의에 체크해주세요.";
     if (!isPg && !agreementPayment) return "[필수] 미입금 시 주문 자동 취소 동의에 체크해주세요.";
     if (!agreementRefund) return "[필수] 환불·교환 정책 확인 동의에 체크해주세요.";
+    // 무통장입금은 환불계좌를 주문 시점에 필수 수집 (2026-07-12 정책 — 환불 시 계좌 확인 지연 방지)
+    if (!isPg) {
+      if (!refundAccount.bank.trim()) return "환불받을 계좌의 은행을 선택해주세요.";
+      if (refundAccount.number.replace(/[^0-9]/g, "").length < 6) {
+        return "환불받을 계좌번호를 정확히 입력해주세요.";
+      }
+      if (!refundAccount.holder.trim()) return "환불받을 계좌의 예금주를 입력해주세요.";
+    }
     return null;
   };
 
@@ -857,22 +866,27 @@ function PublicOrderPage() {
                 )}
               </div>
 
-              {/* 환불 계좌 정보 — 무통장입금 결제 시에만. PG 안정화 전까지 수동 환불 대비.
-                  관리자 주문 상세에서 확인 가능. */}
+              {/* 환불 계좌 정보 — 무통장입금 결제 시 필수 입력 (2026-07-12 정책).
+                  PG 결제는 원결제수단 자동 환불이라 미해당. 관리자 주문 상세에서 확인 가능. */}
               {paymentMethod === "bank_transfer" && (
                 <div className="order-section">
                   <h2 className="order-section__title">환불 계좌 정보</h2>
                   <p className="order-section__hint">
-                    무통장입금 결제는 환불 시 아래 계좌로 돌려드려요. (선택 입력 · 미입력 시 환불 단계에서 확인)
+                    환불이 필요할 때 아래 계좌로 돌려드려요. 입금하시는 분 본인 명의 계좌로 입력해 주세요.
                   </p>
                   <div className="order-refund-account">
-                    <input
+                    <select
                       className="order-refund-account__input"
                       onChange={(e) => setRefundAccount((prev) => ({ ...prev, bank: e.target.value }))}
-                      placeholder="은행명 (예: 카카오뱅크)"
-                      type="text"
                       value={refundAccount.bank}
-                    />
+                    >
+                      <option value="">은행 선택</option>
+                      {BANK_OPTIONS.map((bankName) => (
+                        <option key={bankName} value={bankName}>
+                          {bankName}
+                        </option>
+                      ))}
+                    </select>
                     <input
                       className="order-refund-account__input"
                       inputMode="numeric"
