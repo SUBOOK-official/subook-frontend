@@ -421,6 +421,13 @@ function AiSummaryIcon() {
   );
 }
 
+// AI 요약 텍스트의 **볼드** 마크업만 <strong>으로 렌더 (그 외 마크다운은 생성 단계에서 금지)
+function renderEmphasis(text) {
+  return text.split(/\*\*(.+?)\*\*/g).map((segment, index) =>
+    index % 2 === 1 ? <strong key={index}>{segment}</strong> : segment,
+  );
+}
+
 // AI 요약 — products.ai_summary (배치 사전 생성 + 검색 그라운딩).
 // 요약이 없는 상품은 섹션 자체를 숨긴다 (영원히 도는 skeleton 노출 방지).
 function AiSummarySection({ summary }) {
@@ -442,7 +449,7 @@ function AiSummarySection({ summary }) {
       <div className="public-detail-ai-summary__body">
         {paragraphs.map((paragraph, index) => (
           <p className="public-detail-ai-summary__text" key={index}>
-            {paragraph}
+            {renderEmphasis(paragraph)}
           </p>
         ))}
         <p className="public-detail-ai-summary__caption">
