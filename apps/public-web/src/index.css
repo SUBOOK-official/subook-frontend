@@ -820,14 +820,16 @@ img {
     padding: 0 0 48px;
   }
 
-  /* 필터·정렬 툴바를 고정 헤더 바로 아래에 sticky 고정 */
+  /* 필터·정렬 툴바를 고정 헤더 바로 아래에 sticky 고정.
+     버튼만 떠다니지 않도록 컨테이너 좌우 패딩을 상쇄(margin 음수)해
+     화면 폭 전체를 덮는 흰 밴드가 통째로 내려오게 한다 */
   .public-home-store-grid__toolbar {
     position: sticky;
     top: var(--public-sticky-header-height, 137px);
     z-index: 20;
-    margin-bottom: 10px;
-    padding: 10px 0 0;
-    background: transparent;
+    margin: 0 -24px 10px;
+    padding: 10px 24px;
+    background: #ffffff;
   }
 
   .public-home-store-grid__list {
@@ -843,6 +845,14 @@ img {
 
   .public-home-store-grid__title {
     font-size: 18px;
+  }
+}
+
+@media (max-width: 720px) {
+  /* .public-content-container 패딩이 16px로 줄어드는 구간과 상쇄값 동기화 */
+  .public-home-store-grid__toolbar {
+    margin-inline: -16px;
+    padding-inline: 16px;
   }
 }
 
