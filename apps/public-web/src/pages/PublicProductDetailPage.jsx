@@ -421,18 +421,33 @@ function AiSummaryIcon() {
   );
 }
 
-// AI 요약 — 아직 실제 모델 연동 전이라 틀만 제공. 데이터 연결 전까지 skeleton으로 표시.
-function AiSummarySection() {
+// AI 요약 — products.ai_summary (배치 사전 생성 + 검색 그라운딩).
+// 요약이 없는 상품은 섹션 자체를 숨긴다 (영원히 도는 skeleton 노출 방지).
+function AiSummarySection({ summary }) {
+  if (!summary) {
+    return null;
+  }
+
+  const paragraphs = summary
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
   return (
-    <div aria-label="AI 요약 (준비 중)" className="public-detail-ai-summary">
+    <div aria-label="AI 요약" className="public-detail-ai-summary">
       <div className="public-detail-ai-summary__header">
         <AiSummaryIcon />
         <span>AI 요약</span>
       </div>
       <div className="public-detail-ai-summary__body">
-        <span className="public-detail-ai-summary__line public-store-skeleton" />
-        <span className="public-detail-ai-summary__line public-store-skeleton" />
-        <span className="public-detail-ai-summary__line public-detail-ai-summary__line--short public-store-skeleton" />
+        {paragraphs.map((paragraph, index) => (
+          <p className="public-detail-ai-summary__text" key={index}>
+            {paragraph}
+          </p>
+        ))}
+        <p className="public-detail-ai-summary__caption">
+          AI가 검색 결과를 바탕으로 생성한 소개예요. 실제 구성과 다를 수 있어요.
+        </p>
       </div>
     </div>
   );
@@ -806,6 +821,29 @@ function RelatedProductsRail({ products, favoriteIds, onToggleFavorite }) {
 function PublicProductDetailPage() {
   const { productId } = useParams();
   const navigate = useNavigate();
+
+  // AI 요약 — products.ai_summary 조회 (없으면 섹션 미노출)
+  const [aiSummary, setAiSummary] = useState(null);
+  useEffect(() => {
+    if (!productId) return undefined;
+    let cancelled = false;
+    (async () => {
+      const { isSupabaseConfigured, supabase } =
+        await import("@shared-supabase/publicSupabaseClient");
+      if (!isSupabaseConfigured || !supabase || cancelled) return;
+      const { data } = await supabase
+        .from("products")
+        .select("ai_summary")
+        .eq("id", productId)
+        .maybeSingle();
+      if (!cancelled) {
+        setAiSummary(data?.ai_summary ?? null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [productId]);
   const { requireMember, memberGateDialog, isAuthenticated } =
     usePublicMemberGate();
   const { favoriteIds, isFavoritePending, toggleFavorite } =
@@ -1637,7 +1675,7 @@ function PublicProductDetailPage() {
                 sectionRefs.current.info = element;
               }}
             >
-              <AiSummarySection />
+              <AiSummarySection summary={aiSummary} />
               <DetailPhotoSection />
               <DetailInfoContent activeDisplay={product} />
             </section>
