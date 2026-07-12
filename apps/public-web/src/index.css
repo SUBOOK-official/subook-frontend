@@ -7421,20 +7421,25 @@ img {
   margin: 0 auto;
   overflow: hidden;
   border-radius: 16px;
+  /* 세로 스크롤은 브라우저 기본 동작에 맡기고, 가로 제스처만 스와이프로 받는다 */
+  touch-action: pan-y;
+}
+
+/* 슬라이드를 가로로 나란히 놓고 translateX로 이동하는 트랙.
+   width: 100%(뷰포트 폭)이라 translateX의 %가 슬라이드 1장 폭과 일치한다. */
+.public-home-hero-banner__track {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  will-change: transform;
 }
 
 .public-home-hero-banner__slide {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  pointer-events: none;
+  position: relative;
+  flex: 0 0 100%;
+  width: 100%;
+  height: 100%;
   background-image: var(--public-home-hero-gradient);
-  transition: opacity 0.6s ease;
-}
-
-.public-home-hero-banner__slide.is-active {
-  opacity: 1;
-  pointer-events: auto;
 }
 
 .public-home-hero-banner__slide-shell,
@@ -7456,7 +7461,8 @@ img {
   pointer-events: none;
 }
 
-.public-home-hero-banner__controls .public-home-hero-banner__arrow,
+/* 화살표는 숨김 상태(투명)에서 탭/클릭을 가로채면 안 되므로 여기서 살리지 않는다.
+   hover 가능한 기기에서 노출될 때만 아래 미디어쿼리에서 pointer-events를 켠다. */
 .public-home-hero-banner__controls .public-home-hero-banner__dot {
   pointer-events: auto;
 }
@@ -8315,18 +8321,7 @@ img {
     border-radius: 0;
   }
 
-  /* 터치 기기엔 hover가 없어 화살표를 상시 노출 */
-  .public-home-hero-banner__arrow {
-    width: 30px;
-    height: 30px;
-    opacity: 1;
-    pointer-events: auto;
-  }
-
-  .public-home-hero-banner__arrow-icon {
-    width: 18px;
-    height: 18px;
-  }
+  /* 모바일은 화살표 대신 스와이프(드래그)로 넘긴다 — 화살표는 hover 가능한 기기에서만 노출 */
 
   .public-home-hero-banner__content {
     /* CTA 아래 도트(bottom 16px)와 시각적으로 분리되도록 padding-bottom 더 줌 */
