@@ -101,13 +101,14 @@ export function TicketIcon(props) {
   );
 }
 
-/* 정산·판매대금 — 원화(₩) 코인 */
+/* 정산·판매대금 — 원화(₩). 출처: Tabler Icons 'currency-won' (MIT).
+   ⚠ 아이콘을 좌표로 직접 그리지 말 것 — 표준 라이브러리(Tabler/Lucide) 원본 path를 가져와 사용. */
 export function CoinIcon(props) {
   return (
     <IconBase {...props}>
-      <circle cx="12" cy="12" r="8.2" />
-      <path d="M8.2 9.2l1.3 5 1.5-4.6 1.5 4.6 1.3-5" />
-      <path d="M7.8 11.4h8.4" />
+      <path d="M4 6l3.245 11.358a.85 .85 0 0 0 1.624 .035l3.131 -9.393l3.131 9.393a.85 .85 0 0 0 1.624 -.035l3.245 -11.358" />
+      <path d="M21 10h-18" />
+      <path d="M21 14h-18" />
     </IconBase>
   );
 }
