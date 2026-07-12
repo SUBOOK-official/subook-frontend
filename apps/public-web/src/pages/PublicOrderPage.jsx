@@ -6,11 +6,12 @@ import ContentContainer from "../components/ContentContainer";
 import PublicFooter from "../components/PublicFooter";
 import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
-import { CloseIcon, TicketIcon } from "../components/icons";
+import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, CloseIcon, TicketIcon } from "../components/icons";
+import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { supabase as publicSupabase } from "@shared-supabase/publicSupabaseClient";
 import { FREE_SHIPPING_THRESHOLD, calculateShippingFee, createOrder } from "../lib/cart";
-import { loadMemberPortalSnapshot } from "../lib/memberPortal";
+import { loadMemberPortalSnapshot, saveMemberShippingAddress } from "../lib/memberPortal";
 import { usePageMeta } from "../lib/usePageMeta";
 import { getThumbnailImageUrl } from "../lib/storageImage";
 import {
@@ -111,6 +112,352 @@ const PAYMENT_METHODS = [
   { id: "naver_pay", label: "네이버페이", available: false },
 ];
 
+// ── 배송 요청사항 — 선택형 모달 (2026-07-12 UX 개편) ─────────────────────────
+const DELIVERY_REQUEST_PRESETS = [
+  "문 앞에 놓아주세요",
+  "경비실에 맡겨 주세요",
+  "파손 위험 상품입니다. 배송 시 주의해주세요",
+];
+const DELIVERY_MEMO_MAX = 40;
+const MEMO_CHOICE_NONE = "__none__";
+const MEMO_CHOICE_CUSTOM = "__custom__";
+
+function OrderDeliveryRequestModal({ open, memo, onApply, onClose }) {
+  const [choice, setChoice] = useState(MEMO_CHOICE_NONE);
+  const [customText, setCustomText] = useState("");
+
+  useBodyScrollLock(open);
+
+  // 열릴 때마다 현재 적용된 요청사항으로 초기화
+  useEffect(() => {
+    if (!open) return;
+    if (!memo) {
+      setChoice(MEMO_CHOICE_NONE);
+      setCustomText("");
+    } else if (DELIVERY_REQUEST_PRESETS.includes(memo)) {
+      setChoice(memo);
+      setCustomText("");
+    } else {
+      setChoice(MEMO_CHOICE_CUSTOM);
+      setCustomText(memo);
+    }
+  }, [open, memo]);
+
+  if (!open) return null;
+
+  const options = [
+    { value: MEMO_CHOICE_NONE, label: "요청사항 없음" },
+    ...DELIVERY_REQUEST_PRESETS.map((preset) => ({ value: preset, label: preset })),
+    { value: MEMO_CHOICE_CUSTOM, label: "직접 입력" },
+  ];
+  const canApply = choice !== MEMO_CHOICE_CUSTOM || customText.trim().length > 0;
+
+  const handleApply = () => {
+    if (!canApply) return;
+    if (choice === MEMO_CHOICE_NONE) {
+      onApply("");
+    } else if (choice === MEMO_CHOICE_CUSTOM) {
+      onApply(customText.trim().slice(0, DELIVERY_MEMO_MAX));
+    } else {
+      onApply(choice);
+    }
+  };
+
+  return (
+    <div className="order-modal__overlay" onClick={onClose} role="presentation">
+      <div
+        aria-label="배송 요청사항"
+        className="order-modal"
+        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+      >
+        <div className="order-modal__head">
+          <span aria-hidden="true" className="order-modal__head-spacer" />
+          <h3 className="order-modal__title">배송 요청사항</h3>
+          <button aria-label="닫기" className="order-modal__icon-btn" onClick={onClose} type="button">
+            <CloseIcon size={20} />
+          </button>
+        </div>
+        <div className="order-modal__body">
+          {options.map((option) => (
+            <button
+              className={`order-modal__option${choice === option.value ? " is-selected" : ""}`}
+              key={option.value}
+              onClick={() => setChoice(option.value)}
+              type="button"
+            >
+              <span>{option.label}</span>
+              {choice === option.value && <CheckIcon size={18} />}
+            </button>
+          ))}
+          {choice === MEMO_CHOICE_CUSTOM && (
+            <textarea
+              className="order-modal__textarea"
+              maxLength={DELIVERY_MEMO_MAX}
+              onChange={(event) => setCustomText(event.target.value)}
+              placeholder={`내용을 입력해주세요.(최대 ${DELIVERY_MEMO_MAX}자)`}
+              rows={3}
+              value={customText}
+            />
+          )}
+        </div>
+        <div className="order-modal__actions">
+          <button className="order-modal__btn" onClick={onClose} type="button">
+            취소
+          </button>
+          <button
+            className="order-modal__btn order-modal__btn--primary"
+            disabled={!canApply}
+            onClick={handleApply}
+            type="button"
+          >
+            적용하기
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── 주소록 모달 — 목록/새 주소 추가 2뷰 (2026-07-12 UX 개편) ──────────────────
+const EMPTY_ADDRESS_FORM = {
+  name: "",
+  phone: "",
+  postalCode: "",
+  addressLine1: "",
+  addressLine2: "",
+  isDefault: false,
+};
+
+function OrderAddressBookModal({
+  open,
+  addresses,
+  selectedAddressId,
+  user,
+  onSelect,
+  onSaved,
+  onClose,
+  showToast,
+}) {
+  const [view, setView] = useState("list");
+  const [form, setForm] = useState(EMPTY_ADDRESS_FORM);
+  const [isSaving, setIsSaving] = useState(false);
+  const [nameTouched, setNameTouched] = useState(false);
+
+  useBodyScrollLock(open);
+
+  useEffect(() => {
+    if (open) {
+      setView("list");
+      setForm(EMPTY_ADDRESS_FORM);
+      setNameTouched(false);
+    }
+  }, [open]);
+
+  if (!open) return null;
+
+  const trimmedName = form.name.trim();
+  const nameInvalid = trimmedName.length < 2 || trimmedName.length > 50;
+  const formattedPhone = formatPhoneNumber(form.phone);
+  const canSave =
+    !nameInvalid &&
+    isValidKoreanMobile(formattedPhone) &&
+    Boolean(form.postalCode) &&
+    Boolean(form.addressLine1) &&
+    !isSaving;
+
+  const handleSearchPostcode = async () => {
+    try {
+      await loadDaumPostcode();
+    } catch (err) {
+      showToast(err?.message || "주소 검색을 불러오지 못했습니다.", "error");
+      return;
+    }
+    if (!window.daum?.Postcode) {
+      showToast("주소 검색을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.", "error");
+      return;
+    }
+    new window.daum.Postcode({
+      oncomplete: (data) => {
+        setForm((prev) => ({
+          ...prev,
+          postalCode: data.zonecode,
+          addressLine1: data.roadAddress || data.jibunAddress,
+        }));
+      },
+    }).open();
+  };
+
+  const handleSave = async () => {
+    if (!canSave) return;
+    setIsSaving(true);
+    const savedValues = {
+      recipient_name: trimmedName,
+      recipient_phone: formattedPhone,
+      postal_code: form.postalCode,
+      address_line1: form.addressLine1,
+      address_line2: form.addressLine2.trim(),
+    };
+    const result = await saveMemberShippingAddress({
+      user,
+      values: { id: null, label: "", ...savedValues, delivery_memo: "" },
+      shouldMakeDefault: form.isDefault || addresses.length === 0,
+    });
+    setIsSaving(false);
+    if (result.error) {
+      showToast(result.error.message || "주소를 저장하지 못했습니다.", "error");
+      return;
+    }
+    await onSaved(savedValues);
+    setView("list");
+    setForm(EMPTY_ADDRESS_FORM);
+    setNameTouched(false);
+  };
+
+  return (
+    <div className="order-modal__overlay" onClick={onClose} role="presentation">
+      <div
+        aria-label={view === "list" ? "주소록" : "주소 추가하기"}
+        className="order-modal order-modal--address"
+        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+      >
+        <div className="order-modal__head">
+          {view === "add" ? (
+            <button
+              aria-label="주소록으로 돌아가기"
+              className="order-modal__icon-btn"
+              onClick={() => setView("list")}
+              type="button"
+            >
+              <ChevronLeftIcon size={20} />
+            </button>
+          ) : (
+            <span aria-hidden="true" className="order-modal__head-spacer" />
+          )}
+          <h3 className="order-modal__title">{view === "list" ? "주소록" : "주소 추가하기"}</h3>
+          <button aria-label="닫기" className="order-modal__icon-btn" onClick={onClose} type="button">
+            <CloseIcon size={20} />
+          </button>
+        </div>
+
+        {view === "list" ? (
+          <div className="order-modal__body order-modal__body--list">
+            <button className="order-addrbook__add-btn" onClick={() => setView("add")} type="button">
+              + 새 주소 추가하기
+            </button>
+            {addresses.map((addr) => (
+              <button
+                className="order-addrbook__item"
+                key={addr.id}
+                onClick={() => onSelect(addr)}
+                type="button"
+              >
+                <span className="order-addrbook__item-main">
+                  <span className="order-addrbook__item-name">
+                    {addr.recipient_name}
+                    {addr.is_default && <span className="order-addrbook__badge">기본 배송지</span>}
+                  </span>
+                  <span className="order-addrbook__item-addr">
+                    ({addr.postal_code}) {addr.address_line1} {addr.address_line2}
+                  </span>
+                  <span className="order-addrbook__item-phone">{addr.recipient_phone}</span>
+                </span>
+                {addr.id === selectedAddressId && (
+                  <span className="order-addrbook__item-check">
+                    <CheckIcon size={18} />
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="order-modal__body order-modal__body--form">
+            <label className="order-addrbook__field">
+              <span className="order-addrbook__field-label">이름</span>
+              <input
+                className={`order-addrbook__input${nameTouched && nameInvalid ? " is-error" : ""}`}
+                onBlur={() => setNameTouched(true)}
+                onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
+                placeholder="수령인의 이름"
+                type="text"
+                value={form.name}
+              />
+              {nameTouched && nameInvalid && (
+                <span className="order-addrbook__field-error">올바른 이름을 입력해주세요. (2 - 50자)</span>
+              )}
+            </label>
+            <label className="order-addrbook__field">
+              <span className="order-addrbook__field-label">휴대폰 번호</span>
+              <input
+                className="order-addrbook__input"
+                inputMode="numeric"
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, phone: event.target.value.replace(/\D/g, "").slice(0, 11) }))
+                }
+                placeholder="- 없이 입력"
+                type="tel"
+                value={form.phone}
+              />
+            </label>
+            <div className="order-addrbook__field">
+              <span className="order-addrbook__field-label">우편번호</span>
+              <div className="order-addrbook__postal-row">
+                <input
+                  className="order-addrbook__input"
+                  placeholder="우편 번호를 검색하세요"
+                  readOnly
+                  type="text"
+                  value={form.postalCode}
+                />
+                <button className="order-addrbook__postal-btn" onClick={handleSearchPostcode} type="button">
+                  우편번호
+                </button>
+              </div>
+            </div>
+            <label className="order-addrbook__field">
+              <span className="order-addrbook__field-label">주소</span>
+              <input
+                className="order-addrbook__input"
+                placeholder="우편 번호 검색 후, 자동입력 됩니다"
+                readOnly
+                type="text"
+                value={form.addressLine1}
+              />
+            </label>
+            <label className="order-addrbook__field">
+              <span className="order-addrbook__field-label">상세 주소</span>
+              <input
+                className="order-addrbook__input"
+                onChange={(event) => setForm((prev) => ({ ...prev, addressLine2: event.target.value }))}
+                placeholder="건물, 아파트, 동/호수 입력"
+                type="text"
+                value={form.addressLine2}
+              />
+            </label>
+            <label className="order-addrbook__default-check">
+              <input
+                checked={form.isDefault}
+                onChange={(event) => setForm((prev) => ({ ...prev, isDefault: event.target.checked }))}
+                type="checkbox"
+              />
+              <span>기본 배송지로 설정</span>
+            </label>
+            <button
+              className="order-modal__btn order-modal__btn--primary order-modal__btn--full"
+              disabled={!canSave}
+              onClick={handleSave}
+              type="button"
+            >
+              {isSaving ? "저장 중..." : "저장하기"}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // PG(토스 결제위젯) 활성 플래그 — 프로덕션은 라이브 키 들어오기 전까지 OFF.
 // OFF면 아래 모든 PG 분기가 비활성화되고 기존 계좌이체 UI 그대로 동작한다.
 const TOSS_ENABLED = import.meta.env.VITE_TOSS_ENABLED === "true";
@@ -201,6 +548,9 @@ function PublicOrderPage() {
   });
   const [savedAddresses, setSavedAddresses] = useState([]);
   const [selectedAddressId, setSelectedAddressId] = useState(null);
+  // 배송지 UX 개편 (2026-07-12): 기본 배송지 카드 + 주소록 모달 + 요청사항 선택 모달
+  const [isAddressBookOpen, setIsAddressBookOpen] = useState(false);
+  const [isMemoModalOpen, setIsMemoModalOpen] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState(TOSS_READY ? "card" : "bank_transfer");
   // 무통장입금 환불 대비 계좌 정보 (PG 안정화 전까지 수동 환불용). 관리자 주문 상세에서 확인.
   const [refundAccount, setRefundAccount] = useState({ bank: "", number: "", holder: "" });
@@ -440,6 +790,28 @@ function PublicOrderPage() {
     });
   };
 
+  // 주소록 모달에서 새 주소 저장 후 — 목록 갱신 + 방금 저장한 주소 자동 선택
+  const refreshAddressesAndSelect = async (savedValues) => {
+    const snapshot = await loadMemberPortalSnapshot({ user, profile });
+    const addresses = snapshot.shippingAddresses ?? [];
+    setSavedAddresses(addresses);
+    const match = savedValues
+      ? addresses
+          .slice()
+          .sort((a, b) => Number(b.id) - Number(a.id))
+          .find(
+            (a) =>
+              a.postal_code === savedValues.postal_code &&
+              a.address_line1 === savedValues.address_line1 &&
+              a.recipient_name === savedValues.recipient_name,
+          )
+      : null;
+    const next = match ?? addresses.find((a) => a.is_default) ?? addresses[0];
+    if (next) {
+      handleSelectAddress(next);
+    }
+  };
+
   const handleSearchAddress = async () => {
     try {
       await loadDaumPostcode();
@@ -541,6 +913,25 @@ function PublicOrderPage() {
       showToast(toFriendlyOrderError(error), "error");
       inFlightRef.current = false;
       return;
+    }
+
+    // 주소록이 비어 있으면 이번 배송지를 기본 배송지로 자동 등록 (2026-07-12 정책).
+    // best-effort — 실패해도 주문 흐름에는 영향 없음.
+    if (savedAddresses.length === 0) {
+      void saveMemberShippingAddress({
+        user,
+        values: {
+          id: null,
+          label: "",
+          recipient_name: shipping.recipientName.trim(),
+          recipient_phone: shipping.recipientPhone.trim(),
+          postal_code: shipping.postalCode.trim(),
+          address_line1: shipping.addressLine1.trim(),
+          address_line2: shipping.addressLine2.trim(),
+          delivery_memo: "",
+        },
+        shouldMakeDefault: true,
+      });
     }
 
     // PG: 주문(pending) 생성 후 토스 결제위젯 호출. 성공 시 토스가 successUrl로 리다이렉트.
@@ -693,99 +1084,115 @@ function PublicOrderPage() {
                 </div>
               </div>
 
-              {/* 배송지 */}
+              {/* 배송지 — 기본 배송지 카드 + 주소록 모달 (2026-07-12 UX 개편) */}
               <div className="order-section">
-                <h2 className="order-section__title">배송지 정보</h2>
+                <div className="order-section__head">
+                  <h2 className="order-section__title">배송 주소</h2>
+                  {savedAddresses.length > 0 && (
+                    <button
+                      className="order-addr-change-btn"
+                      onClick={() => setIsAddressBookOpen(true)}
+                      type="button"
+                    >
+                      주소 변경
+                    </button>
+                  )}
+                </div>
 
-                {savedAddresses.length > 0 && (
-                  <div className="order-saved-addresses">
-                    {savedAddresses.map((addr) => (
-                      <button
-                        className={`order-saved-addr${addr.id === selectedAddressId ? " is-active" : ""}`}
-                        key={addr.id}
-                        onClick={() => handleSelectAddress(addr)}
-                        type="button"
-                      >
-                        <span className="order-saved-addr__label">
-                          {addr.label || addr.recipient_name}
-                          {addr.is_default && <span className="order-saved-addr__default">기본</span>}
-                        </span>
-                        <span className="order-saved-addr__address">
-                          {addr.address_line1} {addr.address_line2}
-                        </span>
-                      </button>
-                    ))}
+                {selectedAddressId != null ? (
+                  <div className="order-addr-card">
+                    <div className="order-addr-card__row">
+                      <span className="order-addr-card__label">받는 분</span>
+                      <span className="order-addr-card__value">{shipping.recipientName}</span>
+                    </div>
+                    <div className="order-addr-card__row">
+                      <span className="order-addr-card__label">연락처</span>
+                      <span className="order-addr-card__value">{shipping.recipientPhone}</span>
+                    </div>
+                    <div className="order-addr-card__row">
+                      <span className="order-addr-card__label">주소</span>
+                      <span className="order-addr-card__value">
+                        [{shipping.postalCode}] {shipping.addressLine1} {shipping.addressLine2}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="order-form">
+                    {savedAddresses.length === 0 && (
+                      <p className="order-section__hint">
+                        입력하신 주소는 기본 배송지로 자동 저장돼요.
+                      </p>
+                    )}
+                    <div className="order-form__row">
+                      <label className="order-form__label">수령인</label>
+                      <input
+                        className="order-form__input"
+                        onChange={(e) => setShipping((p) => ({ ...p, recipientName: e.target.value }))}
+                        placeholder="이름"
+                        type="text"
+                        value={shipping.recipientName}
+                      />
+                    </div>
+                    <div className="order-form__row">
+                      <label className="order-form__label">연락처</label>
+                      <input
+                        className="order-form__input"
+                        inputMode="tel"
+                        onChange={(e) => setShipping((p) => ({ ...p, recipientPhone: formatPhoneNumber(e.target.value) }))}
+                        placeholder="010-0000-0000"
+                        type="tel"
+                        value={shipping.recipientPhone}
+                      />
+                    </div>
+                    <div className="order-form__row">
+                      <label className="order-form__label">주소</label>
+                      <div className="order-form__address-group">
+                        <div className="order-form__postal-row">
+                          <input
+                            className="order-form__input order-form__input--postal"
+                            disabled
+                            placeholder="우편번호"
+                            type="text"
+                            value={shipping.postalCode}
+                          />
+                          <button
+                            className="order-form__search-btn"
+                            onClick={handleSearchAddress}
+                            type="button"
+                          >
+                            주소 검색
+                          </button>
+                        </div>
+                        <input
+                          className="order-form__input"
+                          disabled
+                          placeholder="기본 주소"
+                          type="text"
+                          value={shipping.addressLine1}
+                        />
+                        <input
+                          className="order-form__input"
+                          onChange={(e) => setShipping((p) => ({ ...p, addressLine2: e.target.value }))}
+                          placeholder="상세 주소 (동/호수)"
+                          type="text"
+                          value={shipping.addressLine2}
+                        />
+                      </div>
+                    </div>
                   </div>
                 )}
 
-                <div className="order-form">
-                  <div className="order-form__row">
-                    <label className="order-form__label">수령인</label>
-                    <input
-                      className="order-form__input"
-                      onChange={(e) => setShipping((p) => ({ ...p, recipientName: e.target.value }))}
-                      placeholder="이름"
-                      type="text"
-                      value={shipping.recipientName}
-                    />
-                  </div>
-                  <div className="order-form__row">
-                    <label className="order-form__label">연락처</label>
-                    <input
-                      className="order-form__input"
-                      inputMode="tel"
-                      onChange={(e) => setShipping((p) => ({ ...p, recipientPhone: formatPhoneNumber(e.target.value) }))}
-                      placeholder="010-0000-0000"
-                      type="tel"
-                      value={shipping.recipientPhone}
-                    />
-                  </div>
-                  <div className="order-form__row">
-                    <label className="order-form__label">주소</label>
-                    <div className="order-form__address-group">
-                      <div className="order-form__postal-row">
-                        <input
-                          className="order-form__input order-form__input--postal"
-                          disabled
-                          placeholder="우편번호"
-                          type="text"
-                          value={shipping.postalCode}
-                        />
-                        <button
-                          className="order-form__search-btn"
-                          onClick={handleSearchAddress}
-                          type="button"
-                        >
-                          주소 검색
-                        </button>
-                      </div>
-                      <input
-                        className="order-form__input"
-                        disabled
-                        placeholder="기본 주소"
-                        type="text"
-                        value={shipping.addressLine1}
-                      />
-                      <input
-                        className="order-form__input"
-                        onChange={(e) => setShipping((p) => ({ ...p, addressLine2: e.target.value }))}
-                        placeholder="상세 주소 (동/호수)"
-                        type="text"
-                        value={shipping.addressLine2}
-                      />
-                    </div>
-                  </div>
-                  <div className="order-form__row">
-                    <label className="order-form__label">배송 메모</label>
-                    <input
-                      className="order-form__input"
-                      onChange={(e) => setShipping((p) => ({ ...p, memo: e.target.value }))}
-                      placeholder="배송 시 요청사항 (선택)"
-                      type="text"
-                      value={shipping.memo}
-                    />
-                  </div>
-                </div>
+                {/* 배송 요청사항 — 선택형 모달로 설정 */}
+                <button
+                  className="order-memo-row"
+                  onClick={() => setIsMemoModalOpen(true)}
+                  type="button"
+                >
+                  <span className={shipping.memo ? "" : "order-memo-row__placeholder"}>
+                    {shipping.memo || "요청사항 없음"}
+                  </span>
+                  <ChevronRightIcon size={16} />
+                </button>
               </div>
 
               {/* 결제 수단 */}
@@ -1069,6 +1476,29 @@ function PublicOrderPage() {
         </ContentContainer>
 
         <PublicFooter />
+
+        <OrderAddressBookModal
+          addresses={savedAddresses}
+          onClose={() => setIsAddressBookOpen(false)}
+          onSaved={refreshAddressesAndSelect}
+          onSelect={(addr) => {
+            handleSelectAddress(addr);
+            setIsAddressBookOpen(false);
+          }}
+          open={isAddressBookOpen}
+          selectedAddressId={selectedAddressId}
+          showToast={showToast}
+          user={user}
+        />
+        <OrderDeliveryRequestModal
+          memo={shipping.memo}
+          onApply={(nextMemo) => {
+            setShipping((prev) => ({ ...prev, memo: nextMemo }));
+            setIsMemoModalOpen(false);
+          }}
+          onClose={() => setIsMemoModalOpen(false)}
+          open={isMemoModalOpen}
+        />
 
         {toast && (
           <div className={`order-toast order-toast--${toast.type}`} role="alert">
