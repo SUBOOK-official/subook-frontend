@@ -88,8 +88,10 @@ function Page() {
   const [tab, setTab] = useState("form"); // form | full
   const [bg, setBg] = useState("sample"); // sample | blank | none
   const [rotate, setRotate] = useState(true); // 감열 96mm 급지 회전
-  const [ox, setOx] = useState(0);
-  const [oy, setOy] = useState(0);
+  // PS70 실측 캘리브레이션 (2026-07-13 테스트 1회차): 전 필드 균일하게 좌 2.6mm·상 0.4mm
+  // 밀림(순수 평행이동, 스케일 왜곡 없음) → 보정 기본값 +2.6/+0.4
+  const [ox, setOx] = useState(2.6);
+  const [oy, setOy] = useState(0.4);
 
   const bgUrl = bg === "sample" ? sampleBg : bg === "blank" ? formBg : null;
 
@@ -119,10 +121,12 @@ function Page() {
         }`;
 
   return (
-    <div style={{ padding: "18px", fontFamily: "'Noto Sans KR', sans-serif" }}>
+    <div className="page-wrap" style={{ fontFamily: "'Noto Sans KR', sans-serif" }}>
       <style>{`
         .sheet { margin: 0 auto 16px; width: fit-content; box-shadow: 0 2px 12px rgba(0,0,0,0.25); background:#fff; }
-        @media screen { .form-zoom { zoom: 2; } }
+        /* 화면 전용 여백/확대 — 인쇄에 padding이 섞이면 라벨이 밀려 2페이지로 넘어간다 */
+        @media screen { .page-wrap { padding: 18px; } .form-zoom { zoom: 2; } }
+        @media print { .page-wrap { padding: 0; margin: 0; } }
       `}</style>
       <style>{printCss}</style>
 
