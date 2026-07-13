@@ -33,6 +33,12 @@
 .public-detail-route__crumbs .is-muted {
   color: var(--public-ds-text, #232323);
   font-weight: 600;
+  /* 교재명이 한 줄을 넘어가면 …으로 요약 (1줄 고정) */
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 /* ── 컨텐츠 컨테이너 ─────────────────────────────────────────── */
