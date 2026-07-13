@@ -9,7 +9,8 @@
 
 /* ── 빵부스러기 경로 ─────────────────────────────────────────── */
 .public-detail-route {
-  padding: 16px 0 8px;
+  /* 좌우 여백(20px) — 모바일에서 콘텐츠가 화면 양끝에 붙지 않도록 */
+  padding: 16px 20px 8px;
 }
 
 .public-detail-route__crumbs {
@@ -36,7 +37,8 @@
 
 /* ── 컨텐츠 컨테이너 ─────────────────────────────────────────── */
 .public-detail-content {
-  padding: 16px 0 64px;
+  /* 좌우 여백(20px) — 모바일에서 이미지·정보가 화면 양끝에 붙지 않도록 */
+  padding: 16px 20px 64px;
 }
 
 .public-detail-content > .public-content-container,
