@@ -7,6 +7,7 @@ import ProductCard, { ProductCardSkeleton } from "../components/ProductCard";
 import PublicFooter from "../components/PublicFooter";
 import {
   CANCEL_REASON_CATEGORIES,
+  WITHDRAWAL_REASON_CATEGORIES,
   ConfirmDialog,
   MypageEmptyState,
   MypageSectionHeader,
@@ -917,9 +918,16 @@ function PublicMypagePage() {
 
     if (confirmState.type === "withdrawal") {
       setIsWithdrawing(true);
+      // 탈퇴 사유: 카테고리 키 + 선택 당시 문구 스냅샷 + (기타/부가) 상세 입력을 함께 보관.
+      const withdrawalCategory = WITHDRAWAL_REASON_CATEGORIES.find(
+        (opt) => opt.value === confirmReasonCategory,
+      );
       const result = await requestMemberWithdrawal({
         user: effectiveUser,
         demoMode: isDemoPreview,
+        reasonCategory: confirmReasonCategory || null,
+        reasonLabel: withdrawalCategory?.label ?? null,
+        reasonDetail: confirmReason.trim() || null,
       });
       setIsWithdrawing(false);
 
@@ -1188,14 +1196,20 @@ function PublicMypagePage() {
   };
 
   const handleWithdrawal = () => {
+    setConfirmReason("");
+    setConfirmReasonCategory("");
     setConfirmState({
       open: true,
       type: "withdrawal",
       itemId: null,
       title: "회원탈퇴를 신청하시겠습니까?",
-      body: "신청 후 30일 동안 계정이 유예 상태로 보관되고, 이후 개인정보가 파기됩니다. 유예 기간 중 복구가 필요하면 고객센터로 문의해 주세요.",
+      body: "신청 후 30일 동안 계정이 유예 상태로 보관되고, 이후 개인정보가 파기됩니다. 유예 기간 중 복구가 필요하면 고객센터로 문의해 주세요. 떠나시는 이유를 알려주시면 서비스 개선에 큰 도움이 됩니다.",
       confirmLabel: "탈퇴 신청",
       confirmTone: "danger",
+      reasonInput: true,
+      reasonPlaceholder: "기타 사유는 여기에 직접 입력해 주세요. 남기고 싶은 이야기가 있다면 자유롭게 적어주세요.",
+      // '기타 (직접 입력)' 선택 시에만 상세 사유 필수 — 렌더 쪽에서 카테고리별로 0/4자 전환.
+      reasonMinLength: 4,
     });
   };
 
@@ -1605,24 +1619,39 @@ function PublicMypagePage() {
           void handleConfirmAction();
         }}
         onReasonCategoryChange={
-          confirmState.type === "refund_order" || confirmState.type === "cancel_order"
+          confirmState.type === "refund_order" ||
+          confirmState.type === "cancel_order" ||
+          confirmState.type === "withdrawal"
             ? setConfirmReasonCategory
             : undefined
         }
         onReasonChange={setConfirmReason}
         open={confirmState.open}
         reasonCategories={
-          confirmState.type === "cancel_order" ? CANCEL_REASON_CATEGORIES : undefined
+          confirmState.type === "cancel_order"
+            ? CANCEL_REASON_CATEGORIES
+            : confirmState.type === "withdrawal"
+              ? WITHDRAWAL_REASON_CATEGORIES
+              : undefined
         }
         reasonCategoryLegend={
-          confirmState.type === "cancel_order" ? "취소 사유" : undefined
+          confirmState.type === "cancel_order"
+            ? "취소 사유"
+            : confirmState.type === "withdrawal"
+              ? "떠나시는 이유가 궁금해요"
+              : undefined
         }
-        changeOfMindHint={confirmState.type === "cancel_order" ? null : undefined}
+        changeOfMindHint={
+          confirmState.type === "cancel_order" || confirmState.type === "withdrawal"
+            ? null
+            : undefined
+        }
         reasonCategoryValue={confirmReasonCategory}
         reasonInput={confirmState.reasonInput}
         reasonMinLength={
-          // 취소는 '기타'일 때만 상세 사유 필수, 그 외 카테고리는 상세 사유 선택.
-          confirmState.type === "cancel_order" && confirmReasonCategory !== "other"
+          // 취소·탈퇴는 '기타'일 때만 상세 사유 필수, 그 외 카테고리는 상세 사유 선택.
+          (confirmState.type === "cancel_order" || confirmState.type === "withdrawal") &&
+          confirmReasonCategory !== "other"
             ? 0
             : confirmState.reasonMinLength
         }
@@ -3168,14 +3197,23 @@ function SettingsTab({
           icon={<LockIcon size={18} />}
           title="계정"
         />
-        <div className="public-mypage-account-actions public-mypage-account-actions--split">
+        <div className="public-mypage-account-actions">
           <button className="public-auth-button public-auth-button--secondary" disabled={isSigningOut} onClick={handleSignOut} type="button">
             {isDemoPreview ? "데모 종료" : isSigningOut ? "로그아웃 중..." : "로그아웃"}
           </button>
-          <button className="public-auth-button public-mypage-button--danger-outline" disabled={isWithdrawing} onClick={handleWithdrawal} type="button">
+        </div>
+        {/* 회원탈퇴는 큰 버튼 대신 하단의 작은 텍스트 링크로만 노출 (2026-07-13 피드백) */}
+        <p className="public-mypage-withdrawal-line">
+          더 이상 수북을 이용하지 않으시나요?{" "}
+          <button
+            className="public-mypage-withdrawal-link"
+            disabled={isWithdrawing}
+            onClick={handleWithdrawal}
+            type="button"
+          >
             {isWithdrawing ? "처리 중..." : "회원탈퇴"}
           </button>
-        </div>
+        </p>
       </section>
       ) : null}
     </div>

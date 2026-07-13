@@ -1253,7 +1253,13 @@ async function cancelMemberOrder({ user, orderId, reason = "", demoMode = false 
   return { error: null, source: "local" };
 }
 
-async function requestMemberWithdrawal({ user, demoMode = false }) {
+async function requestMemberWithdrawal({
+  user,
+  demoMode = false,
+  reasonCategory = null,
+  reasonLabel = null,
+  reasonDetail = null,
+}) {
   if (!user) {
     return {
       error: new Error("로그인된 회원 정보를 찾지 못했습니다."),
@@ -1271,7 +1277,12 @@ async function requestMemberWithdrawal({ user, demoMode = false }) {
     return { error: null, source: "local" };
   }
 
-  const { error } = await supabase.rpc("request_member_withdrawal");
+  // 탈퇴 사유(카테고리 키 + 선택 당시 문구 + 상세)는 서비스 개선 데이터로 보관된다.
+  const { error } = await supabase.rpc("request_member_withdrawal", {
+    p_reason_category: reasonCategory || null,
+    p_reason_label: reasonLabel || null,
+    p_reason_detail: reasonDetail || null,
+  });
 
   if (error) {
     if (shouldUseLocalSchemaFallback(error)) {

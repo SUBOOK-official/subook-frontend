@@ -351,11 +351,37 @@
 }
 
 .public-mypage-order-card__actions,
-.public-mypage-account-actions--split {
+.public-mypage-account-actions {
   margin-top: 16px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
+}
+
+/* 회원탈퇴 — 강조 버튼 대신 섹션 하단의 작은 안내줄 + 텍스트 링크 (2026-07-13 피드백) */
+.public-mypage-withdrawal-line {
+  margin-top: 14px;
+  color: var(--public-ds-text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+  text-align: right;
+}
+
+.public-mypage-withdrawal-link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--public-ds-text-secondary);
+  font-size: 12px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.public-mypage-withdrawal-link:hover {
+  color: var(--public-ds-text);
+}
+
+.public-mypage-withdrawal-link:disabled {
+  cursor: default;
+  opacity: 0.6;
 }
 
 .public-mypage-chip {
@@ -545,8 +571,7 @@
     grid-template-columns: 1fr;
   }
 
-  .public-mypage-order-card__actions,
-  .public-mypage-account-actions--split {
+  .public-mypage-order-card__actions {
     flex-direction: column;
   }
 }
