@@ -9,6 +9,7 @@ import {
   ChartBarIcon,
   CoinIcon,
   FolderIcon,
+  HeartOffIcon,
   HelpCircleIcon,
   MegaphoneIcon,
   PlusIcon,
@@ -62,6 +63,7 @@ export const adminNavigationGroups = [
     items: [
       { key: "members", label: "회원", to: "/admin/members", icon: UserIcon },
       { key: "analytics", label: "분석", to: "/admin/analytics", icon: TrendingUpIcon },
+      { key: "withdrawal-reasons", label: "탈퇴 사유", to: "/admin/withdrawal-reasons", icon: HeartOffIcon },
     ],
   },
 ];
@@ -121,6 +123,10 @@ export function resolveActiveAdminModule({ pathname, explicitModule }) {
 
   if (pathname.startsWith("/admin/coupons")) {
     return "coupons";
+  }
+
+  if (pathname.startsWith("/admin/withdrawal-reasons")) {
+    return "withdrawal-reasons";
   }
 
   if (pathname.startsWith("/admin/members")) {

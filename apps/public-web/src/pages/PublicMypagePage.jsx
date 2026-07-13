@@ -7,12 +7,13 @@ import ProductCard, { ProductCardSkeleton } from "../components/ProductCard";
 import PublicFooter from "../components/PublicFooter";
 import {
   CANCEL_REASON_CATEGORIES,
-  WITHDRAWAL_REASON_CATEGORIES,
   ConfirmDialog,
   MypageEmptyState,
   MypageSectionHeader,
   ResponsiveSheet,
 } from "../components/PublicMypageUi.jsx";
+// 탈퇴 사유 선택지는 admin 통계 화면과 공유하므로 shared-domain이 원본.
+import { WITHDRAWAL_REASON_CATEGORIES } from "@shared-domain/withdrawalReasons";
 import PublicPageFrame from "../components/PublicPageFrame";
 import PublicToastMessage from "../components/PublicToastMessage";
 import {
