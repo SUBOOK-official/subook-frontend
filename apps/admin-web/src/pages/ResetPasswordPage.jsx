@@ -166,16 +166,23 @@ function ResetPasswordPage() {
     const password = form.password || "";
     const confirm = form.confirmPassword || "";
 
-    // 어드민 비번은 일반 회원보다 강해야 함 — 12자 이상 + 영문 대소문자/숫자/특수문자 중 3종 이상.
-    if (password.length < 12) {
-      setError("어드민 비밀번호는 12자 이상이어야 합니다.");
+    // 어드민 비번은 일반 회원보다 강해야 함 — 8자 이상 + 영문 대소문자/숫자/특수문자 중 3종 이상.
+    // (12자는 실사용 부담이 커서 2026-07-13 피드백으로 8자로 완화. 3종 조합은 유지)
+    if (password.length < 8) {
+      setError("어드민 비밀번호는 8자 이상이어야 합니다.");
+      return;
+    }
+    // 한글·공백 등 비ASCII 금지 — public과 동일 정책. (한글이 아래 '특수문자'로
+    // 오집계되어 조합 조건을 통과하는 것도 함께 차단)
+    if (!/^[!-~]*$/.test(password)) {
+      setError("비밀번호에 한글·공백은 사용할 수 없습니다. 영문, 숫자, 특수문자만 사용해 주세요.");
       return;
     }
     const categories = [
       /[a-z]/.test(password),
       /[A-Z]/.test(password),
       /[0-9]/.test(password),
-      /[^a-zA-Z0-9]/.test(password),
+      /[!-/:-@[-`{-~]/.test(password),
     ].filter(Boolean).length;
     if (categories < 3) {
       setError("어드민 비밀번호는 영문 대소문자·숫자·특수문자 중 3종류 이상을 포함해야 합니다.");
@@ -237,7 +244,7 @@ function ResetPasswordPage() {
               disabled={phase !== "ready"}
               name="password"
               onChange={handleChange}
-              placeholder="12자 이상, 영문 대소문자·숫자·특수문자 중 3종 이상"
+              placeholder="8자 이상, 영문 대소문자·숫자·특수문자 중 3종 이상"
               type="password"
               value={form.password}
             />
