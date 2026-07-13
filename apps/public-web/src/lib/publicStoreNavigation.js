@@ -17,7 +17,9 @@ export const STORE_FILTER_GROUPS = [
     key: "types",
     label: "유형",
     queryKey: "type",
-    options: ["개념", "기출", "모의고사", "N제", "EBS", "주간지", "내신", "워크북", "논술"],
+    // EBS는 브랜드 필터와 중복이라 유형에서 제외 (2026-07-13 피드백).
+    // 기존 book_type='EBS' 재고는 브랜드=EBS 필터로 접근 가능.
+    options: ["개념", "기출", "모의고사", "N제", "주간지", "내신", "워크북", "논술"],
   },
   {
     key: "brands",

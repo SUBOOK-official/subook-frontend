@@ -27,7 +27,8 @@ const adminBookConditionOptions = [
   { value: "DISCARD", label: bookConditionLabel.DISCARD },
 ];
 
-const adminBookTypeOptions = ["기출", "모의고사", "N제", "EBS", "주간지", "내신"];
+// EBS는 브랜드로만 분류 — 유형 옵션에서 제외 (2026-07-13, public 스토어 필터와 동일 정책).
+const adminBookTypeOptions = ["기출", "모의고사", "N제", "주간지", "내신"];
 
 function toNullableText(value) {
   const text = String(value ?? "").trim();
