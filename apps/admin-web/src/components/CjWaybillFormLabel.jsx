@@ -140,41 +140,56 @@ export default function CjWaybillFormLabel({
 
       {/* 데이터 레이어 (캘리브레이션 오프셋 적용 대상) */}
       <div style={{ position: "absolute", inset: 0, transform: `translate(${offsetX}mm, ${offsetY}mm)` }}>
-        {/* ── 상단 스트립 ── */}
-        <T x={8} y={0.3} size={4} spacing={0.2}>{formatWaybill(waybill)}</T>
-        <T x={41} y={0.7} size={2.9}>{todayDotYmd()}</T>
-        <T x={61.5} y={0.7} size={2.9}>1/1</T>
-        {reprint > 0 ? <T x={75.5} y={0.7} size={2.9}>재출력: {reprint}</T> : null}
+        {/* ── 상단 스트립 — 샘플 실측: 번호 7.2~44.3(넓은 자간), 일자 51.5~67, 1/1 78~, 재출력 93.8~ ── */}
+        <T x={7.2} y={0.3} size={4} spacing={0.55}>{formatWaybill(waybill)}</T>
+        <T x={51.5} y={0.7} size={3} spacing={0.1}>{todayDotYmd()}</T>
+        <T x={78} y={0.7} size={3}>1/1</T>
+        {reprint > 0 ? <T x={93.8} y={0.7} size={3}>재출력: {reprint}</T> : null}
 
-        {/* ── 분류코드 영역 ── */}
-        <B x={0.5} y={3.6} w={23} h={13} value={clsfMain} format="CODE128A" />
-        <div
-          style={{
-            position: "absolute",
-            left: "24.5mm",
-            top: "5.6mm",
-            height: "10.5mm",
-            display: "flex",
-            alignItems: "flex-end",
-            fontFamily: F,
-            color: "#000",
-            fontWeight: 800,
-            lineHeight: 1,
-            whiteSpace: "nowrap",
-          }}
-        >
-          <span style={{ fontSize: "13mm", textDecoration: "underline", textUnderlineOffset: "1mm" }}>
-            {clsfMain.slice(0, 1)}
-          </span>
-          <span style={{ fontSize: "13mm", marginLeft: "0.8mm" }}>{clsfMain.slice(1)}</span>
-          <span style={{ fontSize: "10mm", marginLeft: "2mm" }}>-{clsfSub}</span>
-        </div>
+        {/* ── 분류코드 영역 — CJ 샘플 실측 앵커(색분석) 기준 ──
+            흰 박스(0~41.5): 바코드 0.5~26.5 + 첫글자(밑줄) 29.4~
+            노란 박스(41.5~94): 나머지 3자 39.8~66.7(와이드체→scaleX 1.38) + 서브 72.9~90.4(scaleX 1.33) */}
+        <B x={0.5} y={4} w={26} h={12.5} value={clsfMain} format="CODE128A" />
+        {[
+          { x: 29.4, size: 13, sx: 1, underline: true, text: clsfMain.slice(0, 1), dy: 0 },
+          { x: 39.8, size: 13, sx: 1.38, underline: false, text: clsfMain.slice(1), dy: 0 },
+          { x: 73.5, size: 10, sx: 1.33, underline: false, text: `-${clsfSub}`, dy: 0.8 },
+        ].map((p) => (
+          <div
+            key={p.x}
+            style={{
+              position: "absolute",
+              left: `${p.x}mm`,
+              top: `${5.6 + p.dy}mm`,
+              height: "10.4mm",
+              display: "flex",
+              alignItems: "flex-end",
+              fontFamily: F,
+              color: "#000",
+              fontWeight: 800,
+              lineHeight: 1,
+              whiteSpace: "nowrap",
+            }}
+          >
+            <span
+              style={{
+                fontSize: `${p.size}mm`,
+                transform: p.sx !== 1 ? `scaleX(${p.sx})` : undefined,
+                transformOrigin: "left bottom",
+                textDecoration: p.underline ? "underline" : undefined,
+                textUnderlineOffset: p.underline ? "1mm" : undefined,
+              }}
+            >
+              {p.text}
+            </span>
+          </div>
+        ))}
         {addr.p2pCd ? (
           <div
             style={{
               position: "absolute",
-              left: "100mm",
-              top: "13mm",
+              left: "98.3mm",
+              top: "13.4mm",
               width: "10.5mm",
               height: "7.5mm",
               border: "0.55mm solid #000",
@@ -219,7 +234,8 @@ export default function CjWaybillFormLabel({
         {/* ── 하단 ── */}
         <T x={61.5} y={81.2} size={3.2}>총수량:{qty}</T>
         <B x={76} y={80} w={34.5} h={11} value={waybill} format="CODE128C" />
-        <T x={76} y={91.4} w={34.5} size={2.9} align="right" spacing={0.3}>{waybill}</T>
+        {/* 사람이 읽는 운송장 숫자 — 샘플 실측 84.9~107 (107.9 이후 런은 바코드 삐침) */}
+        <T x={76} y={90.7} w={31} size={3.1} align="right" spacing={0.42}>{waybill}</T>
         {/* 배달점소-별칭 — CJ 출력물은 장평(가로 압축) 서체라 scaleX로 재현 */}
         <div
           style={{
