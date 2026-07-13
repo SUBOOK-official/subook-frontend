@@ -7651,10 +7651,12 @@ img {
 .public-home-hero-banner__dot::before {
   content: "";
   position: absolute;
-  /* dot 중앙 기준 44x44 invisible hit area */
+  /* 히트 영역: 세로는 44px로 넉넉하게, 가로는 점 간격(8px 점 + 8px gap = 16px pitch)을
+     넘지 않게 ±4px만 확장. 44x44로 키우면 이웃 점의 히트 박스가 겹쳐 DOM상 뒤의 점이
+     클릭을 가로챈다 — 1번 점을 눌러도 2번 슬라이드로 가던 버그의 원인 (2026-07-13) */
   top: -18px;
-  left: -18px;
-  right: -18px;
+  left: -4px;
+  right: -4px;
   bottom: -18px;
 }
 
