@@ -135,6 +135,11 @@ export function createDemoPortalSeed(profileOverride = {}) {
         ],
         shippingFee: 3000,
         totalAmount: 23000,
+        // 상세보기(결제 정보) 시트 데모용 결제 필드
+        paymentMethod: "kakao_pay",
+        paidAt: "2024-03-15T11:22:10+09:00",
+        subtotal: 22000,
+        couponDiscountAmount: 2000,
         canConfirm: true,
         canReturn: true,
         autoConfirmDaysRemaining: 3,
@@ -158,6 +163,10 @@ export function createDemoPortalSeed(profileOverride = {}) {
         ],
         shippingFee: 0,
         totalAmount: 4000,
+        // 무통장입금 주문 — 입금확인 시각이 없어 시트에서 '주문일시' 라벨 폴백을 확인하는 케이스
+        paymentMethod: "bank_transfer",
+        subtotal: 4000,
+        couponDiscountAmount: 0,
         canConfirm: false,
         canReturn: false,
         autoConfirmDaysRemaining: null,

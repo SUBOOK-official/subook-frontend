@@ -871,7 +871,8 @@ export function mapOrderToDisplayOrder(order) {
     recipientName: order.shipping_recipient_name ?? null,
     paymentStatus: order.payment_status ?? null,
     paymentMethod: order.payment_method ?? null,
-    paidAt: order.paid_at ?? null,
+    // 무통장입금은 입금확인 시각 컬럼이 없어 PG 승인 시각만 결제일시로 신뢰할 수 있다.
+    paidAt: order.pg_approved_at ?? order.paid_at ?? null,
     createdAt: order.created_at,
     status: order.status,
     subtotal: order.subtotal ?? 0,

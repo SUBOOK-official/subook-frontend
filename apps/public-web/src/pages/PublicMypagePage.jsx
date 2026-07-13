@@ -2430,6 +2430,9 @@ function OrderDetailSheet({ order, onClose }) {
   // 총 상품금액: subtotal 컬럼 우선, 없으면 합산금액에서 역산(결제금액 + 쿠폰할인 − 배송비).
   const productTotal =
     Number(order.subtotal) || Math.max(0, totalAmount + couponDiscount - shippingFee);
+  // 무통장입금은 입금확인 시각이 따로 기록되지 않으므로(PG 승인 시각만 존재)
+  // 결제 시각이 없으면 '주문일시'로 정확하게 라벨링해 허위 시각 표시를 피한다.
+  const paidAt = order.paidAt || null;
 
   return (
     <ResponsiveSheet
@@ -2439,9 +2442,15 @@ function OrderDetailSheet({ order, onClose }) {
       title="결제 정보"
     >
       <dl className="public-mypage-order-detail">
+        {order.reference ? (
+          <div className="public-mypage-order-detail__row">
+            <dt>주문번호</dt>
+            <dd>{order.reference}</dd>
+          </div>
+        ) : null}
         <div className="public-mypage-order-detail__row">
-          <dt>결제일시</dt>
-          <dd>{formatDateTime(order.paidAt || order.createdAt)}</dd>
+          <dt>{paidAt ? "결제일시" : "주문일시"}</dt>
+          <dd>{formatDateTime(paidAt || order.createdAt)}</dd>
         </div>
         <div className="public-mypage-order-detail__row">
           <dt>결제방법</dt>

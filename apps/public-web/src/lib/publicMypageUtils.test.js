@@ -4,6 +4,7 @@ import {
   buildMemberDashboardSummarySnapshot,
   filterOrdersByStatus,
   filterShipmentsByStatus,
+  mapOrderToDisplayOrder,
   mapPickupRequestToShipment,
 } from "./publicMypageUtils.js";
 
@@ -20,6 +21,53 @@ test("filterShipmentsByStatus groups shipment rows by seller progress buckets", 
   assert.equal(filterShipmentsByStatus(shipments, "on_sale").length, 1);
   assert.equal(filterShipmentsByStatus(shipments, "settled").length, 1);
   assert.equal(filterShipmentsByStatus(shipments, "rejected").length, 1);
+});
+
+test("mapOrderToDisplayOrder exposes payment detail fields for the order detail sheet", () => {
+  const order = mapOrderToDisplayOrder({
+    id: "order-1",
+    order_number: "SB-20260710-1001",
+    status: "preparing",
+    payment_method: "kakao_pay",
+    payment_status: "paid",
+    pg_approved_at: "2026-07-10T12:34:56+09:00",
+    created_at: "2026-07-10T12:30:00+09:00",
+    subtotal: 23000,
+    shipping_fee: 3000,
+    coupon_discount_amount: 2000,
+    total_amount: 24000,
+    items: [],
+  });
+
+  assert.equal(order.reference, "SB-20260710-1001");
+  assert.equal(order.paymentMethod, "kakao_pay");
+  // PG 결제는 pg_approved_at을 결제일시로 사용한다.
+  assert.equal(order.paidAt, "2026-07-10T12:34:56+09:00");
+  assert.equal(order.subtotal, 23000);
+  assert.equal(order.shippingFee, 3000);
+  assert.equal(order.couponDiscountAmount, 2000);
+  assert.equal(order.totalAmount, 24000);
+});
+
+test("mapOrderToDisplayOrder leaves paidAt empty for bank transfers without PG approval", () => {
+  const order = mapOrderToDisplayOrder({
+    id: "order-2",
+    order_number: "SB-20260710-1002",
+    status: "pending",
+    payment_method: "bank_transfer",
+    payment_status: "pending",
+    pg_approved_at: null,
+    created_at: "2026-07-10T12:30:00+09:00",
+    subtotal: 10000,
+    shipping_fee: 0,
+    coupon_discount_amount: 0,
+    total_amount: 10000,
+    items: [],
+  });
+
+  // 무통장입금은 입금확인 시각이 없으므로 시트에서 '주문일시' 라벨로 폴백해야 한다.
+  assert.equal(order.paidAt, null);
+  assert.equal(order.couponDiscountAmount, 0);
 });
 
 test("filterOrdersByStatus keeps delivered orders inside the in-progress bucket", () => {
