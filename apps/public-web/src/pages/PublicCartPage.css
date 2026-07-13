@@ -51,6 +51,8 @@
   font-size: 48px;
   line-height: 1;
   margin-bottom: 4px;
+  /* 장바구니 아이콘(currentColor)이 원래 자물쇠(#d1d5db)처럼 옅은 회색으로 보이도록 */
+  color: #6b7280;
   opacity: 0.4;
 }
 

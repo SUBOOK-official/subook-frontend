@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { formatCurrency } from "@shared-domain/format";
 import ContentContainer from "../components/ContentContainer";
+import { CartIcon } from "../components/icons";
 import PublicFooter from "../components/PublicFooter";
 import PublicMemberGateDialog from "../components/PublicMemberGateDialog";
 import PublicPageFrame from "../components/PublicPageFrame";
@@ -535,11 +536,7 @@ function PublicCartPage() {
           ) : items.length === 0 ? (
             <div className="cart-empty">
               <div className="cart-empty__icon" aria-hidden="true">
-                <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-                  <rect x="8" y="14" width="32" height="26" rx="4" stroke="#d1d5db" strokeWidth="2.5" fill="none" />
-                  <path d="M16 14V12a8 8 0 1 1 16 0v2" stroke="#d1d5db" strokeWidth="2.5" strokeLinecap="round" fill="none" />
-                  <circle cx="24" cy="28" r="3" fill="#d1d5db" />
-                </svg>
+                <CartIcon size={48} />
               </div>
               <p className="cart-empty__text">장바구니가 비어있습니다</p>
               <p className="cart-empty__hint">마음에 드는 교재를 담아보세요</p>
