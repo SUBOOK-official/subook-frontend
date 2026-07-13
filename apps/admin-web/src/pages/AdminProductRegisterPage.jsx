@@ -22,6 +22,10 @@ const DISCOUNT_TYPES = [
   { value: "rate", label: "정률(%)" },
 ];
 
+// 신규 교재의 카테고리(과목) 선택지 — 스토어 카테고리와 동일 축.
+// 빈 값("자동")이면 RPC가 상품명에서 파싱하고, 선택하면 파싱보다 우선한다.
+const SUBJECT_OPTIONS = ["국어", "수학", "영어", "과학", "사회", "한국사", "기타"];
+
 let uidCounter = 0;
 function nextUid() {
   uidCounter += 1;
@@ -36,6 +40,7 @@ function blankNewRow() {
   return {
     uid: nextUid(),
     title: "",
+    subject: "",
     option: "",
     originalPrice: "",
     discountType: "none",
@@ -499,6 +504,8 @@ function AdminProductRegisterPage() {
     setSubmitting(true);
     const new_products = newProductsForSubmit.map((r) => ({
       title: r.title.trim(),
+      // 과목 미선택("자동")이면 null → RPC가 상품명에서 파싱
+      subject: r.subject || null,
       original_price: String(r.originalPrice).replaceAll(",", "").trim() || null,
       discount_type: r.discountType || "none",
       discount_value: r.discountType === "none" ? null : String(r.discountValue).replaceAll(",", "").trim() || null,
@@ -747,10 +754,11 @@ function AdminProductRegisterPage() {
                   · 할인 방식을 정가로 두면 정가 그대로 판매 · 옵션은 콤마(,)로 여러 개 자동 등록
                 </p>
                 <div className="mt-3 overflow-x-auto">
-                  <table className="w-full min-w-[640px] text-sm">
+                  <table className="w-full min-w-[720px] text-sm">
                     <thead>
                       <tr className="border-b border-slate-200 text-left text-xs font-bold text-slate-500">
                         <th className="py-2 pr-2">상품명</th>
+                        <th className="py-2 pr-2 w-24">카테고리</th>
                         <th className="py-2 pr-2 w-28">옵션</th>
                         <th className="py-2 pr-2 w-24">정가</th>
                         <th className="py-2 pr-2 w-24">할인 방식</th>
@@ -773,6 +781,21 @@ function AdminProductRegisterPage() {
                                 placeholder="2026 강남대성 …"
                                 className="w-full rounded border border-slate-200 px-2 py-1.5"
                               />
+                            </td>
+                            <td className="py-1.5 pr-2">
+                              {/* 카테고리(과목): '자동'이면 상품명에서 파싱, 선택하면 파싱보다 우선 */}
+                              <select
+                                value={row.subject}
+                                onChange={(e) => handleRowChange(row.uid, "subject", e.target.value)}
+                                className="w-full rounded border border-slate-200 px-1 py-1.5"
+                              >
+                                <option value="">자동</option>
+                                {SUBJECT_OPTIONS.map((s) => (
+                                  <option key={s} value={s}>
+                                    {s}
+                                  </option>
+                                ))}
+                              </select>
                             </td>
                             <td className="py-1.5 pr-2">
                               <input
