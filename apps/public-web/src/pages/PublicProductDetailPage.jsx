@@ -46,7 +46,16 @@ const HEADER_OFFSET_PX = 72;
 const DETAIL_SECTIONS = [
   { key: "info", label: "교재 상세 정보" },
   { key: "grade", label: "수북 검수 정책" },
-  { key: "shipping", label: "배송 및 교환 반품 안내" },
+  {
+    key: "shipping",
+    // 모바일에서는 '안내'를 숨겨 라벨을 짧게 (배송 및 교환 반품)
+    label: (
+      <>
+        배송 및 교환 반품
+        <span className="public-detail-tabs__btn-suffix"> 안내</span>
+      </>
+    ),
+  },
 ];
 
 // 등급 라벨 → CSS modifier(--grade-s/a-plus/a). 색상 변별력을 위해 등급별 다른 톤.
@@ -1607,6 +1616,8 @@ function PublicProductDetailPage() {
               </div>
             </div>
 
+            {/* sticky 범위 한정: 탭 nav + 3개 섹션까지만 감싸 '비슷한 교재 추천' 앞에서 sticky가 풀리도록 */}
+            <div className="public-detail-sticky-scope">
             {/* 섹션 nav — sticky. 클릭하면 아래 섹션으로 스크롤, 스크롤 중엔 현재 섹션을 하이라이트. */}
             <nav
               aria-label="상품 안내 섹션"
@@ -1662,6 +1673,7 @@ function PublicProductDetailPage() {
             >
               <DetailShippingContent />
             </section>
+            </div>
 
             {/* 비슷한 교재 추천 (가로 스크롤) */}
             <RelatedProductsRail

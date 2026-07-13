@@ -324,6 +324,22 @@
   text-decoration: line-through;
 }
 
+/* 모바일: 교재명·금액 폰트 크기 축소 */
+@media (max-width: 767px) {
+  .public-detail-hero__title {
+    font-size: 17px;
+  }
+
+  .public-detail-price-line__discount,
+  .public-detail-price-line__amount {
+    font-size: 22px;
+  }
+
+  .public-detail-price-line__original {
+    font-size: 13px;
+  }
+}
+
 /* 배송비 / 총 상품 금액 요약 */
 .public-detail-hero__summary {
   display: flex;
@@ -718,8 +734,9 @@
   margin-bottom: 24px;
   gap: 0;
   position: sticky;
-  /* 상단 고정 사이트 헤더 바로 아래 붙는다. */
-  top: 72px;
+  /* 상단 고정 사이트 헤더 바로 아래 붙는다 — 헤더 실제 높이를 변수로 참조해
+     모바일(약 79px)/데스크톱 모두 헤더에 가리지 않고 정확히 아래에 스티키. */
+  top: var(--public-sticky-header-height, 72px);
   z-index: 40;
   background: #ffffff;
 }
@@ -746,6 +763,20 @@
   color: var(--public-primary, #1B3A5C);
   border-bottom-color: var(--public-primary, #1B3A5C);
   font-weight: 800;
+}
+
+/* 모바일: 탭 폰트·패딩 축소 → 라벨이 덜 줄바꿈되고 여유 있게 */
+@media (max-width: 767px) {
+  .public-detail-tabs__btn {
+    padding: 12px 6px;
+    font-size: 13px;
+    word-break: keep-all;
+  }
+
+  /* '배송 및 교환 반품 안내' → 모바일에선 '안내' 숨김 */
+  .public-detail-tabs__btn-suffix {
+    display: none;
+  }
 }
 
 .public-detail-tab-content {
@@ -789,6 +820,20 @@
   border-top: 1px dashed var(--public-border, #e5e5e5);
   font-size: 13px;
   color: var(--public-ds-text-muted, #9a9aa0);
+}
+
+/* 모바일: 탭 본문 텍스트 전반 축소 (배송 안내 / 교환·반품 안내 등).
+   base 규칙 뒤에 두어 소스 순서상 우선 적용되게 함. */
+@media (max-width: 767px) {
+  .public-detail-tab-content {
+    font-size: 13px;
+  }
+  .public-detail-tab-content__heading {
+    font-size: 15px;
+  }
+  .public-detail-tab-content__note {
+    font-size: 12px;
+  }
 }
 
 /* ── 수북 검수 정책: 강사 사진(준비 중) + 본문 2단 레이아웃 ── */
@@ -1102,6 +1147,10 @@
   margin-right: calc(50% - 50vw);
   padding-left: max(24px, calc(50vw - 50%));
   padding-right: max(24px, calc(50vw - 50%));
+  /* scroll-snap이 padding을 무시하고 첫 카드를 화면 끝에 붙이지 않도록 스냅 기준을 콘텐츠 끝선에 맞춘다.
+     (scroll-padding의 % 기준은 rail 자신의 폭이라 padding calc와 값이 달라 뷰포트 기준으로 직접 계산) */
+  scroll-padding-left: max(20px, calc((100vw - 1200px) / 2 + 20px));
+  scroll-padding-right: max(20px, calc((100vw - 1200px) / 2 + 20px));
   padding-top: 4px;
   padding-bottom: 12px;
   /* 부모가 가로 overflow를 흘리지 못하게 잡아둠 */
@@ -1124,6 +1173,27 @@
   .public-detail-related-rail__item {
     flex: 0 0 220px;
     min-width: 220px;
+  }
+}
+
+/* 모바일: 비슷한 교재 추천 — 제목 축소, 화살표 삭제, 카드 양끝 여백 */
+@media (max-width: 767px) {
+  .public-detail-related__title {
+    font-size: 17px;
+  }
+
+  /* ‹ › 화살표 버튼 삭제 */
+  .public-detail-related__nav-group {
+    display: none;
+  }
+
+  /* 카드 양끝(첫 카드 왼쪽 / 마지막 카드 오른쪽)에만 20px 여백.
+     scroll-snap이 padding을 무시하고 첫 카드를 끝에 붙이던 문제는 scroll-padding으로 해결. */
+  .public-detail-related-rail {
+    padding-left: 20px;
+    padding-right: 20px;
+    scroll-padding-left: 20px;
+    scroll-padding-right: 20px;
   }
 }
 
