@@ -75,11 +75,17 @@
 
 /* ── 좌측: 이미지 ─────────────────────────────────────────── */
 .public-detail-hero__media {
-  position: sticky;
-  top: 100px;
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+/* 데스크톱(2단 레이아웃)에서만 이미지를 sticky로 — 모바일 적층에선 정상 스크롤 */
+@media (min-width: 901px) {
+  .public-detail-hero__media {
+    position: sticky;
+    top: 100px;
+  }
 }
 
 .public-detail-hero__main-image {
@@ -361,6 +367,41 @@
   margin-top: 8px;
 }
 
+/* 모바일: 옵션 박스만 화면 하단(구매 액션바 위)에 고정 */
+@media (max-width: 767px) {
+  .public-detail-option-row {
+    position: fixed;
+    left: 0;
+    right: 0;
+    /* 하단 고정 액션바(장바구니/구매하기, 약 65px) 바로 위에 붙는다 */
+    bottom: calc(65px + env(safe-area-inset-bottom, 0px));
+    z-index: 45;
+    margin-top: 0;
+    padding: 10px 20px;
+    background: #ffffff;
+    border-top: 1px solid #e5e5e5;
+    /* 옵션 박스 자체 그림자 제거 */
+    box-shadow: none;
+  }
+
+  /* 고정 바에선 라벨을 숨겨 높이를 컴팩트하게 */
+  .public-detail-option-row__label {
+    display: none;
+  }
+
+  /* 하단 고정이라 드롭다운은 위로 열어 액션바에 가리지 않게 한다.
+     base 규칙(top: 100%)이 소스 순서상 뒤에 있어 이기므로 명시도를 높인다. */
+  .public-detail-option-row__dropdown .public-detail-option-row__listbox {
+    top: auto;
+    bottom: calc(100% + 6px);
+  }
+
+  /* 고정된 옵션 박스 + 액션바에 콘텐츠가 가리지 않도록 하단 여백 확보 */
+  .public-detail-content {
+    padding-bottom: 150px;
+  }
+}
+
 .public-detail-option-row__label {
   font-size: 13px;
   font-weight: 700;
@@ -411,8 +452,9 @@
 .public-detail-option-row__trigger:focus-visible,
 .public-detail-option-row__trigger.is-open {
   outline: none;
+  /* 선택 시 테두리 라인만 강조 — 회색 포커스 링(그림자)은 제거 */
   border-color: var(--public-primary, #1B3A5C);
-  box-shadow: var(--public-focus-ring);
+  box-shadow: none;
 }
 
 .public-detail-option-row__trigger:disabled {
@@ -1184,7 +1226,8 @@
     padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
     background: #ffffff;
     border-top: 1px solid #e5e5e5;
-    box-shadow: 0 -4px 16px rgba(20, 24, 28, 0.08);
+    /* 상단 그림자 제거 — 바로 위 옵션 박스를 가리지 않도록 */
+    box-shadow: none;
   }
 
   /* P2-7: 토스트가 sticky bar 위로 올라오도록 (mobile) */
