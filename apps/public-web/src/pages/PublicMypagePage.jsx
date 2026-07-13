@@ -2430,8 +2430,8 @@ function OrderDetailSheet({ order, onClose }) {
   // 총 상품금액: subtotal 컬럼 우선, 없으면 합산금액에서 역산(결제금액 + 쿠폰할인 − 배송비).
   const productTotal =
     Number(order.subtotal) || Math.max(0, totalAmount + couponDiscount - shippingFee);
-  // 무통장입금은 입금확인 시각이 따로 기록되지 않으므로(PG 승인 시각만 존재)
-  // 결제 시각이 없으면 '주문일시'로 정확하게 라벨링해 허위 시각 표시를 피한다.
+  // paid_at은 2026-07-13부터 입금확인·PG 승인 시 트리거로 기록된다. 그 이전의
+  // 무통장 주문은 결제 시각이 어디에도 없으므로 '주문일시'로 라벨링해 허위 시각을 피한다.
   const paidAt = order.paidAt || null;
 
   return (

@@ -49,13 +49,14 @@ test("mapOrderToDisplayOrder exposes payment detail fields for the order detail 
   assert.equal(order.totalAmount, 24000);
 });
 
-test("mapOrderToDisplayOrder leaves paidAt empty for bank transfers without PG approval", () => {
+test("mapOrderToDisplayOrder leaves paidAt empty for legacy orders without any payment timestamp", () => {
   const order = mapOrderToDisplayOrder({
     id: "order-2",
     order_number: "SB-20260710-1002",
     status: "pending",
     payment_method: "bank_transfer",
     payment_status: "pending",
+    paid_at: null,
     pg_approved_at: null,
     created_at: "2026-07-10T12:30:00+09:00",
     subtotal: 10000,
@@ -65,9 +66,48 @@ test("mapOrderToDisplayOrder leaves paidAt empty for bank transfers without PG a
     items: [],
   });
 
-  // 무통장입금은 입금확인 시각이 없으므로 시트에서 '주문일시' 라벨로 폴백해야 한다.
+  // 결제 시각이 어디에도 없으면(미입금·paid_at 도입 전 무통장 주문)
+  // 시트에서 '주문일시' 라벨로 폴백해야 한다.
   assert.equal(order.paidAt, null);
   assert.equal(order.couponDiscountAmount, 0);
+});
+
+test("mapOrderToDisplayOrder uses paid_at for bank transfers and prefers it over pg_approved_at", () => {
+  // 무통장 입금확인 — 트리거가 스탬프한 paid_at이 결제일시로 쓰인다.
+  const bankOrder = mapOrderToDisplayOrder({
+    id: "order-3",
+    order_number: "SB-20260713-1003",
+    status: "preparing",
+    payment_method: "bank_transfer",
+    payment_status: "paid",
+    paid_at: "2026-07-13T10:00:00+09:00",
+    pg_approved_at: null,
+    created_at: "2026-07-13T09:00:00+09:00",
+    subtotal: 15000,
+    shipping_fee: 3000,
+    coupon_discount_amount: 0,
+    total_amount: 18000,
+    items: [],
+  });
+  assert.equal(bankOrder.paidAt, "2026-07-13T10:00:00+09:00");
+
+  // 두 값이 모두 있으면 공통 컬럼인 paid_at이 우선.
+  const pgOrder = mapOrderToDisplayOrder({
+    id: "order-4",
+    order_number: "SB-20260713-1004",
+    status: "preparing",
+    payment_method: "toss_pay",
+    payment_status: "paid",
+    paid_at: "2026-07-13T11:00:00+09:00",
+    pg_approved_at: "2026-07-13T11:00:02+09:00",
+    created_at: "2026-07-13T10:55:00+09:00",
+    subtotal: 20000,
+    shipping_fee: 0,
+    coupon_discount_amount: 1000,
+    total_amount: 19000,
+    items: [],
+  });
+  assert.equal(pgOrder.paidAt, "2026-07-13T11:00:00+09:00");
 });
 
 test("filterOrdersByStatus keeps delivered orders inside the in-progress bucket", () => {
