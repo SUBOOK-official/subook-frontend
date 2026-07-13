@@ -1,16 +1,49 @@
-// [CJ 검수용 — 개발서버 전용 페이지] 운송장 출력물 검수 샘플 인쇄
-// CJ 개발환경에 실제 등록된 테스트 데이터 5건(운송장번호·주소정제 라우팅 실값)으로
-// 표준 운송장 라벨을 인쇄한다. 규격서 1.4.8 검수(사진촬영본 제출)용.
-//
-// 인쇄 모드 2종:
-//  · 감열(PS100): 용지 100×123mm 세로급지, 라벨을 90° 회전해 인쇄 (PS100 인쇄폭 108mm 제약)
-//  · A4 원치수: A4 용지에 123×100mm 실치수 인쇄 (배율 100%/실제 크기 필수) → 오려서 촬영
+// [CJ 라벨 개발/검수 도구 — 개발서버 전용 페이지, 프로덕션 빌드 미포함]
+// 모드 1) 양식 인쇄: CJ 지급 사전인쇄 양식(120×96)에 데이터만 인쇄 + 스캔 오버레이 검증
+// 모드 2) 전체 인쇄: 백지 라벨용 구형 전체 라벨 (표준 가이드 123×100, 검수 샘플 5건)
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { CjWaybillLabel } from "./components/CjWaybillLabel";
+import CjWaybillFormLabel from "./components/CjWaybillFormLabel";
+import formBg from "./dev-assets/cj-form-rect.png";
+import sampleBg from "./dev-assets/cj-sample-rect.png";
 
-// CJ 개발환경 등록분 (2026-07-07 소량 배치) — 운송장번호·분류코드·주소약칭·배달점소 전부 실값
-const SAMPLES = [
+// CJ 정상 출력 샘플(2026-07-13 스캔)과 동일 데이터 — 오버레이로 위치 검증용
+const FORM_MOCK = {
+  trackingNumber: "699081176613",
+  reprint: 2,
+  rateGroup: "C1",
+  boxTypeName: "극소",
+  addr: {
+    clsfCd: "3E57",
+    subClsfCd: "2h",
+    clsfAddr: "연희 61-24",
+    clldlvBranNm: "서울연희",
+    clldlvEmpNickNm: "G01-7구역",
+    rspsDiv: "01",
+    p2pCd: "P7",
+  },
+  sender: {
+    name: "수북(SUBOOK)",
+    phone: "010-6271-5792",
+    zip: "03722",
+    addr1: "서울특별시 서대문구 신촌동 연세로 50 연세대학교 경영관 209호",
+    addr2: "[신촌동 134]",
+  },
+  order: {
+    shipping_recipient_name: "박언제",
+    shipping_recipient_phone: "010-6271-1234",
+    shipping_postal_code: "03706",
+    shipping_address_line1: "서울 서대문구 성산로 367-15 (연희동)",
+    shipping_address_line2: "[연희동 산 61-24]",
+    shipping_memo: "",
+    item_count: 1,
+    order_items: [{ title: "서적", quantity: 1 }],
+  },
+};
+
+// (구) 표준가이드 전체 라벨 검수 샘플 5건 — CJ 개발환경 실등록 데이터
+const FULL_SAMPLES = [
   {
     trackingNumber: "660033105564",
     addr: { clsfCd: "5B21", subClsfCd: "1a", clsfAddr: "래미안101 101동 1903호", clldlvBranNm: "자양우리", clldlvEmpNickNm: "A05-1구역", rspsDiv: "01", p2pCd: null },
@@ -41,67 +74,110 @@ const SAMPLES = [
   sender: { name: "수북", phone: "01062715792", zip: "03722", addr1: "서울 서대문구 연세로 50", addr2: "연세대학교 212동 경영관 209호 이글루" },
 }));
 
-function SamplePrintPage() {
-  const [mode, setMode] = useState("thermal"); // thermal(PS100 회전) | a4(원치수)
+const btn = (active) => ({
+  padding: "7px 12px",
+  borderRadius: "8px",
+  border: active ? "2px solid #2563eb" : "1px solid #cbd5e1",
+  background: active ? "#eff6ff" : "#fff",
+  fontWeight: 700,
+  cursor: "pointer",
+  fontSize: "13px",
+});
 
-  // 화면용 기본 스타일은 클래스로만 부여 (인라인 스타일은 @media print 규칙을 이겨버리므로 금지)
-  const baseCss = `
-    .sheet { margin: 0 auto 16px; width: fit-content; box-shadow: 0 2px 12px rgba(0,0,0,0.25); }
-  `;
+function Page() {
+  const [tab, setTab] = useState("form"); // form | full
+  const [bg, setBg] = useState("sample"); // sample | blank | none
+  const [rotate, setRotate] = useState(true); // 감열 96mm 급지 회전
+  const [ox, setOx] = useState(0);
+  const [oy, setOy] = useState(0);
+
+  const bgUrl = bg === "sample" ? sampleBg : bg === "blank" ? formBg : null;
+
+  // 인쇄 CSS — 양식 모드: 데이터만(배경 스캔 제외). 회전=96×120 세로급지, 비회전=120×96.
   const printCss =
-    mode === "thermal"
-      ? `
-        @media print {
+    tab === "form"
+      ? rotate
+        ? `@media print {
+            @page { size: 96mm 120mm; margin: 0; }
+            .no-print { display: none !important; }
+            .cj-form-bg { display: none !important; }
+            .sheet { position: relative; width: 96mm; height: 120mm; overflow: hidden; margin: 0; box-shadow: none; }
+            .rot { position: absolute; top: 0; left: 0; transform-origin: top left; transform: translateX(96mm) rotate(90deg); }
+          }`
+        : `@media print {
+            @page { size: 120mm 96mm; margin: 0; }
+            .no-print { display: none !important; }
+            .cj-form-bg { display: none !important; }
+            .sheet { width: 120mm; height: 96mm; overflow: hidden; margin: 0; box-shadow: none; }
+            .rot { transform: none; }
+          }`
+      : `@media print {
           @page { size: 100mm 123mm; margin: 0; }
           .no-print { display: none !important; }
           .sheet { position: relative; width: 100mm; height: 123mm; overflow: hidden; page-break-after: always; margin: 0; box-shadow: none; }
-          /* 라벨(123w×100h)을 좌상단 기준 90° 회전 → 100w×123h 세로 용지에 정확히 안착 */
           .rot { position: absolute; top: 0; left: 0; transform-origin: top left; transform: translateX(100mm) rotate(90deg); }
-        }`
-      : `
-        @media print {
-          @page { size: A4 portrait; margin: 12mm; }
-          .no-print { display: none !important; }
-          .sheet { width: fit-content; page-break-after: always; margin: 0; box-shadow: none; }
-          .rot { transform: none; }
         }`;
 
   return (
-    <div style={{ padding: "20px", fontFamily: "'Noto Sans KR', sans-serif" }}>
-      <style>{baseCss}</style>
+    <div style={{ padding: "18px", fontFamily: "'Noto Sans KR', sans-serif" }}>
+      <style>{`
+        .sheet { margin: 0 auto 16px; width: fit-content; box-shadow: 0 2px 12px rgba(0,0,0,0.25); background:#fff; }
+        @media screen { .form-zoom { zoom: 2; } }
+      `}</style>
       <style>{printCss}</style>
 
-      <div className="no-print" style={{ maxWidth: "720px", margin: "0 auto 20px", background: "#fff", borderRadius: "12px", padding: "16px 20px", boxShadow: "0 2px 10px rgba(0,0,0,0.15)" }}>
-        <h1 style={{ fontSize: "18px", fontWeight: 800, margin: "0 0 8px" }}>CJ 운송장 출력물 검수 — 샘플 5건</h1>
-        <p style={{ fontSize: "13px", color: "#475569", margin: "0 0 12px", lineHeight: 1.6 }}>
-          CJ 개발환경에 실제 등록된 테스트 운송장 5건입니다(분류코드·배달점소 실값).
-          인쇄 후 사진 촬영하여 CJ에 제출하세요. 브라우저 인쇄창에서 <b>배율 100%(실제 크기)</b>, 여백 없음 확인 필수.
-        </p>
-        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-          <button type="button" onClick={() => setMode("thermal")} style={{ padding: "8px 14px", borderRadius: "8px", border: mode === "thermal" ? "2px solid #2563eb" : "1px solid #cbd5e1", background: mode === "thermal" ? "#eff6ff" : "#fff", fontWeight: 700, cursor: "pointer" }}>
-            감열 프린터 (PS100 · 100×123 회전)
-          </button>
-          <button type="button" onClick={() => setMode("a4")} style={{ padding: "8px 14px", borderRadius: "8px", border: mode === "a4" ? "2px solid #2563eb" : "1px solid #cbd5e1", background: mode === "a4" ? "#eff6ff" : "#fff", fontWeight: 700, cursor: "pointer" }}>
-            A4 원치수 (오려서 촬영)
-          </button>
-          <button type="button" onClick={() => window.print()} style={{ marginLeft: "auto", padding: "10px 22px", borderRadius: "8px", border: "none", background: "#2563eb", color: "#fff", fontWeight: 800, cursor: "pointer" }}>
-            🖨 5건 인쇄
+      <div className="no-print" style={{ maxWidth: "780px", margin: "0 auto 16px", background: "#fff", borderRadius: "12px", padding: "14px 18px", boxShadow: "0 2px 10px rgba(0,0,0,0.15)" }}>
+        <div style={{ display: "flex", gap: "8px", marginBottom: "10px" }}>
+          <button type="button" style={btn(tab === "form")} onClick={() => setTab("form")}>양식 인쇄 (CJ 지급 양식 120×96)</button>
+          <button type="button" style={btn(tab === "full")} onClick={() => setTab("full")}>전체 인쇄 (백지 123×100 · 구형)</button>
+          <button type="button" onClick={() => window.print()} style={{ marginLeft: "auto", padding: "9px 20px", borderRadius: "8px", border: "none", background: "#2563eb", color: "#fff", fontWeight: 800, cursor: "pointer" }}>
+            🖨 인쇄
           </button>
         </div>
+
+        {tab === "form" ? (
+          <div style={{ display: "flex", gap: "14px", alignItems: "center", flexWrap: "wrap", fontSize: "13px" }}>
+            <span style={{ fontWeight: 700 }}>배경(검증용):</span>
+            <button type="button" style={btn(bg === "sample")} onClick={() => setBg("sample")}>인쇄 샘플</button>
+            <button type="button" style={btn(bg === "blank")} onClick={() => setBg("blank")}>빈 양식</button>
+            <button type="button" style={btn(bg === "none")} onClick={() => setBg("none")}>없음</button>
+            <span style={{ fontWeight: 700, marginLeft: "8px" }}>급지:</span>
+            <button type="button" style={btn(rotate)} onClick={() => setRotate(true)}>회전(96mm 폭)</button>
+            <button type="button" style={btn(!rotate)} onClick={() => setRotate(false)}>비회전(120mm 폭)</button>
+            <label style={{ marginLeft: "8px" }}>
+              오프셋X <input type="number" step="0.25" value={ox} onChange={(e) => setOx(Number(e.target.value))} style={{ width: "58px" }} />mm
+            </label>
+            <label>
+              Y <input type="number" step="0.25" value={oy} onChange={(e) => setOy(Number(e.target.value))} style={{ width: "58px" }} />mm
+            </label>
+          </div>
+        ) : (
+          <p style={{ fontSize: "13px", color: "#475569", margin: 0 }}>
+            (구형) 백지 감열 라벨용 전체 라벨 — CJ 개발환경 실등록 5건. 인쇄 시 100×123 세로급지 회전.
+          </p>
+        )}
         <p style={{ fontSize: "12px", color: "#94a3b8", margin: "10px 0 0" }}>
-          감열 모드: 프린터 용지를 폭 100mm 라벨로 세팅(용지 크기 100×123 또는 100×150). 라벨이 90° 회전되어 출력되는 것이 정상입니다.
+          인쇄 대화상자에서 배율 100%(실제 크기)·여백 없음 필수. 양식 모드 인쇄 시 배경 스캔은 자동 제외되고 데이터만 인쇄됩니다.
         </p>
       </div>
 
-      {SAMPLES.map((s) => (
-        <div className="sheet" key={s.trackingNumber}>
+      {tab === "form" ? (
+        <div className="sheet form-zoom">
           <div className="rot">
-            <CjWaybillLabel data={s} />
+            <CjWaybillFormLabel data={FORM_MOCK} offsetX={ox} offsetY={oy} bgUrl={bgUrl} bgOpacity={1} />
           </div>
         </div>
-      ))}
+      ) : (
+        FULL_SAMPLES.map((s) => (
+          <div className="sheet" key={s.trackingNumber}>
+            <div className="rot">
+              <CjWaybillLabel data={s} />
+            </div>
+          </div>
+        ))
+      )}
     </div>
   );
 }
 
-createRoot(document.getElementById("label-root")).render(<SamplePrintPage />);
+createRoot(document.getElementById("label-root")).render(<Page />);

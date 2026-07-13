@@ -8,7 +8,8 @@ import { PrinterIcon } from "./icons";
 // 규격: backend/docs/cj/표준운송장가이드_1.5인치.pdf (필드 19종). MVP — 핵심 필드 우선, CJ 샘플 검증 후 미세조정.
 
 // 바코드: jsbarcode. 분류코드=CODE128A(대문자/숫자), 운송장번호=CODE128C(짝수 자리 숫자).
-function Barcode({ value, format = "CODE128", height = 40, width = 1.4 }) {
+// (CjWaybillFormLabel 등 다른 라벨 렌더러에서도 재사용)
+export function Barcode({ value, format = "CODE128", height = 40, width = 1.4 }) {
   const ref = useRef(null);
   useEffect(() => {
     const el = ref.current;
