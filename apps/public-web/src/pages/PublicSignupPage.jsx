@@ -14,6 +14,7 @@ import {
 import {
   formatPhoneNumber,
   getPasswordStrengthState,
+  hasOnlyAllowedPasswordCharacters,
   hasRequiredPasswordConditions,
   hasValidPhoneNumber,
   isValidEmailFormat,
@@ -487,6 +488,8 @@ function PublicSignupPage() {
 
     if (!formValues.password) {
       nextErrors.password = "필수 항목입니다.";
+    } else if (!hasOnlyAllowedPasswordCharacters(formValues.password)) {
+      nextErrors.password = "비밀번호에 한글·공백은 사용할 수 없어요. 영문, 숫자, 특수문자만 사용해 주세요.";
     } else if (!hasRequiredPasswordConditions(formValues.password)) {
       nextErrors.password = "비밀번호 조건(8자 이상 · 영문 · 숫자)을 모두 충족해 주세요.";
     }
@@ -957,6 +960,11 @@ function PublicSignupPage() {
                       );
                     })}
                   </div>
+                  {passwordStrength.hasDisallowedCharacters ? (
+                    <p className="public-auth-inline-message public-auth-inline-message--error">
+                      한글·공백은 사용할 수 없어요. 영문, 숫자, 특수문자만 입력해 주세요.
+                    </p>
+                  ) : null}
                 </div>
                 {fieldErrors.password ? (
                   <p className="public-auth-inline-message public-auth-inline-message--error">{fieldErrors.password}</p>

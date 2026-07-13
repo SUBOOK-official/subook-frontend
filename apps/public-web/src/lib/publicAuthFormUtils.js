@@ -1,7 +1,12 @@
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const hasLetterPattern = /[A-Za-z]/;
 const hasNumberPattern = /\d/;
-const hasSpecialCharacterPattern = /[^A-Za-z0-9]/;
+// 특수문자는 ASCII 기호만 인정 — [^A-Za-z0-9]로 두면 한글이 특수문자로 집계돼
+// 한글 섞인 비밀번호가 '강함'으로 표시되는 버그가 있었다.
+const hasSpecialCharacterPattern = /[!-/:-@[-`{-~]/;
+// 비밀번호 허용 문자 = 출력 가능한 ASCII(영문·숫자·특수문자). 한글·공백·이모지 등 금지.
+// IME로 입력한 한글 비밀번호는 기기·브라우저별 인코딩이 갈려 로그인 실패의 원인이 된다.
+const allowedPasswordPattern = /^[!-~]*$/;
 
 export function normalizeEmail(value) {
   return value.trim().toLowerCase();
@@ -47,6 +52,10 @@ export function isValidKoreanMobile(value) {
   return false;
 }
 
+export function hasOnlyAllowedPasswordCharacters(password) {
+  return allowedPasswordPattern.test(password ?? "");
+}
+
 export function getPasswordStrengthState(password) {
   const normalizedPassword = password ?? "";
   // 필수 3개(length, letter, number)는 회원가입 조건과 일치 — hasRequiredPasswordConditions와
@@ -63,30 +72,33 @@ export function getPasswordStrengthState(password) {
     },
   ];
   const satisfiedCount = rules.filter((rule) => rule.satisfied).length;
+  // 한글·공백 등 허용 외 문자 — 강도와 무관하게 '사용 불가'로 강등해 즉시 보이게 한다.
+  const hasDisallowedCharacters = !hasOnlyAllowedPasswordCharacters(normalizedPassword);
 
+  let label;
+  let tone;
   if (satisfiedCount <= 1) {
-    return {
-      rules,
-      satisfiedCount,
-      label: normalizedPassword ? "약함" : "미입력",
-      tone: normalizedPassword ? "danger" : "muted",
-    };
+    label = normalizedPassword ? "약함" : "미입력";
+    tone = normalizedPassword ? "danger" : "muted";
+  } else if (satisfiedCount <= 3) {
+    label = "보통";
+    tone = "warning";
+  } else {
+    label = "강함";
+    tone = "success";
   }
 
-  if (satisfiedCount <= 3) {
-    return {
-      rules,
-      satisfiedCount,
-      label: "보통",
-      tone: "warning",
-    };
+  if (hasDisallowedCharacters) {
+    label = "사용 불가";
+    tone = "danger";
   }
 
   return {
     rules,
     satisfiedCount,
-    label: "강함",
-    tone: "success",
+    label,
+    tone,
+    hasDisallowedCharacters,
   };
 }
 
@@ -95,6 +107,7 @@ export function hasRequiredPasswordConditions(password) {
   return (
     normalizedPassword.length >= 8 &&
     hasLetterPattern.test(normalizedPassword) &&
-    hasNumberPattern.test(normalizedPassword)
+    hasNumberPattern.test(normalizedPassword) &&
+    hasOnlyAllowedPasswordCharacters(normalizedPassword)
   );
 }

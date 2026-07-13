@@ -6,7 +6,12 @@ import brandLogoImage from "../assets/brand/logo-horizontal.png";
 import { CheckIcon } from "../components/icons";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { usePageMeta } from "../lib/usePageMeta";
-import { formatPhoneNumber, hasRequiredPasswordConditions, hasValidPhoneNumber } from "../lib/publicAuthFormUtils";
+import {
+  formatPhoneNumber,
+  hasOnlyAllowedPasswordCharacters,
+  hasRequiredPasswordConditions,
+  hasValidPhoneNumber,
+} from "../lib/publicAuthFormUtils";
 
 const agreementItems = [
   {
@@ -194,6 +199,8 @@ function PublicOAuthConsentPage() {
     if (needsPasswordSetup) {
       if (!formValues.password) {
         nextErrors.password = "비밀번호를 설정해 주세요.";
+      } else if (!hasOnlyAllowedPasswordCharacters(formValues.password)) {
+        nextErrors.password = "비밀번호에 한글·공백은 사용할 수 없어요. 영문, 숫자, 특수문자만 사용해 주세요.";
       } else if (!hasRequiredPasswordConditions(formValues.password)) {
         nextErrors.password = "영문·숫자 포함 8자 이상으로 입력해 주세요.";
       }
