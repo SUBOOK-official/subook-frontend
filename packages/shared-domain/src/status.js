@@ -11,7 +11,9 @@ export const pickupRequestStatusLabel = {
   arrived: "입고",
   inspecting: "검수중",
   inspected: "검수완료",
-  completed: "완료",
+  // 셀러 마이페이지가 이 상태를 '정산완료'로 표기하므로 admin도 같은 단어로 통일.
+  // ('완료'는 검수완료와 구분이 안 돼 운영 혼동 유발 — 2026-07-13)
+  completed: "정산완료",
   cancelled: "취소",
 };
 
