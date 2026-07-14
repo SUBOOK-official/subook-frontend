@@ -12,14 +12,9 @@ const OPTOUT_KEY = "subook_fortune_optout";
 const LAST_KEY = "subook_fortune_last";
 const APPEAR_DELAY_MS = 1500;
 
-// 화면에 떠다닐 쿠키들의 위치·크기·드리프트 변형. pointer-events는 쿠키에만 부여해
-// 나머지 화면 클릭을 방해하지 않는다.
+// 화면에 떠다닐 쿠키. pointer-events는 쿠키에만 부여해 나머지 화면 클릭을 방해하지 않는다.
 const COOKIES = [
-  { pos: { top: "17%", left: "9%" }, size: 44, drift: "a", dur: 11 },
-  { pos: { top: "31%", right: "11%" }, size: 36, drift: "b", dur: 13 },
-  { pos: { top: "58%", left: "7%" }, size: 40, drift: "c", dur: 10 },
-  { pos: { top: "67%", right: "9%" }, size: 34, drift: "d", dur: 12 },
-  { pos: { top: "46%", left: "47%" }, size: 38, drift: "b", dur: 14 },
+  { pos: { top: "24%", right: "13%" }, size: 46, drift: "b", dur: 12 },
 ];
 
 function todayStr() {
@@ -140,7 +135,7 @@ function FortuneCookie() {
             닫기
           </button>
           <button className="fc-modal__optout" onClick={optOut} type="button">
-            이제 그만 볼래요
+            앞으로 포춘쿠키를 보지 않을래요
           </button>
         </div>
       </div>
