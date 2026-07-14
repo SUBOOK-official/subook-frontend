@@ -5,6 +5,7 @@ import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import RichTextEditor from "../components/RichTextEditor";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { looksLikeRichHtml, plainTextToHtml, richTextToPlain } from "@shared-domain/richText";
+import { computeCardOffset, computeReorderTarget, reorderArray } from "../lib/pointerReorder";
 
 // FAQ 고정 카테고리 (2026-07-14 확정 6종) — 자유 입력 폐지.
 // 기존 데이터는 마이그레이션 20260714072449에서 이 목록으로 재분류됨.
@@ -52,11 +53,18 @@ function AdminFaqsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [dragId, setDragId] = useState(null);
   const [isReorderSaving, setIsReorderSaving] = useState(false);
-  // dragEnd 시점의 최신 목록 참조용 (state 클로저 지연 회피)
+  // 드래그 상태 — HTML5 DnD 대신 포인터 이벤트 기반 커스텀 구현.
+  // (HTML5 DnD는 드래그 중 React가 목록을 재정렬해 소스 노드가 DOM에서 이동하면
+  //  브라우저가 드래그를 취소해버려 순서 변경이 동작하지 않았음)
+  // { id, sourceIndex, targetIndex, startPageY, delta, slotSize, mids: number[] }
+  const [dragState, setDragState] = useState(null);
+  // 핸들러 클로저 지연 회피용 최신값 미러
   const faqsRef = useRef(faqs);
   faqsRef.current = faqs;
+  const dragStateRef = useRef(dragState);
+  dragStateRef.current = dragState;
+  const cardRefs = useRef(new Map());
 
   const loadFaqs = useCallback(async () => {
     if (!isSupabaseConfigured || !supabase) {
@@ -145,36 +153,14 @@ function AdminFaqsPage() {
     await loadFaqs();
   };
 
-  // ── 드래그 정렬 ──────────────────────────────────────────────
-  const moveRow = (list, fromId, toId) => {
-    const fromIdx = list.findIndex((r) => r.id === fromId);
-    const toIdx = list.findIndex((r) => r.id === toId);
-    if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) return list;
-    const next = [...list];
-    const [moved] = next.splice(fromIdx, 1);
-    next.splice(toIdx, 0, moved);
-    return next;
-  };
+  // ── 드래그 정렬 (포인터 이벤트 기반) ─────────────────────────
+  // 드래그 중에는 DOM 순서를 건드리지 않고 transform으로만 움직인다:
+  //   · 잡은 카드 = 커서를 따라 translateY (transition 없음)
+  //   · 나머지 카드 = 자리 비켜주기 translateY(±슬롯 높이) + transition → 슬라이드 애니메이션
+  // 놓는 순간(pointerup)에만 배열을 재정렬하고 서버에 저장한다.
+  const CARD_GAP = 8; // space-y-2
 
-  const handleDragStart = (event, id) => {
-    setDragId(id);
-    event.dataTransfer.effectAllowed = "move";
-    // Firefox는 setData 없이는 드래그가 시작되지 않음
-    event.dataTransfer.setData("text/plain", String(id));
-  };
-
-  const handleDragOver = (event, overId) => {
-    event.preventDefault();
-    event.dataTransfer.dropEffect = "move";
-    if (dragId == null || dragId === overId) return;
-    setFaqs((current) => moveRow(current, dragId, overId));
-  };
-
-  const handleDragEnd = async () => {
-    if (dragId == null) return;
-    setDragId(null);
-    const ordered = faqsRef.current;
-    // 낙관적으로 이미 화면에 반영됨 — 서버에 새 순서 저장
+  const persistOrder = async (ordered) => {
     setIsReorderSaving(true);
     const { error } = await supabase.rpc("admin_reorder_faqs", {
       p_ids: ordered.map((row) => row.id),
@@ -186,6 +172,81 @@ function AdminFaqsPage() {
       return;
     }
     setFaqs(ordered.map((row, index) => ({ ...row, display_order: index + 1 })));
+  };
+
+  const handleGripPointerDown = (event, index) => {
+    if (event.button !== 0 || isReorderSaving || dragStateRef.current) return;
+    event.preventDefault();
+    // 시작 시점의 각 카드 세로 중심(페이지 좌표) — 스크롤돼도 유효하도록 pageY 기준
+    const mids = faqsRef.current.map((row) => {
+      const el = cardRefs.current.get(row.id);
+      const rect = el?.getBoundingClientRect();
+      return rect ? rect.top + window.scrollY + rect.height / 2 : 0;
+    });
+    const sourceRect = cardRefs.current.get(faqsRef.current[index].id)?.getBoundingClientRect();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setDragState({
+      id: faqsRef.current[index].id,
+      sourceIndex: index,
+      targetIndex: index,
+      startPageY: event.pageY,
+      delta: 0,
+      slotSize: (sourceRect?.height ?? 0) + CARD_GAP,
+      mids,
+    });
+  };
+
+  const handleGripPointerMove = (event) => {
+    if (!dragStateRef.current) return;
+    // 뷰포트 가장자리에서 자동 스크롤 (긴 목록 대비)
+    if (event.clientY < 90) window.scrollBy(0, -14);
+    else if (event.clientY > window.innerHeight - 90) window.scrollBy(0, 14);
+    const pageY = event.pageY;
+    setDragState((s) => {
+      if (!s) return s;
+      const delta = pageY - s.startPageY;
+      return { ...s, delta, targetIndex: computeReorderTarget(s.mids, s.sourceIndex, delta) };
+    });
+  };
+
+  const handleGripPointerUp = () => {
+    const s = dragStateRef.current;
+    setDragState(null);
+    if (!s || s.targetIndex === s.sourceIndex) return;
+    const next = reorderArray(faqsRef.current, s.sourceIndex, s.targetIndex);
+    setFaqs(next);
+    void persistOrder(next);
+  };
+
+  const handleGripPointerCancel = () => setDragState(null);
+
+  // Esc로 드래그 취소 (카드들이 제자리로 슬라이드 복귀)
+  useEffect(() => {
+    if (!dragState) return undefined;
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") setDragState(null);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [dragState]);
+
+  // 드래그 중 각 카드의 시각적 위치 (transform)
+  const getCardStyle = (index) => {
+    const s = dragState;
+    if (!s) return undefined;
+    if (index === s.sourceIndex) {
+      return {
+        transform: `translateY(${s.delta}px) scale(1.01)`,
+        transition: "none",
+        zIndex: 20,
+        position: "relative",
+      };
+    }
+    const offset = computeCardOffset(index, s.sourceIndex, s.targetIndex, s.slotSize);
+    return {
+      transform: `translateY(${offset}px)`,
+      transition: "transform 200ms cubic-bezier(0.2, 0, 0, 1)",
+    };
   };
 
   return (
@@ -213,20 +274,28 @@ function AdminFaqsPage() {
       ) : faqs.length === 0 ? (
         <p className="text-sm text-slate-400 py-12 text-center">등록된 FAQ가 없습니다.</p>
       ) : (
-        <div className="space-y-2">
+        <div className={`space-y-2 ${dragState ? "select-none cursor-grabbing" : ""}`}>
           {faqs.map((row, index) => (
             <div
               className={`rounded-xl border bg-white p-4 flex items-start gap-3 ${
-                dragId === row.id ? "border-blue-400 shadow-md opacity-80" : "border-slate-200"
+                dragState?.id === row.id
+                  ? "border-blue-400 shadow-lg"
+                  : "border-slate-200"
               }`}
-              draggable
               key={row.id}
-              onDragEnd={handleDragEnd}
-              onDragOver={(event) => handleDragOver(event, row.id)}
-              onDragStart={(event) => handleDragStart(event, row.id)}
+              ref={(el) => {
+                if (el) cardRefs.current.set(row.id, el);
+                else cardRefs.current.delete(row.id);
+              }}
+              style={getCardStyle(index)}
             >
               <div
-                className="shrink-0 mt-1 flex flex-col items-center gap-1 text-slate-300 cursor-grab active:cursor-grabbing"
+                className="shrink-0 -m-1 mt-0 p-1 flex flex-col items-center gap-1 text-slate-300 cursor-grab active:cursor-grabbing"
+                onPointerCancel={handleGripPointerCancel}
+                onPointerDown={(event) => handleGripPointerDown(event, index)}
+                onPointerMove={handleGripPointerMove}
+                onPointerUp={handleGripPointerUp}
+                style={{ touchAction: "none" }}
                 title="드래그해서 순서 변경"
               >
                 <GripIcon />
