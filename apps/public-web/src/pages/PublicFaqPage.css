@@ -251,3 +251,52 @@
     padding: 4px 16px 18px;
   }
 }
+
+/* 어드민 리치텍스트 답변 (sanitizeRichHtml 통과 HTML) — 기존 paragraph 톤과 통일 */
+.public-faq-item__rich {
+  margin-top: 18px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--public-ds-text-secondary, #55565b);
+  word-break: keep-all;
+}
+
+.public-faq-item__rich p,
+.public-faq-item__rich div {
+  margin: 0 0 10px;
+}
+
+.public-faq-item__rich p:last-child,
+.public-faq-item__rich div:last-child {
+  margin-bottom: 0;
+}
+
+.public-faq-item__rich b,
+.public-faq-item__rich strong {
+  font-weight: 800;
+  color: var(--public-ds-text, #232323);
+}
+
+.public-faq-item__rich ul,
+.public-faq-item__rich ol {
+  margin: 0 0 10px;
+  padding-left: 1.4em;
+}
+
+.public-faq-item__rich ul {
+  list-style: disc;
+}
+
+.public-faq-item__rich ol {
+  list-style: decimal;
+}
+
+.public-faq-item__rich li {
+  margin-top: 4px;
+}
+
+.public-faq-item__rich a {
+  color: var(--public-primary, #080f47);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
