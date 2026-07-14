@@ -238,6 +238,7 @@ function AdminMembersPage() {
             is_blocked: Boolean(member?.is_blocked),
             blocked_at: member?.blocked_at ?? null,
             block_reason: member?.block_reason ?? null,
+            is_staff: Boolean(member?.is_staff ?? data.member?.is_staff),
           },
         }
       : null;
@@ -468,6 +469,12 @@ function AdminMembersPage() {
                             {MEMBER_STATUS_BADGE[member.account_status].label}
                           </span>
                         ) : null}
+                        {/* dual-role 운영진 계정 — 상태와 별개 축이라 상시 표시 */}
+                        {member.is_staff ? (
+                          <span className="shrink-0 rounded-md bg-indigo-100 px-1.5 py-0.5 text-[10px] font-bold text-indigo-700">
+                            운영진
+                          </span>
+                        ) : null}
                       </div>
                       {member.nickname && member.nickname !== member.name ? (
                         <p className="mt-1 text-xs text-slate-400">{member.name}</p>
@@ -546,6 +553,11 @@ function AdminMembersPage() {
                       차단됨
                     </span>
                   ) : null}
+                  {detailMember?.is_staff ? (
+                    <span className="ml-2 inline-flex items-center rounded-md bg-indigo-100 px-2 py-0.5 text-xs font-black text-indigo-700">
+                      운영진
+                    </span>
+                  ) : null}
                 </h3>
                 <p className="mt-1 text-sm font-semibold text-slate-500">
                   {detailMember?.email || "-"} · {detailMember?.phone || "연락처 없음"}
@@ -555,7 +567,7 @@ function AdminMembersPage() {
                 ) : null}
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                {!detailMember?.is_blocked ? (
+                {!detailMember?.is_blocked && !detailMember?.is_staff ? (
                   <label className="flex items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs font-semibold text-slate-600">
                     <input
                       checked={notifyOnBlock}
@@ -573,6 +585,11 @@ function AdminMembersPage() {
                   >
                     차단 해제
                   </button>
+                ) : detailMember?.is_staff ? (
+                  /* 운영진 차단은 auth 밴이라 어드민 로그인까지 잠김 — 서버(RPC)에서도 거부됨 */
+                  <span className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-500">
+                    운영진 계정 — 차단 불가
+                  </span>
                 ) : (
                   <button
                     className="!w-auto rounded-md border border-red-300 bg-white px-4 py-2 text-sm font-bold text-red-600 hover:bg-red-50"
