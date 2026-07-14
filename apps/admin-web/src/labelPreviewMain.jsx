@@ -95,9 +95,12 @@ const btn = (active) => ({
   fontSize: "13px",
 });
 
+// 헤드리스 인쇄 진단용 URL 파라미터: ?data=mock|samples & n=<샘플 수 제한>
+const urlParams = new URLSearchParams(window.location.search);
+
 function Page() {
   const [tab, setTab] = useState("form"); // form | full
-  const [dataMode, setDataMode] = useState("samples"); // samples(검수 5건) | mock(캘리브레이션 기준점)
+  const [dataMode, setDataMode] = useState(urlParams.get("data") === "mock" ? "mock" : "samples");
   const [bg, setBg] = useState("none"); // sample | blank | none
   const [rotate, setRotate] = useState(true); // 감열 96mm 급지 회전
   // PS70 실측 캘리브레이션 (2026-07-13 테스트 1회차): 전 필드 균일하게 좌 2.6mm·상 0.4mm
@@ -115,8 +118,11 @@ function Page() {
             @page { size: 96mm 120mm; margin: 0; }
             .no-print { display: none !important; }
             .cj-form-bg { display: none !important; }
-            .sheet { position: relative; width: 96mm; height: 120mm; overflow: hidden; margin: 0; box-shadow: none; page-break-after: always; }
-            .rot { position: absolute; top: 0; left: 0; transform-origin: top left; transform: translateX(96mm) rotate(90deg); }
+            /* ⚠ 크롬 인쇄 함정(5건 인쇄 실사고): page-break-after를 명시하면 전체가 ~0.84배
+               축소된다. 시트가 페이지와 동일 크기(96×120)면 자연 페이지네이션으로 장당
+               분리되므로 명시적 브레이크를 쓰지 않는다. */
+            .sheet { position: relative; width: 96mm; height: 120mm; overflow: hidden; margin: 0; box-shadow: none; }
+            .rot { position: absolute; top: 0; left: 0; width: 0; height: 0; overflow: visible; transform-origin: top left; transform: translateX(96mm) rotate(90deg); }
           }`
         : `@media print {
             @page { size: 120mm 96mm; margin: 0; }
@@ -181,7 +187,12 @@ function Page() {
       </div>
 
       {tab === "form" ? (
-        (dataMode === "mock" ? [FORM_MOCK] : FULL_SAMPLES).map((s) => (
+        (dataMode === "mock"
+          ? [FORM_MOCK]
+          : urlParams.has("idx")
+            ? [FULL_SAMPLES[Number(urlParams.get("idx")) || 0]].filter(Boolean)
+            : FULL_SAMPLES.slice(0, Number(urlParams.get("n")) || FULL_SAMPLES.length)
+        ).map((s) => (
           <div className="sheet form-zoom" key={s.trackingNumber}>
             <div className="rot">
               <CjWaybillFormLabel data={s} offsetX={ox} offsetY={oy} bgUrl={bgUrl} bgOpacity={1} />
