@@ -6,6 +6,7 @@ import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseCl
 import { formatCurrency } from "@shared-domain/format";
 import { CheckIcon, CloseIcon, PlusIcon } from "../components/icons";
 import { BOOK_TYPE_OPTIONS, BRAND_OPTIONS, SUBJECT_OPTIONS } from "../lib/productCategories";
+import { MAX_DETAIL_PHOTOS } from "../lib/adminImageUpload";
 
 // 통합 상품 등록 플로우 (Frame 2~4 프로토타입).
 //   고객(수거) 선택/생성 → 교재 목록 작성(기존 검색 + 신규 표) → 사진 일괄 → 등록 완료
@@ -443,9 +444,21 @@ function AdminProductRegisterPage() {
   };
 
   const uploadDetails = async (kind, uid, files) => {
+    // 상세 사진은 최대 MAX_DETAIL_PHOTOS장 — 현재 개수를 보고 남은 만큼만 업로드한다.
+    const list = kind === "new" ? newRows : existingAdditions;
+    const current = list.find((x) => x.uid === uid)?.detailUrls?.length ?? 0;
+    const remaining = MAX_DETAIL_PHOTOS - current;
+    if (remaining <= 0) {
+      showToast(`상세 사진은 최대 ${MAX_DETAIL_PHOTOS}장까지 등록할 수 있어요.`, "error");
+      return;
+    }
+    const incoming = Array.from(files).slice(0, remaining);
+    if (files.length > incoming.length) {
+      showToast(`상세 사진은 최대 ${MAX_DETAIL_PHOTOS}장까지예요. ${incoming.length}장만 추가했어요.`, "info");
+    }
     setItemBusy(kind, uid, "detailBusy", true);
     const urls = [];
-    for (const file of files) {
+    for (const file of incoming) {
       try {
         const url = await uploadImageToBucket(DETAIL_BUCKET, file);
         if (url) urls.push(url);
@@ -455,11 +468,11 @@ function AdminProductRegisterPage() {
     }
     if (kind === "new") {
       setNewRows((prev) =>
-        prev.map((r) => (r.uid === uid ? { ...r, detailUrls: [...(r.detailUrls || []), ...urls], detailBusy: false } : r)),
+        prev.map((r) => (r.uid === uid ? { ...r, detailUrls: [...(r.detailUrls || []), ...urls].slice(0, MAX_DETAIL_PHOTOS), detailBusy: false } : r)),
       );
     } else {
       setExistingAdditions((prev) =>
-        prev.map((a) => (a.uid === uid ? { ...a, detailUrls: [...(a.detailUrls || []), ...urls], detailBusy: false } : a)),
+        prev.map((a) => (a.uid === uid ? { ...a, detailUrls: [...(a.detailUrls || []), ...urls].slice(0, MAX_DETAIL_PHOTOS), detailBusy: false } : a)),
       );
     }
   };
@@ -941,7 +954,7 @@ function AdminProductRegisterPage() {
               >
                 ← 교재 목록으로
               </button>
-              <p className="text-sm text-slate-500">표지 사진 1장 + 상세페이지 사진 여러 장 (선택 사항)</p>
+              <p className="text-sm text-slate-500">표지 사진 1장 + 상세페이지 사진 최대 {MAX_DETAIL_PHOTOS}장 (선택 사항)</p>
             </div>
 
             <p className="rounded-lg bg-indigo-50 px-4 py-2 text-xs font-semibold text-indigo-700">
@@ -985,7 +998,7 @@ function AdminProductRegisterPage() {
 
                     {/* 상세 */}
                     <div>
-                      <p className="mb-2 text-xs font-bold text-slate-700">상세페이지 사진</p>
+                      <p className="mb-2 text-xs font-bold text-slate-700">상세페이지 사진 (최대 {MAX_DETAIL_PHOTOS}장)</p>
                       <div className="flex flex-wrap gap-2">
                         {t.detailUrls.map((url) => (
                           <div key={url} className="relative h-24 w-24 overflow-hidden rounded-lg border border-slate-200">
@@ -1000,15 +1013,17 @@ function AdminProductRegisterPage() {
                             </button>
                           </div>
                         ))}
-                        <DropBox
-                          className="h-24 w-24"
-                          multiple
-                          disabled={t.detailBusy}
-                          onFiles={(files) => uploadDetails(t.kind, t.uid, files)}
-                        >
-                          <span className="text-xl leading-none"><PlusIcon size={18} /></span>
-                          <span className="mt-1 text-[10px]">{t.detailBusy ? "업로드 중..." : "사진 추가"}</span>
-                        </DropBox>
+                        {t.detailUrls.length < MAX_DETAIL_PHOTOS ? (
+                          <DropBox
+                            className="h-24 w-24"
+                            multiple
+                            disabled={t.detailBusy}
+                            onFiles={(files) => uploadDetails(t.kind, t.uid, files)}
+                          >
+                            <span className="text-xl leading-none"><PlusIcon size={18} /></span>
+                            <span className="mt-1 text-[10px]">{t.detailBusy ? "업로드 중..." : "사진 추가"}</span>
+                          </DropBox>
+                        ) : null}
                       </div>
                     </div>
                   </div>

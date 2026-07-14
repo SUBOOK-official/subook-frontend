@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import AdminDialog from "./AdminDialog";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { formatCurrency } from "@shared-domain/format";
-import { COVER_BUCKET, DETAIL_BUCKET, uploadImageToBucket } from "../lib/adminImageUpload";
+import { COVER_BUCKET, DETAIL_BUCKET, MAX_DETAIL_PHOTOS, uploadImageToBucket } from "../lib/adminImageUpload";
 import { CloseIcon } from "./icons";
 import { BOOK_TYPE_OPTIONS, BRAND_OPTIONS, SUBJECT_OPTIONS } from "../lib/productCategories";
 
@@ -175,18 +175,30 @@ function ProductMasterEditModal({ onClose, onSaved, product }) {
   };
 
   const uploadBookDetails = async (bookId, files) => {
+    // 상세사진은 최대 MAX_DETAIL_PHOTOS장 — 현재 개수를 보고 남은 만큼만 업로드한다.
+    const currentCount = books.find((b) => b.id === bookId)?.images?.length ?? 0;
+    const remaining = MAX_DETAIL_PHOTOS - currentCount;
+    if (remaining <= 0) {
+      setErrorMessage(`상세사진은 최대 ${MAX_DETAIL_PHOTOS}장까지 등록할 수 있습니다.`);
+      return;
+    }
+    const incoming = Array.from(files).slice(0, remaining);
     setDetailBusyBookId(bookId);
-    setErrorMessage("");
+    setErrorMessage(
+      files.length > incoming.length
+        ? `상세사진은 최대 ${MAX_DETAIL_PHOTOS}장까지입니다. ${incoming.length}장만 추가했습니다.`
+        : "",
+    );
     try {
       const urls = [];
-      for (const file of files) {
+      for (const file of incoming) {
         // eslint-disable-next-line no-await-in-loop
         const url = await uploadImageToBucket(DETAIL_BUCKET, file, "edit-detail");
         if (url) urls.push(url);
       }
       setBooks((current) =>
         current.map((book) =>
-          book.id === bookId ? { ...book, images: [...book.images, ...urls] } : book,
+          book.id === bookId ? { ...book, images: [...book.images, ...urls].slice(0, MAX_DETAIL_PHOTOS) } : book,
         ),
       );
       if (urls.length > 0) setTouched(true);
@@ -479,13 +491,15 @@ function ProductMasterEditModal({ onClose, onSaved, product }) {
                                 </button>
                               </div>
                             ))}
-                            <FileButton
-                              busy={detailBusyBookId === book.id}
-                              multiple
-                              onFiles={(files) => uploadBookDetails(book.id, files)}
-                            >
-                              + 상세사진 추가
-                            </FileButton>
+                            {book.images.length < MAX_DETAIL_PHOTOS ? (
+                              <FileButton
+                                busy={detailBusyBookId === book.id}
+                                multiple
+                                onFiles={(files) => uploadBookDetails(book.id, files)}
+                              >
+                                + 상세사진 추가
+                              </FileButton>
+                            ) : null}
                           </div>
                         </div>
                       );
