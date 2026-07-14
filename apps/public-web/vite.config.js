@@ -62,6 +62,8 @@ export default defineConfig({
     },
   },
   server: {
+    // 브라우저 프리뷰가 세션마다 다른 포트를 배정할 수 있게 PORT env 우선 (기본 5183)
+    port: Number(process.env.PORT) || 5183,
     fs: {
       allow: [repoRoot],
     },

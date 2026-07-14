@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { reportMissingSupabaseEnv } from "./envDiagnostics";
 
 const supabaseUrl =
   import.meta.env.VITE_SUPABASE_PUBLIC_URL ||
@@ -67,6 +68,23 @@ const publicAuthStorage = {
 };
 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
+
+if (!isSupabaseConfigured) {
+  reportMissingSupabaseEnv("public", {
+    url: {
+      value: supabaseUrl,
+      candidates: ["VITE_SUPABASE_PUBLIC_URL", "VITE_SUPABASE_URL", "VITE_SUPABASE_ADMIN_URL"],
+    },
+    anonKey: {
+      value: supabaseAnonKey,
+      candidates: [
+        "VITE_SUPABASE_PUBLIC_ANON_KEY",
+        "VITE_SUPABASE_ANON_KEY",
+        "VITE_SUPABASE_ADMIN_ANON_KEY",
+      ],
+    },
+  });
+}
 
 export const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl, supabaseAnonKey, {

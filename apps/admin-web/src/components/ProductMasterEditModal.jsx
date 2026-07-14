@@ -3,6 +3,7 @@ import AdminDialog from "./AdminDialog";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { formatCurrency } from "@shared-domain/format";
 import { COVER_BUCKET, DETAIL_BUCKET, uploadImageToBucket } from "../lib/adminImageUpload";
+import { CloseIcon } from "./icons";
 
 // 상품 마스터 수정 모달 (2026-07-06 운영 피드백: 제목/가격/사진 수정 기능).
 //
@@ -399,7 +400,7 @@ function ProductMasterEditModal({ onClose, onSaved, product }) {
                                   onClick={() => removeBookImage(book.id, url)}
                                   type="button"
                                 >
-                                  ✕
+                                  <CloseIcon size={12} />
                                 </button>
                               </div>
                             ))}

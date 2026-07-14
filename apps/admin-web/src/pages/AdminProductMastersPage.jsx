@@ -7,6 +7,7 @@ import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import ProductMasterEditModal from "../components/ProductMasterEditModal";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { formatCurrency, formatDate } from "@shared-domain/format";
+import { CloseIcon } from "../components/icons";
 
 // 식스샵 스타일 어드민 상품 마스터 페이지.
 // products 테이블을 1차 단위로 표시하고, 행 클릭 시 그 product에 link된
@@ -643,7 +644,7 @@ function AdminProductMastersPage() {
                   onClick={closeDetail}
                   className="text-slate-400 hover:text-slate-700"
                 >
-                  ✕
+                  <CloseIcon size={16} />
                 </button>
               </div>
             </header>

@@ -26,9 +26,9 @@ const HOME_HERO_SLIDES = [
       "원하는 교재를 바로 찾아보세요",
     ],
     ctaLabel: "교재 보러가기",
-    ctaTextColor: "#1b3a5c",
+    ctaTextColor: "#080f47",
     /* 폴백 슬라이드(이미지 미로드 시)도 브랜드 네이비 계열만 사용 */
-    gradient: "135deg, #142d49 0%, #1b3a5c 55%, #2e5578 100%",
+    gradient: "135deg, #050933 0%, #080f47 55%, #2e5578 100%",
     actionType: "shop",
     imageDesktop: "/banners/hero-banner-1-desktop.png",
     imageMobile: "/banners/hero-banner-1-mobile.png",

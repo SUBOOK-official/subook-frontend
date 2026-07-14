@@ -4,6 +4,7 @@ import AdminShell from "../components/AdminShell";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { formatDate } from "@shared-domain/format";
+import { PinIcon } from "../components/icons";
 
 const EMPTY_FORM = {
   id: null,
@@ -193,7 +194,7 @@ function AdminNoticesPage() {
                   <div className="flex items-center gap-2 flex-wrap mb-1">
                     {row.is_pinned ? (
                       <span className="text-xs font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded">
-                        📌 핀
+                        <PinIcon size={12} /> 핀
                       </span>
                     ) : null}
                     {!row.is_published ? (
@@ -294,7 +295,7 @@ function AdminNoticesPage() {
                   onChange={(e) => setEditor((p) => ({ ...p, is_pinned: e.target.checked }))}
                   type="checkbox"
                 />
-                <span>📌 상단 고정 (핀 공지)</span>
+                <span><PinIcon size={13} /> 상단 고정 (핀 공지)</span>
               </label>
               <label className="flex items-center gap-2 text-sm">
                 <input

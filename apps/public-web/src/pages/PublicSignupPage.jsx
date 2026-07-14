@@ -2,13 +2,19 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/publicSupabaseClient";
 import PublicOAuthButtons from "../components/PublicOAuthButtons";
+import brandLogoImage from "../assets/brand/logo-horizontal.png";
 import PublicToastMessage from "../components/PublicToastMessage";
 import { ArrowRightIcon, CheckIcon, EyeIcon, EyeOffIcon } from "../components/icons";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { getPublicAccountAccessState } from "../lib/publicAuthAccess";
 import {
+  buildSocialDuplicateSignupMessage,
+  isSocialOnlyAccount,
+} from "../lib/publicAuthProviders";
+import {
   formatPhoneNumber,
   getPasswordStrengthState,
+  hasOnlyAllowedPasswordCharacters,
   hasRequiredPasswordConditions,
   hasValidPhoneNumber,
   isValidEmailFormat,
@@ -252,12 +258,34 @@ function PublicSignupPage() {
       // available 아니면 hint 끔
       setIsLegacyEmail(false);
 
-      if (row?.account_role === "member") {
+      // 'member' = member_profiles 보유 회원, 'registered' = auth.users에만 존재(안전망),
+      // 'admin' = 관리자 이메일 (dual-role 정책상 기존 계정으로 로그인하면 됨).
+      // 어느 쪽이든 "이미 가입된 이메일" — 소셜로만 가입한 이메일이면 가입 수단까지 안내.
+      if (
+        row?.account_role === "member" ||
+        row?.account_role === "registered" ||
+        row?.account_role === "admin"
+      ) {
         setEmailStatus({
           state: "duplicate",
           email: normalizedEmail,
           message: "이미 가입된 이메일입니다.",
         });
+        try {
+          const { data: providerData } = await supabase.rpc(
+            "get_member_auth_providers",
+            { p_email: normalizedEmail },
+          );
+          if (isMounted && isSocialOnlyAccount(providerData)) {
+            setEmailStatus({
+              state: "duplicate",
+              email: normalizedEmail,
+              message: buildSocialDuplicateSignupMessage(providerData),
+            });
+          }
+        } catch {
+          /* provider 조회 실패 시 기본 안내 유지 */
+        }
         return;
       }
 
@@ -460,6 +488,8 @@ function PublicSignupPage() {
 
     if (!formValues.password) {
       nextErrors.password = "필수 항목입니다.";
+    } else if (!hasOnlyAllowedPasswordCharacters(formValues.password)) {
+      nextErrors.password = "비밀번호에 한글·공백은 사용할 수 없어요. 영문, 숫자, 특수문자만 사용해 주세요.";
     } else if (!hasRequiredPasswordConditions(formValues.password)) {
       nextErrors.password = "비밀번호 조건(8자 이상 · 영문 · 숫자)을 모두 충족해 주세요.";
     }
@@ -722,7 +752,7 @@ function PublicSignupPage() {
 
             <div className="public-auth-brand-lockup">
               <Link className="public-auth-brand" to="/">
-                SUBOOK
+                <img alt="수북 SUBOOK" className="public-auth-brand__logo" src={brandLogoImage} />
               </Link>
               <p className="public-auth-brand-lockup__tagline">수능을 위한 가장 똑똑한 선택</p>
             </div>
@@ -930,6 +960,11 @@ function PublicSignupPage() {
                       );
                     })}
                   </div>
+                  {passwordStrength.hasDisallowedCharacters ? (
+                    <p className="public-auth-inline-message public-auth-inline-message--error">
+                      한글·공백은 사용할 수 없어요. 영문, 숫자, 특수문자만 입력해 주세요.
+                    </p>
+                  ) : null}
                 </div>
                 {fieldErrors.password ? (
                   <p className="public-auth-inline-message public-auth-inline-message--error">{fieldErrors.password}</p>

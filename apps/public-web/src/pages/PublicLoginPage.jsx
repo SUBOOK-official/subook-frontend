@@ -7,6 +7,7 @@ import {
   supabase,
 } from "@shared-supabase/publicSupabaseClient";
 import PublicOAuthButtons from "../components/PublicOAuthButtons";
+import brandLogoImage from "../assets/brand/logo-horizontal.png";
 import {
   AlertTriangleIcon,
   ArrowRightIcon,
@@ -16,7 +17,15 @@ import {
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { getPublicAccountAccessState } from "../lib/publicAuthAccess";
 import { isValidEmailFormat, normalizeEmail } from "../lib/publicAuthFormUtils";
+import {
+  buildSocialOnlyLoginMessage,
+  isSocialOnlyAccount,
+} from "../lib/publicAuthProviders";
 import { saveSignupSuccessState } from "../lib/publicSignupSuccessState";
+
+// 차단(제재) 계정 공통 안내 — GoTrue 밴(user_banned) 또는 role RPC 'blocked' 감지 시 노출
+const BLOCKED_ACCOUNT_NOTICE =
+  "이용이 제한된 계정입니다. 문의가 필요하시면 subook2025@gmail.com 으로 연락해 주세요.";
 
 function PublicLoginPage() {
   const location = useLocation();
@@ -58,6 +67,8 @@ function PublicLoginPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   // 이전 수북(식스샵) 회원 hint — 매칭 이메일이면 가입 유도 안내 표시
   const [legacyHint, setLegacyHint] = useState("");
+  // 소셜 전용 계정 hint — 카카오/구글로만 가입한 이메일이 비밀번호 로그인을 시도한 경우
+  const [socialOnlyHint, setSocialOnlyHint] = useState("");
 
   const handlePasswordKeyEvent = (event) => {
     if (typeof event.getModifierState === "function") {
@@ -99,6 +110,7 @@ function PublicLoginPage() {
     setEmail(event.target.value);
     setPageError("");
     setWithdrawalRecoveryEmail("");
+    setSocialOnlyHint("");
     setFieldErrors((currentValue) => ({
       ...currentValue,
       email: "",
@@ -140,6 +152,7 @@ function PublicLoginPage() {
     event.preventDefault();
     setPageError("");
     setPageNotice("");
+    setSocialOnlyHint("");
 
     if (!isSupabaseConfigured || !supabase) {
       setPageError("로그인 기능을 사용하려면 Supabase 환경 설정이 필요합니다.");
@@ -171,24 +184,49 @@ function PublicLoginPage() {
         return;
       }
 
-      if (rawMessage.includes("invalid login credentials")) {
-        setFieldErrors((currentValue) => ({
-          ...currentValue,
-          password: "이메일 또는 비밀번호가 일치하지 않습니다.",
-        }));
+      // 차단 계정 — GoTrue가 auth 레벨 밴(user_banned)으로 로그인 자체를 거부한 경우
+      if (rawMessage.includes("banned")) {
+        setPageError(BLOCKED_ACCOUNT_NOTICE);
+        setIsSubmitting(false);
+        return;
+      }
 
-        // 이전 수북(식스샵 버전) 회원 안내 — 같은 이메일이면 친절히 가입 유도.
-        // RPC는 boolean만 반환 (PII 노출 X).
+      if (rawMessage.includes("invalid login credentials")) {
+        // 소셜 전용 계정(비밀번호 없음) 확인 — RPC는 provider 목록만 반환 (PII 노출 X).
+        // 카카오/구글로만 가입한 이메일이면 "비밀번호 불일치" 대신 가입 수단을 안내한다.
+        let handledAsSocialOnly = false;
         try {
-          const { data: isLegacy } = await supabase.rpc(
-            "is_legacy_sixshop_email",
+          const { data: providerData } = await supabase.rpc(
+            "get_member_auth_providers",
             { p_email: normalized },
           );
-          if (isLegacy) {
-            setLegacyHint(normalized);
+          if (isSocialOnlyAccount(providerData)) {
+            setSocialOnlyHint(buildSocialOnlyLoginMessage(providerData));
+            handledAsSocialOnly = true;
           }
         } catch {
-          /* RPC 실패는 무시 — 일반 안내만 노출 */
+          /* RPC 실패는 무시 — 아래 일반 안내로 진행 */
+        }
+
+        if (!handledAsSocialOnly) {
+          setFieldErrors((currentValue) => ({
+            ...currentValue,
+            password: "이메일 또는 비밀번호가 일치하지 않습니다.",
+          }));
+
+          // 이전 수북(식스샵 버전) 회원 안내 — 같은 이메일이면 친절히 가입 유도.
+          // RPC는 boolean만 반환 (PII 노출 X).
+          try {
+            const { data: isLegacy } = await supabase.rpc(
+              "is_legacy_sixshop_email",
+              { p_email: normalized },
+            );
+            if (isLegacy) {
+              setLegacyHint(normalized);
+            }
+          } catch {
+            /* RPC 실패는 무시 — 일반 안내만 노출 */
+          }
         }
       } else {
         setPageError(
@@ -205,6 +243,14 @@ function PublicLoginPage() {
     const accessState = await getPublicAccountAccessState(
       sessionData.session?.user ?? null,
     );
+
+    // 밴 반영 전(액세스 토큰이 아직 유효한 창구)에도 role RPC의 blocked로 차단
+    if (accessState.accountRole === "blocked") {
+      await supabase.auth.signOut();
+      setPageError(BLOCKED_ACCOUNT_NOTICE);
+      setIsSubmitting(false);
+      return;
+    }
 
     if (accessState.accountRole === "admin") {
       await supabase.auth.signOut();
@@ -260,7 +306,7 @@ function PublicLoginPage() {
         >
           <div className="public-auth-brand-lockup">
             <Link className="public-auth-brand" to="/">
-              SUBOOK
+              <img alt="수북 SUBOOK" className="public-auth-brand__logo" src={brandLogoImage} />
             </Link>
             <p className="public-auth-brand-lockup__tagline">
               수능을 위한 가장 똑똑한 선택
@@ -433,6 +479,15 @@ function PublicLoginPage() {
                   </p>
                 ) : null}
               </div>
+
+              {socialOnlyHint ? (
+                <div
+                  className="public-auth-alert public-auth-alert--info"
+                  role="status"
+                >
+                  <p>{socialOnlyHint}</p>
+                </div>
+              ) : null}
 
               {legacyHint ? (
                 <div className="public-auth-alert public-auth-alert--info">

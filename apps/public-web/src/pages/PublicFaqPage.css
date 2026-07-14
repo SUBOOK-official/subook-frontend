@@ -26,7 +26,7 @@
 }
 
 .public-faq-route__crumb-link:hover {
-  color: var(--public-primary, #1B3A5C);
+  color: var(--public-primary, #080F47);
 }
 
 .public-faq-route__crumbs .is-muted {
@@ -47,7 +47,7 @@
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.2em;
-  color: var(--public-primary, #1B3A5C);
+  color: var(--public-primary, #080F47);
 }
 
 .public-faq-hero__title {
@@ -96,7 +96,7 @@
   padding: 0;
   font-size: 13px;
   font-weight: 600;
-  color: var(--public-primary, #1B3A5C);
+  color: var(--public-primary, #080F47);
   cursor: pointer;
 }
 
@@ -127,7 +127,7 @@
 }
 
 .public-faq-item:has(.public-faq-item__head.is-open) {
-  border-color: var(--public-primary, #1B3A5C);
+  border-color: var(--public-primary, #080F47);
   box-shadow: var(--public-shadow-sm);
 }
 
@@ -160,7 +160,7 @@
   justify-content: center;
   padding: 4px 10px;
   border-radius: 6px;
-  background: var(--public-primary, #1B3A5C);
+  background: var(--public-primary, #080F47);
   color: #ffffff;
   font-size: 12px;
   font-weight: 700;
@@ -184,7 +184,7 @@
 
 .public-faq-item__chevron.is-open {
   transform: rotate(180deg);
-  color: var(--public-primary, #1B3A5C);
+  color: var(--public-primary, #080F47);
 }
 
 .public-faq-item__panel {

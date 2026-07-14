@@ -1,10 +1,24 @@
 import { createClient } from "@supabase/supabase-js";
+import { reportMissingSupabaseEnv } from "./envDiagnostics";
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_ADMIN_URL || import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey =
   import.meta.env.VITE_SUPABASE_ADMIN_ANON_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
+
+if (!isSupabaseConfigured) {
+  reportMissingSupabaseEnv("admin", {
+    url: {
+      value: supabaseUrl,
+      candidates: ["VITE_SUPABASE_ADMIN_URL", "VITE_SUPABASE_URL"],
+    },
+    anonKey: {
+      value: supabaseAnonKey,
+      candidates: ["VITE_SUPABASE_ADMIN_ANON_KEY", "VITE_SUPABASE_ANON_KEY"],
+    },
+  });
+}
 
 function shouldDetectAdminSessionInUrl(url, params) {
   if (url.pathname !== "/auth/reset-password") {

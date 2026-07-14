@@ -1,9 +1,16 @@
 import { useEffect, useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
+import {
+  buildOAuthCallbackErrorNotice,
+  parseOAuthCallbackError,
+} from "../lib/publicOAuthCallbackError";
 
 const WITHDRAWAL_RECOVERY_NOTICE =
   "탈퇴 처리 중인 계정입니다. 복구가 필요하면 subook2025@gmail.com 으로 메일을 보내거나 아래 안내를 따라주세요.";
+
+const BLOCKED_ACCOUNT_NOTICE =
+  "이용이 제한된 계정입니다. 문의가 필요하시면 subook2025@gmail.com 으로 연락해 주세요.";
 
 /**
  * OAuth provider 콜백 후 도착하는 페이지.
@@ -38,6 +45,13 @@ function PublicAuthCallbackPage() {
     ? rawNext
     : "/";
   const [showStuckHint, setShowStuckHint] = useState(false);
+  // GoTrue가 에러와 함께 되돌려보낸 콜백 (?error=... 또는 #error=...).
+  // 세션이 생길 수 없는 URL이므로 정착을 기다리지 않고 바로 로그인으로 안내한다.
+  const [oauthErrorNotice] = useState(() =>
+    buildOAuthCallbackErrorNotice(
+      parseOAuthCallbackError(window.location.search, window.location.hash),
+    ),
+  );
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => setShowStuckHint(true), 5000);
@@ -45,6 +59,13 @@ function PublicAuthCallbackPage() {
   }, []);
 
   useEffect(() => {
+    if (oauthErrorNotice) {
+      navigate("/login", { replace: true, state: { notice: oauthErrorNotice } });
+    }
+  }, [oauthErrorNotice, navigate]);
+
+  useEffect(() => {
+    if (oauthErrorNotice) return;
     if (isLoading) return;
 
     // 세션 자체가 없음 → 로그인으로
@@ -67,6 +88,13 @@ function PublicAuthCallbackPage() {
       return;
     }
 
+    // 차단된 회원 — OAuth 로그인은 밴 반영 전 토큰이 발급될 수 있어 여기서도 차단
+    if (accountRole === "blocked") {
+      void signOut();
+      navigate("/login", { replace: true, state: { notice: BLOCKED_ACCOUNT_NOTICE } });
+      return;
+    }
+
     // OAuth 신규 가입자 → 약관 동의 페이지
     if (needsOAuthConsent) {
       navigate(`/auth/oauth-consent?next=${encodeURIComponent(next)}`, { replace: true });
@@ -78,6 +106,7 @@ function PublicAuthCallbackPage() {
       navigate(next, { replace: true });
     }
   }, [
+    oauthErrorNotice,
     isLoading,
     hasSession,
     isAuthenticated,
@@ -91,7 +120,7 @@ function PublicAuthCallbackPage() {
 
   // SPA에서 처음 진입 시 URL fragment(#access_token=...)는 Supabase가 처리 후 제거.
   // 그동안 빈 화면 보이지 않도록 로딩 안내.
-  if (!isLoading && !hasSession) {
+  if (!oauthErrorNotice && !isLoading && !hasSession) {
     return <Navigate replace to="/login" />;
   }
 

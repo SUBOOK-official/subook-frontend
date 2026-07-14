@@ -14,6 +14,7 @@ import {
   notifyShippingStarted,
 } from "../lib/adminNotification";
 import CjWaybillLabelModal from "../components/CjWaybillLabel";
+import { AlertTriangleIcon, CheckIcon } from "../components/icons";
 
 const PAGE_SIZE = 30;
 
@@ -36,6 +37,26 @@ const CARRIER_OPTIONS = [
   "우체국택배",
   "로젠택배",
 ];
+
+// 결제 확인 시각(입금확인·PG 승인)은 분 단위까지 보여준다 (shared formatDate는 날짜만).
+function formatDateTime(value) {
+  if (!value) {
+    return "-";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("ko-KR", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
 
 // 워크플로우: pending → (무통장 입금확인 / PG 결제승인) → preparing → shipping → delivered → confirmed
 // '결제완료(paid)' 대기 단계는 2026-07 폐지 — 결제가 확인되면 곧바로 '상품 준비 중'으로 간다.
@@ -560,7 +581,11 @@ function AdminOrdersPage() {
   // 정산완료(송금됨) 주문을 환불하면 그 정산금은 회사 손실. 셀러 정산은 회수하지 않음.
   const confirmRecoveryLoss = (orderId, order, reason) => {
     setDestructiveModal({
-      title: "⚠️ 회사 손실 확인",
+      title: (
+        <>
+          <AlertTriangleIcon size={16} /> 회사 손실 확인
+        </>
+      ),
       description:
         "이 주문은 셀러에게 정산금이 이미 송금 완료된 상태입니다.\n\n" +
         "환불을 진행하면 이미 지급된 정산금은 회사가 손실로 부담합니다.\n" +
@@ -1129,6 +1154,31 @@ function AdminOrdersPage() {
             })()}
           </div>
 
+          {/* 결제 정보 — paid_at은 2026-07-13부터 트리거 기록(무통장 입금확인·PG 승인 공통).
+              그 이전 무통장 주문은 시각이 없어 결제수단만 표시된다. */}
+          <div>
+            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">결제 정보</h4>
+            <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm space-y-1">
+              <p className="font-semibold">
+                {PAYMENT_METHOD_LABEL[selectedOrder.payment_method] ?? selectedOrder.payment_method ?? "-"}
+              </p>
+              {(() => {
+                const paidAt = selectedOrder.paid_at ?? selectedOrder.pg_approved_at ?? null;
+                if (!paidAt) {
+                  return selectedOrder.status === "pending" ? (
+                    <p className="text-xs text-slate-400">입금 확인 전</p>
+                  ) : null;
+                }
+                return (
+                  <p className="text-slate-600">
+                    {selectedOrder.payment_method === "bank_transfer" ? "입금확인" : "결제승인"} ·{" "}
+                    {formatDateTime(paidAt)}
+                  </p>
+                );
+              })()}
+            </div>
+          </div>
+
           {/* 배송지 */}
           <div>
             <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">배송지</h4>
@@ -1167,6 +1217,19 @@ function AdminOrdersPage() {
               <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">
                 {selectedOrder.refund_request_reason || "사유 미기재"}
               </p>
+              {/* 무통장입금 환불계좌 — 주문 시 구매자가 입력 (2026-07-12부터 필수 수집) */}
+              {selectedOrder.refund_bank_name ? (
+                <p className="mt-2 text-sm font-semibold text-slate-800">
+                  환불 계좌: {selectedOrder.refund_bank_name} {selectedOrder.refund_account_number}{" "}
+                  (예금주 {selectedOrder.refund_account_holder})
+                </p>
+              ) : (
+                selectedOrder.payment_method === "bank_transfer" && (
+                  <p className="mt-2 text-xs text-rose-600">
+                    환불 계좌 미입력 주문 — 구매자에게 입금자 본인 명의 계좌를 확인해 주세요.
+                  </p>
+                )
+              )}
               <p className="mt-2 text-xs text-rose-600">
                 아래 "환불처리" 버튼으로 처리하거나, 구매자와 협의 후 보류할 수 있습니다.
               </p>
@@ -1422,8 +1485,8 @@ function AdminOrdersPage() {
                 return (
                   <p className={`text-xs mt-1 ${matches ? "text-emerald-700" : "text-amber-700 font-semibold"}`}>
                     {matches
-                      ? "✓ 예상 입금자명과 일치합니다."
-                      : `⚠️ 예상값 "${expected}"과 다릅니다. 본인 입금이 확실한지 한 번 더 확인해주세요.`}
+                      ? <><CheckIcon size={13} /> 예상 입금자명과 일치합니다.</>
+                      : <><AlertTriangleIcon size={13} /> 예상값 "{expected}"과 다릅니다. 본인 입금이 확실한지 한 번 더 확인해주세요.</>}
                   </p>
                 );
               })()}

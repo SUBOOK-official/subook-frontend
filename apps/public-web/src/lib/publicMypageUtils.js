@@ -10,15 +10,47 @@ function toGradeLabel(rawGrade) {
 export const DEFAULT_TAB_KEY = "purchases";
 export const MAX_SAVED_ITEMS = 5;
 
+// 은행·증권사 목록 — 토스페이먼츠 공식 기관 코드 기준 전수 반영 (2026-07-12).
+// https://docs.tosspayments.com/codes/org-codes
+// ⚠ 기존 저장값(정산계좌·환불계좌)과의 select 매칭을 위해 기존 8개 표기는 변경 금지.
 export const BANK_OPTIONS = [
-  "신한은행",
+  // 주요 은행 (사용 빈도순)
+  "카카오뱅크",
+  "토스뱅크",
   "국민은행",
+  "신한은행",
   "우리은행",
   "하나은행",
   "농협은행",
   "기업은행",
-  "카카오뱅크",
-  "토스뱅크",
+  // 그 외 은행·금융기관
+  "케이뱅크",
+  "SC제일은행",
+  "씨티은행",
+  "우체국",
+  "새마을금고",
+  "신협",
+  "수협은행",
+  "산업은행",
+  "저축은행",
+  "산림조합",
+  "지역농축협",
+  // 지방은행
+  "iM뱅크(대구)",
+  "부산은행",
+  "경남은행",
+  "광주은행",
+  "전북은행",
+  "제주은행",
+  // 증권사
+  "미래에셋증권",
+  "삼성증권",
+  "한국투자증권",
+  "KB증권",
+  "NH투자증권",
+  "키움증권",
+  "토스증권",
+  "카카오페이증권",
 ];
 
 export const TAB_ITEMS = [
@@ -839,7 +871,9 @@ export function mapOrderToDisplayOrder(order) {
     recipientName: order.shipping_recipient_name ?? null,
     paymentStatus: order.payment_status ?? null,
     paymentMethod: order.payment_method ?? null,
-    paidAt: order.paid_at ?? null,
+    // 결제 확인 시각: paid_at(2026-07-13부터 무통장 입금확인·PG 승인 공통 트리거 스탬프) 우선,
+    // 그 이전 PG 주문은 pg_approved_at 폴백. 그 이전 무통장 주문은 둘 다 없어 주문일시로 표시.
+    paidAt: order.paid_at ?? order.pg_approved_at ?? null,
     createdAt: order.created_at,
     status: order.status,
     subtotal: order.subtotal ?? 0,

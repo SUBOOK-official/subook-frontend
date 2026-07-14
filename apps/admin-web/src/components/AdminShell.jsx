@@ -5,6 +5,8 @@ import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseCl
 import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
 import { useAdminBadgeCounts } from "../lib/useAdminBadgeCounts";
 import { adminNavigationGroups, resolveActiveAdminModule } from "./adminNavigation";
+import { MenuIcon } from "./icons";
+import brandLogoImage from "../assets/brand/logo-horizontal.png";
 
 function formatBadgeValue(value) {
   if (!Number.isFinite(value) || value <= 0) return null;
@@ -25,6 +27,8 @@ function NavList({ groups, resolvedModuleKey, badgeCounts, onItemClick }) {
           {group.items.map((item) => {
             const isActive = item.key === resolvedModuleKey;
             const badgeValue = formatBadgeValue(badgeCounts[item.key]);
+            // adminNavigation.js가 아이콘을 컴포넌트 참조로 제공 (이모지 문자열 폐지)
+            const ItemIcon = item.icon;
             return (
               <Link
                 className={`flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
@@ -36,7 +40,9 @@ function NavList({ groups, resolvedModuleKey, badgeCounts, onItemClick }) {
                 onClick={onItemClick}
                 to={item.to}
               >
-                <span aria-hidden="true" className="text-base leading-none">{item.icon}</span>
+                <span aria-hidden="true" className="leading-none">
+                  {ItemIcon ? <ItemIcon size={16} /> : null}
+                </span>
                 <span className="flex-1">{item.label}</span>
                 {badgeValue ? (
                   <span
@@ -108,7 +114,7 @@ function AdminShell({ title, description = "", activeModule, actions = null, sum
         {/* 데스크탑 sticky 사이드바 */}
         <aside className="hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:sticky lg:top-6 lg:block lg:self-start">
           <div className="mb-5">
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">SUBOOK</p>
+            <img alt="SUBOOK" className="h-4 w-auto" src={brandLogoImage} />
             <p className="mt-1 text-lg font-black text-slate-950">관리자</p>
           </div>
           <NavList
@@ -131,7 +137,7 @@ function AdminShell({ title, description = "", activeModule, actions = null, sum
                   onClick={() => setIsMobileNavOpen(true)}
                   type="button"
                 >
-                  <span aria-hidden="true">☰</span>
+                  <span aria-hidden="true"><MenuIcon size={20} /></span>
                 </button>
                 <div className="min-w-0">
                   <h1 className="text-2xl font-black tracking-tight text-slate-950">{title}</h1>
@@ -199,7 +205,7 @@ function AdminShell({ title, description = "", activeModule, actions = null, sum
           >
             <div className="mb-5 flex items-center justify-between">
               <div>
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">SUBOOK</p>
+                <img alt="SUBOOK" className="h-4 w-auto" src={brandLogoImage} />
                 <p className="mt-1 text-lg font-black text-slate-950">관리자</p>
               </div>
               <button

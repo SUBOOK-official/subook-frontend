@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import ContentContainer from "./ContentContainer";
+import brandLogoWhiteImage from "../assets/brand/logo-horizontal-white.png";
 
 const CONTACT_EMAIL = "subook2025@gmail.com";
 
@@ -122,7 +123,9 @@ function PublicFooter() {
     <footer className="public-footer">
       <ContentContainer className="public-footer__inner">
         <div className="public-footer__content">
-          <div className="public-footer__brand">SUBOOK®</div>
+          <div className="public-footer__brand">
+            <img alt="수북 SUBOOK" className="public-footer__brand-logo" src={brandLogoWhiteImage} />
+          </div>
 
           <div className="public-footer__links">
             {footerTopLinks.map((link) => {

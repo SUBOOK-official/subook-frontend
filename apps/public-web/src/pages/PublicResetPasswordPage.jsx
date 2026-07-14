@@ -2,7 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/publicSupabaseClient";
 import { AlertTriangleIcon, CheckIcon, EyeIcon, EyeOffIcon } from "../components/icons";
-import { getPasswordStrengthState, hasRequiredPasswordConditions } from "../lib/publicAuthFormUtils";
+import {
+  getPasswordStrengthState,
+  hasOnlyAllowedPasswordCharacters,
+  hasRequiredPasswordConditions,
+} from "../lib/publicAuthFormUtils";
 
 function buildResetLinkErrorState({ error, errorCode, errorDescription } = {}) {
   const detail = [error, errorCode, errorDescription].filter(Boolean).join(" ").toLowerCase();
@@ -205,6 +209,8 @@ function PublicResetPasswordPage() {
 
     if (!formValues.password) {
       nextErrors.password = "필수 항목입니다.";
+    } else if (!hasOnlyAllowedPasswordCharacters(formValues.password)) {
+      nextErrors.password = "비밀번호에 한글·공백은 사용할 수 없어요. 영문, 숫자, 특수문자만 사용해 주세요.";
     } else if (!hasRequiredPasswordConditions(formValues.password)) {
       nextErrors.password = "영문과 숫자를 포함한 8자 이상으로 입력해주세요.";
     }
@@ -351,6 +357,11 @@ function PublicResetPasswordPage() {
                         );
                       })}
                     </div>
+                    {passwordStrength.hasDisallowedCharacters ? (
+                      <p className="public-auth-inline-message public-auth-inline-message--error">
+                        한글·공백은 사용할 수 없어요. 영문, 숫자, 특수문자만 입력해 주세요.
+                      </p>
+                    ) : null}
                   </div>
                   {fieldErrors.password ? (
                     <p className="public-auth-inline-message public-auth-inline-message--error">{fieldErrors.password}</p>

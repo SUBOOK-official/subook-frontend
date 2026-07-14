@@ -2,6 +2,7 @@ import { useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useFocusTrap } from "@shared-domain/useFocusTrap";
 import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
+import { CloseIcon } from "./icons";
 
 /**
  * 공용 어드민 모달 컨테이너.
@@ -106,7 +107,7 @@ function AdminDialog({
               onClick={() => requestClose(null)}
               type="button"
             >
-              ✕
+              <CloseIcon size={18} />
             </button>
           </div>
         ) : null}

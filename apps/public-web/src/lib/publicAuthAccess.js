@@ -34,7 +34,8 @@ function normalizeAccountRole(value) {
     value === "member" ||
     value === "guest" ||
     value === "withdrawal_pending" ||
-    value === "withdrawn"
+    value === "withdrawn" ||
+    value === "blocked"
   ) {
     return value;
   }

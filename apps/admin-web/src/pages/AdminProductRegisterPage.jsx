@@ -4,6 +4,7 @@ import AdminShell from "../components/AdminShell";
 import AdminDialog from "../components/AdminDialog";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { formatCurrency } from "@shared-domain/format";
+import { CheckIcon, CloseIcon, PlusIcon } from "../components/icons";
 
 // 통합 상품 등록 플로우 (Frame 2~4 프로토타입).
 //   고객(수거) 선택/생성 → 교재 목록 작성(기존 검색 + 신규 표) → 사진 일괄 → 등록 완료
@@ -21,6 +22,30 @@ const DISCOUNT_TYPES = [
   { value: "rate", label: "정률(%)" },
 ];
 
+// 신규 교재의 카테고리(과목/브랜드/유형) 선택지 — 스토어 필터와 동일 축.
+// 빈 값("자동")이면 RPC가 상품명에서 파싱하고, 선택하면 파싱보다 우선한다.
+const SUBJECT_OPTIONS = ["국어", "수학", "영어", "과학", "사회", "한국사", "기타"];
+const BRAND_OPTIONS = [
+  "시대인재",
+  "강남대성",
+  "대성마이맥",
+  "이투스",
+  "EBS",
+  "메가스터디",
+  "이감",
+  "상상국어평가연구소",
+  "기타",
+];
+// 유형에 EBS는 없음 — 브랜드와 중복이라 제외 (2026-07-13 정책, 스토어 필터와 동일)
+const BOOK_TYPE_OPTIONS = ["개념", "기출", "모의고사", "N제", "주간지", "내신", "워크북", "논술"];
+
+// 카테고리 설정 모달의 필드 구성 (행 상태 키 ↔ 라벨 ↔ 선택지)
+const CATEGORY_FIELDS = [
+  { key: "subject", label: "과목", options: SUBJECT_OPTIONS },
+  { key: "brand", label: "브랜드", options: BRAND_OPTIONS },
+  { key: "bookType", label: "유형", options: BOOK_TYPE_OPTIONS },
+];
+
 let uidCounter = 0;
 function nextUid() {
   uidCounter += 1;
@@ -35,6 +60,9 @@ function blankNewRow() {
   return {
     uid: nextUid(),
     title: "",
+    subject: "",
+    brand: "",
+    bookType: "",
     option: "",
     originalPrice: "",
     discountType: "none",
@@ -155,7 +183,7 @@ function StepBadge({ index, label, active, done }) {
           active ? "bg-slate-900 text-white" : done ? "bg-emerald-500 text-white" : "bg-slate-200 text-slate-500"
         }`}
       >
-        {done ? "✓" : index}
+        {done ? <CheckIcon size={13} /> : index}
       </span>
       <span className={`text-sm font-bold ${active ? "text-slate-900" : "text-slate-400"}`}>{label}</span>
     </div>
@@ -193,6 +221,8 @@ function AdminProductRegisterPage() {
   const [prodLoading, setProdLoading] = useState(false);
   // Frame 3 모달
   const [framePanel, setFramePanel] = useState(null);
+  // 신규 교재 카테고리(과목·브랜드·유형) 설정 모달 — 대상 행 uid
+  const [categoryModalUid, setCategoryModalUid] = useState(null);
 
   // 완료/공개
   const [publishOnComplete, setPublishOnComplete] = useState(true);
@@ -498,6 +528,10 @@ function AdminProductRegisterPage() {
     setSubmitting(true);
     const new_products = newProductsForSubmit.map((r) => ({
       title: r.title.trim(),
+      // 과목 미선택("자동")이면 null → RPC가 상품명에서 파싱
+      subject: r.subject || null,
+      brand: r.brand || null,
+      book_type: r.bookType || null,
       original_price: String(r.originalPrice).replaceAll(",", "").trim() || null,
       discount_type: r.discountType || "none",
       discount_value: r.discountType === "none" ? null : String(r.discountValue).replaceAll(",", "").trim() || null,
@@ -746,10 +780,11 @@ function AdminProductRegisterPage() {
                   · 할인 방식을 정가로 두면 정가 그대로 판매 · 옵션은 콤마(,)로 여러 개 자동 등록
                 </p>
                 <div className="mt-3 overflow-x-auto">
-                  <table className="w-full min-w-[640px] text-sm">
+                  <table className="w-full min-w-[720px] text-sm">
                     <thead>
                       <tr className="border-b border-slate-200 text-left text-xs font-bold text-slate-500">
                         <th className="py-2 pr-2">상품명</th>
+                        <th className="py-2 pr-2 w-24">카테고리</th>
                         <th className="py-2 pr-2 w-28">옵션</th>
                         <th className="py-2 pr-2 w-24">정가</th>
                         <th className="py-2 pr-2 w-24">할인 방식</th>
@@ -772,6 +807,18 @@ function AdminProductRegisterPage() {
                                 placeholder="2026 강남대성 …"
                                 className="w-full rounded border border-slate-200 px-2 py-1.5"
                               />
+                            </td>
+                            <td className="py-1.5 pr-2">
+                              {/* 카테고리(과목·브랜드·유형)는 모달에서 설정 — 표가 뚱뚱해지지 않게
+                                  셀에는 현재 선택 요약만 보여준다. 전부 미선택이면 '자동'. */}
+                              <button
+                                type="button"
+                                onClick={() => setCategoryModalUid(row.uid)}
+                                className="w-full truncate rounded border border-slate-200 px-2 py-1.5 text-left text-xs font-semibold text-slate-600 hover:border-slate-400"
+                                title="과목 · 브랜드 · 유형 설정"
+                              >
+                                {[row.subject, row.brand, row.bookType].filter(Boolean).join(" · ") || "자동"}
+                              </button>
                             </td>
                             <td className="py-1.5 pr-2">
                               <input
@@ -827,7 +874,7 @@ function AdminProductRegisterPage() {
                                   className="text-slate-300 hover:text-rose-600"
                                   aria-label="행 삭제"
                                 >
-                                  ✕
+                                  <CloseIcon size={14} />
                                 </button>
                               ) : null}
                             </td>
@@ -934,7 +981,7 @@ function AdminProductRegisterPage() {
                             onClick={() => clearCover(t.kind, t.uid)}
                             className="absolute right-1 top-1 rounded-full bg-slate-900/70 px-1.5 text-xs font-bold text-white"
                           >
-                            ✕
+                            <CloseIcon size={12} />
                           </button>
                         </div>
                       ) : (
@@ -943,7 +990,7 @@ function AdminProductRegisterPage() {
                           disabled={t.coverBusy}
                           onFiles={(files) => uploadCover(t.kind, t.uid, files[0])}
                         >
-                          <span className="text-2xl">＋</span>
+                          <span className="text-2xl leading-none"><PlusIcon size={22} /></span>
                           <span className="mt-1 text-[10px]">{t.coverBusy ? "업로드 중..." : "표지 추가"}</span>
                         </DropBox>
                       )}
@@ -962,7 +1009,7 @@ function AdminProductRegisterPage() {
                               onClick={() => removeDetail(t.kind, t.uid, url)}
                               className="absolute right-1 top-1 rounded-full bg-slate-900/70 px-1.5 text-xs font-bold text-white"
                             >
-                              ✕
+                              <CloseIcon size={12} />
                             </button>
                           </div>
                         ))}
@@ -972,7 +1019,7 @@ function AdminProductRegisterPage() {
                           disabled={t.detailBusy}
                           onFiles={(files) => uploadDetails(t.kind, t.uid, files)}
                         >
-                          <span className="text-xl">＋</span>
+                          <span className="text-xl leading-none"><PlusIcon size={18} /></span>
                           <span className="mt-1 text-[10px]">{t.detailBusy ? "업로드 중..." : "사진 추가"}</span>
                         </DropBox>
                       </div>
@@ -1014,6 +1061,67 @@ function AdminProductRegisterPage() {
       </div>
 
       {/* Frame 3: 기존 교재 옵션/재고 추가 모달 */}
+      {/* 신규 교재 카테고리 설정 모달 — 과목/브랜드/유형을 각각 선택(미선택=자동 파싱) */}
+      {(() => {
+        const categoryRow = newRows.find((r) => r.uid === categoryModalUid) ?? null;
+        if (!categoryRow) return null;
+        return (
+          <AdminDialog
+            open
+            onClose={() => setCategoryModalUid(null)}
+            title="카테고리 설정"
+            size="sm"
+            footer={
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setCategoryModalUid(null)}
+                  className="btn-primary !w-auto !px-5 !py-2 text-sm"
+                >
+                  완료
+                </button>
+              </div>
+            }
+          >
+            <div className="space-y-4 px-6 py-5">
+              <p className="text-xs text-slate-500">
+                {categoryRow.title.trim() ? (
+                  <>
+                    <span className="font-bold text-slate-700">{categoryRow.title.trim()}</span>
+                    <br />
+                  </>
+                ) : null}
+                항목별로 하나씩 선택할 수 있어요. <strong>자동</strong>으로 두면 상품명에서
+                인식하고, 선택하면 그 값이 우선 적용됩니다.
+              </p>
+              {CATEGORY_FIELDS.map((field) => (
+                <div key={field.key}>
+                  <label
+                    className="mb-1 block text-xs font-bold text-slate-500"
+                    htmlFor={`register-category-${field.key}`}
+                  >
+                    {field.label}
+                  </label>
+                  <select
+                    id={`register-category-${field.key}`}
+                    value={categoryRow[field.key]}
+                    onChange={(e) => handleRowChange(categoryRow.uid, field.key, e.target.value)}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  >
+                    <option value="">자동 (상품명에서 인식)</option>
+                    {field.options.map((opt) => (
+                      <option key={opt} value={opt}>
+                        {opt}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ))}
+            </div>
+          </AdminDialog>
+        );
+      })()}
+
       <AdminDialog
         open={Boolean(framePanel)}
         onClose={() => setFramePanel(null)}

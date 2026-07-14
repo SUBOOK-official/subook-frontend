@@ -7,11 +7,11 @@ function PickupCTA({ onRequestPickup }) {
       <ContentContainer className="public-home-sell-banner__shell">
         <button className="public-home-sell-banner__button" onClick={onRequestPickup} type="button">
           <span className="public-home-sell-banner__text">
-            <span className="public-home-sell-banner__label">교재 팔고 싶으신가요?</span>
+            <span className="public-home-sell-banner__label">풀지않은 교재를 쉽게 판매하고 싶으신가요?</span>
             <span className="public-home-sell-banner__sub">
-              <strong>안 쓴 교재(미사용) 한정</strong>
-              <span aria-hidden="true" className="public-home-sell-banner__sub-sep"> · </span>
-              <span className="public-home-sell-banner__sub-detail">포장만 하면 수거~정산까지 무료 대행</span>
+              <span className="public-home-sell-banner__sub-detail">
+                교재를 집 밖에 꺼내놓기만 하면 수거 검수 판매 정산까지 전부 대행합니다
+              </span>
             </span>
           </span>
           <ArrowRightIcon size={18} className="public-home-sell-banner__arrow" />

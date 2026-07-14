@@ -460,11 +460,11 @@
 .order-sidebar__savings {
   margin: 12px 0 0;
   padding: 10px 12px;
-  background: rgba(27, 58, 92, 0.06);
+  background: rgba(8, 15, 71, 0.06);
   border-radius: 8px;
   font-size: 13px;
   font-weight: 600;
-  color: var(--public-ds-primary, #1b3a5c);
+  color: var(--public-ds-primary, #080f47);
   text-align: center;
   line-height: 1.45;
 }
@@ -661,7 +661,7 @@
 
 .order-sidebar__coupon-button:hover:not(:disabled) {
   background: #f4f4f4;
-  border-color: var(--public-ds-primary, #1B3A5C);
+  border-color: var(--public-ds-primary, #080F47);
 }
 
 .order-sidebar__coupon-button:disabled {
@@ -671,7 +671,7 @@
 
 .order-sidebar__coupon-change {
   font-size: 11px;
-  color: var(--public-ds-primary, #1B3A5C);
+  color: var(--public-ds-primary, #080F47);
   font-weight: 700;
 }
 
@@ -691,7 +691,7 @@
 }
 
 .order-sidebar__row--discount {
-  color: var(--public-ds-primary, #1B3A5C);
+  color: var(--public-ds-primary, #080F47);
   font-weight: 600;
 }
 
@@ -771,18 +771,18 @@
 }
 
 .order-coupon-modal__item:hover {
-  border-color: var(--public-ds-primary, #1B3A5C);
+  border-color: var(--public-ds-primary, #080F47);
 }
 
 .order-coupon-modal__item.is-selected {
-  border-color: var(--public-ds-primary, #1B3A5C);
+  border-color: var(--public-ds-primary, #080F47);
   background: #f5f9ff;
 }
 
 .order-coupon-modal__item-amount {
   font-size: 14px;
   font-weight: 700;
-  color: var(--public-ds-primary, #1B3A5C);
+  color: var(--public-ds-primary, #080F47);
   text-align: center;
   border-right: 1px dashed var(--public-ds-border);
   padding-right: 12px;
@@ -937,4 +937,359 @@
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
+}
+
+/* ================================================================
+   배송지 UX 개편 (2026-07-12) — 기본 배송지 카드 · 주소록 모달 · 요청사항 모달
+   ================================================================ */
+
+.order-section__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.order-addr-change-btn {
+  padding: 7px 14px;
+  border: 1px solid var(--public-ds-border, #e5e5e5);
+  border-radius: 999px;
+  background: var(--public-ds-card, #ffffff);
+  color: var(--public-ds-text, #232323);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.order-addr-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border-radius: var(--public-radius-lg);
+  background: var(--public-bg-soft, #f3fbff);
+}
+
+.order-addr-card__row {
+  display: flex;
+  gap: 16px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.order-addr-card__label {
+  flex: 0 0 56px;
+  color: var(--public-ds-text-muted, #6e6e73);
+}
+
+.order-addr-card__value {
+  color: var(--public-ds-text, #232323);
+  font-weight: 500;
+  word-break: keep-all;
+}
+
+.order-memo-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  margin-top: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--public-ds-border, #e5e5e5);
+  border-radius: var(--public-radius-lg);
+  background: var(--public-ds-card, #ffffff);
+  color: var(--public-ds-text, #232323);
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.order-memo-row__placeholder {
+  color: var(--public-ds-text-secondary, #55565b);
+}
+
+/* ── 공용 모달 셸 ─────────────────────────────────────────── */
+.order-modal__overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(20, 24, 28, 0.45);
+}
+
+.order-modal {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 480px;
+  max-height: min(640px, calc(100vh - 40px));
+  border-radius: var(--public-radius-xl);
+  background: var(--public-ds-card, #ffffff);
+  box-shadow: var(--public-shadow-lg);
+  overflow: hidden;
+}
+
+.order-modal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 16px 16px 12px;
+}
+
+.order-modal__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--public-ds-text, #232323);
+  text-align: center;
+}
+
+.order-modal__head-spacer,
+.order-modal__icon-btn {
+  flex: 0 0 32px;
+  height: 32px;
+}
+
+.order-modal__icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--public-radius-md);
+  background: transparent;
+  color: var(--public-ds-text, #232323);
+  cursor: pointer;
+}
+
+.order-modal__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 20px 16px;
+}
+
+.order-modal__option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 15px 2px;
+  border: none;
+  border-bottom: 1px solid var(--public-ds-divider, #f0f0f0);
+  background: transparent;
+  color: var(--public-ds-text, #232323);
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.order-modal__option.is-selected {
+  font-weight: 800;
+}
+
+.order-modal__option .public-icon,
+.order-modal__option svg {
+  color: var(--public-ds-primary, #080f47);
+}
+
+.order-modal__textarea {
+  width: 100%;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--public-ds-border, #e5e5e5);
+  border-radius: var(--public-radius-lg);
+  font-size: 14px;
+  font-family: inherit;
+  resize: none;
+}
+
+.order-modal__textarea:focus {
+  outline: none;
+  border-color: var(--public-ds-primary, #080f47);
+  box-shadow: var(--public-focus-ring);
+}
+
+.order-modal__actions {
+  display: flex;
+  gap: 10px;
+  padding: 12px 20px 20px;
+}
+
+.order-modal__btn {
+  flex: 1;
+  padding: 14px 0;
+  border: 1px solid var(--public-ds-border, #e5e5e5);
+  border-radius: var(--public-radius-lg);
+  background: var(--public-ds-card, #ffffff);
+  color: var(--public-ds-text, #232323);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.order-modal__btn--primary {
+  border-color: var(--public-ds-primary, #080f47);
+  background: var(--public-ds-primary, #080f47);
+  color: #ffffff;
+}
+
+.order-modal__btn--primary:disabled {
+  border-color: var(--public-ds-border, #e5e5e5);
+  background: var(--public-ds-divider, #f0f0f0);
+  color: var(--public-ds-text-muted, #6e6e73);
+  cursor: not-allowed;
+}
+
+.order-modal__btn--full {
+  width: 100%;
+  margin-top: 16px;
+}
+
+/* ── 주소록 목록 뷰 ────────────────────────────────────────── */
+.order-addrbook__add-btn {
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 14px 0;
+  border: 1px solid var(--public-ds-border, #e5e5e5);
+  border-radius: var(--public-radius-lg);
+  background: var(--public-ds-card, #ffffff);
+  color: var(--public-ds-text, #232323);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.order-addrbook__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 16px 2px;
+  border: none;
+  border-bottom: 1px solid var(--public-ds-divider, #f0f0f0);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.order-addrbook__item-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.order-addrbook__item-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--public-ds-text, #232323);
+}
+
+.order-addrbook__badge {
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--public-bg-soft, #f3fbff);
+  color: var(--public-ds-text-secondary, #55565b);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.order-addrbook__item-addr {
+  font-size: 14px;
+  color: var(--public-ds-text, #232323);
+  line-height: 1.5;
+  word-break: keep-all;
+}
+
+.order-addrbook__item-phone {
+  font-size: 13px;
+  color: var(--public-ds-text-muted, #6e6e73);
+}
+
+.order-addrbook__item-check {
+  color: var(--public-ds-primary, #080f47);
+}
+
+/* ── 주소 추가 폼 뷰 ───────────────────────────────────────── */
+.order-addrbook__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.order-addrbook__field-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--public-ds-text, #232323);
+}
+
+.order-addrbook__input {
+  width: 100%;
+  padding: 11px 2px;
+  border: none;
+  border-bottom: 1px solid var(--public-ds-border, #e5e5e5);
+  border-radius: 0;
+  background: transparent;
+  font-size: 15px;
+  color: var(--public-ds-text, #232323);
+}
+
+.order-addrbook__input::placeholder {
+  color: var(--public-ds-text-muted, #9a9aa0);
+}
+
+.order-addrbook__input:focus {
+  outline: none;
+  border-bottom-color: var(--public-ds-primary, #080f47);
+}
+
+.order-addrbook__input.is-error {
+  border-bottom-color: var(--public-ds-danger, #d0342c);
+}
+
+.order-addrbook__field-error {
+  font-size: 12px;
+  color: var(--public-ds-danger, #d0342c);
+}
+
+.order-addrbook__postal-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.order-addrbook__postal-btn {
+  flex: 0 0 auto;
+  padding: 10px 16px;
+  border: 1px solid var(--public-ds-text, #232323);
+  border-radius: var(--public-radius-md);
+  background: var(--public-ds-card, #ffffff);
+  color: var(--public-ds-text, #232323);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.order-addrbook__default-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--public-ds-text, #232323);
+  cursor: pointer;
+}
+
+.order-addrbook__default-check input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--public-ds-primary, #080f47);
 }

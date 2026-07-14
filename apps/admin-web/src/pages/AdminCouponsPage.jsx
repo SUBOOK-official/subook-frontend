@@ -5,6 +5,7 @@ import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import StatusBadge from "@shared-domain/StatusBadge";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { formatCurrency, maskEmail, maskPhone } from "@shared-domain/format";
+import { CloseIcon } from "../components/icons";
 
 const ISSUANCE_TYPE_LABEL = {
   admin_assigned: "어드민 발급",
@@ -301,7 +302,7 @@ function AdminCouponsPage() {
     const lossLine = estimate && !estError
       ? `· 대상 회원 ${estimate.eligible_member_count?.toLocaleString("ko-KR") ?? "?"}명 × 1인당 최대 ${(estimate.per_user_max_amount ?? 0).toLocaleString("ko-KR")}원\n` +
         `· 잠재 최대 손실: 약 ${(estimate.total_max_loss ?? 0).toLocaleString("ko-KR")}원${estimate.budget_cap_amount ? ` (cap ${estimate.budget_cap_amount.toLocaleString("ko-KR")}원)` : " (cap 없음)"}\n` +
-        (estimate.percentage_no_max_discount_warning ? `⚠️ 정률 쿠폰이지만 할인 상한이 비어 있습니다. 폼에서 상한을 먼저 설정하세요.\n` : "")
+        (estimate.percentage_no_max_discount_warning ? `정률 쿠폰이지만 할인 상한이 비어 있습니다. 폼에서 상한을 먼저 설정하세요.\n` : "")
       : `· 잠재 손실 시뮬레이션 RPC 호출 실패 (배포 점검 필요)\n`;
 
     setDestructiveModal({
@@ -542,7 +543,7 @@ function AdminCouponsPage() {
                 className="text-slate-400 hover:text-slate-700"
                 onClick={closeForm}
               >
-                ✕
+                <CloseIcon size={16} />
               </button>
             </header>
 
@@ -774,7 +775,7 @@ function AdminCouponsPage() {
                 onClick={closeIssue}
                 disabled={isIssuing}
               >
-                ✕
+                <CloseIcon size={16} />
               </button>
             </header>
 
@@ -867,7 +868,7 @@ function AdminCouponsPage() {
                 className="text-slate-400 hover:text-slate-700"
                 onClick={closeHistory}
               >
-                ✕
+                <CloseIcon size={16} />
               </button>
             </header>
 

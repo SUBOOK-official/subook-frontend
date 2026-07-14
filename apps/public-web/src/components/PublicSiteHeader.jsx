@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import ContentContainer from "./ContentContainer";
 import searchIconImage from "../assets/search-icon.svg";
+import brandLogoImage from "../assets/brand/logo-horizontal.png";
 import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { createDisplayName } from "../lib/memberPortal";
@@ -531,7 +532,7 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
     <div className="public-sticky-header" ref={headerRef}>
       <ContentContainer as="header" className="public-nav public-site-header">
         <Link className="public-brand" to="/">
-          SUBOOK®
+          <img alt="수북 SUBOOK" className="public-brand__logo" src={brandLogoImage} />
         </Link>
 
         <div className="public-site-header__search">

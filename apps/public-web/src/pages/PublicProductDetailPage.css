@@ -27,7 +27,7 @@
 }
 
 .public-detail-route__crumb-link:hover {
-  color: var(--public-primary, #1B3A5C);
+  color: var(--public-primary, #080F47);
 }
 
 .public-detail-route__crumbs .is-muted {
@@ -117,7 +117,7 @@
 }
 
 .public-detail-hero__main-image--button:focus-visible {
-  outline: 2px solid var(--public-primary, #1B3A5C);
+  outline: 2px solid var(--public-primary, #080F47);
   outline-offset: 2px;
 }
 
@@ -132,10 +132,11 @@
   color: var(--public-ds-text-muted, #6e6e73);
 }
 
-.public-detail-hero__placeholder span {
-  font-family: "Caprasimo", serif;
-  font-size: 24px;
-  color: var(--public-primary, #1B3A5C);
+.public-detail-hero__placeholder img {
+  display: block;
+  height: 28px;
+  width: auto;
+  opacity: 0.55;
 }
 
 .public-detail-hero__placeholder p {
@@ -181,7 +182,7 @@
 
 .public-detail-hero__thumb.is-active {
   opacity: 1;
-  border-color: var(--public-primary, #1B3A5C);
+  border-color: var(--public-primary, #080F47);
 }
 
 /* ── 우측: 정보 패널 ─────────────────────────────────────── */
@@ -210,7 +211,7 @@
 
 .public-detail-chip--subject {
   background: #dce6ef;
-  color: #1b3a5c;
+  color: #080f47;
 }
 
 .public-detail-chip--type {
@@ -245,10 +246,10 @@
 /* P2-4: 등급별 색상 토큰. S=파랑, A+=청록, A=회색 (기본). */
 .public-detail-chip--grade-s {
   background: #dce6ef;
-  color: #1b3a5c;
+  color: #080f47;
 }
 .public-detail-chip--grade-s::before {
-  background: #1b3a5c;
+  background: #080f47;
 }
 
 .public-detail-chip--grade-a-plus {
@@ -462,14 +463,14 @@
 }
 
 .public-detail-option-row__trigger:hover:not(:disabled) {
-  border-color: var(--public-primary, #1B3A5C);
+  border-color: var(--public-primary, #080F47);
 }
 
 .public-detail-option-row__trigger:focus-visible,
 .public-detail-option-row__trigger.is-open {
   outline: none;
   /* 선택 시 테두리 라인만 강조 — 회색 포커스 링(그림자)은 제거 */
-  border-color: var(--public-primary, #1B3A5C);
+  border-color: var(--public-primary, #080F47);
   box-shadow: none;
 }
 
@@ -692,7 +693,7 @@
 
 .public-detail-hero__btn {
   height: 56px;
-  border: 1px solid var(--public-primary, #1B3A5C);
+  border: 1px solid var(--public-primary, #080F47);
   border-radius: 12px;
   font-size: 16px;
   font-weight: 700;
@@ -707,7 +708,7 @@
 
 .public-detail-hero__btn--cart {
   background: #ffffff;
-  color: var(--public-primary, #1B3A5C);
+  color: var(--public-primary, #080F47);
 }
 
 .public-detail-hero__btn--cart:hover:not(:disabled) {
@@ -715,7 +716,7 @@
 }
 
 .public-detail-hero__btn--buy {
-  background: var(--public-primary, #1B3A5C);
+  background: var(--public-primary, #080F47);
   color: #ffffff;
 }
 
@@ -760,8 +761,8 @@
 }
 
 .public-detail-tabs__btn.is-active {
-  color: var(--public-primary, #1B3A5C);
-  border-bottom-color: var(--public-primary, #1B3A5C);
+  color: var(--public-primary, #080F47);
+  border-bottom-color: var(--public-primary, #080F47);
   font-weight: 800;
 }
 
@@ -929,7 +930,7 @@
 }
 
 .public-detail-grade-list__label {
-  color: #1b3a5c;
+  color: #080f47;
   font-weight: 800;
 }
 
@@ -977,6 +978,20 @@
   display: block;
   height: 12px;
   border-radius: 999px;
+}
+
+.public-detail-ai-summary__text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--public-ds-text, #232323);
+  word-break: keep-all;
+}
+
+.public-detail-ai-summary__caption {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--public-ds-text-muted, #6e6e73);
 }
 
 .public-detail-ai-summary__line--short {
@@ -1373,11 +1388,11 @@
   }
   .public-detail-sticky-bar__btn--cart {
     background: #ffffff;
-    color: #1b3a5c;
-    border: 1.5px solid #1b3a5c;
+    color: #080f47;
+    border: 1.5px solid #080f47;
   }
   .public-detail-sticky-bar__btn--buy {
-    background: #1b3a5c;
+    background: #080f47;
     color: #ffffff;
   }
 
