@@ -2,9 +2,23 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import AdminDialog from "../components/AdminDialog";
 import AdminShell from "../components/AdminShell";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
+import RichTextEditor from "../components/RichTextEditor";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { formatDate } from "@shared-domain/format";
+import { looksLikeRichHtml, plainTextToHtml, richTextToPlain } from "@shared-domain/richText";
 import { PinIcon } from "../components/icons";
+
+// 레거시 plain text 본문은 에디터용 HTML로 변환해서 연다 (FAQ와 동일 패턴)
+function toEditorHtml(body) {
+  const value = body || "";
+  return looksLikeRichHtml(value) ? value : plainTextToHtml(value);
+}
+
+// 목록 미리보기용 — 리치텍스트는 태그를 벗겨 순수 텍스트로
+function toPreviewText(body) {
+  const value = body || "";
+  return looksLikeRichHtml(value) ? richTextToPlain(value) : value;
+}
 
 const EMPTY_FORM = {
   id: null,
@@ -82,7 +96,7 @@ function AdminNoticesPage() {
     setEditor({
       id: row.id,
       title: row.title,
-      body: row.body,
+      body: toEditorHtml(row.body),
       is_pinned: row.is_pinned,
       is_published: row.is_published,
       published_at: toLocalInput(row.published_at),
@@ -97,14 +111,14 @@ function AdminNoticesPage() {
     if (baseline) {
       return (
         editor.title !== baseline.title ||
-        editor.body !== baseline.body ||
+        editor.body !== toEditorHtml(baseline.body) ||
         Boolean(editor.is_pinned) !== Boolean(baseline.is_pinned) ||
         Boolean(editor.is_published) !== Boolean(baseline.is_published) ||
         editor.published_at !== toLocalInput(baseline.published_at) ||
         editor.expires_at !== toLocalInput(baseline.expires_at)
       );
     }
-    return Boolean(editor.title?.trim() || editor.body?.trim() || editor.expires_at);
+    return Boolean(editor.title?.trim() || richTextToPlain(editor.body) || editor.expires_at);
   }, [editor, notices]);
 
   const handleSave = async () => {
@@ -213,7 +227,9 @@ function AdminNoticesPage() {
                     </span>
                   </div>
                   <p className="font-bold text-slate-900">{row.title}</p>
-                  <p className="mt-1 text-sm text-slate-600 line-clamp-2 whitespace-pre-wrap">{row.body}</p>
+                  <p className="mt-1 text-sm text-slate-600 line-clamp-2 whitespace-pre-wrap">
+                    {toPreviewText(row.body)}
+                  </p>
                 </div>
                 <div className="flex flex-col gap-2 shrink-0">
                   <button
@@ -259,10 +275,10 @@ function AdminNoticesPage() {
 
             <div>
               <label className="text-xs font-semibold text-slate-600 block mb-1.5">본문 *</label>
-              <textarea
-                className="input-base !h-48 resize-y"
-                onChange={(e) => setEditor((p) => ({ ...p, body: e.target.value }))}
-                placeholder="공지 본문 (줄바꿈 가능)"
+              <RichTextEditor
+                minHeightClass="min-h-48"
+                onChange={(html) => setEditor((p) => ({ ...p, body: html }))}
+                placeholder="공지 본문 — 굵게·밑줄·목록·링크를 쓸 수 있어요"
                 value={editor.body}
               />
             </div>
@@ -313,7 +329,7 @@ function AdminNoticesPage() {
               </button>
               <button
                 className="btn-primary flex-1"
-                disabled={isSaving || !editor.title?.trim() || !editor.body?.trim()}
+                disabled={isSaving || !editor.title?.trim() || !richTextToPlain(editor.body)}
                 onClick={handleSave}
                 type="button"
               >
