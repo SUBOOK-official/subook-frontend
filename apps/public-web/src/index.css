@@ -345,7 +345,8 @@ img {
 .public-home-store-grid__filter-sheet-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 60;
+  /* 상단 sticky 헤더(검색창, z-index 1000)까지 반투명 검정으로 덮도록 그 위로 올린다 */
+  z-index: 1100;
   background: rgba(20, 24, 28, 0.55);
   display: flex;
   align-items: flex-end;
@@ -397,7 +398,8 @@ img {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 18px 20px;
+  /* 하단 여백 축소 — 타이틀 아래 구분선까지 간격을 줄여 헤더를 컴팩트하게 */
+  padding: 14px 20px 8px;
   border-bottom: 1px solid var(--public-border, #e5e5e5);
 }
 
@@ -8780,6 +8782,21 @@ img {
   }
   .public-site-header__search {
     flex: 1;
+  }
+
+  /* 모바일: nav 폰트·높이 축소 → 고정 헤더를 더 컴팩트하게 (sticky 체감 개선) */
+  .public-brand {
+    font-size: 20px;
+  }
+  .public-nav {
+    /* 좌우 여백(20px) — 로고·검색창이 화면 양끝에 붙지 않도록 */
+    padding: 12px 20px;
+  }
+  .public-site-header__search .public-search {
+    min-height: 42px;
+  }
+  .public-search__input {
+    font-size: 13px;
   }
 }
 
