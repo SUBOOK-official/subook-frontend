@@ -4,10 +4,12 @@ import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseCl
 import { formatCurrency } from "@shared-domain/format";
 import { COVER_BUCKET, DETAIL_BUCKET, uploadImageToBucket } from "../lib/adminImageUpload";
 import { CloseIcon } from "./icons";
+import { BOOK_TYPE_OPTIONS, BRAND_OPTIONS, SUBJECT_OPTIONS } from "../lib/productCategories";
 
 // 상품 마스터 수정 모달 (2026-07-06 운영 피드백: 제목/가격/사진 수정 기능).
 //
-// - 제목/옵션/정가/대표사진: 상품 + 소속 books 전체에 적용 (admin_update_product_master)
+// - 제목/옵션/정가/대표사진/카테고리(과목·브랜드·유형): 상품 + 소속 books 전체에 적용
+//   (admin_update_product_master — 카테고리는 2026-07-14부터 수정 가능)
 // - 판매가/상세사진: book(1권) 단위 개별 적용
 // - 정산완료(settled)·폐기(discarded) 책의 판매가는 서버에서 변경을 막는다
 //   (레거시 셀러 조회가 books.price로 정산액을 표시하므로 이력 보호)
@@ -28,6 +30,12 @@ const BOOK_STATUS_LABEL = {
 function toPositiveInt(value) {
   const n = Number(String(value ?? "").replaceAll(",", "").trim());
   return Number.isFinite(n) && n > 0 ? Math.round(n) : null;
+}
+
+// 현재 값이 canonical 목록에 없으면(레거시 값 등) 맨 앞에 끼워 선택 상태를 보존한다
+function withCurrentOption(options, current) {
+  const value = (current ?? "").trim();
+  return value && !options.includes(value) ? [value, ...options] : options;
 }
 
 // 숨김 file input + 버튼 트리거
@@ -67,6 +75,9 @@ function ProductMasterEditModal({ onClose, onSaved, product }) {
 
   const [title, setTitle] = useState("");
   const [option, setOption] = useState("");
+  const [subject, setSubject] = useState("");
+  const [brand, setBrand] = useState("");
+  const [bookType, setBookType] = useState("");
   const [originalPriceInput, setOriginalPriceInput] = useState("");
   const [originalPriceDirty, setOriginalPriceDirty] = useState(false);
   const [originalPriceUniform, setOriginalPriceUniform] = useState(true);
@@ -85,6 +96,9 @@ function ProductMasterEditModal({ onClose, onSaved, product }) {
 
     setTitle(product.title ?? "");
     setOption(product.option ?? "");
+    setSubject(product.subject ?? "");
+    setBrand(product.brand ?? "");
+    setBookType(product.book_type ?? "");
     setCoverUrl(product.cover_image_url ?? "");
     setCoverDirty(false);
     setOriginalPriceInput("");
@@ -242,6 +256,10 @@ function ProductMasterEditModal({ onClose, onSaved, product }) {
       p_original_price: originalPrice,
       p_cover_image_url: coverDirty ? coverUrl || null : null,
       p_books: bookPayload,
+      // 카테고리 — null이면 서버가 기존 값 유지
+      p_subject: subject.trim() || null,
+      p_brand: brand.trim() || null,
+      p_book_type: bookType.trim() || null,
     });
     setIsSaving(false);
 
@@ -319,6 +337,63 @@ function ProductMasterEditModal({ onClose, onSaved, product }) {
                     value={originalPriceInput}
                   />
                 </label>
+                {/* 카테고리 — 등록 후에도 변경 가능 (2026-07-14). 스토어 필터·검색에 즉시 반영 */}
+                <div className="grid gap-4 sm:col-span-2 sm:grid-cols-3">
+                  <label>
+                    <span className="mb-1.5 block text-xs font-semibold text-slate-600">과목</span>
+                    <select
+                      className="input-base"
+                      onChange={(event) => {
+                        setSubject(event.target.value);
+                        setTouched(true);
+                      }}
+                      value={subject}
+                    >
+                      {!product.subject ? <option value="">선택 안 함</option> : null}
+                      {withCurrentOption(SUBJECT_OPTIONS, product.subject).map((value) => (
+                        <option key={value} value={value}>
+                          {value}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <span className="mb-1.5 block text-xs font-semibold text-slate-600">브랜드</span>
+                    <select
+                      className="input-base"
+                      onChange={(event) => {
+                        setBrand(event.target.value);
+                        setTouched(true);
+                      }}
+                      value={brand}
+                    >
+                      {!product.brand ? <option value="">선택 안 함</option> : null}
+                      {withCurrentOption(BRAND_OPTIONS, product.brand).map((value) => (
+                        <option key={value} value={value}>
+                          {value}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <span className="mb-1.5 block text-xs font-semibold text-slate-600">유형</span>
+                    <select
+                      className="input-base"
+                      onChange={(event) => {
+                        setBookType(event.target.value);
+                        setTouched(true);
+                      }}
+                      value={bookType}
+                    >
+                      {!product.book_type ? <option value="">선택 안 함</option> : null}
+                      {withCurrentOption(BOOK_TYPE_OPTIONS, product.book_type).map((value) => (
+                        <option key={value} value={value}>
+                          {value}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
               </div>
 
               <div>
@@ -420,8 +495,9 @@ function ProductMasterEditModal({ onClose, onSaved, product }) {
               </div>
 
               <p className="rounded-lg bg-amber-50 px-4 py-3 text-xs text-amber-800">
-                제목·옵션·정가·대표사진은 이 상품의 <strong>모든 인스턴스</strong>에 함께 적용됩니다.
-                저장 즉시 고객 사이트에 반영됩니다.
+                제목·옵션·정가·대표사진·카테고리(과목/브랜드/유형)는 이 상품의{" "}
+                <strong>모든 인스턴스</strong>에 함께 적용됩니다. 저장 즉시 고객 사이트
+                (검색·카테고리 필터 포함)에 반영됩니다.
               </p>
 
               <div className="flex gap-2">

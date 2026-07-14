@@ -5,6 +5,7 @@ import AdminDialog from "../components/AdminDialog";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { formatCurrency } from "@shared-domain/format";
 import { CheckIcon, CloseIcon, PlusIcon } from "../components/icons";
+import { BOOK_TYPE_OPTIONS, BRAND_OPTIONS, SUBJECT_OPTIONS } from "../lib/productCategories";
 
 // 통합 상품 등록 플로우 (Frame 2~4 프로토타입).
 //   고객(수거) 선택/생성 → 교재 목록 작성(기존 검색 + 신규 표) → 사진 일괄 → 등록 완료
@@ -22,22 +23,8 @@ const DISCOUNT_TYPES = [
   { value: "rate", label: "정률(%)" },
 ];
 
-// 신규 교재의 카테고리(과목/브랜드/유형) 선택지 — 스토어 필터와 동일 축.
+// 신규 교재의 카테고리(과목/브랜드/유형) 선택지 — productCategories.js가 canonical.
 // 빈 값("자동")이면 RPC가 상품명에서 파싱하고, 선택하면 파싱보다 우선한다.
-const SUBJECT_OPTIONS = ["국어", "수학", "영어", "과학", "사회", "한국사", "기타"];
-const BRAND_OPTIONS = [
-  "시대인재",
-  "강남대성",
-  "대성마이맥",
-  "이투스",
-  "EBS",
-  "메가스터디",
-  "이감",
-  "상상국어평가연구소",
-  "기타",
-];
-// 유형에 EBS는 없음 — 브랜드와 중복이라 제외 (2026-07-13 정책, 스토어 필터와 동일)
-const BOOK_TYPE_OPTIONS = ["개념", "기출", "모의고사", "N제", "주간지", "내신", "워크북", "논술"];
 
 // 카테고리 설정 모달의 필드 구성 (행 상태 키 ↔ 라벨 ↔ 선택지)
 const CATEGORY_FIELDS = [
