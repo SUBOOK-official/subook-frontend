@@ -71,9 +71,10 @@ const FULL_SAMPLES = [
   },
 ].map((s) => ({
   ...s,
-  // 양식 인쇄용 실값: 검수 첫 출력이므로 reprint 없음, 운임그룹은 CJ 샘플과 동일 표기
+  // 양식 인쇄용 실값: 검수 첫 출력이므로 reprint 없음.
+  // 운임그룹(CJ 샘플의 'C1')은 의미 미확인이라 미표기 — CJ가 값을 확정해주면 VITE_CJ_RATE_GROUP로 주입.
   reprint: 0,
-  rateGroup: "C1",
+  rateGroup: "",
   boxTypeName: "극소",
   sender: {
     name: "수북(SUBOOK)",
