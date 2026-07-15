@@ -10,6 +10,8 @@ const EMPTY_COUNTS = {
   inspection: 0,
   orders: 0,
   settlements: 0,
+  // 사이드바 nav 배지가 아니라 셸 헤더 경고 칩용 — 최근 24시간 알림톡/SMS 발송 실패 누적
+  failedNotifications: 0,
   loaded: false,
 };
 
@@ -42,25 +44,34 @@ export function useAdminBadgeCounts() {
 
     try {
       const today = new Date().toISOString().slice(0, 10);
+      const oneDayAgoIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
-      const [pickups, inspection, orders, settlements] = await Promise.all([
-        fetchHeadCount("pickup_requests", (q) => q.eq("status", "pending")),
-        // shipments.status enum은 scheduled/inspecting/inspected. (arrived는 pickup_requests 상태라
-        // 여기서 쓰면 항상 0건 → 검수 대기 배지가 안 뜸) scheduled=입고 후 검수 대기, inspecting=검수중.
-        fetchHeadCount("shipments", (q) => q.in("status", ["scheduled", "inspecting"])),
-        // '결제완료(paid)' 단계 폐지 — 결제 확인 즉시 preparing으로 간다.
-        // 처리 필요 배지 = 입금확인 대기(pending) + 송장 입력 대기(preparing) 주문 수.
-        fetchHeadCount("orders", (q) => q.in("status", ["pending", "preparing"])),
-        fetchHeadCount("settlements", (q) =>
-          q.eq("status", "pending").lte("scheduled_date", today),
-        ),
-      ]);
+      const [pickups, inspection, orders, settlementsDue, settlementsApproved, failedNotifications] =
+        await Promise.all([
+          fetchHeadCount("pickup_requests", (q) => q.eq("status", "pending")),
+          // shipments.status enum은 scheduled/inspecting/inspected. (arrived는 pickup_requests 상태라
+          // 여기서 쓰면 항상 0건 → 검수 대기 배지가 안 뜸) scheduled=입고 후 검수 대기, inspecting=검수중.
+          fetchHeadCount("shipments", (q) => q.in("status", ["scheduled", "inspecting"])),
+          // '결제완료(paid)' 단계 폐지 — 결제 확인 즉시 preparing으로 간다.
+          // 처리 필요 배지 = 입금확인 대기(pending) + 송장 입력 대기(preparing) 주문 수.
+          fetchHeadCount("orders", (q) => q.in("status", ["pending", "preparing"])),
+          fetchHeadCount("settlements", (q) =>
+            q.eq("status", "pending").lte("scheduled_date", today),
+          ),
+          // 승인 후 실지급 대기 — 매월 1일 사이클에서 승인만 하고 송금을 잊으면 신호가 없던 구멍
+          fetchHeadCount("settlements", (q) => q.eq("status", "approved")),
+          // 발송 실패는 24시간 창으로 셈 (전체 누적이면 과거 실패가 영구히 배지에 남음)
+          fetchHeadCount("notification_logs", (q) =>
+            q.eq("status", "failed").gte("created_at", oneDayAgoIso),
+          ),
+        ]);
 
       setCounts({
         pickups,
         inspection,
         orders,
-        settlements,
+        settlements: settlementsDue + settlementsApproved,
+        failedNotifications,
         loaded: true,
       });
     } finally {
