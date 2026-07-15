@@ -203,7 +203,7 @@ function SearchSuggestionsPanel({
   );
 }
 
-function PublicSiteHeader({ onCartClick, searchSlot }) {
+function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { isAuthenticated, profile, user, signOut } = usePublicAuth();
@@ -535,6 +535,7 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
           <img alt="수북 SUBOOK" className="public-brand__logo" src={brandLogoImage} />
         </Link>
 
+        {hideSearch ? null : (
         <div className="public-site-header__search">
           {searchSlot ?? (
             <div className="public-search-wrap" ref={searchWrapRef}>
@@ -574,6 +575,7 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
             </div>
           )}
         </div>
+        )}
 
         <nav aria-label="유틸리티 메뉴" className="public-nav-actions">
           {/* 셀러 전환 동선 — 로그인/비로그인 무관하게 항상 노출. 모바일 드로어에만
@@ -711,7 +713,6 @@ function PublicSiteHeader({ onCartClick, searchSlot }) {
                   onClick={() => { setIsMobileMenuOpen(false); handleCartClick(); }}
                   type="button"
                 >
-                  <CartIcon size={16} style={{ marginRight: 8 }} />
                   장바구니
                   {cartBadge !== null ? (
                     <span className="public-nav-link__badge" style={{ marginLeft: 8 }}>{cartBadge}</span>

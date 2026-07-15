@@ -791,6 +791,7 @@
 
 /* ── 새 마이페이지 레이아웃 ────────────────────────────────────── */
 
+/* 데스크톱 breadcrumb (모바일에선 프로필 헤더로 대체) */
 .public-mypage-breadcrumb {
   display: flex;
   align-items: baseline;
@@ -820,6 +821,135 @@
   color: var(--public-ds-text-secondary);
   font-size: 16px;
   font-weight: 600;
+}
+
+/* 데스크톱/모바일 전용 표시 토글 */
+@media (min-width: 768px) {
+  .public-mypage-mobile-only {
+    display: none !important;
+  }
+}
+@media (max-width: 767px) {
+  .public-mypage-desktop-only {
+    display: none !important;
+  }
+}
+
+/* 프로필 헤더 (모바일) — 이름 왼쪽 / '>' 오른쪽 */
+.public-mypage-profile {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.public-mypage-profile__name {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--public-ds-text);
+  line-height: 1.4;
+}
+
+.public-mypage-profile__more-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.public-mypage-profile__more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--public-ds-text-secondary);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.public-mypage-profile__more:hover {
+  background: var(--public-ds-background, #f4f4f4);
+  color: var(--public-ds-text);
+}
+
+.public-mypage-profile__menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  min-width: 160px;
+  padding: 6px;
+  background: #ffffff;
+  border: 1px solid var(--public-ds-border, #e5e5e5);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(20, 24, 28, 0.12);
+  display: flex;
+  flex-direction: column;
+}
+
+.public-mypage-profile__menu-item {
+  text-align: left;
+  border: 0;
+  background: transparent;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--public-ds-text);
+  cursor: pointer;
+}
+
+.public-mypage-profile__menu-item:hover {
+  background: var(--public-ds-background, #f4f4f4);
+}
+
+/* 3x2 네브 그리드 (모바일) — 좌우 화면 꽉 차게 + 라인 구분, 개별 라운드 없음 */
+.public-mypage-navgrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  margin-bottom: 24px;
+  /* 콘텐츠 좌우 패딩(16~24px)에 상관없이 화면 끝까지 full-bleed */
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+  max-width: 100vw;
+  border-top: 1px solid var(--public-ds-border, #e5e5e5);
+  border-bottom: 1px solid var(--public-ds-border, #e5e5e5);
+}
+
+.public-mypage-navgrid__item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 72px;
+  padding: 12px 6px;
+  border: 0;
+  border-right: 1px solid var(--public-ds-border, #e5e5e5);
+  border-radius: 0;
+  background: #ffffff;
+  color: var(--public-ds-text);
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+/* 오른쪽 끝 열은 세로 구분선 제거 */
+.public-mypage-navgrid__item:nth-child(3n) {
+  border-right: 0;
+}
+
+/* 두 번째 줄(4~6번째) 위에 가로 구분선 */
+.public-mypage-navgrid__item:nth-child(n + 4) {
+  border-top: 1px solid var(--public-ds-border, #e5e5e5);
+}
+
+.public-mypage-navgrid__item.is-active {
+  background: var(--public-primary, #1B3A5C);
+  color: #ffffff;
 }
 
 .public-mypage-shell-grid {

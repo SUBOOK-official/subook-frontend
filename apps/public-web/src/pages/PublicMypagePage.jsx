@@ -110,6 +110,16 @@ import {
 } from "../lib/paymentBankInfo";
 import "./PublicMypagePage.css";
 
+// 마이페이지 상단 3x2 네브 그리드 (왼쪽 위부터 순서 고정)
+const MYPAGE_GRID_ITEMS = [
+  { key: "purchases", label: "구매 내역" },
+  { key: "wishlist", label: "찜한 교재" },
+  { key: "coupons", label: "쿠폰" },
+  { key: "sales", label: "판매 내역" },
+  { key: "settlements", label: "정산 내역" },
+  { key: "settlement-account", label: "판매 정산 계좌 관리" },
+];
+
 const initialLoadedTabs = {
   sales: false,
   purchases: false,
@@ -234,6 +244,9 @@ function PublicMypagePage() {
   const [expandedShipmentId, setExpandedShipmentId] = useState(null);
   const tabPanelRef = useRef(null);
   const addressDetailInputRef = useRef(null);
+  // 상단 프로필 '>' 메뉴 (회원정보 수정 / 주소록)
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const profileMenuRef = useRef(null);
 
   const profileSnapshot = portalState.profile ?? effectiveProfile;
   const displayName = createDisplayName(profileSnapshot);
@@ -242,6 +255,18 @@ function PublicMypagePage() {
   const isPortalPending = tabPhases[dataKey] === "loading" && !portalState.profile;
   const currentNickname = (profileSnapshot?.nickname ?? profileSnapshot?.name ?? "").trim();
   const activeSidebarItem = findSidebarItem(activeTabKey);
+
+  // 프로필 '>' 메뉴 바깥 클릭 시 닫기
+  useEffect(() => {
+    if (!isProfileMenuOpen) return undefined;
+    const handleClick = (event) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target)) {
+        setIsProfileMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [isProfileMenuOpen]);
 
   useEffect(() => {
     // P1-4: hash가 비어있고 데이터가 로드되었으면 판매/구매 이력에 맞춰 기본 탭 결정.
@@ -1323,7 +1348,7 @@ function PublicMypagePage() {
       <PublicPageFrame>
         <div className="public-auth-page public-mypage-page">
           <div className="public-auth-page__body">
-            <PublicSiteHeader />
+            <PublicSiteHeader hideSearch />
             <main className="public-mypage-route">
               <ContentContainer className="public-mypage-shell">
                 <div className="public-mypage-skeleton public-mypage-skeleton--hero" />
@@ -1510,7 +1535,7 @@ function PublicMypagePage() {
       <PublicPageFrame>
         <div className="public-auth-page public-mypage-page">
           <div className="public-auth-page__body">
-            <PublicSiteHeader />
+            <PublicSiteHeader hideSearch />
 
             <main className="public-mypage-route">
               <ContentContainer className="public-mypage-shell">
@@ -1526,7 +1551,8 @@ function PublicMypagePage() {
                   </div>
                 ) : null}
 
-                <header className="public-mypage-breadcrumb">
+                {/* 데스크톱: 기존 breadcrumb (모바일 숨김) */}
+                <header className="public-mypage-breadcrumb public-mypage-desktop-only">
                   <h1 className="public-mypage-breadcrumb__title">
                     <span className="public-mypage-breadcrumb__name">‘{displayName}’</span>
                     님 마이페이지
@@ -1539,8 +1565,61 @@ function PublicMypagePage() {
                   ) : null}
                 </header>
 
+                {/* 모바일: 프로필 헤더 — 이름 왼쪽, '>' 오른쪽(회원정보 수정 / 주소록 진입) */}
+                <header className="public-mypage-profile public-mypage-mobile-only">
+                  <span className="public-mypage-profile__name">{displayName}님</span>
+                  <div className="public-mypage-profile__more-wrap" ref={profileMenuRef}>
+                    <button
+                      aria-label="회원정보 메뉴 열기"
+                      aria-expanded={isProfileMenuOpen}
+                      aria-haspopup="menu"
+                      className="public-mypage-profile__more"
+                      onClick={() => setIsProfileMenuOpen((open) => !open)}
+                      type="button"
+                    >
+                      <ChevronRightIcon size={22} />
+                    </button>
+                    {isProfileMenuOpen ? (
+                      <div className="public-mypage-profile__menu" role="menu">
+                        <button
+                          className="public-mypage-profile__menu-item"
+                          onClick={() => { setIsProfileMenuOpen(false); moveToTab("profile", { smoothScroll: false }); }}
+                          role="menuitem"
+                          type="button"
+                        >
+                          회원정보 수정
+                        </button>
+                        <button
+                          className="public-mypage-profile__menu-item"
+                          onClick={() => { setIsProfileMenuOpen(false); moveToTab("addresses", { smoothScroll: false }); }}
+                          role="menuitem"
+                          type="button"
+                        >
+                          주소록
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                </header>
+
+                {/* 모바일: 3x2 네브 그리드 (라인 구분) */}
+                <nav className="public-mypage-navgrid public-mypage-mobile-only" aria-label="마이페이지 메뉴">
+                  {MYPAGE_GRID_ITEMS.map((item) => (
+                    <button
+                      aria-current={activeTabKey === item.key ? "page" : undefined}
+                      className={`public-mypage-navgrid__item ${activeTabKey === item.key ? "is-active" : ""}`}
+                      key={item.key}
+                      onClick={() => moveToTab(item.key, { smoothScroll: false })}
+                      type="button"
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </nav>
+
                 <div className="public-mypage-shell-grid">
-                  <aside className="public-mypage-sidebar" aria-label="마이페이지 메뉴">
+                  {/* 데스크톱: 좌측 사이드바 (모바일 숨김) */}
+                  <aside className="public-mypage-sidebar public-mypage-desktop-only" aria-label="마이페이지 메뉴">
                     {SIDEBAR_GROUPS.map((group) => (
                       <div className="public-mypage-sidebar__group" key={group.title}>
                         <p className="public-mypage-sidebar__title">{group.title}</p>
@@ -1548,10 +1627,7 @@ function PublicMypagePage() {
                           {group.items.map((item) => (
                             <li key={item.key}>
                               {item.isCta ? (
-                                <Link
-                                  className="public-mypage-sidebar__cta"
-                                  to={item.to ?? "/"}
-                                >
+                                <Link className="public-mypage-sidebar__cta" to={item.to ?? "/"}>
                                   {item.label}
                                 </Link>
                               ) : (
