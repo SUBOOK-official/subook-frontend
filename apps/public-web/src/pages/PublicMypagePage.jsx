@@ -109,15 +109,21 @@ import {
   buildDepositorName,
 } from "../lib/paymentBankInfo";
 import "./PublicMypagePage.css";
+import sellIcon from "../assets/icons/sell.png";
+import heartPlusIcon from "../assets/icons/heart-plus.png";
+import couponIcon from "../assets/icons/coupon.png";
+import buyIcon from "../assets/icons/buy.png";
+import receiptIcon from "../assets/icons/receipt.png";
+import accountIcon from "../assets/icons/account.png";
 
-// 마이페이지 상단 3x2 네브 그리드 (왼쪽 위부터 순서 고정)
+// 마이페이지 상단 3x2 네브 그리드 (왼쪽 위부터 순서 고정 + 아이콘)
 const MYPAGE_GRID_ITEMS = [
-  { key: "purchases", label: "구매 내역" },
-  { key: "wishlist", label: "찜한 교재" },
-  { key: "coupons", label: "쿠폰" },
-  { key: "sales", label: "판매 내역" },
-  { key: "settlements", label: "정산 내역" },
-  { key: "settlement-account", label: "판매 정산 계좌 관리" },
+  { key: "purchases", label: "구매 내역", icon: sellIcon },
+  { key: "wishlist", label: "찜한 교재", icon: heartPlusIcon },
+  { key: "coupons", label: "쿠폰", icon: couponIcon },
+  { key: "sales", label: "판매 내역", icon: buyIcon },
+  { key: "settlements", label: "정산 내역", icon: receiptIcon },
+  { key: "settlement-account", label: "정산 계좌 관리", icon: accountIcon },
 ];
 
 const initialLoadedTabs = {
@@ -1612,7 +1618,8 @@ function PublicMypagePage() {
                       onClick={() => moveToTab(item.key, { smoothScroll: false })}
                       type="button"
                     >
-                      {item.label}
+                      <img className="public-mypage-navgrid__icon" src={item.icon} alt="" aria-hidden="true" />
+                      <span>{item.label}</span>
                     </button>
                   ))}
                 </nav>

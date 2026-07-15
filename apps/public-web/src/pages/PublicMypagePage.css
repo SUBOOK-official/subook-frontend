@@ -910,7 +910,7 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0;
-  margin-bottom: 24px;
+  margin-bottom: 0;
   /* 콘텐츠 좌우 패딩(16~24px)에 상관없이 화면 끝까지 full-bleed */
   margin-left: calc(50% - 50vw);
   margin-right: calc(50% - 50vw);
@@ -921,20 +921,29 @@
 
 .public-mypage-navgrid__item {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 72px;
-  padding: 12px 6px;
+  gap: 8px;
+  min-height: 86px;
+  padding: 14px 6px;
   border: 0;
   border-right: 1px solid var(--public-ds-border, #e5e5e5);
   border-radius: 0;
   background: #ffffff;
   color: var(--public-ds-text);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   text-align: center;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
+}
+
+.public-mypage-navgrid__icon {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+  flex-shrink: 0;
 }
 
 /* 오른쪽 끝 열은 세로 구분선 제거 */
@@ -948,8 +957,9 @@
 }
 
 .public-mypage-navgrid__item.is-active {
-  background: var(--public-primary, #1B3A5C);
-  color: #ffffff;
+  /* 선택 항목 — 남색 대신 하늘색 배경 + 남색 텍스트 */
+  background: #d6eaf8;
+  color: var(--public-primary, #1B3A5C);
 }
 
 .public-mypage-shell-grid {

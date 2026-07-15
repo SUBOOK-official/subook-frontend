@@ -5203,7 +5203,7 @@ img {
 }
 
 .public-mypage-page {
-  background: var(--public-ds-background);
+  background: #ffffff;
 }
 
 .public-mypage-route {
@@ -5211,10 +5211,24 @@ img {
   padding: 28px 0 72px;
 }
 
+/* 모바일: 상단 여백 축소 (헤더 아래 초록 공백 줄임) */
+@media (max-width: 767px) {
+  .public-mypage-route {
+    padding-top: 12px;
+  }
+}
+
 .public-mypage-shell {
   display: flex;
   flex-direction: column;
   gap: 20px;
+}
+
+/* 모바일: 프로필·그리드·콘텐츠 사이 간격 축소 */
+@media (max-width: 767px) {
+  .public-mypage-shell {
+    gap: 10px;
+  }
 }
 
 .public-mypage-hero {
