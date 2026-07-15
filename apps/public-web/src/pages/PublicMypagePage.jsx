@@ -33,6 +33,7 @@ import { supabase as publicSupabase } from "@shared-supabase/publicSupabaseClien
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { usePublicWishlist } from "../contexts/PublicWishlistContext";
 import usePublicMemberGate from "../lib/publicMemberGate";
+import { KAKAO_CHANNEL_URL } from "../lib/supportChannels";
 import { usePageMeta } from "../lib/usePageMeta";
 import { DEMO_MEMBER_PROFILE, DEMO_MEMBER_USER } from "../lib/publicMypageDemo";
 import {
@@ -1823,7 +1824,7 @@ function RejectableBookRow({ item, requestNumber }) {
             <div className="public-mypage-book-row__dispute-actions">
               <a
                 className="public-mypage-book-row__dispute public-mypage-book-row__dispute--primary"
-                href="https://pf.kakao.com/_subook"
+                href={KAKAO_CHANNEL_URL}
                 rel="noopener noreferrer"
                 target="_blank"
               >

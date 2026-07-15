@@ -18,6 +18,7 @@ import {
   serializeStorefrontQuery,
   toggleStoreFilterSelection,
 } from "../../lib/publicStoreNavigation";
+import { KAKAO_CHANNEL_URL } from "../../lib/supportChannels";
 
 const HOME_SIDEBAR_FILTER_GROUPS = STORE_FILTER_GROUPS.filter((group) =>
   HOME_SIDEBAR_FILTER_GROUP_KEYS.includes(group.key),
@@ -393,7 +394,7 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
       "원하는 교재가 들어오면 알림을 보내드릴까요? 카카오톡 채널에서 입고 소식을 받을 수 있어요.",
     );
     if (confirmed) {
-      window.open("https://pf.kakao.com/_subook", "_blank", "noopener,noreferrer");
+      window.open(KAKAO_CHANNEL_URL, "_blank", "noopener,noreferrer");
     }
   };
 

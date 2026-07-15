@@ -8,6 +8,7 @@ import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { createDisplayName } from "../lib/memberPortal";
 import { getCartItems } from "../lib/cart";
+import { isSupabaseConfigured, supabase } from "@shared-supabase/publicSupabaseClient";
 import { fetchStorefrontProducts } from "../lib/storefront";
 import {
   STORE_AUTOCOMPLETE_MIN_KEYWORD_LENGTH,
@@ -245,6 +246,34 @@ function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
     return () => {
       cancelled = true;
       window.removeEventListener("cart-updated", handleCartUpdated);
+    };
+  }, [isAuthenticated, location.pathname]);
+
+  // 미읽음 알림 카운트 — 카트 카운트와 동일 트리거(인증 변화 + 라우트 변경)로 갱신.
+  // 알림함에서 읽음 처리 후 다른 페이지로 이동하면 자연히 재조회되어 배지가 줄어든다.
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    if (!isAuthenticated || !isSupabaseConfigured || !supabase) {
+      setUnreadNotificationCount(0);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const fetchUnreadCount = async () => {
+      try {
+        const { data, error } = await supabase.rpc("count_my_unread_notifications");
+        if (cancelled) return;
+        setUnreadNotificationCount(error ? 0 : Number(data) || 0);
+      } catch {
+        if (!cancelled) setUnreadNotificationCount(0);
+      }
+    };
+    void fetchUnreadCount();
+
+    return () => {
+      cancelled = true;
     };
   }, [isAuthenticated, location.pathname]);
 
@@ -522,6 +551,8 @@ function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
     : "";
 
   const cartBadge = cartItemCount > 0 ? (cartItemCount > 99 ? "99+" : cartItemCount) : null;
+  const notificationBadge =
+    unreadNotificationCount > 0 ? (unreadNotificationCount > 99 ? "99+" : unreadNotificationCount) : null;
   const visibleRecent = useMemo(
     () => recentSearches.slice(0, STORE_RECENT_SEARCH_LIMIT),
     [recentSearches],
@@ -586,6 +617,18 @@ function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
           {isAuthenticated ? (
             <>
               <button
+                aria-label={`알림 ${unreadNotificationCount}개`}
+                className="public-nav-link public-nav-link--cart"
+                onClick={() => navigate("/notifications")}
+                type="button"
+              >
+                <BellIcon size={15} />
+                <span>알림</span>
+                {notificationBadge !== null ? (
+                  <span className="public-nav-link__badge">{notificationBadge}</span>
+                ) : null}
+              </button>
+              <button
                 aria-label={`장바구니 ${cartItemCount}개`}
                 className="public-nav-link public-nav-link--cart"
                 onClick={handleCartClick}
@@ -635,17 +678,30 @@ function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
         {/* 모바일 헤더 우측 (768px 미만): 비로그인 = 햄버거만, 로그인 = 장바구니 + 햄버거 */}
         <div className="public-nav-mobile-actions">
           {isAuthenticated ? (
-            <button
-              aria-label={`장바구니 ${cartItemCount}개`}
-              className="public-nav-mobile-cart"
-              onClick={handleCartClick}
-              type="button"
-            >
-              <CartIcon size={20} />
-              {cartBadge !== null ? (
-                <span className="public-nav-mobile-cart__badge">{cartBadge}</span>
-              ) : null}
-            </button>
+            <>
+              <button
+                aria-label={`알림 ${unreadNotificationCount}개`}
+                className="public-nav-mobile-cart"
+                onClick={() => navigate("/notifications")}
+                type="button"
+              >
+                <BellIcon size={20} />
+                {notificationBadge !== null ? (
+                  <span className="public-nav-mobile-cart__badge">{notificationBadge}</span>
+                ) : null}
+              </button>
+              <button
+                aria-label={`장바구니 ${cartItemCount}개`}
+                className="public-nav-mobile-cart"
+                onClick={handleCartClick}
+                type="button"
+              >
+                <CartIcon size={20} />
+                {cartBadge !== null ? (
+                  <span className="public-nav-mobile-cart__badge">{cartBadge}</span>
+                ) : null}
+              </button>
+            </>
           ) : null}
           <button
             aria-expanded={isMobileMenuOpen}
@@ -718,6 +774,12 @@ function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
                     <span className="public-nav-link__badge" style={{ marginLeft: 8 }}>{cartBadge}</span>
                   ) : null}
                 </button>
+                <Link className="public-nav-drawer__item" to="/notifications" onClick={() => setIsMobileMenuOpen(false)}>
+                  알림
+                  {notificationBadge !== null ? (
+                    <span className="public-nav-link__badge" style={{ marginLeft: 8 }}>{notificationBadge}</span>
+                  ) : null}
+                </Link>
                 <Link className="public-nav-drawer__item" to="/mypage" onClick={() => setIsMobileMenuOpen(false)}>
                   마이페이지
                 </Link>
