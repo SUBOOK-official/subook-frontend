@@ -33,7 +33,7 @@
   padding: 14px 16px;
   border: 1px solid var(--public-ds-border);
   border-radius: var(--public-ds-radius);
-  background: var(--public-ds-background);
+  background: #ffffff;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -221,7 +221,7 @@
   gap: 12px;
   padding: 12px 14px;
   border-radius: var(--public-radius-lg);
-  background: var(--public-ds-background);
+  background: #ffffff;
 }
 
 .public-mypage-book-row__copy strong,
@@ -433,7 +433,7 @@
 .public-mypage-settlement-summary__item {
   padding: 16px;
   border-radius: var(--public-ds-radius);
-  background: var(--public-ds-background);
+  background: #ffffff;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -476,7 +476,7 @@
   list-style: none;
   margin: 12px 0 0;
   padding: 12px 14px;
-  background: var(--public-ds-background);
+  background: #ffffff;
   border-radius: 8px;
   border: 1px dashed var(--public-ds-border);
   display: flex;
@@ -531,6 +531,11 @@
 }
 
 @media (max-width: 767px) {
+  /* 모바일: 찜한 교재 그리드 1열 (자리 부족) */
+  .public-mypage-wishlist-grid {
+    grid-template-columns: 1fr;
+  }
+
   .public-mypage-flow-card__header,
   .public-mypage-order-card__header,
   .public-mypage-flow-card__status-row,
@@ -683,6 +688,27 @@
   border-bottom: 1px solid #e5e5e5;
 }
 
+/* 쿠폰 상태 탭 — 상단 고정 헤더 아래 sticky + 좌우 꽉차게 3등분 */
+.public-mypage-coupon-tabs--sticky {
+  position: sticky;
+  top: var(--public-sticky-header-height, 79px);
+  z-index: 20;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0;
+  /* 콘텐츠 좌우 패딩 무시하고 화면 끝까지 */
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+  max-width: 100vw;
+  margin-bottom: 4px;
+  padding-top: 8px;
+  background: #ffffff;
+}
+
+.public-mypage-coupon-tabs--sticky .public-mypage-coupon-tab {
+  text-align: center;
+}
+
 .public-mypage-coupon-tab {
   padding: 10px 16px;
   background: none;
@@ -791,6 +817,7 @@
 
 /* ── 새 마이페이지 레이아웃 ────────────────────────────────────── */
 
+/* 데스크톱 breadcrumb (모바일에선 프로필 헤더로 대체) */
 .public-mypage-breadcrumb {
   display: flex;
   align-items: baseline;
@@ -820,6 +847,145 @@
   color: var(--public-ds-text-secondary);
   font-size: 16px;
   font-weight: 600;
+}
+
+/* 데스크톱/모바일 전용 표시 토글 */
+@media (min-width: 768px) {
+  .public-mypage-mobile-only {
+    display: none !important;
+  }
+}
+@media (max-width: 767px) {
+  .public-mypage-desktop-only {
+    display: none !important;
+  }
+}
+
+/* 프로필 헤더 (모바일) — 이름 왼쪽 / '>' 오른쪽 */
+.public-mypage-profile {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.public-mypage-profile__name {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--public-ds-text);
+  line-height: 1.4;
+}
+
+.public-mypage-profile__more-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.public-mypage-profile__more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--public-ds-text-secondary);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.public-mypage-profile__more:hover {
+  background: var(--public-ds-background, #f4f4f4);
+  color: var(--public-ds-text);
+}
+
+.public-mypage-profile__menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  min-width: 160px;
+  padding: 6px;
+  background: #ffffff;
+  border: 1px solid var(--public-ds-border, #e5e5e5);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(20, 24, 28, 0.12);
+  display: flex;
+  flex-direction: column;
+}
+
+.public-mypage-profile__menu-item {
+  text-align: left;
+  border: 0;
+  background: transparent;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--public-ds-text);
+  cursor: pointer;
+}
+
+.public-mypage-profile__menu-item:hover {
+  background: var(--public-ds-background, #f4f4f4);
+}
+
+/* 3x2 네브 그리드 (모바일) — 좌우 화면 꽉 차게 + 라인 구분, 개별 라운드 없음 */
+.public-mypage-navgrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  margin-bottom: 0;
+  /* 콘텐츠 좌우 패딩(16~24px)에 상관없이 화면 끝까지 full-bleed */
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+  max-width: 100vw;
+  border-top: 1px solid var(--public-ds-border, #e5e5e5);
+  border-bottom: 1px solid var(--public-ds-border, #e5e5e5);
+}
+
+.public-mypage-navgrid__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 86px;
+  padding: 14px 6px;
+  border: 0;
+  border-right: 1px solid var(--public-ds-border, #e5e5e5);
+  border-radius: 0;
+  background: #ffffff;
+  color: var(--public-ds-text);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.public-mypage-navgrid__icon {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+/* 오른쪽 끝 열은 세로 구분선 제거 */
+.public-mypage-navgrid__item:nth-child(3n) {
+  border-right: 0;
+}
+
+/* 두 번째 줄(4~6번째) 위에 가로 구분선 */
+.public-mypage-navgrid__item:nth-child(n + 4) {
+  border-top: 1px solid var(--public-ds-border, #e5e5e5);
+}
+
+.public-mypage-navgrid__item.is-active {
+  /* 선택 항목 — 아이스 블루 배경 + 남색 텍스트 */
+  background: #f3fbff;
+  color: var(--public-primary, #1B3A5C);
 }
 
 .public-mypage-shell-grid {
@@ -1020,6 +1186,14 @@
 
 .public-mypage-content {
   min-width: 0;
+}
+
+/* 탭 선택 시 섹션에 포커스 아웃라인이 뜨지 않도록 */
+.public-mypage-content:focus,
+.public-mypage-content:focus-visible,
+.public-mypage-section:focus,
+.public-mypage-section:focus-visible {
+  outline: none;
 }
 
 /* 상단 통계 카드 행 (전체/구매완료/상품준비중/배송중/구매확정) */
@@ -1316,7 +1490,7 @@
   padding: 8px 10px;
   border: 1px solid var(--public-ds-divider, #f0f0f0);
   border-radius: 8px;
-  background: var(--public-ds-background, #f9f9f9);
+  background: #ffffff;
   font-size: 13px;
   margin-top: 2px;
   flex-wrap: wrap;
@@ -1328,12 +1502,12 @@
 }
 
 .public-mypage-purchase-card__tracking-number {
-  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-family: "LINE Seed Sans KR", "Apple SD Gothic Neo", sans-serif;
   font-size: 13px;
+  font-weight: 600;
   color: var(--public-ds-text);
-  background: #ffffff;
-  padding: 2px 6px;
-  border-radius: 4px;
+  background: transparent;
+  padding: 2px 0;
 }
 
 .public-mypage-purchase-card__tracking-copy {
