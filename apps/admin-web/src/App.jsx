@@ -75,7 +75,7 @@ function App() {
           <Route
             element={
               <AdminRoute>
-                <AdminDashboardPage view="overview" />
+                <AdminDashboardPage />
               </AdminRoute>
             }
             path="/admin"

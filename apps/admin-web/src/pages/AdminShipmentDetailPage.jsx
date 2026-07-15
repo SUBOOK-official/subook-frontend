@@ -10,6 +10,7 @@ import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseCl
 import StatusBadge from "@shared-domain/StatusBadge";
 import NotificationResultModal from "../components/NotificationResultModal";
 import { notifyArrived, notifyInspectionDone } from "../lib/adminNotification";
+import { PRICE_LOCKED_MESSAGE, isBookPriceLocked } from "../lib/bookEditRules";
 
 const BOOKS_PAGE_SIZE = 30;
 
@@ -216,14 +217,6 @@ function getPublicStoreValidationMessage(book, draft) {
   return missingFields.length > 0
     ? `공개 전환을 위해 ${missingFields.join(", ")}을(를) 입력해 주세요.`
     : "";
-}
-
-// 정산완료/폐기 책은 셀러 정산액·이력의 근거라 가격 변경 금지 (상품 마스터 모달 priceLocked와 동일 규칙)
-const PRICE_LOCKED_BOOK_STATUSES = ["settled", "discarded"];
-const PRICE_LOCKED_MESSAGE = "정산완료/폐기된 책의 가격은 변경할 수 없습니다.";
-
-function isBookPriceLocked(book) {
-  return PRICE_LOCKED_BOOK_STATUSES.includes(book?.status);
 }
 
 function BookPriceEditor({
