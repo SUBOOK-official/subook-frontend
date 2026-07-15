@@ -5,6 +5,14 @@
 .public-faq-page {
   background: #ffffff;
   min-height: 100vh;
+  /* 콘텐츠가 짧은 페이지(알림함 빈 상태 등)에서 푸터가 뷰포트 바닥에 붙도록
+     플렉스 컬럼 + 목록 섹션 확장. 안 하면 min-height 잔여분이 푸터 아래 흰 띠로 남는다. */
+  display: flex;
+  flex-direction: column;
+}
+
+.public-faq-page > .public-faq-list {
+  flex: 1 0 auto;
 }
 
 /* ── 빵부스러기 경로 ─────────────────────────────────────────── */
