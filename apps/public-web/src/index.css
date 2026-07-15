@@ -5448,6 +5448,35 @@ img {
   color: var(--public-ds-danger);
 }
 
+/* 아이콘 버튼 (수정/삭제 등) */
+.public-mypage-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--public-ds-text-secondary, #55565b);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.public-mypage-icon-button:hover {
+  background: var(--public-ds-background, #f4f4f4);
+  color: var(--public-ds-text, #232323);
+}
+
+.public-mypage-icon-button--danger {
+  color: var(--public-ds-text-secondary, #55565b);
+}
+
+.public-mypage-icon-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .public-mypage-profile-list {
   margin: 0;
   display: flex;
@@ -5494,7 +5523,7 @@ img {
   padding: 16px;
   border: 1px solid var(--public-ds-divider);
   border-radius: 12px;
-  background: var(--public-ds-background);
+  background: #ffffff;
 }
 
 .public-mypage-static-field__label {
@@ -5655,7 +5684,8 @@ img {
 .public-mypage-history-card__stat {
   padding: 14px;
   border-radius: var(--public-radius-lg);
-  background: var(--public-ds-background);
+  background: #ffffff;
+  border: 1px solid var(--public-ds-border, #e5e5e5);
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -5682,7 +5712,7 @@ img {
   padding: 24px 20px;
   border: 1px dashed var(--public-ds-border);
   border-radius: 12px;
-  background: var(--public-ds-background);
+  background: #ffffff;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -5690,8 +5720,20 @@ img {
   text-align: center;
 }
 
+/* 모바일: empty state 점선 아웃라인 제거 */
+@media (max-width: 767px) {
+  .public-mypage-empty-state {
+    border: 0;
+    border-radius: 0;
+    padding: 24px 0;
+  }
+}
+
 .public-mypage-empty-state__icon {
   font-size: 40px;
+  /* 중앙 아이콘을 연한 회색으로 (png·svg 공통) */
+  opacity: 0.3;
+  color: var(--public-ds-text-muted, #9a9aa0);
 }
 
 .public-mypage-empty-state__title {
@@ -5711,6 +5753,15 @@ img {
 
 .public-mypage-empty-state__action {
   max-width: 220px;
+  /* 흰 배경 + 검정 텍스트 버튼으로 (기존 primary 네이비 덮어씀) */
+  background: #ffffff;
+  color: #000000;
+  border: 1px solid var(--public-ds-border, #e5e5e5);
+}
+
+.public-mypage-empty-state__action:hover {
+  background: var(--public-ds-background, #f4f4f4);
+  color: #000000;
 }
 
 .public-mypage-sheet {
@@ -8781,7 +8832,7 @@ img {
   border: 0;
   background: transparent;
   font-size: 22px;
-  color: var(--public-text, #080F47);
+  color: #000000;
   cursor: pointer;
   align-items: center;
   justify-content: center;

@@ -4,14 +4,13 @@ import { Link } from "react-router-dom";
 import { useFocusTrap } from "@shared-domain/useFocusTrap";
 import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
 
-function MypageEmptyState({ actionLabel, actionOnClick, actionTo, description, icon, title }) {
+function MypageEmptyState({ actionLabel, actionOnClick, actionTo, icon, title }) {
   return (
     <div className="public-mypage-empty-state">
       <div aria-hidden="true" className="public-mypage-empty-state__icon">
         {icon}
       </div>
       <h3 className="public-mypage-empty-state__title">{title}</h3>
-      <p className="public-mypage-empty-state__description">{description}</p>
       {actionLabel && actionOnClick ? (
         <button
           className="public-auth-button public-auth-button--primary public-mypage-empty-state__action"

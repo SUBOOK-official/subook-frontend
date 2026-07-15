@@ -20,17 +20,13 @@ import {
   AlertTriangleIcon,
   ArrowRightIcon,
   BellIcon,
-  BookIcon,
   BoxIcon,
-  CardIcon,
-  CartIcon,
   ChevronRightIcon,
   ChevronUpIcon,
   CoinIcon,
   HeartIcon,
   LockIcon,
   MapPinIcon,
-  TicketIcon,
   UserIcon,
 } from "../components/icons";
 import { supabase as publicSupabase } from "@shared-supabase/publicSupabaseClient";
@@ -115,13 +111,19 @@ import couponIcon from "../assets/icons/coupon.png";
 import buyIcon from "../assets/icons/buy.png";
 import receiptIcon from "../assets/icons/receipt.png";
 import accountIcon from "../assets/icons/account.png";
+import emptyBoxIcon from "../assets/icons/empty-box.png";
+
+// 마이페이지 빈 상태(empty state)용 png 아이콘 렌더 헬퍼
+function MypageEmptyIcon({ src }) {
+  return <img src={src} alt="" aria-hidden="true" style={{ width: 48, height: 48, objectFit: "contain" }} />;
+}
 
 // 마이페이지 상단 3x2 네브 그리드 (왼쪽 위부터 순서 고정 + 아이콘)
 const MYPAGE_GRID_ITEMS = [
-  { key: "purchases", label: "구매 내역", icon: sellIcon },
+  { key: "purchases", label: "구매 내역", icon: buyIcon },
   { key: "wishlist", label: "찜한 교재", icon: heartPlusIcon },
   { key: "coupons", label: "쿠폰", icon: couponIcon },
-  { key: "sales", label: "판매 내역", icon: buyIcon },
+  { key: "sales", label: "판매 내역", icon: sellIcon },
   { key: "settlements", label: "정산 내역", icon: receiptIcon },
   { key: "settlement-account", label: "정산 계좌 관리", icon: accountIcon },
 ];
@@ -2109,8 +2111,7 @@ function SalesTab({
       <MypageEmptyState
         actionLabel="수거 요청하기"
         actionOnClick={onRequestPickup}
-        description="집에 잠자는 교재를 보내보세요!"
-        icon={<BookIcon size={40} />}
+        icon={<MypageEmptyIcon src={emptyBoxIcon} />}
         title="아직 판매 내역이 없어요"
       />
     );
@@ -2398,13 +2399,25 @@ function CouponsView() {
 
   return (
     <div className="public-mypage-stack">
-      <section className="public-mypage-section">
-        <MypageSectionHeader
-          description="쿠폰 코드를 입력하거나 다운로드 가능한 쿠폰을 받아보세요."
-          icon={<TicketIcon size={18} />}
-          title="쿠폰함"
-        />
+      {/* 쿠폰 상태 탭 — 입력 칸보다 위, 상단 sticky 고정 */}
+      <div className="public-mypage-coupon-tabs public-mypage-coupon-tabs--sticky">
+        {[
+          { key: "available", label: "보유" },
+          { key: "used", label: "사용 완료" },
+          { key: "expired", label: "만료" },
+        ].map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            className={`public-mypage-coupon-tab ${statusFilter === tab.key ? "is-active" : ""}`}
+            onClick={() => setStatusFilter(tab.key)}
+          >
+            {tab.label} ({counts[tab.key] ?? 0})
+          </button>
+        ))}
+      </div>
 
+      <section className="public-mypage-section">
         <form onSubmit={handleClaimCode} className="public-mypage-coupon-code-form">
           <input
             className="public-mypage-coupon-code-input"
@@ -2449,23 +2462,6 @@ function CouponsView() {
       </section>
 
       <section className="public-mypage-section">
-        <div className="public-mypage-coupon-tabs">
-          {[
-            { key: "available", label: "보유" },
-            { key: "used", label: "사용 완료" },
-            { key: "expired", label: "만료" },
-          ].map((tab) => (
-            <button
-              key={tab.key}
-              type="button"
-              className={`public-mypage-coupon-tab ${statusFilter === tab.key ? "is-active" : ""}`}
-              onClick={() => setStatusFilter(tab.key)}
-            >
-              {tab.label} ({counts[tab.key] ?? 0})
-            </button>
-          ))}
-        </div>
-
         {isLoading ? (
           <div className="public-mypage-skeleton public-mypage-skeleton--panel" />
         ) : filteredCoupons.length === 0 ? (
@@ -2477,7 +2473,7 @@ function CouponsView() {
                   ? "사용한 쿠폰이 없습니다."
                   : "만료된 쿠폰이 없습니다."
             }
-            icon={<TicketIcon size={40} />}
+            icon={<MypageEmptyIcon src={couponIcon} />}
             title={statusFilter === "available" ? "보유 쿠폰 없음" : statusFilter === "used" ? "사용 이력 없음" : "만료 이력 없음"}
           />
         ) : (
@@ -2606,7 +2602,6 @@ function PurchasesView({
 }) {
   const [detailOrder, setDetailOrder] = useState(null);
   const [activeFilter, setActiveFilter] = useState("all");
-  const navigate = useNavigate();
 
   const filteredOrders = useMemo(() => {
     if (activeFilter === "all") return orders;
@@ -2617,19 +2612,12 @@ function PurchasesView({
 
   const groupedOrders = useMemo(() => groupOrdersByDate(filteredOrders), [filteredOrders]);
 
-  const handleReorder = (item) => {
-    if (item.productId) {
-      navigate(`/store/${item.productId}`);
-    }
-  };
-
   if (!orders.length) {
     return (
       <MypageEmptyState
         actionLabel="교재 둘러보기"
         actionTo="/"
-        description="마음에 드는 교재를 구매해보세요!"
-        icon={<CartIcon size={40} />}
+        icon={<MypageEmptyIcon src={emptyBoxIcon} />}
         title="아직 구매 내역이 없어요"
       />
     );
@@ -2725,14 +2713,6 @@ function PurchasesView({
                       >
                         배송 조회
                       </button>
-                      <button
-                        className="public-mypage-purchase-card__btn"
-                        disabled={!item.productId}
-                        onClick={() => handleReorder(item)}
-                        type="button"
-                      >
-                        같은 교재 다시 찾기
-                      </button>
                       {order.canCancel ? (
                         <button
                           className="public-mypage-purchase-card__btn public-mypage-purchase-card__btn--danger"
@@ -2773,8 +2753,8 @@ function PurchasesView({
                     {order.canConfirm && order.autoConfirmDaysRemaining != null ? (
                       <p className="public-mypage-purchase-card__auto-confirm">
                         {order.autoConfirmDaysRemaining <= 0
-                          ? "곧 자동으로 구매확정돼요 · 확정 후에는 반품할 수 없어요"
-                          : `${order.autoConfirmDaysRemaining}일 뒤 자동으로 구매확정돼요 · 확정 후에는 반품할 수 없어요`}
+                          ? "곧 자동으로 구매 확정"
+                          : `${order.autoConfirmDaysRemaining}일 뒤 자동으로 구매 확정`}
                       </p>
                     ) : null}
                   </article>
@@ -2802,8 +2782,7 @@ function SettlementsTab({ completedSettlements, onRequestPickup, scheduledSettle
       <MypageEmptyState
         actionLabel="수거 요청하기"
         actionOnClick={onRequestPickup}
-        description="교재를 판매하면 정산 내역이 여기에 표시돼요."
-        icon={<CoinIcon size={40} />}
+        icon={<MypageEmptyIcon src={receiptIcon} />}
         title="아직 정산 내역이 없어요"
       />
     );
@@ -2901,17 +2880,6 @@ function WishlistTab({
   return (
     <div className="public-mypage-stack">
       <section className="public-mypage-section">
-        <MypageSectionHeader
-          action={
-            <Link className="public-mypage-inline-button" to="/">
-              스토어 보기
-            </Link>
-          }
-          description="찜해 둔 교재를 모아보고 품절 여부까지 한 번에 확인할 수 있어요."
-          icon={<HeartIcon filled size={18} style={{ color: "var(--public-danger, #ff4a4a)" }} />}
-          title="찜한 교재"
-        />
-
         {wishlistError ? (
           <p className="public-auth-inline-message public-auth-inline-message--error">
             {wishlistError}
@@ -2949,8 +2917,7 @@ function WishlistTab({
           <MypageEmptyState
             actionLabel="스토어 둘러보기"
             actionTo="/"
-            description="마음에 드는 교재를 찜해두면 마이페이지에서 다시 빠르게 확인할 수 있어요."
-            icon={<HeartIcon filled size={40} style={{ color: "var(--public-danger, #ff4a4a)" }} />}
+            icon={<MypageEmptyIcon src={heartPlusIcon} />}
             title="아직 찜한 교재가 없어요"
           />
         )}
@@ -3164,7 +3131,7 @@ function SettingsTab({
               + 새 계좌
             </button>
           }
-          description="계좌 정보는 정산 시에만 사용되며 암호화되어 안전하게 보관됩니다."
+          description="판매 정산을 받기 위해선 기본 계좌가 등록되어야 합니다. 계좌 정보는 정산 시에만 사용되며, 암호화되어 안전하게 보관됩니다."
           icon={<CoinIcon size={18} />}
           title="정산 계좌 관리"
         />
@@ -3194,16 +3161,17 @@ function SettingsTab({
                         기본으로 설정
                       </button>
                     ) : null}
-                    <button className="public-mypage-text-button" onClick={() => openAccountSheet(account)} type="button">
-                      수정
+                    <button className="public-mypage-icon-button" onClick={() => openAccountSheet(account)} type="button" aria-label="수정">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7.24264 17.9967H3V13.754L14.435 2.319C14.8256 1.92848 15.4587 1.92848 15.8492 2.319L18.6777 5.14743C19.0682 5.53795 19.0682 6.17112 18.6777 6.56164L7.24264 17.9967ZM3 19.9967H21V21.9967H3V19.9967Z" /></svg>
                     </button>
                     <button
-                      className="public-mypage-text-button public-mypage-text-button--danger"
+                      className="public-mypage-icon-button public-mypage-icon-button--danger"
                       disabled={busyAccountId === account.id}
                       onClick={() => requestDeleteAccount(account)}
                       type="button"
+                      aria-label="삭제"
                     >
-                      삭제
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 6V3C7 2.44772 7.44772 2 8 2H16C16.5523 2 17 2.44772 17 3V6H22V8H20V21C20 21.5523 19.5523 22 19 22H5C4.44772 22 4 21.5523 4 21V8H2V6H7ZM13.4142 13.9997L15.182 12.232L13.7678 10.8178L12 12.5855L10.2322 10.8178L8.81802 12.232L10.5858 13.9997L8.81802 15.7675L10.2322 17.1817L12 15.4139L13.7678 17.1817L15.182 15.7675L13.4142 13.9997ZM9 4V6H15V4H9Z" /></svg>
                     </button>
                   </div>
                 </div>
@@ -3211,7 +3179,7 @@ function SettingsTab({
             ))}
           </div>
         ) : (
-          <MypageEmptyState description="판매 정산을 받으려면 기본 계좌를 먼저 등록해 주세요." icon={<CardIcon size={40} />} title="등록한 정산 계좌가 없어요" />
+          <MypageEmptyState icon={<MypageEmptyIcon src={accountIcon} />} title="등록한 정산 계좌가 없어요" />
         )}
       </section>
       ) : null}
@@ -3493,7 +3461,6 @@ function AccountSheet({
           </button>
         </>
       }
-      eyebrow="정산"
       onClose={closeAccountSheet}
       open={isAccountSheetOpen}
       title={accountForm.id ? "정산 계좌 수정" : "정산 계좌 추가"}

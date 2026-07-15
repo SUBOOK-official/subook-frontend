@@ -226,7 +226,7 @@ const orderStatusMap = {
   // 폐지 전 주문의 라벨 렌더용으로만 유지.
   paid: { label: "결제완료", tone: "accent" },
   // preparing: 결제 확인(무통장 입금확인 / PG 승인) 즉시 진입하는 상태.
-  preparing: { label: "상품 준비 중", tone: "warning" },
+  preparing: { label: "결제 완료", tone: "warning" },
   shipping: { label: "배송중", tone: "warning" },
   delivered: { label: "배송완료", tone: "success" },
   confirmed: { label: "구매확정", tone: "success" },
@@ -553,7 +553,7 @@ export function getTabKeyFromHash(hash) {
 // (pending/cancelled/refunded/returned 등은 별도 카드로 노출하지 않음)
 export const PURCHASE_SUMMARY_CARDS = [
   { key: "all",       label: "전체",       statuses: null },
-  { key: "preparing", label: "상품 준비 중", statuses: ["preparing"] },
+  { key: "preparing", label: "결제 완료",   statuses: ["preparing"] },
   { key: "shipping",  label: "배송중",     statuses: ["shipping"] },
   { key: "delivered", label: "배송 완료",   statuses: ["delivered"] },
   { key: "confirmed", label: "구매 확정",   statuses: ["confirmed"] },
