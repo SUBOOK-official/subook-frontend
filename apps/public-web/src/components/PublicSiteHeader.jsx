@@ -9,13 +9,12 @@ import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { createDisplayName } from "../lib/memberPortal";
 import { getCartItems } from "../lib/cart";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/publicSupabaseClient";
-import { fetchStorefrontProducts } from "../lib/storefront";
 import {
   STORE_AUTOCOMPLETE_MIN_KEYWORD_LENGTH,
   STORE_RECENT_SEARCH_LIMIT,
   STORE_RECENT_SEARCH_STORAGE_KEY,
   addRecentSearchTerm,
-  buildStoreAutocomplete,
+  buildStoreAutocompleteFromSearchRows,
   hasAutocompleteResults,
   normalizeRecentSearches,
   removeRecentSearchTerm,
@@ -23,39 +22,41 @@ import {
 import { SEARCH_DEBOUNCE_MS } from "../lib/publicStoreNavigation";
 import { BellIcon, CartIcon, ClockIcon, MenuIcon, CloseIcon } from "./icons";
 
-// catalog snapshot은 헤더 단 한 곳에서만 캐싱하면 충분.
-// 30초 in-memory 캐시 — 사용자 한 명이 짧은 시간에 여러 글자를 치는 동안
-// Supabase RPC를 반복 호출하지 않게 한다.
-const CATALOG_CACHE_TTL_MS = 30_000;
-let catalogCachedAt = 0;
-let catalogCache = null;
-let catalogInflight = null;
+// 자동완성 = 서버 검색 RPC(search_storefront_products, FTS+초성+오타 매칭).
+// 예전 방식(최신 500개 스냅샷을 통째로 받아 클라이언트 매칭)은 카탈로그가 500개를
+// 넘는 순간 이후 상품이 제안에서 통째로 빠지는 구조라 폐기했다.
+// 키워드 단위 30초 캐시 — 같은 키워드 재타이핑(백스페이스 등)에 RPC 재호출 방지.
+const AUTOCOMPLETE_CACHE_TTL_MS = 30_000;
+const AUTOCOMPLETE_CACHE_MAX_ENTRIES = 50;
+const AUTOCOMPLETE_FETCH_LIMIT = 20;
+const autocompleteRowsCache = new Map();
 
-async function loadCatalogSnapshot() {
+async function fetchAutocompleteSearchRows(keyword) {
   const now = Date.now();
-  if (catalogCache && now - catalogCachedAt < CATALOG_CACHE_TTL_MS) {
-    return catalogCache;
+  const cached = autocompleteRowsCache.get(keyword);
+  if (cached && now - cached.cachedAt < AUTOCOMPLETE_CACHE_TTL_MS) {
+    return cached.rows;
   }
 
-  if (catalogInflight) {
-    return catalogInflight;
+  if (!isSupabaseConfigured || !supabase) {
+    return [];
   }
 
-  catalogInflight = (async () => {
-    try {
-      const result = await fetchStorefrontProducts({ limit: 500, sort: "latest" });
-      catalogCache = Array.isArray(result.products) ? result.products : [];
-      catalogCachedAt = Date.now();
-      return catalogCache;
-    } catch {
-      // 실패해도 캐시는 비우지 않고 빈 배열로 진행. 다음 시도에서 다시 fetch.
-      return [];
-    } finally {
-      catalogInflight = null;
+  try {
+    const { data, error } = await supabase.rpc("search_storefront_products", {
+      p_query: keyword,
+      p_limit: AUTOCOMPLETE_FETCH_LIMIT,
+    });
+    const rows = !error && Array.isArray(data) ? data : [];
+    if (autocompleteRowsCache.size >= AUTOCOMPLETE_CACHE_MAX_ENTRIES) {
+      const oldestKey = autocompleteRowsCache.keys().next().value;
+      autocompleteRowsCache.delete(oldestKey);
     }
-  })();
-
-  return catalogInflight;
+    autocompleteRowsCache.set(keyword, { rows, cachedAt: now });
+    return rows;
+  } catch {
+    return [];
+  }
 }
 
 function readRecentSearches() {
@@ -304,7 +305,8 @@ function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
     return () => window.clearTimeout(handle);
   }, [searchValue]);
 
-  // 자동완성 lookup: 키워드가 최소 길이 이상이면 catalog snapshot에 대해 buildStoreAutocomplete.
+  // 자동완성 lookup: 키워드가 최소 길이 이상이면 서버 검색 RPC로 제안을 만든다.
+  // (전체 카탈로그 대상 FTS라 상품 수와 무관하게 정확한 제안)
   useEffect(() => {
     let cancelled = false;
     const normalizedKeyword = debouncedKeyword;
@@ -314,9 +316,9 @@ function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
     }
 
     (async () => {
-      const catalog = await loadCatalogSnapshot();
+      const rows = await fetchAutocompleteSearchRows(normalizedKeyword);
       if (cancelled) return;
-      setAutocomplete(buildStoreAutocomplete(catalog, normalizedKeyword));
+      setAutocomplete(buildStoreAutocompleteFromSearchRows(rows, normalizedKeyword));
     })();
 
     return () => {

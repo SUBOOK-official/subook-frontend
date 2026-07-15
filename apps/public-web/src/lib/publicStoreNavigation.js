@@ -9,8 +9,18 @@ export const STORE_SORT_OPTIONS = [
   { value: "popular", label: "인기순" },
 ];
 
+// 검색어가 있을 때만 노출되는 관련도 정렬 — 서버 match_score(FTS 유사도) 기준.
+export const STORE_SEARCH_SORT_OPTION = { value: "relevance", label: "관련도순" };
+
 // 스토어 기본 정렬 — 드롭다운 노출 순서와 무관하게 초기 선택값만 '인기순'으로 지정.
 export const STORE_DEFAULT_SORT = "popular";
+
+export function isValidStoreSort(value) {
+  return (
+    value === STORE_SEARCH_SORT_OPTION.value ||
+    STORE_SORT_OPTIONS.some((option) => option.value === value)
+  );
+}
 
 export const STORE_FILTER_GROUPS = [
   {
@@ -126,11 +136,12 @@ export function parseStorefrontQuery(search) {
   };
 
   const selectedSubject = normalizeStoreSubject(params.get("subject"));
-  const requestedSort = params.get("sort");
-  const sortOption = STORE_SORT_OPTIONS.some((option) => option.value === requestedSort)
-    ? requestedSort
-    : STORE_DEFAULT_SORT;
   const searchKeyword = normalizeQueryValue(params.get("q"));
+  const requestedSort = params.get("sort");
+  // 검색어가 있는데 정렬이 명시되지 않았으면 기본을 관련도순으로.
+  // (검색 중 '인기순'을 직접 고르면 serialize가 sort=popular를 URL에 명시해 왕복 유지)
+  const fallbackSort = searchKeyword ? STORE_SEARCH_SORT_OPTION.value : STORE_DEFAULT_SORT;
+  const sortOption = isValidStoreSort(requestedSort) ? requestedSort : fallbackSort;
   const pageValue = Number.parseInt(params.get("page") ?? "1", 10);
 
   return {
@@ -162,12 +173,17 @@ export function serializeStorefrontQuery({
     }
   });
 
-  if (sortOption && sortOption !== STORE_DEFAULT_SORT) {
+  const trimmedKeyword = searchKeyword.trim();
+  // parse의 fallback과 대칭: 검색 중엔 관련도순이, 평시엔 인기순이 "암묵 기본"이라
+  // 그 값일 때만 sort 파라미터를 생략한다. (검색 중 인기순 선택 등은 URL에 명시 유지)
+  const impliedSort = trimmedKeyword ? STORE_SEARCH_SORT_OPTION.value : STORE_DEFAULT_SORT;
+
+  if (sortOption && sortOption !== impliedSort) {
     params.set("sort", sortOption);
   }
 
-  if (searchKeyword.trim()) {
-    params.set("q", searchKeyword.trim());
+  if (trimmedKeyword) {
+    params.set("q", trimmedKeyword);
   }
 
   if (currentPage > 1) {

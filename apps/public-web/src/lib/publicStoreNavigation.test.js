@@ -6,6 +6,7 @@ import {
   countSelectedStoreFilters,
   STORE_DEFAULT_SUBJECT,
   areSelectedFiltersEqual,
+  isValidStoreSort,
   parseStorefrontQuery,
   serializeStorefrontQuery,
   toggleStoreFilterSelection,
@@ -148,4 +149,74 @@ test("areSelectedFiltersEqual compares each filter group independently", () => {
     ),
     false,
   );
+});
+
+// ─── 관련도(relevance) 정렬 — 검색 전용 정렬 옵션 ───
+
+test("parseStorefrontQuery accepts relevance sort from URL", () => {
+  const parsed = parseStorefrontQuery("?q=수학&sort=relevance");
+  assert.equal(parsed.sortOption, "relevance");
+  assert.equal(parsed.searchKeyword, "수학");
+});
+
+test("parseStorefrontQuery falls back to relevance when searching without explicit sort", () => {
+  // 검색 중 암묵 기본 = 관련도순
+  assert.equal(parseStorefrontQuery("?q=수학").sortOption, "relevance");
+  // 검색 중이라도 명시된 정렬은 존중
+  assert.equal(parseStorefrontQuery("?q=수학&sort=popular").sortOption, "popular");
+  // 검색어가 없으면 평시 기본(인기순)
+  assert.equal(parseStorefrontQuery("").sortOption, "popular");
+});
+
+test("serializeStorefrontQuery omits implied sort and keeps explicit choices", () => {
+  const base = {
+    selectedSubject: STORE_DEFAULT_SUBJECT,
+    selectedFilters: { types: [], brands: [], years: [], conditionGrades: [] },
+    currentPage: 1,
+  };
+
+  // 검색 중 관련도순 = 암묵 기본 → sort 생략 (URL 깔끔)
+  const impliedDuringSearch = serializeStorefrontQuery({
+    ...base,
+    sortOption: "relevance",
+    searchKeyword: "수학",
+  });
+  assert.equal(impliedDuringSearch.includes("sort="), false);
+  assert.equal(impliedDuringSearch.includes("q="), true);
+
+  // 검색 중 인기순은 명시적 선택 → sort=popular 유지 (parse fallback과 왕복 안정)
+  const explicitDuringSearch = serializeStorefrontQuery({
+    ...base,
+    sortOption: "popular",
+    searchKeyword: "수학",
+  });
+  assert.equal(explicitDuringSearch.includes("sort=popular"), true);
+
+  // 평시 인기순 = 암묵 기본 → 생략 (기존 동작 유지)
+  const impliedDefault = serializeStorefrontQuery({
+    ...base,
+    sortOption: "popular",
+    searchKeyword: "",
+  });
+  assert.equal(impliedDefault.includes("sort="), false);
+});
+
+test("parse↔serialize round-trip is stable for search sorts", () => {
+  const roundTrip = (search) => serializeStorefrontQuery({
+    selectedSubject: parseStorefrontQuery(search).selectedSubject,
+    selectedFilters: parseStorefrontQuery(search).selectedFilters,
+    sortOption: parseStorefrontQuery(search).sortOption,
+    searchKeyword: parseStorefrontQuery(search).searchKeyword,
+    currentPage: parseStorefrontQuery(search).page,
+  });
+
+  assert.equal(roundTrip("q=%EC%88%98%ED%95%99"), "q=%EC%88%98%ED%95%99");
+  assert.equal(roundTrip("sort=popular&q=%EC%88%98%ED%95%99"), "sort=popular&q=%EC%88%98%ED%95%99");
+});
+
+test("isValidStoreSort recognizes base sorts and relevance only", () => {
+  assert.equal(isValidStoreSort("relevance"), true);
+  assert.equal(isValidStoreSort("popular"), true);
+  assert.equal(isValidStoreSort("latest"), true);
+  assert.equal(isValidStoreSort("unknown"), false);
 });
