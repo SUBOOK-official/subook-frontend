@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import AdminShell from "../components/AdminShell";
 import AdminDialog from "../components/AdminDialog";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
@@ -276,6 +277,29 @@ function AdminPickupRequestsPage() {
   // 수동 상태 전환 확인 모달 { pickupRequest, nextStatus } — CJ 미연동 기간 운영용
   const [statusChangeModal, setStatusChangeModal] = useState(null);
   const [statusChangingId, setStatusChangingId] = useState(null);
+  // 수거요청 → 검수(shipment) 전환 진행 중인 요청 id
+  const [startingInspectionId, setStartingInspectionId] = useState(null);
+  const navigate = useNavigate();
+
+  // 수거요청에서 연결된 검수(shipment)를 멱등 생성하고 상품 등록 위저드로 이동.
+  // 이 경로로 만들어야 shipments에 user_id·pickup_request_id가 채워져
+  // 셀러 마이페이지에 교재별 검수 결과(등급·확정가·폐기사유)가 노출된다.
+  const handleStartInspection = async (pickupRequest) => {
+    if (!isSupabaseConfigured || startingInspectionId !== null) {
+      return;
+    }
+    setError("");
+    setStartingInspectionId(pickupRequest.id);
+    const { data, error: rpcError } = await supabase.rpc("admin_start_inspection_from_pickup", {
+      p_pickup_request_id: pickupRequest.id,
+    });
+    setStartingInspectionId(null);
+    if (rpcError || !data?.shipment_id) {
+      setError(rpcError?.message || "검수 전환에 실패했습니다. 최신 migration 적용 여부를 확인해 주세요.");
+      return;
+    }
+    navigate(`/admin/register?shipmentId=${data.shipment_id}`);
+  };
   // 알림톡/RPC 부분 실패를 전체 노출 — 이전엔 setError에 3건만 보여 4건 이후가 사라지는 P0 사고
   const [cjFailureModal, setCjFailureModal] = useState(null);
   const [notificationResult, setNotificationResult] = useState(null);
@@ -950,6 +974,18 @@ function AdminPickupRequestsPage() {
                                 type="button"
                               >
                                 {trackingLookupId === pickupRequest.id ? "조회 중..." : "추적 조회"}
+                              </button>
+                            ) : null}
+
+                            {/* 입고 이후 단계에서만 — 이 수거요청의 책을 등록 위저드로 (신청↔검수 브리지) */}
+                            {["arrived", "inspecting", "inspected"].includes(pickupRequest.status) ? (
+                              <button
+                                className="!w-auto rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60"
+                                disabled={startingInspectionId !== null}
+                                onClick={() => void handleStartInspection(pickupRequest)}
+                                type="button"
+                              >
+                                {startingInspectionId === pickupRequest.id ? "전환 중..." : "상품 등록"}
                               </button>
                             ) : null}
 
