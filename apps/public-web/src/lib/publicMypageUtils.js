@@ -764,10 +764,14 @@ export function mapPickupRequestToShipment(pr) {
     completed: { label: "정산완료", tone: "neutral" },
     cancelled: { label: "취소", tone: "danger" },
   };
-  // P0-5: 백엔드에 폐기 사유/사진/검수 메모 필드가 있으면 그대로 노출.
-  // 현재는 inspections 테이블이 rejection_detail/rejection_photo_urls/inspector_note를
-  // 반환하지 않으므로 client에서는 조건부로 매핑하고, 없으면 "사유 미입력"으로 표시한다.
-  // TODO(backend): get_my_pickup_requests RPC가 items에 위 3개 필드를 함께 반환하도록 보강 필요.
+  // 2026-07-16: get_my_pickup_requests가 브리지된 shipment의 실제 검수 books를
+  // items로 반환한다(등급·확정 판매가·상태·폐기사유·검수사진·검수메모).
+  // 레거시 신청은 기존 pickup_items 형태가 그대로 내려오므로 두 형태를 모두 수용한다.
+  const bookStatusChipMap = {
+    on_sale: { label: "판매중", tone: "success" },
+    reserved: { label: "판매중", tone: "success" },
+    settled: { label: "정산완료", tone: "neutral" },
+  };
   const items = (pr.items ?? []).map((item) => {
     const fallbackReason = pr.status === "cancelled" ? "수거 취소" : null;
     const rejectionReason = item.rejection_reason ?? item.rejectionReason ?? fallbackReason;
@@ -779,13 +783,20 @@ export function mapPickupRequestToShipment(pr) {
         : [];
     const inspectorNote = item.inspector_note ?? item.inspectorNote ?? null;
     const inspectedAt = item.inspected_at ?? item.inspectedAt ?? null;
-    const isRejected = Boolean(rejectionReason) || item.status === "rejected";
+    // 사유 미입력 폐기도 판매불가로 잡아야 함 — status가 판정의 1차 근거
+    const isRejected =
+      Boolean(rejectionReason) || item.status === "rejected" || item.status === "discarded";
+    const bookChip = bookStatusChipMap[item.status] ?? null;
+    const title = item.option
+      ? `${item.title ?? "교재"} (${item.option})`
+      : (item.title ?? "교재");
 
     return {
       id: item.id,
-      title: item.title ?? "교재",
+      title,
       gradeLabel: toGradeLabel(item.grade),
-      price: item.original_price ?? null,
+      // 확정 판매가(검수 후 책정) 우선, 없으면 정가 fallback
+      price: item.price ?? item.original_price ?? null,
       rejectionReason,
       rejectionDetail,
       rejectionPhotoUrls,
@@ -793,12 +804,13 @@ export function mapPickupRequestToShipment(pr) {
       inspectedAt,
       isRejected,
       statusLabel: isRejected
-        ? (rejectionReason ? "판매불가" : "판매불가")
-        : (statusLabelMap[pr.status]?.label ?? "접수됨"),
-      tone: isRejected ? "danger" : (statusLabelMap[pr.status]?.tone ?? "neutral"),
+        ? "판매불가"
+        : (bookChip?.label ?? statusLabelMap[pr.status]?.label ?? "접수됨"),
+      tone: isRejected ? "danger" : (bookChip?.tone ?? statusLabelMap[pr.status]?.tone ?? "neutral"),
     };
   });
-  const itemCount = pr.item_count ?? items.length;
+  // 검수된 실제 books가 있으면 그 권수가 진실 (item_count는 신청 시 '예상' 권수)
+  const itemCount = items.length > 0 ? items.length : (pr.item_count ?? 0);
   const summaryByStatus = {
     completed: `교재 ${itemCount}권 · 정산완료`,
     inspected: `교재 ${itemCount}권 · 검수완료`,
