@@ -2753,8 +2753,8 @@ function PurchasesView({
                     {order.canConfirm && order.autoConfirmDaysRemaining != null ? (
                       <p className="public-mypage-purchase-card__auto-confirm">
                         {order.autoConfirmDaysRemaining <= 0
-                          ? "곧 자동으로 구매 확정"
-                          : `${order.autoConfirmDaysRemaining}일 뒤 자동으로 구매 확정`}
+                          ? "곧 자동으로 구매 확정 · 확정 후에는 반품할 수 없어요"
+                          : `${order.autoConfirmDaysRemaining}일 뒤 자동으로 구매 확정 · 확정 후에는 반품할 수 없어요`}
                       </p>
                     ) : null}
                   </article>

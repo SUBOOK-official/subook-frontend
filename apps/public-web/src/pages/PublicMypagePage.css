@@ -985,7 +985,7 @@
 .public-mypage-navgrid__item.is-active {
   /* 선택 항목 — 아이스 블루 배경 + 남색 텍스트 */
   background: #f3fbff;
-  color: var(--public-primary, #1B3A5C);
+  color: var(--public-primary, #080F47);
 }
 
 .public-mypage-shell-grid {
