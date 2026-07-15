@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import AdminShell from "../components/AdminShell";
+import AdminPageTabs from "../components/AdminPageTabs";
 import AdminPagination from "../components/AdminPagination";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import NotificationResultModal from "../components/NotificationResultModal";
@@ -505,8 +506,17 @@ function AdminSettlementsPage() {
       }
       description="구매확정 후 자동 생성된 정산 예정건을 승인하고 지급 완료까지 처리합니다."
       summaryCards={summaryCards}
-      title="정산 관리"
+      title="정산"
     >
+      {/* R1 IA 개편: 자동/수동 정산을 사이드바 메뉴 2개 대신 한 메뉴의 탭으로 */}
+      <AdminPageTabs
+        activeKey="auto"
+        tabs={[
+          { key: "auto", label: "자동 정산", hint: "회원 주문" },
+          { key: "manual", label: "수동 정산", hint: "식스샵 구매분", to: "/admin/manual-settlements" },
+        ]}
+      />
+
       {/* 구 사이트(식스샵)·수동 정산 연동 요약 — 회원 주문 자동 정산과 별개 트랙 (2026-07-06 피드백) */}
       {manualSummary ? (
         <section className="card p-4 flex flex-wrap items-center gap-3">

@@ -96,20 +96,13 @@ function App() {
             }
             path="/admin/pickups"
           />
+          {/* R1 IA 개편: 검수는 수거·검수 통합 페이지의 탭으로, catalog 유령 라우트는 상품 재고로 */}
           <Route
-            element={
-              <AdminRoute>
-                <AdminDashboardPage view="inspection" />
-              </AdminRoute>
-            }
+            element={<Navigate replace to="/admin/pickups?tab=inspection" />}
             path="/admin/inspections"
           />
           <Route
-            element={
-              <AdminRoute>
-                <AdminDashboardPage view="catalog" />
-              </AdminRoute>
-            }
+            element={<Navigate replace to="/admin/products" />}
             path="/admin/catalog"
           />
           <Route

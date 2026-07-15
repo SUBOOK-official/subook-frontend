@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import AdminDialog from "../components/AdminDialog";
 import AdminShell from "../components/AdminShell";
+import AdminPageTabs from "../components/AdminPageTabs";
 import AdminPagination from "../components/AdminPagination";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import { formatCurrency, formatDate, maskEmail, maskPhone } from "@shared-domain/format";
@@ -123,10 +125,13 @@ function DetailSection({ title, children, right = null }) {
 }
 
 function AdminMembersPage() {
+  // 주문·수거 화면의 '회원 조회' 크로스 링크가 검색을 걸어 진입할 수 있게 (?q=)
+  const [searchParams] = useSearchParams();
+
   const [members, setMembers] = useState([]);
   const [summary, setSummary] = useState({});
   const [totalCount, setTotalCount] = useState(0);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(searchParams.get("q") ?? "");
   const [statusFilter, setStatusFilter] = useState("all");
   const [isLoading, setIsLoading] = useState(true);
   const [selectedMember, setSelectedMember] = useState(null);
@@ -358,8 +363,17 @@ function AdminMembersPage() {
       activeModule="members"
       description="회원 프로필과 수거, 주문, 정산 이력을 한 화면에서 확인합니다."
       summaryCards={summaryCards}
-      title="회원 관리"
+      title="회원"
     >
+      {/* R1 IA 개편: 탈퇴 사유(저빈도 통계)를 사이드바 메뉴 대신 회원 메뉴의 탭으로 */}
+      <AdminPageTabs
+        activeKey="members"
+        tabs={[
+          { key: "members", label: "회원 목록" },
+          { key: "withdrawal", label: "탈퇴 사유", hint: "설문 통계", to: "/admin/withdrawal-reasons" },
+        ]}
+      />
+
       <section className="card space-y-4">
         <div className="flex flex-wrap items-end gap-3">
           <label className="min-w-[240px] flex-1">
@@ -562,6 +576,25 @@ function AdminMembersPage() {
                 <p className="mt-1 text-sm font-semibold text-slate-500">
                   {detailMember?.email || "-"} · {detailMember?.phone || "연락처 없음"}
                 </p>
+                {/* R1 크로스 링크: CS 시 검색을 다시 하지 않도록 이 회원의 업무 화면으로 점프 */}
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Link
+                    className="btn-secondary !w-auto !px-3 !py-1.5 text-xs"
+                    to={`/admin/orders?q=${encodeURIComponent(
+                      detailMember?.display_name || detailMember?.name || detailMember?.email || "",
+                    )}`}
+                  >
+                    이 회원 주문 보기
+                  </Link>
+                  <Link
+                    className="btn-secondary !w-auto !px-3 !py-1.5 text-xs"
+                    to={`/admin/pickups?q=${encodeURIComponent(
+                      detailMember?.display_name || detailMember?.name || detailMember?.phone || "",
+                    )}`}
+                  >
+                    수거·검수 보기
+                  </Link>
+                </div>
                 {detailMember?.is_blocked && detailMember?.block_reason ? (
                   <p className="mt-1 text-xs text-red-600">사유: {detailMember.block_reason}</p>
                 ) : null}

@@ -76,7 +76,12 @@ function AdminShell({ title, description = "", activeModule, actions = null, sum
     explicitModule: activeModule,
   });
 
-  const badgeCounts = useAdminBadgeCounts();
+  const rawBadgeCounts = useAdminBadgeCounts();
+  // 수거·검수 통합 메뉴: 신청 대기(pickups) + 검수 대기(inspection)를 한 배지로 합산
+  const badgeCounts = {
+    ...rawBadgeCounts,
+    pickups: (rawBadgeCounts.pickups ?? 0) + (rawBadgeCounts.inspection ?? 0),
+  };
 
   // 라우트 바뀌면 모바일 메뉴 자동 닫힘
   useEffect(() => {

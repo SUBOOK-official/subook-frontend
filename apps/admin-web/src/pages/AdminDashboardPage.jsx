@@ -354,8 +354,8 @@ function AdminDashboardPage({ view = "overview" }) {
   const pageConfig = {
     overview: {
       activeModule: "overview",
-      title: "개요",
-      description: "",
+      title: "오늘 할 일",
+      description: "처리 대기 업무를 한눈에 — 카드를 누르면 해당 작업 화면으로 이동합니다",
       summaryCards: dashboardSummaryCards,
     },
     pickups: {
@@ -925,13 +925,45 @@ function AdminDashboardPage({ view = "overview" }) {
 
       {view === "overview" ? (
         <>
+          {/* R1 IA 개편: '오늘 할 일' — 처리 대기 업무 5종을 업무 순서대로.
+              클릭하면 해당 화면이 그 작업 필터가 걸린 채로 열린다. */}
           <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
             {[
-              { key: "pickups", label: "수거", to: "/admin/pickups", count: badgeCounts.pickups },
-              { key: "inspection", label: "검수", to: "/admin/inspections", count: badgeCounts.inspection },
-              { key: "orders", label: "주문", to: "/admin/orders", count: badgeCounts.orders },
-              { key: "settlements", label: "정산", to: "/admin/settlements", count: badgeCounts.settlements },
-              { key: "studio", label: "스튜디오", to: "/admin/studio", count: 0 },
+              {
+                key: "orders-pending",
+                label: "입금확인",
+                hint: "무통장 입금 대조",
+                to: "/admin/orders?status=pending",
+                count: badgeCounts.ordersPending,
+              },
+              {
+                key: "orders-preparing",
+                label: "발송 처리",
+                hint: "송장 입력·출고",
+                to: "/admin/orders?status=preparing",
+                count: badgeCounts.ordersPreparing,
+              },
+              {
+                key: "pickups",
+                label: "수거 신청",
+                hint: "신규 신청 접수",
+                to: "/admin/pickups",
+                count: badgeCounts.pickups,
+              },
+              {
+                key: "inspection",
+                label: "검수·등록",
+                hint: "입고된 책 등록",
+                to: "/admin/pickups?tab=inspection",
+                count: badgeCounts.inspection,
+              },
+              {
+                key: "settlements",
+                label: "정산 지급",
+                hint: "승인·이체 대기",
+                to: "/admin/settlements",
+                count: badgeCounts.settlements,
+              },
             ].map((card) => {
               const numeric = Number.isFinite(card.count) ? card.count : 0;
               const accent = numeric > 0;
@@ -950,10 +982,9 @@ function AdminDashboardPage({ view = "overview" }) {
                         accent ? "text-rose-600" : "text-slate-400"
                       }`}
                     >
-                      {card.key === "studio"
-                        ? "촬영 작업"
-                        : `처리 대기 ${numeric.toLocaleString("ko-KR")}건`}
+                      {accent ? `${numeric.toLocaleString("ko-KR")}건 대기` : "완료"}
                     </p>
+                    <p className="mt-0.5 text-[11px] font-medium text-slate-400">{card.hint}</p>
                   </div>
                   <span
                     aria-hidden="true"
@@ -969,7 +1000,7 @@ function AdminDashboardPage({ view = "overview" }) {
           <section className="card">
             <div className="flex items-center justify-between gap-3">
               <h2 className="section-title">지금 처리할 수거 건</h2>
-              <Link className="text-sm font-semibold text-brand" to="/admin/inspections">
+              <Link className="text-sm font-semibold text-brand" to="/admin/pickups?tab=inspection">
                 전체 보기
               </Link>
             </div>

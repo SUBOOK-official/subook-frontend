@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import AdminDialog from "../components/AdminDialog";
 import AdminShell from "../components/AdminShell";
 import AdminPagination from "../components/AdminPagination";
@@ -163,11 +164,19 @@ function parseCsvText(text) {
 }
 
 function AdminOrdersPage() {
+  // '오늘 할 일' 카드·크로스 링크가 필터를 걸어 진입할 수 있게 URL 파라미터로 초기화
+  // (?status=pending → 입금확인 대기만, ?q=이름 → 해당 회원 주문 검색)
+  const [searchParams] = useSearchParams();
+  const initialStatusParam = searchParams.get("status");
+  const initialSearchParam = searchParams.get("q") ?? "";
+
   const [orders, setOrders] = useState([]);
   const [summary, setSummary] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [statusFilters, setStatusFilters] = useState([]);
+  const [search, setSearch] = useState(initialSearchParam);
+  const [statusFilters, setStatusFilters] = useState(
+    initialStatusParam ? [initialStatusParam] : [],
+  );
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [selectedOrderId, setSelectedOrderId] = useState(null);
@@ -1106,6 +1115,13 @@ function AdminOrdersPage() {
               </h3>
               <p className="text-sm text-slate-500 mt-1">
                 {formatDate(selectedOrder.created_at)} · {selectedOrder.buyer_name} ({selectedOrder.buyer_email})
+                {" "}
+                <Link
+                  className="font-bold text-brand underline underline-offset-2"
+                  to={`/admin/members?q=${encodeURIComponent(selectedOrder.buyer_email || selectedOrder.buyer_name || "")}`}
+                >
+                  회원 조회
+                </Link>
               </p>
             </div>
             <StatusBadge status={selectedOrder.status} type="order" />

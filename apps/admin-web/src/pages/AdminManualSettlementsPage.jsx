@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AdminShell from "../components/AdminShell";
+import AdminPageTabs from "../components/AdminPageTabs";
 import AdminPagination from "../components/AdminPagination";
 import { exportRowsToXlsx, readSheetRowsAsObjects } from "../lib/excelFile";
 import { formatCurrency, formatDate } from "@shared-domain/format";
@@ -466,7 +467,7 @@ function AdminManualSettlementsPage() {
 
   return (
     <AdminShell
-      activeModule="manual-settlements"
+      activeModule="settlements"
       actions={
         <button className="btn-secondary !w-auto !px-3 !py-2 text-xs" onClick={downloadTemplate} type="button">
           템플릿 다운로드
@@ -474,8 +475,17 @@ function AdminManualSettlementsPage() {
       }
       description="식스샵(구 사이트)·오프라인 판매분을 엑셀로 일괄 정산 처리하고, 셀러 입금 여부를 추적합니다."
       summaryCards={summaryCards}
-      title="수동 정산"
+      title="정산"
     >
+      {/* R1 IA 개편: 자동/수동 정산을 사이드바 메뉴 2개 대신 한 메뉴의 탭으로 */}
+      <AdminPageTabs
+        activeKey="manual"
+        tabs={[
+          { key: "auto", label: "자동 정산", hint: "회원 주문", to: "/admin/settlements" },
+          { key: "manual", label: "수동 정산", hint: "식스샵 구매분" },
+        ]}
+      />
+
       {/* 1) 업로드 */}
       <section className="card space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
