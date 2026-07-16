@@ -145,7 +145,7 @@ function PickupPolicyPreview() {
       role="region"
       aria-label="신청 전 꼭 알아두세요"
     >
-      <p className="pickup-policy-preview__title">신청 전 꼭 알아두세요</p>
+      <p className="pickup-policy-preview__title">신청 전 꼭 알아두세요.</p>
       <div className="pickup-policy-preview__highlight">
         <strong>안 쓴 새 책(미사용)</strong>,{" "}
         <strong>수능 기준 3개년 이내</strong> 교재만 받습니다.
@@ -157,15 +157,15 @@ function PickupPolicyPreview() {
       </div>
       <ul className="pickup-policy-preview__list">
         <li>
-          <strong>교재 등록 불필요</strong> 어떤 책을 보내는지 일일이 적지
+          <strong>교재 정보 불필요</strong> 어떤 책을 보내는지 일일이 적지
           않아도 돼요. 검수 과정에서 수북이 대신 등록해 드려요.
         </li>
         <li>
           <strong>무료 수거</strong> 별도의 수거 비용은 없어요.
         </li>
         <li>
-          <strong>박스당 5,000원</strong> 박스 1개당 상품화 비용 5,000원이 정산
-          시 차감돼요. 여러 박스보다 가장 큰 박스 하나에 담는 게 유리해요.
+          <strong>상품화 비용</strong> 박스 1개당 상품화 비용 5,000원이 정산 시
+          차감돼요. 여러 박스보다 큰 박스 하나에 담는 게 유리해요.
         </li>
         <li>
           <strong>가격 책정</strong> 교재별 판매가는 검수 완료 후 운영팀이
@@ -173,7 +173,7 @@ function PickupPolicyPreview() {
         </li>
         <li>
           <strong>정산</strong> 구매확정이 완료된 판매 건에 한해,{" "}
-          <strong>매월 1일</strong> 등록하신 계좌로 정산 금액이 입금돼요.
+          <strong>매월 1일</strong>등록하신 계좌로 정산 금액이 입금돼요.
         </li>
         <li>
           <strong>검수 폐기·반송 없음</strong> 기준 미달 교재는 판매불가 → 자체
@@ -189,14 +189,14 @@ function PickupPasswordField({ value, onChange }) {
   const [reveal, setReveal] = useState(false);
   return (
     <div className="pickup-form-field">
-      <label className="pickup-field-label">공동현관 비밀번호 (선택)</label>
+      <label className="pickup-field-label">공동현관 비밀번호</label>
       <div className="pickup-input-with-toggle">
         <input
           autoComplete="new-password"
           className="pickup-input"
           name="pickup-entrance-password"
           onChange={(e) => onChange(e.target.value)}
-          placeholder="예: #1234*"
+          placeholder="#1234종"
           type={reveal ? "text" : "password"}
           value={value}
         />
@@ -349,10 +349,6 @@ function StepAddress({
     <div className="pickup-step">
       <div className="pickup-step__header">
         <h2 className="pickup-step__title">수거 정보를 입력해주세요</h2>
-        <p className="pickup-step__subtitle">
-          보낼 교재 수량과 수거 주소를 알려주세요. 어떤 책인지 적지 않으셔도
-          검수 과정에서 수북이 대신 등록해 드려요.
-        </p>
       </div>
 
       <PickupPolicyPreview />
@@ -537,8 +533,7 @@ function StepAddress({
             value={address.expected_book_count}
           />
           <span className="pickup-field-hint">
-            보내실 교재 권수를 대략 알려주세요. 실제 정산 권수는 검수 후
-            확정돼요.
+            실제 정산 권수는 검수 후 확정돼요.
           </span>
         </div>
         <div className="pickup-form-field">
@@ -556,8 +551,7 @@ function StepAddress({
             value={address.box_count}
           />
           <span className="pickup-field-hint">
-            박스당 상품화 비용 <strong>5,000원</strong>이 정산 시 차감돼요. 여러
-            박스보다 가장 큰 박스 하나에 담는 게 유리해요.
+            정산 시 박스당 <strong>5,000원</strong>의 비용이 차감돼요.
           </span>
         </div>
       </div>
@@ -574,12 +568,9 @@ function StepAddress({
           포장 안내
         </p>
         <ul className="pickup-info-box__list">
-          <li>빈 공간 없이 딱 맞는 박스에 담아주세요</li>
-          <li>
-            여러 박스로 나누지 말고 가장 큰 박스 하나에 담아주세요 (박스당
-            5,000원)
-          </li>
-          <li>교재가 흔들리지 않도록 포장해주세요</li>
+          <li>빈 공간 없이 딱 맞는 박스에 담아주세요.</li>
+          <li>여러 박스로 나누지 말고 가장 큰 박스 하나에 담는게 유리해요.</li>
+          <li>교재가 흔들리지 않도록 포장해주세요.</li>
         </ul>
       </div>
 
@@ -1576,9 +1567,6 @@ function PublicPickupRequestPage() {
           <div className="pickup-card">
             <div className="pickup-card__top">
               <div className="pickup-card__top-text">
-                <span className="pickup-card__eyebrow">
-                  Step {currentStep + 1}/{STEPS.length} {STEPS[currentStep]}
-                </span>
                 <h1 className="pickup-card__page-title">수거 요청</h1>
               </div>
               <ProgressBar currentStep={currentStep} />
