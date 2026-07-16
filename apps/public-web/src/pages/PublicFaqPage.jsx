@@ -163,6 +163,18 @@ function PublicFaqPage() {
   usePageMeta({
     title: "자주 묻는 질문",
     description: "수북 위탁판매 서비스의 수거·검수·등급·정산·결제·반품에 대한 자주 묻는 질문 모음.",
+    canonicalPath: "/faq",
+    // FAQPage 리치스니펫 — 정적 fallback(FAQ_ITEMS) 기준. answer가 배열(문단)인
+    // 항목만 사용해 DB 리치텍스트(HTML)가 JSON-LD에 섞이지 않게 한다.
+    jsonLd: {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      mainEntity: FAQ_ITEMS.filter((item) => Array.isArray(item.answer)).map((item) => ({
+        "@type": "Question",
+        name: item.question,
+        acceptedAnswer: { "@type": "Answer", text: item.answer.join(" ") },
+      })),
+    },
   });
   // DB에서 받은 FAQ. 비어있으면 기존 하드코딩 FAQ_ITEMS fallback.
   const [dbFaqs, setDbFaqs] = useState(null); // null=로딩, []=DB비어있음

@@ -20,7 +20,8 @@ import {
   serializeStorefrontQuery,
   toggleStoreFilterSelection,
 } from "../../lib/publicStoreNavigation";
-import { KAKAO_CHANNEL_URL } from "../../lib/supportChannels";
+import usePublicMemberGate from "../../lib/publicMemberGate";
+import { subscribeRestockKeyword } from "../../lib/publicRestock";
 
 const HOME_SIDEBAR_FILTER_GROUPS = STORE_FILTER_GROUPS.filter((group) =>
   HOME_SIDEBAR_FILTER_GROUP_KEYS.includes(group.key),
@@ -443,14 +444,35 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
     return chips;
   }, [selectedSubject, selectedFilters]);
 
+  // 키워드 입고 알림 — 예전엔 window.confirm→카카오 채널로 흩어져 있던 동선을
+  // 실제 구독(subscribe_restock_keyword)으로 통일. 입고되면 알림함(인앱)으로 알림.
+  const { requireMember, memberGateDialog } = usePublicMemberGate();
+  const [restockModal, setRestockModal] = useState(null); // { keyword } | null
+  const [restockKeywordInput, setRestockKeywordInput] = useState("");
+  const [restockSubmitState, setRestockSubmitState] = useState({ busy: false, done: false, error: "" });
+
   const handleNotifyRestock = () => {
-    if (typeof window === "undefined") return;
-    const confirmed = window.confirm(
-      "원하는 교재가 들어오면 알림을 보내드릴까요? 카카오톡 채널에서 입고 소식을 받을 수 있어요.",
-    );
-    if (confirmed) {
-      window.open(KAKAO_CHANNEL_URL, "_blank", "noopener,noreferrer");
+    if (!requireMember("입고 알림 신청")) {
+      return;
     }
+    setRestockKeywordInput(searchKeyword.trim());
+    setRestockSubmitState({ busy: false, done: false, error: "" });
+    setRestockModal({ keyword: searchKeyword.trim() });
+  };
+
+  const handleSubmitRestockKeyword = async () => {
+    const keyword = restockKeywordInput.trim();
+    if (keyword.length < 2) {
+      setRestockSubmitState({ busy: false, done: false, error: "키워드는 2자 이상 입력해 주세요." });
+      return;
+    }
+    setRestockSubmitState({ busy: true, done: false, error: "" });
+    const result = await subscribeRestockKeyword(keyword);
+    if (result.success === false) {
+      setRestockSubmitState({ busy: false, done: false, error: result.error || "등록에 실패했어요." });
+      return;
+    }
+    setRestockSubmitState({ busy: false, done: true, error: "" });
   };
 
   const isEmpty = !isLoading && displayedProducts.length === 0;
@@ -808,6 +830,103 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
           </div>
         </div>
       </ContentContainer>
+
+      {/* 비회원이 입고 알림을 누르면 로그인 유도 다이얼로그 */}
+      {memberGateDialog}
+
+      {/* 키워드 입고 알림 모달 — 필터 시트와 같은 시각 언어(바텀시트) 재사용 */}
+      {restockModal ? (
+        <div
+          className="public-home-store-grid__filter-sheet-backdrop"
+          onClick={() => (restockSubmitState.busy ? null : setRestockModal(null))}
+          role="presentation"
+        >
+          <div
+            aria-label="입고 알림 신청"
+            aria-modal="true"
+            className="public-home-store-grid__filter-sheet"
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+          >
+            <header className="public-home-store-grid__filter-sheet-head">
+              <h2 className="public-home-store-grid__filter-sheet-title">입고 알림 받기</h2>
+              <button
+                aria-label="닫기"
+                className="public-home-store-grid__filter-sheet-close"
+                onClick={() => setRestockModal(null)}
+                type="button"
+              >
+                <CloseIcon size={18} />
+              </button>
+            </header>
+            <div className="public-home-store-grid__filter-sheet-body">
+              {restockSubmitState.done ? (
+                <p className="public-home-store-grid__restock-copy">
+                  <strong>"{restockKeywordInput.trim()}"</strong> 입고 알림을 등록했어요.
+                  <br />
+                  맞는 교재가 입고되면 알림함으로 바로 알려드릴게요.
+                </p>
+              ) : (
+                <>
+                  <p className="public-home-store-grid__restock-copy">
+                    기다리는 교재의 키워드를 등록해 두면, 입고되는 순간 알림함으로 알려드려요.
+                  </p>
+                  <input
+                    aria-label="입고 알림 키워드"
+                    className="public-nav-drawer__search-input"
+                    maxLength={40}
+                    onChange={(event) => setRestockKeywordInput(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                        event.preventDefault();
+                        void handleSubmitRestockKeyword();
+                      }
+                    }}
+                    placeholder="예) 시대인재 서바이벌, 수분감"
+                    type="text"
+                    value={restockKeywordInput}
+                  />
+                  {restockSubmitState.error ? (
+                    <p className="public-home-store-grid__restock-error" role="alert">
+                      {restockSubmitState.error}
+                    </p>
+                  ) : null}
+                </>
+              )}
+            </div>
+            <footer className="public-home-store-grid__filter-sheet-foot">
+              {restockSubmitState.done ? (
+                <button
+                  className="public-home-store-grid__filter-sheet-apply"
+                  onClick={() => setRestockModal(null)}
+                  type="button"
+                >
+                  확인
+                </button>
+              ) : (
+                <>
+                  <button
+                    className="public-home-store-grid__filter-sheet-reset"
+                    disabled={restockSubmitState.busy}
+                    onClick={() => setRestockModal(null)}
+                    type="button"
+                  >
+                    취소
+                  </button>
+                  <button
+                    className="public-home-store-grid__filter-sheet-apply"
+                    disabled={restockSubmitState.busy}
+                    onClick={() => void handleSubmitRestockKeyword()}
+                    type="button"
+                  >
+                    {restockSubmitState.busy ? "등록 중..." : "알림 신청"}
+                  </button>
+                </>
+              )}
+            </footer>
+          </div>
+        </div>
+      ) : null}
 
       {/* 모바일 전용 필터 바텀시트 — 데스크톱에선 트리거 자체가 안 보임 */}
       {isFilterSheetOpen ? (

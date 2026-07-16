@@ -449,6 +449,21 @@ img {
   padding-bottom: calc(20px + env(safe-area-inset-bottom, 0));
 }
 
+/* 키워드 입고 알림 모달 (필터 시트 시각 언어 재사용) */
+.public-home-store-grid__restock-copy {
+  margin-bottom: 12px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--public-ds-text-secondary, #55565b);
+}
+
+.public-home-store-grid__restock-error {
+  margin-top: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--public-danger, #ff4a4a);
+}
+
 .public-home-store-grid__filter-sheet-reset {
   flex: 0 0 auto;
   min-height: 48px;

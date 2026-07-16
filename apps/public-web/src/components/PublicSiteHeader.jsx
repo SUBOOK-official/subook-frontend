@@ -92,6 +92,7 @@ function SearchSuggestionsPanel({
   onPickAutocomplete,
   onPickRecent,
   onRemoveRecent,
+  onSubmitKeyword,
   recentSearches,
 }) {
   const hasAuto = hasAutocompleteResults(autocomplete);
@@ -103,12 +104,14 @@ function SearchSuggestionsPanel({
           <p className="public-search-suggestion__empty">
             "{keyword}"에 맞는 추천을 찾지 못했어요. 그대로 검색하거나, 원하는 교재가 들어오면 알려드릴게요.
           </p>
-          <Link
+          {/* 검색 실행 → 그리드 빈 상태의 '입고 알림 받기'(키워드 구독 모달)로 이어지는 단일 동선 */}
+          <button
             className="public-search-suggestion__cta"
-            to="/notifications"
+            onClick={() => onSubmitKeyword?.(keyword)}
+            type="button"
           >
-            <BellIcon size={14} /> 입고 알림 설정하기
-          </Link>
+            <BellIcon size={14} /> 이 키워드로 입고 알림 받기
+          </button>
         </div>
       );
     }
@@ -602,6 +605,10 @@ function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
                   onPickAutocomplete={handlePickAutocomplete}
                   onPickRecent={handlePickRecent}
                   onRemoveRecent={handleRemoveRecent}
+                  onSubmitKeyword={(value) => {
+                    setIsSuggestionsOpen(false);
+                    navigateToSearch(value);
+                  }}
                   recentSearches={visibleRecent}
                 />
               ) : null}

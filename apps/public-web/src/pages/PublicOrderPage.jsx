@@ -11,6 +11,7 @@ import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { supabase as publicSupabase } from "@shared-supabase/publicSupabaseClient";
 import { FREE_SHIPPING_THRESHOLD, calculateShippingFee, createOrder } from "../lib/cart";
+import { getRemoteAreaInfo } from "../lib/remoteAreaShipping";
 import { loadMemberPortalSnapshot, saveMemberShippingAddress } from "../lib/memberPortal";
 import { usePageMeta } from "../lib/usePageMeta";
 import { getThumbnailImageUrl } from "../lib/storageImage";
@@ -1027,7 +1028,11 @@ function PublicOrderPage() {
   const baseShippingFee = calculateShippingFee(subtotal);
   const selectedCoupon = applicableCoupons.find((c) => c.id === selectedCouponId) ?? null;
   const couponPreview = previewCouponDiscount(selectedCoupon, subtotal, baseShippingFee);
-  const shippingFee = couponPreview.shippingFeeAfter;
+  // 제주·도서산간 추가 배송비 — 서버 create_order와 동일하게
+  // 무료배송(임계·쿠폰) 처리 "이후" 가산된다 (어떤 경우에도 부과)
+  const remoteAreaInfo = getRemoteAreaInfo(shipping.postalCode);
+  const remoteSurcharge = remoteAreaInfo?.surcharge ?? 0;
+  const shippingFee = couponPreview.shippingFeeAfter + remoteSurcharge;
   const couponDiscount = couponPreview.subtotalDiscount;
   const totalAmount = Math.max(0, subtotal + shippingFee - couponDiscount);
 
@@ -1329,9 +1334,14 @@ function PublicOrderPage() {
                   <span>배송비</span>
                   <span>{shippingFee === 0 ? "무료" : formatCurrency(shippingFee)}</span>
                 </div>
-                {shippingFee > 0 && (
+                {remoteSurcharge > 0 && remoteAreaInfo ? (
                   <p className="order-sidebar__hint">
-                    {/* P2-5: 카트와 동일한 hint — N원 더 담으면 무료배송 */}
+                    {remoteAreaInfo.label} 지역 추가 배송비 {formatCurrency(remoteSurcharge)} 포함
+                  </p>
+                ) : null}
+                {couponPreview.shippingFeeAfter > 0 && (
+                  <p className="order-sidebar__hint">
+                    {/* P2-5: 카트와 동일한 hint — N원 더 담으면 무료배송 (도서산간 추가비는 별도) */}
                     {formatCurrency(Math.max(0, FREE_SHIPPING_THRESHOLD - subtotal))} 더 담으면 무료배송
                   </p>
                 )}

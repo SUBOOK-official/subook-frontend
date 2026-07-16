@@ -881,13 +881,37 @@ function PublicProductDetailPage() {
   const { favoriteIds, isFavoritePending, toggleFavorite } =
     usePublicWishlist();
   const [product, setProduct] = useState(null);
-  // 상품명·과목 동적 title + description (SEO/공유 미리보기에 노출)
+  // 상품명·과목 동적 title + description + canonical/og:image + Product JSON-LD
+  // (카톡/SNS 공유 미리보기에 교재 표지·가격이 정확히 뜨고, 검색 리치스니펫 대응)
+  const metaCoverImage = product?.coverImageUrl ?? product?.cover_image_url ?? null;
+  const metaPrice = Number(product?.price);
   usePageMeta({
     title: product?.title
       ? `${product.title}${product.subject ? ` · ${product.subject}` : ""}`
       : undefined,
     description: product?.title
       ? `${product.title}${product.instructor_name ? ` (${product.instructor_name})` : ""} ${product.subject ?? ""} 위탁판매 — 검수 완료된 새 책 수준의 교재를 합리적인 가격에.`
+      : undefined,
+    canonicalPath: productId ? `/store/${productId}` : undefined,
+    image: metaCoverImage ?? undefined,
+    jsonLd: product?.title
+      ? {
+          "@context": "https://schema.org",
+          "@type": "Product",
+          name: product.title,
+          ...(metaCoverImage ? { image: [metaCoverImage] } : {}),
+          ...(product.brand ? { brand: { "@type": "Brand", name: product.brand } } : {}),
+          category: product.subject ?? undefined,
+          offers: {
+            "@type": "Offer",
+            priceCurrency: "KRW",
+            ...(Number.isFinite(metaPrice) && metaPrice > 0 ? { price: metaPrice } : {}),
+            itemCondition: "https://schema.org/UsedCondition",
+            availability: product.isSoldOut
+              ? "https://schema.org/OutOfStock"
+              : "https://schema.org/InStock",
+          },
+        }
       : undefined,
   });
   const [relatedProducts, setRelatedProducts] = useState([]);
