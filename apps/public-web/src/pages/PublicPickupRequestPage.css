@@ -2,7 +2,7 @@
 
 .pickup-page {
   min-height: 100vh;
-  background: var(--public-ds-background);
+  background: #ffffff;
 }
 
 .pickup-route {
@@ -23,6 +23,7 @@
   color: var(--public-ds-accent);
   display: inline-flex;
   align-items: center;
+  gap: 6px;
   font-size: 15px;
   font-weight: 600;
   line-height: 1.5;
@@ -32,10 +33,10 @@
 /* ─── 카드 ─── */
 
 .pickup-card {
-  border: 1px solid var(--public-ds-border);
+  border: 0;
   border-radius: var(--public-radius-xl);
-  background: var(--public-ds-card);
-  box-shadow: var(--public-ds-shadow);
+  background: #ffffff;
+  box-shadow: none;
   overflow: hidden;
 }
 
@@ -105,7 +106,10 @@
   font-size: 13px;
   font-weight: 700;
   line-height: 1;
-  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease;
 }
 
 .pickup-progress__label {
@@ -391,6 +395,18 @@
   border-color: var(--public-ds-accent);
 }
 
+/* 브라우저 자동채움 하늘색 배경 제거 — 흰 배경/기본 글자색 유지 */
+.pickup-input:-webkit-autofill,
+.pickup-input:-webkit-autofill:hover,
+.pickup-input:-webkit-autofill:focus,
+.pickup-input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #ffffff inset !important;
+  box-shadow: 0 0 0 1000px #ffffff inset !important;
+  -webkit-text-fill-color: var(--public-ds-text) !important;
+  caret-color: var(--public-ds-text);
+  transition: background-color 9999s ease-in-out 0s;
+}
+
 .pickup-input--sm {
   min-height: 38px;
   font-size: 14px;
@@ -590,7 +606,9 @@
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
 }
 
 .pickup-search-result__add:hover {
@@ -743,7 +761,9 @@
   border-radius: var(--public-ds-radius);
   background: #ffffff;
   cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
 }
 
 .pickup-saved-card.is-selected {
@@ -805,10 +825,10 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding: 16px;
-  border: 1px solid var(--public-ds-divider);
-  border-radius: var(--public-ds-radius);
-  background: var(--public-ds-background);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 /* ─── 정보 박스 ─── */
@@ -821,15 +841,36 @@
 }
 
 .pickup-info-box__title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 14px;
   font-weight: 600;
   color: var(--public-ds-text);
   margin: 0 0 8px;
 }
 
+.pickup-info-box__title-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+/* 희망 수거일 date input — 네이티브 캘린더 아이콘을 calendar.png로 교체 */
+.pickup-input[type="date"]::-webkit-calendar-picker-indicator {
+  width: 18px;
+  height: 18px;
+  background-image: url("../assets/icons/calendar.png");
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  cursor: pointer;
+  opacity: 0.75;
+}
+
 .pickup-info-box__list {
   margin: 0;
-  padding: 0 0 0 18px;
   font-size: 13px;
   color: var(--public-ds-text-secondary);
   line-height: 1.8;
@@ -1039,7 +1080,11 @@
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    opacity 0.15s ease;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1366,18 +1411,34 @@
 /* ─── 애니메이션 ─── */
 
 @keyframes pickup-slide-up {
-  from { transform: translateY(100%); }
-  to { transform: translateY(0); }
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
 }
 
 @keyframes pickup-fade-in {
-  from { opacity: 0; transform: scale(0.95); }
-  to { opacity: 1; transform: scale(1); }
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 @keyframes pickup-toast-in {
-  from { opacity: 0; transform: translateX(-50%) translateY(-12px); }
-  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
 }
 
 /* ─── 데스크톱 ─── */
