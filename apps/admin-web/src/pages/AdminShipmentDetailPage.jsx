@@ -219,6 +219,19 @@ function getPublicStoreValidationMessage(book, draft) {
     : "";
 }
 
+// calculate_settlement_fee_percent(백엔드)와 동일 규칙 — 검수 화면 순정산 미리보기용.
+// 현행(2026-02-03 이후 수거): 1만원 미만 45% / 이상 40%. 이전 수거는 35/30.
+// 박스비는 주문 단위로 차감돼 행 단위에선 계산 불가 — 캡션으로 '별도 차감' 고지.
+function estimateSellerNet(priceValue, pickupDate) {
+  const amount = Number(String(priceValue ?? "").replaceAll(",", ""));
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return null;
+  }
+  const isLegacyRate = pickupDate ? new Date(pickupDate) < new Date("2026-02-03") : false;
+  const feePercent = isLegacyRate ? (amount < 10000 ? 35 : 30) : (amount < 10000 ? 45 : 40);
+  return { feePercent, net: Math.round(amount * (1 - feePercent / 100)) };
+}
+
 function BookPriceEditor({
   draftValue,
   isDirty,
@@ -226,6 +239,7 @@ function BookPriceEditor({
   isSaving,
   isDisabled,
   isLocked = false,
+  netPreview = null,
   onChange,
   onSave,
   onReset,
@@ -276,6 +290,15 @@ function BookPriceEditor({
       </div>
       {isInvalid ? (
         <p className="text-xs font-semibold text-rose-700">0 이상의 숫자로 입력해 주세요.</p>
+      ) : null}
+      {/* 셀러 실수령 미리보기 — 운영자가 깜깜이 없이 가격 책정 (감사 P1) */}
+      {!isLocked && netPreview ? (
+        <p className="text-xs font-semibold text-indigo-700">
+          셀러 실수령 예상 {formatCurrency(netPreview.net)}
+          <span className="ml-1 font-medium text-slate-400">
+            (수수료 {netPreview.feePercent}% · 박스비 별도 차감)
+          </span>
+        </p>
       ) : null}
     </div>
   );
@@ -1767,6 +1790,7 @@ function AdminShipmentDetailPage() {
                         isInvalid={isPriceInvalid}
                         isLocked={isBookPriceLocked(book)}
                         isSaving={updatingBookPriceId === book.id}
+                        netPreview={estimateSellerNet(priceDraftValue, shipment?.pickup_date)}
                         onChange={(value) => handlePriceDraftChange(book.id, value)}
                         onReset={() => resetBookPriceDraft(book.id)}
                         onSave={() => handleSaveBookPrice(book)}
@@ -1969,6 +1993,7 @@ function AdminShipmentDetailPage() {
                                   isInvalid={isPriceInvalid}
                                   isLocked={isBookPriceLocked(book)}
                                   isSaving={updatingBookPriceId === book.id}
+                                  netPreview={estimateSellerNet(priceDraftValue, shipment?.pickup_date)}
                                   onChange={(value) => handlePriceDraftChange(book.id, value)}
                                   onReset={() => resetBookPriceDraft(book.id)}
                                   onSave={() => handleSaveBookPrice(book)}
