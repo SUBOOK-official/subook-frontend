@@ -153,16 +153,17 @@ function AdminShell({ title, description = "", activeModule, actions = null, sum
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                {/* 알림톡/SMS 발송 실패 경고 — 전용 로그 화면이 생기기 전까지는 신호만 노출.
-                    (실패 상세는 솔라피 콘솔 확인) 24시간 창이라 해소되면 자동으로 사라짐. */}
+                {/* 알림톡/SMS 발송 실패 경고 — 클릭 시 알림 로그(실패 필터)로 이동.
+                    24시간 창이라 해소되면 자동으로 사라짐. */}
                 {formatBadgeValue(badgeCounts.failedNotifications) ? (
-                  <span
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800"
-                    title="최근 24시간 알림톡/SMS 발송 실패 건수 — 솔라피 콘솔에서 상세 확인"
+                  <Link
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800 transition hover:bg-amber-100"
+                    title="최근 24시간 알림톡/SMS 발송 실패 건수 — 클릭해서 로그 확인"
+                    to="/admin/notification-logs?status=failed"
                   >
                     <span aria-hidden="true" className="inline-block h-1.5 w-1.5 rounded-full bg-amber-500" />
                     알림 발송 실패 {formatBadgeValue(badgeCounts.failedNotifications)}건
-                  </span>
+                  </Link>
                 ) : null}
                 {actions}
                 <a className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50" href={sellerPortalUrl}>

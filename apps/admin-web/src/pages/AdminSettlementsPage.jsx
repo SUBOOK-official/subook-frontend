@@ -109,6 +109,16 @@ function AdminSettlementsPage() {
   const [isExporting, setIsExporting] = useState(false);
   const [notificationResult, setNotificationResult] = useState(null);
   const [isRetryingNotifications, setIsRetryingNotifications] = useState(false);
+  // P1: 셀러(계좌) 단위 지급 롤업 뷰 — 매월 1일 일괄 송금용
+  const [viewMode, setViewMode] = useState("list"); // list | payout
+  const [payoutRows, setPayoutRows] = useState([]);
+  const [payoutTotals, setPayoutTotals] = useState({ groupCount: 0, grandTotal: 0 });
+  const [payoutScope, setPayoutScope] = useState("approved"); // approved | with-pending
+  const [isPayoutLoading, setIsPayoutLoading] = useState(false);
+  const [payoutExportConfirmOpen, setPayoutExportConfirmOpen] = useState(false);
+  const [isPayoutExporting, setIsPayoutExporting] = useState(false);
+  // 완료 처리 확인 모달 — 이체 참조/메모를 받아 settlements.transfer_reference에 기록
+  const [completeConfirm, setCompleteConfirm] = useState(null); // { ids: number[] } | null
   // 구 사이트(식스샵)·수동 정산 요약 — 이 페이지의 settlements(회원 주문 자동 정산)와는
   // 별개 트랙이지만, "기존 정산 내역이 안 보인다"는 혼선을 막기 위해 요약+진입점을
   // 함께 노출한다. (2026-07-06 운영 피드백)
@@ -260,6 +270,99 @@ function AdminSettlementsPage() {
     setSelectedIds(rows.map((row) => row.id));
   };
 
+  // P1: 셀러(계좌) 단위 지급 롤업 로드
+  const loadPayouts = useCallback(async () => {
+    if (!isSupabaseConfigured || !supabase) return;
+    setIsPayoutLoading(true);
+    const statuses = payoutScope === "with-pending" ? ["pending", "approved"] : ["approved"];
+    const { data, error } = await supabase.rpc("admin_list_settlement_payouts", {
+      p_statuses: statuses,
+    });
+    setIsPayoutLoading(false);
+
+    if (error) {
+      showToast(
+        error.message || "지급 롤업을 불러오지 못했습니다. 최신 migration 적용 여부를 확인해 주세요.",
+        "error",
+      );
+      setPayoutRows([]);
+      setPayoutTotals({ groupCount: 0, grandTotal: 0 });
+      return;
+    }
+
+    setPayoutRows(Array.isArray(data?.rows) ? data.rows : []);
+    setPayoutTotals({
+      groupCount: Number(data?.group_count ?? 0),
+      grandTotal: Number(data?.grand_total ?? 0),
+    });
+  }, [payoutScope, showToast]);
+
+  useEffect(() => {
+    if (viewMode !== "payout") return;
+    void loadPayouts();
+  }, [viewMode, loadPayouts]);
+
+  // 대량이체 엑셀 — 평문 계좌 포함이므로 audit 성공이 선행돼야 다운로드
+  const handlePayoutExportConfirmed = async (reason) => {
+    setIsPayoutExporting(true);
+    try {
+      const settlementIds = payoutRows
+        .flatMap((row) => (Array.isArray(row.settlement_ids) ? row.settlement_ids : []))
+        .map(Number)
+        .filter((n) => Number.isFinite(n));
+
+      const { data: { user } = {} } = await supabase.auth.getUser();
+      const adminEmail = user?.email ?? "unknown";
+      const adminTag = adminEmail.split("@")[0].replace(/[^a-zA-Z0-9-_]/g, "").slice(0, 16) || "anon";
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+      const fileName = `subook-payouts-${stamp}-${adminTag}-plain.xlsx`;
+
+      const { error: auditError } = await supabase.rpc("admin_log_settlement_export", {
+        p_settlement_ids: settlementIds,
+        p_is_plain_text: true,
+        p_file_name: fileName,
+        p_client_tag: reason ? `payout reason:${reason.slice(0, 100)}` : "payout",
+      });
+      if (auditError) {
+        showToast("audit 기록에 실패해 대량이체 엑셀 다운로드를 중단합니다.", "error");
+        return;
+      }
+
+      const monthTag = new Date().toISOString().slice(0, 7);
+      const exportRows = payoutRows.map((row) => ({
+        은행: row.bank_name ?? "",
+        계좌번호: row.account_number ?? "",
+        예금주: row.account_holder ?? "",
+        지급액: row.total_net_amount ?? 0,
+        건수: row.settlement_count ?? 0,
+        셀러: row.seller_name ?? "",
+        메모: `수북 정산 ${monthTag}`,
+      }));
+
+      await exportRowsToXlsx({
+        rows: exportRows,
+        columns: [
+          { key: "은행", header: "은행", width: 14 },
+          { key: "계좌번호", header: "계좌번호", width: 22 },
+          { key: "예금주", header: "예금주", width: 14 },
+          { key: "지급액", header: "지급액", type: Number, width: 14 },
+          { key: "건수", header: "건수", type: Number, width: 8 },
+          { key: "셀러", header: "셀러", width: 14 },
+          { key: "메모", header: "메모", width: 18 },
+        ],
+        fileName,
+        sheetName: "payouts",
+      });
+
+      showToast(`${exportRows.length}개 계좌 대량이체 엑셀을 다운로드했습니다. 송금 후 파일을 삭제하세요.`, "success");
+    } catch (exportError) {
+      showToast(exportError?.message || "대량이체 엑셀 생성에 실패했습니다.", "error");
+    } finally {
+      setIsPayoutExporting(false);
+      setPayoutExportConfirmOpen(false);
+    }
+  };
+
   const approveSettlements = async (ids) => {
     if (!ids.length || !supabase) {
       return;
@@ -280,7 +383,7 @@ function AdminSettlementsPage() {
     await loadSettlements();
   };
 
-  const completeSettlements = async (ids) => {
+  const completeSettlements = async (ids, transferReference = null) => {
     if (!ids.length || !supabase) {
       return;
     }
@@ -288,6 +391,10 @@ function AdminSettlementsPage() {
     setBusyAction("complete");
     const { data, error } = await supabase.rpc("admin_complete_settlements", {
       p_settlement_ids: ids,
+      p_transfer_reference:
+        typeof transferReference === "string" && transferReference.trim()
+          ? transferReference.trim()
+          : null,
     });
 
     if (error) {
@@ -517,6 +624,130 @@ function AdminSettlementsPage() {
         ]}
       />
 
+      {/* P1: 건별 목록 ↔ 셀러별 지급 롤업 (매월 1일 송금 단위) */}
+      <AdminPageTabs
+        activeKey={viewMode}
+        onSelect={(key) => setViewMode(key)}
+        tabs={[
+          { key: "list", label: "건별 목록", hint: "교재/주문 단위" },
+          { key: "payout", label: "셀러별 지급", hint: "계좌 단위 송금" },
+        ]}
+      />
+
+      {viewMode === "payout" ? (
+        <>
+          <section className="card space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="section-title">셀러별 지급 롤업</h2>
+                <p className="mt-1 text-sm font-semibold text-slate-500">
+                  같은 계좌로 나갈 정산을 묶어서 보여줍니다 — 송금 1회 = 1행.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {[
+                  { value: "approved", label: "승인 완료만" },
+                  { value: "with-pending", label: "대기 포함" },
+                ].map((option) => (
+                  <button
+                    aria-pressed={payoutScope === option.value}
+                    className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
+                      payoutScope === option.value
+                        ? "bg-slate-950 text-white"
+                        : "border border-slate-300 bg-white text-slate-600 hover:bg-slate-100"
+                    }`}
+                    key={option.value}
+                    onClick={() => setPayoutScope(option.value)}
+                    type="button"
+                  >
+                    {option.label}
+                  </button>
+                ))}
+                <button
+                  className="btn-primary !w-auto !px-4 !py-2 text-xs"
+                  disabled={isPayoutExporting || payoutRows.length === 0}
+                  onClick={() => setPayoutExportConfirmOpen(true)}
+                  type="button"
+                >
+                  {isPayoutExporting ? "생성 중..." : "대량이체 엑셀 (평문 계좌)"}
+                </button>
+              </div>
+            </div>
+            <p className="text-sm font-bold text-slate-700">
+              {payoutTotals.groupCount.toLocaleString("ko-KR")}개 계좌 · 총 지급{" "}
+              {formatCurrency(payoutTotals.grandTotal)}
+            </p>
+          </section>
+
+          <section className="card p-0">
+            {isPayoutLoading ? (
+              <p className="py-10 text-center text-sm font-semibold text-slate-400">불러오는 중...</p>
+            ) : payoutRows.length === 0 ? (
+              <p className="py-10 text-center text-sm font-semibold text-slate-400">
+                지급 대상이 없습니다. (범위: {payoutScope === "approved" ? "승인 완료" : "대기 포함"})
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-slate-200 text-sm">
+                  <thead className="bg-slate-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-black text-slate-500">예금주</th>
+                      <th className="px-4 py-3 text-left text-xs font-black text-slate-500">은행</th>
+                      <th className="px-4 py-3 text-left text-xs font-black text-slate-500">계좌</th>
+                      <th className="px-4 py-3 text-left text-xs font-black text-slate-500">셀러</th>
+                      <th className="px-4 py-3 text-right text-xs font-black text-slate-500">건수</th>
+                      <th className="px-4 py-3 text-right text-xs font-black text-slate-500">지급액</th>
+                      <th className="px-4 py-3 text-right text-xs font-black text-slate-500">처리</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {payoutRows.map((row) => (
+                      <tr className="hover:bg-slate-50" key={`${row.seller_user_id}-${row.account_number}`}>
+                        <td className="px-4 py-3 font-bold text-slate-900">{row.account_holder}</td>
+                        <td className="px-4 py-3 text-slate-700">{row.bank_name}</td>
+                        <td className="px-4 py-3 font-mono text-xs text-slate-600">
+                          {maskAccountNumber(row.account_number)}
+                        </td>
+                        <td className="px-4 py-3 text-slate-600">{maskName(row.seller_name)}</td>
+                        <td className="px-4 py-3 text-right font-semibold text-slate-700">
+                          {row.settlement_count}건
+                          {row.pending_count > 0 ? (
+                            <span className="ml-1 text-xs font-semibold text-amber-600">
+                              (대기 {row.pending_count})
+                            </span>
+                          ) : null}
+                        </td>
+                        <td className="px-4 py-3 text-right font-black text-slate-950">
+                          {formatCurrency(row.total_net_amount)}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {row.approved_count > 0 ? (
+                            <button
+                              className="btn-primary !inline-flex !w-auto !px-3 !py-2 text-xs"
+                              disabled={busyAction !== ""}
+                              onClick={() =>
+                                setCompleteConfirm({
+                                  ids: (row.settlement_ids ?? []).map(Number),
+                                })
+                              }
+                              type="button"
+                            >
+                              완료 처리 ({row.approved_count})
+                            </button>
+                          ) : (
+                            <span className="text-xs font-semibold text-slate-400">승인 대기</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        </>
+      ) : null}
+
       {/* 구 사이트(식스샵)·수동 정산 연동 요약 — 회원 주문 자동 정산과 별개 트랙 (2026-07-06 피드백) */}
       {manualSummary ? (
         <section className="card p-4 flex flex-wrap items-center gap-3">
@@ -543,6 +774,8 @@ function AdminSettlementsPage() {
         </section>
       ) : null}
 
+      {viewMode === "list" ? (
+      <>
       <section className="card space-y-4">
         <div className="flex flex-wrap gap-2">
           {STATUS_FILTERS.map((option) => (
@@ -652,7 +885,7 @@ function AdminSettlementsPage() {
             <button
               className="btn-primary !w-auto !px-4 !py-2 text-sm"
               disabled={!selectedApprovedIds.length || busyAction !== ""}
-              onClick={() => completeSettlements(selectedApprovedIds)}
+              onClick={() => setCompleteConfirm({ ids: selectedApprovedIds })}
               type="button"
             >
               {busyAction === "complete" ? "처리 중..." : `선택 정산 완료 (${selectedApprovedIds.length})`}
@@ -763,7 +996,7 @@ function AdminSettlementsPage() {
                         <button
                           className="btn-primary !w-auto !px-3 !py-1.5 text-xs"
                           disabled={busyAction !== ""}
-                          onClick={() => completeSettlements([row.id])}
+                          onClick={() => setCompleteConfirm({ ids: [row.id] })}
                           type="button"
                         >
                           완료
@@ -784,6 +1017,8 @@ function AdminSettlementsPage() {
           totalCount={totalCount}
         />
       </section>
+      </>
+      ) : null}
 
       {toast ? (
         <div
@@ -852,6 +1087,55 @@ function AdminSettlementsPage() {
         reasonPlaceholder="예) 정기 송금 외 비상황 — 보안 책임 확인"
         reasonRequired
         title="평문 계좌번호 다운로드 — 최종 확인"
+      />
+
+      {/* P1: 정산 완료 확인 — 이체 참조/메모를 받아 settlements.transfer_reference에 기록 */}
+      <DestructiveConfirmModal
+        busy={busyAction === "complete"}
+        cancelLabel="취소"
+        confirmLabel="정산 완료 처리"
+        description={
+          `${completeConfirm?.ids?.length ?? 0}건을 '정산 완료'로 처리합니다.\n\n` +
+          "・실제 은행 송금을 마친 뒤에 처리해 주세요.\n" +
+          "・완료 시 셀러에게 정산 완료 알림톡이 발송됩니다.\n" +
+          "・이체 참조/메모는 '입금 안 됐다' 문의 대사 근거로 기록됩니다."
+        }
+        onCancel={() => (busyAction === "complete" ? null : setCompleteConfirm(null))}
+        onConfirm={async (reason) => {
+          const ids = completeConfirm?.ids ?? [];
+          setCompleteConfirm(null);
+          await completeSettlements(ids, reason);
+          if (viewMode === "payout") {
+            await loadPayouts();
+          }
+        }}
+        open={Boolean(completeConfirm)}
+        reasonMinLength={2}
+        reasonPlaceholder="예) 07/16 카카오뱅크 일괄이체"
+        reasonRequired
+        title="정산 완료 — 이체 증빙 입력"
+      />
+
+      {/* P1: 대량이체 엑셀 — 평문 계좌 포함이라 사유 필수 + audit 게이트 */}
+      <DestructiveConfirmModal
+        busy={isPayoutExporting}
+        cancelLabel="취소"
+        confirmLabel="대량이체 엑셀 다운로드"
+        confirmPhrase="대량이체"
+        description={
+          "은행 대량이체 등록용 엑셀(평문 계좌번호 포함)을 다운로드합니다.\n\n" +
+          "・평문 계좌번호는 유출 시 직접적인 금융 사고로 이어질 수 있습니다.\n" +
+          "・다운로드 사실은 audit log에 남고, 파일명에 다운로더 이메일이 박힙니다.\n" +
+          "・송금 등록이 끝나면 즉시 PC에서 파일을 삭제해 주세요.\n\n" +
+          `현재 ${payoutRows.length}개 계좌 · 총 ${formatCurrency(payoutTotals.grandTotal)}이 포함됩니다.`
+        }
+        onCancel={() => (isPayoutExporting ? null : setPayoutExportConfirmOpen(false))}
+        onConfirm={handlePayoutExportConfirmed}
+        open={payoutExportConfirmOpen}
+        reasonMinLength={4}
+        reasonPlaceholder="예) 2026-08-01 정기 송금"
+        reasonRequired
+        title="대량이체 엑셀 — 평문 계좌 포함"
       />
     </AdminShell>
   );

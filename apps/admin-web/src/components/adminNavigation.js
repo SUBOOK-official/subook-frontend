@@ -3,6 +3,7 @@
 // icon은 이모지 문자열이 아니라 icons.jsx의 컴포넌트 "참조"를 담는다 (.js 파일이라 JSX 사용 불가).
 // 렌더는 AdminShell의 NavList가 <item.icon size={16} />으로 수행.
 import {
+  BellIcon,
   BoxIcon,
   CameraIcon,
   CartIcon,
@@ -67,6 +68,7 @@ export const adminNavigationGroups = [
     label: "도구",
     items: [
       { key: "studio", label: "사진 스튜디오 (AI)", to: "/admin/studio", icon: CameraIcon },
+      { key: "notification-logs", label: "알림 발송 로그", to: "/admin/notification-logs", icon: BellIcon },
       { key: "analytics", label: "분석", to: "/admin/analytics", icon: TrendingUpIcon },
     ],
   },
@@ -79,6 +81,10 @@ export function resolveActiveAdminModule({ pathname, explicitModule }) {
 
   if (pathname.startsWith("/admin/studio")) {
     return "studio";
+  }
+
+  if (pathname.startsWith("/admin/notification-logs")) {
+    return "notification-logs";
   }
 
   if (pathname.startsWith("/admin/analytics")) {
