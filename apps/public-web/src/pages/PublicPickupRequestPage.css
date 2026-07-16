@@ -2,7 +2,7 @@
 
 .pickup-page {
   min-height: 100vh;
-  background: var(--public-ds-background);
+  background: #ffffff;
 }
 
 .pickup-route {
@@ -390,6 +390,16 @@
 
 .pickup-input:focus {
   border-color: var(--public-ds-accent);
+}
+
+/* 브라우저 자동채움 파란 배경 제거 — 흰 배경/기본 글자색 유지 */
+.pickup-input:-webkit-autofill,
+.pickup-input:-webkit-autofill:hover,
+.pickup-input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px #ffffff inset;
+  box-shadow: 0 0 0 1000px #ffffff inset;
+  -webkit-text-fill-color: var(--public-ds-text);
+  transition: background-color 9999s ease-in-out 0s;
 }
 
 .pickup-input--sm {
@@ -822,10 +832,32 @@
 }
 
 .pickup-info-box__title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 14px;
   font-weight: 600;
   color: var(--public-ds-text);
   margin: 0 0 8px;
+}
+
+.pickup-info-box__title-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+/* 희망 수거일 date input — 네이티브 캘린더 아이콘을 calendar.png로 교체 */
+.pickup-input[type="date"]::-webkit-calendar-picker-indicator {
+  width: 18px;
+  height: 18px;
+  background-image: url("../assets/icons/calendar.png");
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  cursor: pointer;
+  opacity: 0.75;
 }
 
 .pickup-info-box__list {
