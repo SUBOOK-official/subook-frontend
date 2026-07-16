@@ -23,6 +23,7 @@
   color: var(--public-ds-accent);
   display: inline-flex;
   align-items: center;
+  gap: 6px;
   font-size: 15px;
   font-weight: 600;
   line-height: 1.5;
@@ -32,10 +33,10 @@
 /* ─── 카드 ─── */
 
 .pickup-card {
-  border: 1px solid var(--public-ds-border);
+  border: 0;
   border-radius: var(--public-radius-xl);
-  background: var(--public-ds-card);
-  box-shadow: var(--public-ds-shadow);
+  background: #ffffff;
+  box-shadow: none;
   overflow: hidden;
 }
 

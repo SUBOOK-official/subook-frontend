@@ -1215,7 +1215,8 @@ function PublicPickupRequestPage() {
         <div className="pickup-shell">
           {/* 상단 뒤로/취소 */}
           <button className="pickup-back-btn" onClick={handleCancel} type="button">
-            ← 취소
+            <span aria-hidden="true">←</span>
+            <span>돌아가기</span>
           </button>
 
           {/* 작성 중 신청서 이어쓰기 안내 */}
