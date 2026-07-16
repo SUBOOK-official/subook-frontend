@@ -172,6 +172,84 @@ export function buildStoreAutocomplete(catalog, keyword) {
   };
 }
 
+// 서버 검색 RPC(search_storefront_products) 결과 rows → 헤더 자동완성 구조.
+// buildStoreAutocomplete와 동일한 출력 계약({books, instructors, brands})을 유지해
+// SearchSuggestionsPanel을 그대로 재사용한다. rows는 서버가 관련도 내림차순으로
+// 이미 정렬했으므로, 교재 제안은 순서 그대로 dedupe·상한만 적용한다.
+// 강사/브랜드는 "교재가 검색어에 걸렸을 뿐"인 행이 섞이므로 필드 자체가
+// 키워드에 매칭될 때만 제안으로 승격한다(초성 매칭 포함, 기존 정밀도 유지).
+export function buildStoreAutocompleteFromSearchRows(rows, keyword) {
+  const normalizedKeyword = normalizeText(keyword);
+
+  if (
+    !Array.isArray(rows) ||
+    normalizeComparableText(normalizedKeyword).length < STORE_AUTOCOMPLETE_MIN_KEYWORD_LENGTH
+  ) {
+    return {
+      books: [],
+      instructors: [],
+      brands: [],
+    };
+  }
+
+  const matchedBooks = [];
+  const seenBookTitles = new Set();
+  const matchedInstructors = [];
+  const seenInstructorNames = new Set();
+  const brandMatchCounts = new Map();
+
+  rows.forEach((row) => {
+    if (!row || typeof row !== "object") {
+      return;
+    }
+
+    const productLike = {
+      id: row.id ?? row.product_id ?? row.productId,
+      title: normalizeText(row.title),
+      brand: normalizeText(row.brand),
+      subject: normalizeText(row.subject),
+      publishedYear: row.published_year ?? row.publishedYear ?? null,
+      instructorName: normalizeText(row.instructor_name ?? row.instructorName),
+    };
+
+    if (
+      matchedBooks.length < STORE_AUTOCOMPLETE_BOOK_LIMIT &&
+      productLike.id !== null &&
+      productLike.id !== undefined &&
+      productLike.title &&
+      !seenBookTitles.has(productLike.title)
+    ) {
+      seenBookTitles.add(productLike.title);
+      matchedBooks.push(buildBookSuggestion(productLike));
+    }
+
+    if (
+      matchedInstructors.length < STORE_AUTOCOMPLETE_INSTRUCTOR_LIMIT &&
+      productLike.instructorName &&
+      matchesKeyword(productLike.instructorName, normalizedKeyword) &&
+      !seenInstructorNames.has(productLike.instructorName)
+    ) {
+      seenInstructorNames.add(productLike.instructorName);
+      matchedInstructors.push(buildInstructorSuggestion(productLike.instructorName, productLike));
+    }
+
+    if (productLike.brand && matchesKeyword(productLike.brand, normalizedKeyword)) {
+      brandMatchCounts.set(productLike.brand, (brandMatchCounts.get(productLike.brand) ?? 0) + 1);
+    }
+  });
+
+  const matchedBrands = Array.from(brandMatchCounts.entries())
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0], "ko"))
+    .slice(0, STORE_AUTOCOMPLETE_BRAND_LIMIT)
+    .map(([brandName, count]) => buildBrandSuggestion(brandName, count));
+
+  return {
+    books: matchedBooks,
+    instructors: matchedInstructors,
+    brands: matchedBrands,
+  };
+}
+
 export function hasAutocompleteResults(autocompleteResult) {
   return (
     (autocompleteResult?.books?.length ?? 0) > 0 ||

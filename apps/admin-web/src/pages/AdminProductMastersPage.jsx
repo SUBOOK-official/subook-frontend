@@ -8,6 +8,7 @@ import ProductMasterEditModal from "../components/ProductMasterEditModal";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { formatCurrency, formatDate } from "@shared-domain/format";
 import { CloseIcon } from "../components/icons";
+import { downloadInventoryAuditXlsx } from "../lib/inventoryAuditExport";
 
 // 식스샵 스타일 어드민 상품 마스터 페이지.
 // products 테이블을 1차 단위로 표시하고, 행 클릭 시 그 product에 link된
@@ -78,6 +79,8 @@ function AdminProductMastersPage() {
   // 일괄 선택
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [bulkProcessing, setBulkProcessing] = useState(false);
+  // 재고 전수조사 엑셀 (R2: 구 대시보드 catalog 뷰에서 이식)
+  const [isInventoryExporting, setIsInventoryExporting] = useState(false);
 
   const toggleSelectId = (id) => {
     setSelectedIds((current) => {
@@ -196,6 +199,25 @@ function AdminProductMastersPage() {
     setToast({ message, tone });
     window.setTimeout(() => setToast(null), 3500);
   }, []);
+
+  // 재고 전수조사 엑셀 다운로드 — 셀러·상품·판매가·정산여부 전체 스냅샷
+  const handleDownloadInventoryAudit = async () => {
+    if (!isSupabaseConfigured || isInventoryExporting) {
+      return;
+    }
+    setIsInventoryExporting(true);
+    try {
+      const { rowCount } = await downloadInventoryAuditXlsx();
+      showToast(`${rowCount.toLocaleString("ko-KR")}행 재고 전수조사 엑셀을 다운로드했습니다.`, "success");
+    } catch (exportError) {
+      showToast(
+        exportError instanceof Error ? exportError.message : "재고 엑셀 생성에 실패했습니다.",
+        "error",
+      );
+    } finally {
+      setIsInventoryExporting(false);
+    }
+  };
 
   const loadProducts = useCallback(async () => {
     if (!isSupabaseConfigured || !supabase) return;
@@ -318,6 +340,15 @@ function AdminProductMastersPage() {
     <AdminShell
       actions={
         <>
+          {/* R2: 재고 전수조사 엑셀 — 구 대시보드 catalog 뷰에서 이식 */}
+          <button
+            className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+            disabled={isInventoryExporting}
+            onClick={handleDownloadInventoryAudit}
+            type="button"
+          >
+            {isInventoryExporting ? "생성 중..." : "재고 엑셀"}
+          </button>
           <Link
             className="rounded-md bg-slate-900 px-3 py-2 text-xs font-bold text-white hover:bg-slate-700"
             to="/admin/register"
@@ -328,7 +359,7 @@ function AdminProductMastersPage() {
       }
       activeModule="products"
       description="책 종류 단위 관리. 같은 메타데이터의 책은 자동으로 한 상품 아래로 묶입니다."
-      title="상품 마스터"
+      title="상품 재고"
     >
       <div className="space-y-6">
 

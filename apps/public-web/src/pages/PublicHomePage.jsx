@@ -8,6 +8,7 @@ import HeroBanner from "../components/home/HeroBanner";
 import HomeStoreGrid from "../components/home/HomeStoreGrid";
 import LatestArrivalsSection from "../components/home/LatestArrivalsSection";
 import PickupCTA from "../components/home/PickupCTA";
+import FortuneCookie from "../components/FortuneCookie";
 import usePublicMemberGate from "../lib/publicMemberGate";
 import { usePublicWishlist } from "../contexts/PublicWishlistContext";
 import { usePageMeta } from "../lib/usePageMeta";
@@ -142,6 +143,7 @@ function PublicHomePage() {
 
       <PublicFooter />
       {memberGateDialog}
+      <FortuneCookie />
     </div>
   );
 

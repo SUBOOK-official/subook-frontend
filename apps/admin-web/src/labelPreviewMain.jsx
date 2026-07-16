@@ -8,7 +8,7 @@ import CjWaybillFormLabel from "./components/CjWaybillFormLabel";
 import formBg from "./dev-assets/cj-form-rect.png";
 import sampleBg from "./dev-assets/cj-sample-rect.png";
 
-// CJ 정상 출력 샘플(2026-07-13 스캔)과 동일 데이터 — 오버레이로 위치 검증용
+// CJ 정상 출력 샘플(2026-07-13 스캔)과 동일 데이터 — 오버레이 위치 검증용(캘리브레이션 기준점)
 const FORM_MOCK = {
   trackingNumber: "699081176613",
   reprint: 2,
@@ -42,7 +42,7 @@ const FORM_MOCK = {
   },
 };
 
-// (구) 표준가이드 전체 라벨 검수 샘플 5건 — CJ 개발환경 실등록 데이터
+// CJ 개발환경 실등록 테스트 데이터 5건 — 운송장번호·분류코드·배달점소 전부 실값 (검수 제출용)
 const FULL_SAMPLES = [
   {
     trackingNumber: "660033105564",
@@ -71,7 +71,18 @@ const FULL_SAMPLES = [
   },
 ].map((s) => ({
   ...s,
-  sender: { name: "수북", phone: "01062715792", zip: "03722", addr1: "서울 서대문구 연세로 50", addr2: "연세대학교 212동 경영관 209호 이글루" },
+  // 양식 인쇄용 실값: 검수 첫 출력이므로 reprint 없음.
+  // 운임그룹(CJ 샘플의 'C1')은 의미 미확인이라 미표기 — CJ가 값을 확정해주면 VITE_CJ_RATE_GROUP로 주입.
+  reprint: 0,
+  rateGroup: "",
+  boxTypeName: "극소",
+  sender: {
+    name: "수북(SUBOOK)",
+    phone: "010-6271-5792",
+    zip: "03722",
+    addr1: "서울 서대문구 연세로 50",
+    addr2: "연세대학교 212동 경영관 209호 이글루",
+  },
 }));
 
 const btn = (active) => ({
@@ -84,9 +95,13 @@ const btn = (active) => ({
   fontSize: "13px",
 });
 
+// 헤드리스 인쇄 진단용 URL 파라미터: ?data=mock|samples & n=<샘플 수 제한>
+const urlParams = new URLSearchParams(window.location.search);
+
 function Page() {
   const [tab, setTab] = useState("form"); // form | full
-  const [bg, setBg] = useState("sample"); // sample | blank | none
+  const [dataMode, setDataMode] = useState(urlParams.get("data") === "mock" ? "mock" : "samples");
+  const [bg, setBg] = useState("none"); // sample | blank | none
   const [rotate, setRotate] = useState(true); // 감열 96mm 급지 회전
   // PS70 실측 캘리브레이션 (2026-07-13 테스트 1회차): 전 필드 균일하게 좌 2.6mm·상 0.4mm
   // 밀림(순수 평행이동, 스케일 왜곡 없음) → 보정 기본값 +2.6/+0.4
@@ -103,14 +118,17 @@ function Page() {
             @page { size: 96mm 120mm; margin: 0; }
             .no-print { display: none !important; }
             .cj-form-bg { display: none !important; }
+            /* ⚠ 크롬 인쇄 함정(5건 인쇄 실사고): page-break-after를 명시하면 전체가 ~0.84배
+               축소된다. 시트가 페이지와 동일 크기(96×120)면 자연 페이지네이션으로 장당
+               분리되므로 명시적 브레이크를 쓰지 않는다. */
             .sheet { position: relative; width: 96mm; height: 120mm; overflow: hidden; margin: 0; box-shadow: none; }
-            .rot { position: absolute; top: 0; left: 0; transform-origin: top left; transform: translateX(96mm) rotate(90deg); }
+            .rot { position: absolute; top: 0; left: 0; width: 0; height: 0; overflow: visible; transform-origin: top left; transform: translateX(96mm) rotate(90deg); }
           }`
         : `@media print {
             @page { size: 120mm 96mm; margin: 0; }
             .no-print { display: none !important; }
             .cj-form-bg { display: none !important; }
-            .sheet { width: 120mm; height: 96mm; overflow: hidden; margin: 0; box-shadow: none; }
+            .sheet { width: 120mm; height: 96mm; overflow: hidden; margin: 0; box-shadow: none; page-break-after: always; }
             .rot { transform: none; }
           }`
       : `@media print {
@@ -141,7 +159,10 @@ function Page() {
 
         {tab === "form" ? (
           <div style={{ display: "flex", gap: "14px", alignItems: "center", flexWrap: "wrap", fontSize: "13px" }}>
-            <span style={{ fontWeight: 700 }}>배경(검증용):</span>
+            <span style={{ fontWeight: 700 }}>데이터:</span>
+            <button type="button" style={btn(dataMode === "samples")} onClick={() => setDataMode("samples")}>검수 샘플 5건 (실등록)</button>
+            <button type="button" style={btn(dataMode === "mock")} onClick={() => setDataMode("mock")}>기준점 1건 (오버레이 검증)</button>
+            <span style={{ fontWeight: 700, marginLeft: "8px" }}>배경(검증용):</span>
             <button type="button" style={btn(bg === "sample")} onClick={() => setBg("sample")}>인쇄 샘플</button>
             <button type="button" style={btn(bg === "blank")} onClick={() => setBg("blank")}>빈 양식</button>
             <button type="button" style={btn(bg === "none")} onClick={() => setBg("none")}>없음</button>
@@ -166,11 +187,18 @@ function Page() {
       </div>
 
       {tab === "form" ? (
-        <div className="sheet form-zoom">
-          <div className="rot">
-            <CjWaybillFormLabel data={FORM_MOCK} offsetX={ox} offsetY={oy} bgUrl={bgUrl} bgOpacity={1} />
+        (dataMode === "mock"
+          ? [FORM_MOCK]
+          : urlParams.has("idx")
+            ? [FULL_SAMPLES[Number(urlParams.get("idx")) || 0]].filter(Boolean)
+            : FULL_SAMPLES.slice(0, Number(urlParams.get("n")) || FULL_SAMPLES.length)
+        ).map((s) => (
+          <div className="sheet form-zoom" key={s.trackingNumber}>
+            <div className="rot">
+              <CjWaybillFormLabel data={s} offsetX={ox} offsetY={oy} bgUrl={bgUrl} bgOpacity={1} />
+            </div>
           </div>
-        </div>
+        ))
       ) : (
         FULL_SAMPLES.map((s) => (
           <div className="sheet" key={s.trackingNumber}>

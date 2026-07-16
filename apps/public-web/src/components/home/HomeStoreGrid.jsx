@@ -6,8 +6,10 @@ import ProductCard, { ProductCardSkeleton } from "../ProductCard";
 import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, CloseIcon } from "../icons";
 import {
   HOME_SIDEBAR_FILTER_GROUP_KEYS,
+  STORE_DEFAULT_SORT,
   STORE_DEFAULT_SUBJECT,
   STORE_FILTER_GROUPS,
+  STORE_SEARCH_SORT_OPTION,
   STORE_SORT_OPTIONS,
   STORE_SUBJECTS,
   clearStoreFilterGroup,
@@ -18,15 +20,13 @@ import {
   serializeStorefrontQuery,
   toggleStoreFilterSelection,
 } from "../../lib/publicStoreNavigation";
+import usePublicMemberGate from "../../lib/publicMemberGate";
+import { subscribeRestockKeyword } from "../../lib/publicRestock";
 
 const HOME_SIDEBAR_FILTER_GROUPS = STORE_FILTER_GROUPS.filter((group) =>
   HOME_SIDEBAR_FILTER_GROUP_KEYS.includes(group.key),
 );
-import {
-  fetchStorefrontProducts,
-  filterStorefrontProducts,
-  sortStorefrontProducts,
-} from "../../lib/storefront";
+import { fetchStorefrontProducts } from "../../lib/storefront";
 
 const ITEMS_PER_PAGE = 28;
 const SKELETON_COUNT = 8;
@@ -37,6 +37,9 @@ function getFilterOptionLabel(option) {
 }
 
 function getSortOptionLabel(sortValue) {
+  if (sortValue === STORE_SEARCH_SORT_OPTION.value) {
+    return STORE_SEARCH_SORT_OPTION.label;
+  }
   return STORE_SORT_OPTIONS.find((option) => option.value === sortValue)?.label ?? "최신순";
 }
 
@@ -76,16 +79,20 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
     [location.search],
   );
 
-  const [catalog, setCatalog] = useState([]);
+  // 서버 페이지네이션 모델 — products는 데스크톱에선 "현재 페이지", 모바일에선 "누적 목록".
+  const [products, setProducts] = useState([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [selectedSubject, setSelectedSubject] = useState(initialQueryState.selectedSubject);
   const [selectedFilters, setSelectedFilters] = useState(initialQueryState.selectedFilters);
   const [sortOption, setSortOption] = useState(initialQueryState.sortOption);
   const [currentPage, setCurrentPage] = useState(initialQueryState.page);
   const [searchKeyword, setSearchKeyword] = useState(initialQueryState.searchKeyword);
   const [isSortMenuOpen, setIsSortMenuOpen] = useState(false);
-  // 모바일 무한 스크롤: 현재까지 보여준 카드 수. 페이지네이션 대신 누적.
-  const [mobileVisibleCount, setMobileVisibleCount] = useState(ITEMS_PER_PAGE);
+  // 모바일 무한 스크롤: 누적된 서버 페이지 수 (1-base). 조건이 바뀌면 1로 리셋.
+  const [mobilePage, setMobilePage] = useState(1);
+  const requestSeqRef = useRef(0);
   const [isMobileViewport, setIsMobileViewport] = useState(() =>
     typeof window !== "undefined" ? window.innerWidth <= MOBILE_BREAKPOINT_PX : false,
   );
@@ -101,28 +108,85 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
     return () => window.removeEventListener("keydown", handler);
   }, [isFilterSheetOpen]);
 
-  // 카탈로그 로딩 (한 번만)
+  // 검색 조건 키 — 과목/필터/검색어/정렬이 하나라도 바뀌면 새 질의로 취급.
+  const conditionKey = useMemo(
+    () =>
+      JSON.stringify({
+        subject: selectedSubject,
+        filters: selectedFilters,
+        search: searchKeyword,
+        sort: sortOption,
+      }),
+    [selectedSubject, selectedFilters, searchKeyword, sortOption],
+  );
+
+  // 조건이 바뀌면 모바일 누적 페이지를 렌더 단계에서 즉시 리셋 —
+  // effect로 미루면 옛 페이지 번호로 한 번 잘못 fetch가 나간다.
+  const lastConditionKeyRef = useRef(conditionKey);
+  if (lastConditionKeyRef.current !== conditionKey) {
+    lastConditionKeyRef.current = conditionKey;
+    if (mobilePage !== 1) {
+      setMobilePage(1);
+    }
+  }
+
+  // 검색어 유무에 따른 기본 정렬(관련도순 ↔ 인기순) 전환은 URL 파스/직렬화 레이어
+  // (parseStorefrontQuery의 fallback + serialize의 impliedSort)가 단일 소스로 처리한다.
+
+  // 서버 질의 — 데스크톱: 현재 페이지 교체 / 모바일: 페이지 누적(append).
+  // 늦게 도착한 옛 응답이 새 응답을 덮지 않도록 요청 시퀀스로 가드.
+  const activePage = isMobileViewport ? mobilePage : currentPage;
   useEffect(() => {
-    let isActive = true;
+    let cancelled = false;
+    const seq = ++requestSeqRef.current;
+    const isAppend = isMobileViewport && activePage > 1;
 
-    const boot = async () => {
+    if (isAppend) {
+      setIsLoadingMore(true);
+    } else {
+      setIsLoading(true);
+    }
+
+    (async () => {
       try {
-        setIsLoading(true);
-        const result = await fetchStorefrontProducts({ limit: 500, sort: "latest" });
-        if (!isActive) return;
-        setCatalog(result.products ?? result.books ?? []);
-      } catch {
-        if (isActive) setCatalog([]);
-      } finally {
-        if (isActive) setIsLoading(false);
-      }
-    };
+        const result = await fetchStorefrontProducts({
+          subject: selectedSubject,
+          types: selectedFilters.types,
+          brands: selectedFilters.brands,
+          years: selectedFilters.years,
+          conditionGrades: selectedFilters.conditionGrades,
+          search: searchKeyword,
+          sort: sortOption,
+          limit: ITEMS_PER_PAGE,
+          offset: (Math.max(1, activePage) - 1) * ITEMS_PER_PAGE,
+        });
+        if (cancelled || seq !== requestSeqRef.current) return;
 
-    void boot();
+        const rows = result.products ?? result.books ?? [];
+        setTotalCount(result.totalCount ?? rows.length);
+        setProducts((current) => {
+          if (!isAppend) return rows;
+          const seenIds = new Set(current.map((item) => item.id));
+          return [...current, ...rows.filter((item) => !seenIds.has(item.id))];
+        });
+      } catch {
+        if (!cancelled && seq === requestSeqRef.current && !isAppend) {
+          setProducts([]);
+          setTotalCount(0);
+        }
+      } finally {
+        if (!cancelled && seq === requestSeqRef.current) {
+          setIsLoading(false);
+          setIsLoadingMore(false);
+        }
+      }
+    })();
+
     return () => {
-      isActive = false;
+      cancelled = true;
     };
-  }, []);
+    // conditionKey가 subject/filters/search/sort를 모두 포괄한다.
+  }, [conditionKey, activePage, isMobileViewport]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 뷰포트 추적 (페이지네이션 vs 무한 스크롤 분기)
   useEffect(() => {
@@ -217,45 +281,36 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
     };
   }, [isSortMenuOpen]);
 
-  const visibleBooks = useMemo(() => {
-    const filtered = filterStorefrontProducts(catalog, {
-      subject: selectedSubject,
-      types: selectedFilters.types,
-      brands: selectedFilters.brands,
-      years: selectedFilters.years,
-      conditionGrades: selectedFilters.conditionGrades,
-      search: searchKeyword,
-    });
-    return sortStorefrontProducts(filtered, sortOption);
-  }, [catalog, selectedSubject, selectedFilters, searchKeyword, sortOption]);
-
-  const totalPages = Math.max(1, Math.ceil(visibleBooks.length / ITEMS_PER_PAGE));
+  const totalPages = Math.max(1, Math.ceil(totalCount / ITEMS_PER_PAGE));
   const safeCurrentPage = Math.min(currentPage, totalPages);
-  const startIndex = (safeCurrentPage - 1) * ITEMS_PER_PAGE;
-  const desktopDisplayed = visibleBooks.slice(startIndex, startIndex + ITEMS_PER_PAGE);
-  const mobileDisplayed = visibleBooks.slice(0, mobileVisibleCount);
-  const displayedProducts = isMobileViewport ? mobileDisplayed : desktopDisplayed;
+  const displayedProducts = products;
+  const hasMoreMobile = products.length < totalCount;
   const paginationItems = getPaginationItems(safeCurrentPage, totalPages);
   const selectedFilterCount = countSelectedStoreFilters(selectedFilters);
 
-  // 필터/검색이 바뀌면 모바일 노출 카드 수 reset
+  // URL에 stale page(예: 필터로 줄어든 뒤 page=15)가 남았으면 마지막 페이지로 스냅백.
+  useEffect(() => {
+    if (isLoading || isMobileViewport) return;
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [isLoading, isMobileViewport, currentPage, totalPages]);
+
+  // 필터/검색/정렬이 바뀌면 모바일에서 결과를 툴바(헤더 바로 아래)에 앵커링
   const didMountFilterResetRef = useRef(false);
   useEffect(() => {
-    setMobileVisibleCount(ITEMS_PER_PAGE);
-
     // 최초 마운트(초기 URL 파싱)에는 스크롤을 건드리지 않는다.
     if (!didMountFilterResetRef.current) {
       didMountFilterResetRef.current = true;
       return;
     }
 
-    // 모바일에서 필터/정렬 적용 시 결과를 툴바(헤더 바로 아래)에 앵커링
     if (isMobileViewport) {
       scrollResultsUnderHeader();
     }
-  }, [selectedSubject, selectedFilters, sortOption, searchKeyword]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [conditionKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 모바일: IntersectionObserver로 무한 스크롤
+  // 모바일: IntersectionObserver로 무한 스크롤 — 다음 서버 페이지를 누적 로드
   const loadMoreRef = useRef(null);
   useEffect(() => {
     if (!isMobileViewport) return undefined;
@@ -266,17 +321,15 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
       (entries) => {
         entries.forEach((entry) => {
           if (!entry.isIntersecting) return;
-          setMobileVisibleCount((current) => {
-            if (current >= visibleBooks.length) return current;
-            return Math.min(current + ITEMS_PER_PAGE, visibleBooks.length);
-          });
+          if (!hasMoreMobile || isLoadingMore || isLoading) return;
+          setMobilePage((current) => current + 1);
         });
       },
       { rootMargin: "200px 0px" },
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [isMobileViewport, visibleBooks.length]);
+  }, [isMobileViewport, hasMoreMobile, isLoadingMore, isLoading]);
 
   const scrollToTop = () => {
     if (sectionTopRef.current) {
@@ -326,6 +379,10 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
 
   const handleClearSearchKeyword = () => {
     setSearchKeyword("");
+    // 검색 전용 정렬(관련도순)은 검색 해제와 함께 평시 기본(인기순)으로 복원
+    if (sortOption === STORE_SEARCH_SORT_OPTION.value) {
+      setSortOption(STORE_DEFAULT_SORT);
+    }
     setCurrentPage(1);
   };
 
@@ -387,17 +444,43 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
     return chips;
   }, [selectedSubject, selectedFilters]);
 
+  // 키워드 입고 알림 — 예전엔 window.confirm→카카오 채널로 흩어져 있던 동선을
+  // 실제 구독(subscribe_restock_keyword)으로 통일. 입고되면 알림함(인앱)으로 알림.
+  const { requireMember, memberGateDialog } = usePublicMemberGate();
+  const [restockModal, setRestockModal] = useState(null); // { keyword } | null
+  const [restockKeywordInput, setRestockKeywordInput] = useState("");
+  const [restockSubmitState, setRestockSubmitState] = useState({ busy: false, done: false, error: "" });
+
   const handleNotifyRestock = () => {
-    if (typeof window === "undefined") return;
-    const confirmed = window.confirm(
-      "원하는 교재가 들어오면 알림을 보내드릴까요? 카카오톡 채널에서 입고 소식을 받을 수 있어요.",
-    );
-    if (confirmed) {
-      window.open("https://pf.kakao.com/_subook", "_blank", "noopener,noreferrer");
+    if (!requireMember("입고 알림 신청")) {
+      return;
     }
+    setRestockKeywordInput(searchKeyword.trim());
+    setRestockSubmitState({ busy: false, done: false, error: "" });
+    setRestockModal({ keyword: searchKeyword.trim() });
+  };
+
+  const handleSubmitRestockKeyword = async () => {
+    const keyword = restockKeywordInput.trim();
+    if (keyword.length < 2) {
+      setRestockSubmitState({ busy: false, done: false, error: "키워드는 2자 이상 입력해 주세요." });
+      return;
+    }
+    setRestockSubmitState({ busy: true, done: false, error: "" });
+    const result = await subscribeRestockKeyword(keyword);
+    if (result.success === false) {
+      setRestockSubmitState({ busy: false, done: false, error: result.error || "등록에 실패했어요." });
+      return;
+    }
+    setRestockSubmitState({ busy: false, done: true, error: "" });
   };
 
   const isEmpty = !isLoading && displayedProducts.length === 0;
+
+  // 검색 중일 때만 관련도순 노출 (기본 목록에선 의미 없는 정렬이라 숨김)
+  const sortMenuOptions = searchKeyword
+    ? [STORE_SEARCH_SORT_OPTION, ...STORE_SORT_OPTIONS]
+    : STORE_SORT_OPTIONS;
 
   // 과목 선택 — 사이드바 최상단 그룹. 필터(유형·브랜드)와 같은 칩 UI를 쓰되 과목은
   // 단일 선택(라디오처럼)이라 toggle이 아니라 handleSelectSubject로 교체한다.
@@ -539,7 +622,7 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
               </button>
               {isSortMenuOpen ? (
                 <div className="public-home-store-grid__sort-menu" role="menu">
-                  {STORE_SORT_OPTIONS.map((option) => (
+                  {sortMenuOptions.map((option) => (
                     <button
                       aria-checked={sortOption === option.value}
                       className={`public-home-store-grid__sort-option ${sortOption === option.value ? "is-active" : ""}`}
@@ -563,7 +646,7 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
           <div className="public-home-store-grid__active-filters">
             {searchKeyword ? (
               <span className="public-home-store-grid__search-chip">
-                {`"${searchKeyword}" 검색 결과 ${visibleBooks.length.toLocaleString("ko-KR")}건`}
+                {`"${searchKeyword}" 검색 결과 ${isLoading ? "…" : `${totalCount.toLocaleString("ko-KR")}건`}`}
                 <button
                   aria-label="검색 해제"
                   className="public-home-store-grid__search-chip-remove"
@@ -685,16 +768,17 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
         )}
 
         {/* 모바일: 무한 스크롤 sentinel + 명시적 "더보기" fallback */}
-        {!isLoading && isMobileViewport && mobileVisibleCount < visibleBooks.length ? (
+        {!isLoading && isMobileViewport && hasMoreMobile ? (
           <div className="public-home-store-grid__loadmore" ref={loadMoreRef}>
             <button
               className="public-home-store-grid__loadmore-button"
-              onClick={() =>
-                setMobileVisibleCount((current) => Math.min(current + ITEMS_PER_PAGE, visibleBooks.length))
-              }
+              disabled={isLoadingMore}
+              onClick={() => setMobilePage((current) => current + 1)}
               type="button"
             >
-              더 많은 교재 보기 ({mobileVisibleCount.toLocaleString("ko-KR")}/{visibleBooks.length.toLocaleString("ko-KR")})
+              {isLoadingMore
+                ? "불러오는 중..."
+                : `더 많은 교재 보기 (${products.length.toLocaleString("ko-KR")}/${totalCount.toLocaleString("ko-KR")})`}
             </button>
           </div>
         ) : null}
@@ -747,6 +831,103 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
         </div>
       </ContentContainer>
 
+      {/* 비회원이 입고 알림을 누르면 로그인 유도 다이얼로그 */}
+      {memberGateDialog}
+
+      {/* 키워드 입고 알림 모달 — 필터 시트와 같은 시각 언어(바텀시트) 재사용 */}
+      {restockModal ? (
+        <div
+          className="public-home-store-grid__filter-sheet-backdrop"
+          onClick={() => (restockSubmitState.busy ? null : setRestockModal(null))}
+          role="presentation"
+        >
+          <div
+            aria-label="입고 알림 신청"
+            aria-modal="true"
+            className="public-home-store-grid__filter-sheet"
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+          >
+            <header className="public-home-store-grid__filter-sheet-head">
+              <h2 className="public-home-store-grid__filter-sheet-title">입고 알림 받기</h2>
+              <button
+                aria-label="닫기"
+                className="public-home-store-grid__filter-sheet-close"
+                onClick={() => setRestockModal(null)}
+                type="button"
+              >
+                <CloseIcon size={18} />
+              </button>
+            </header>
+            <div className="public-home-store-grid__filter-sheet-body">
+              {restockSubmitState.done ? (
+                <p className="public-home-store-grid__restock-copy">
+                  <strong>"{restockKeywordInput.trim()}"</strong> 입고 알림을 등록했어요.
+                  <br />
+                  맞는 교재가 입고되면 알림함으로 바로 알려드릴게요.
+                </p>
+              ) : (
+                <>
+                  <p className="public-home-store-grid__restock-copy">
+                    기다리는 교재의 키워드를 등록해 두면, 입고되는 순간 알림함으로 알려드려요.
+                  </p>
+                  <input
+                    aria-label="입고 알림 키워드"
+                    className="public-nav-drawer__search-input"
+                    maxLength={40}
+                    onChange={(event) => setRestockKeywordInput(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                        event.preventDefault();
+                        void handleSubmitRestockKeyword();
+                      }
+                    }}
+                    placeholder="예) 시대인재 서바이벌, 수분감"
+                    type="text"
+                    value={restockKeywordInput}
+                  />
+                  {restockSubmitState.error ? (
+                    <p className="public-home-store-grid__restock-error" role="alert">
+                      {restockSubmitState.error}
+                    </p>
+                  ) : null}
+                </>
+              )}
+            </div>
+            <footer className="public-home-store-grid__filter-sheet-foot">
+              {restockSubmitState.done ? (
+                <button
+                  className="public-home-store-grid__filter-sheet-apply"
+                  onClick={() => setRestockModal(null)}
+                  type="button"
+                >
+                  확인
+                </button>
+              ) : (
+                <>
+                  <button
+                    className="public-home-store-grid__filter-sheet-reset"
+                    disabled={restockSubmitState.busy}
+                    onClick={() => setRestockModal(null)}
+                    type="button"
+                  >
+                    취소
+                  </button>
+                  <button
+                    className="public-home-store-grid__filter-sheet-apply"
+                    disabled={restockSubmitState.busy}
+                    onClick={() => void handleSubmitRestockKeyword()}
+                    type="button"
+                  >
+                    {restockSubmitState.busy ? "등록 중..." : "알림 신청"}
+                  </button>
+                </>
+              )}
+            </footer>
+          </div>
+        </div>
+      ) : null}
+
       {/* 모바일 전용 필터 바텀시트 — 데스크톱에선 트리거 자체가 안 보임 */}
       {isFilterSheetOpen ? (
         <div
@@ -792,7 +973,7 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
                 onClick={() => setIsFilterSheetOpen(false)}
                 type="button"
               >
-                {visibleBooks.length.toLocaleString("ko-KR")}권 보기
+                {isLoading ? "불러오는 중..." : `${totalCount.toLocaleString("ko-KR")}권 보기`}
               </button>
             </footer>
           </div>

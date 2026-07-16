@@ -5,6 +5,9 @@ import { supabase } from "@shared-supabase/adminSupabaseClient";
 
 export const COVER_BUCKET = "product-covers";
 export const DETAIL_BUCKET = "inspection-images";
+// 상세페이지 사진 최대 장수. 공개 상세페이지 그리드가 최대 2장까지만 노출하므로
+// (PublicProductDetailPage DetailPhotoSection) 업로드도 동일하게 제한한다.
+export const MAX_DETAIL_PHOTOS = 2;
 
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const MAX_IMAGE_BYTES = 15 * 1024 * 1024;

@@ -10,6 +10,7 @@ import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseCl
 import StatusBadge from "@shared-domain/StatusBadge";
 import NotificationResultModal from "../components/NotificationResultModal";
 import { notifyArrived, notifyInspectionDone } from "../lib/adminNotification";
+import { PRICE_LOCKED_MESSAGE, isBookPriceLocked } from "../lib/bookEditRules";
 
 const BOOKS_PAGE_SIZE = 30;
 
@@ -177,6 +178,11 @@ function buildPublicStorePayload(draft) {
 
   if (isDiscarded) {
     payload.status = "discarded";
+  } else {
+    // 등급 재지정(S/A+) = 폐기 복구 경로 — 남아있던 폐기 사유를 함께 해제해
+    // 셀러 마이페이지에 '판매불가'로 잘못 표시되지 않게 한다.
+    // (폐기 상태의 일반 draft 저장은 이 분기를 타지 않으므로 사유가 보존된다)
+    payload.discard_reason = null;
   }
 
   if (productId !== null) {
@@ -213,12 +219,27 @@ function getPublicStoreValidationMessage(book, draft) {
     : "";
 }
 
+// calculate_settlement_fee_percent(백엔드)와 동일 규칙 — 검수 화면 순정산 미리보기용.
+// 현행(2026-02-03 이후 수거): 1만원 미만 45% / 이상 40%. 이전 수거는 35/30.
+// 박스비는 주문 단위로 차감돼 행 단위에선 계산 불가 — 캡션으로 '별도 차감' 고지.
+function estimateSellerNet(priceValue, pickupDate) {
+  const amount = Number(String(priceValue ?? "").replaceAll(",", ""));
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return null;
+  }
+  const isLegacyRate = pickupDate ? new Date(pickupDate) < new Date("2026-02-03") : false;
+  const feePercent = isLegacyRate ? (amount < 10000 ? 35 : 30) : (amount < 10000 ? 45 : 40);
+  return { feePercent, net: Math.round(amount * (1 - feePercent / 100)) };
+}
+
 function BookPriceEditor({
   draftValue,
   isDirty,
   isInvalid,
   isSaving,
   isDisabled,
+  isLocked = false,
+  netPreview = null,
   onChange,
   onSave,
   onReset,
@@ -237,21 +258,24 @@ function BookPriceEditor({
       <div className={`flex flex-wrap items-center gap-2 ${compact ? "" : "mt-1"}`}>
         <input
           className={inputClass}
-          disabled={isDisabled}
+          disabled={isDisabled || isLocked}
           onChange={(event) => onChange(event.target.value)}
           placeholder="예: 12000"
+          title={isLocked ? PRICE_LOCKED_MESSAGE : undefined}
           type="number"
           value={draftValue}
         />
         <button
           className={actionClass}
-          disabled={isDisabled || isSaving || !isDirty || isInvalid}
+          disabled={isDisabled || isLocked || isSaving || !isDirty || isInvalid}
           onClick={onSave}
           type="button"
         >
           {isSaving ? "저장 중..." : "판매가 저장"}
         </button>
-        {isDirty ? (
+        {isLocked ? (
+          <span className="text-xs font-semibold text-amber-700">{PRICE_LOCKED_MESSAGE}</span>
+        ) : isDirty ? (
           <button
             className="inline-flex items-center justify-center rounded-lg px-3 py-2 text-xs font-bold text-slate-500 transition hover:bg-slate-200 hover:text-slate-700"
             disabled={isDisabled || isSaving}
@@ -266,6 +290,15 @@ function BookPriceEditor({
       </div>
       {isInvalid ? (
         <p className="text-xs font-semibold text-rose-700">0 이상의 숫자로 입력해 주세요.</p>
+      ) : null}
+      {/* 셀러 실수령 미리보기 — 운영자가 깜깜이 없이 가격 책정 (감사 P1) */}
+      {!isLocked && netPreview ? (
+        <p className="text-xs font-semibold text-indigo-700">
+          셀러 실수령 예상 {formatCurrency(netPreview.net)}
+          <span className="ml-1 font-medium text-slate-400">
+            (수수료 {netPreview.feePercent}% · 박스비 별도 차감)
+          </span>
+        </p>
       ) : null}
     </div>
   );
@@ -686,13 +719,17 @@ function AdminShipmentDetailPage() {
       };
 
       // 등급 적용 + 즉시 저장. <details>가 닫혀 있어도 draft + supabase update.
-      const applyGradeAndSave = async (grade) => {
+      const applyGradeAndSave = async (grade, discardReason = null) => {
         if (!focusedBook) return;
         handleBookPublicDraftChange(focusedBook, "condition_grade", grade);
         // immediate save — 직접 supabase update (draft 우회)
         if (!isSupabaseConfigured) return;
         const currentDraft = getBookPublicDraftValue(focusedBook);
         const nextPayload = buildPublicStorePayload({ ...currentDraft, condition_grade: grade });
+        // 폐기 사유 저장 — 셀러 마이페이지 '판매불가 사유'로 노출
+        if (grade === "DISCARD" && typeof discardReason === "string" && discardReason.trim()) {
+          nextPayload.discard_reason = discardReason.trim();
+        }
         setUpdatingBookPublicId(focusedBook.id);
         const { data, error: updateError } = await supabase
           .from("books")
@@ -837,9 +874,12 @@ function AdminShipmentDetailPage() {
           setDestructiveModal({
             title: "이 책을 폐기할까요?",
             description:
-              "'폐기'로 변경하면 더 이상 판매 노출되지 않습니다. 되돌리려면 다시 등급(S / A+)을 지정해야 해요.",
+              "'폐기'로 변경하면 더 이상 판매 노출되지 않습니다. 되돌리려면 다시 등급(S / A+)을 지정해야 해요.\n사유는 셀러 마이페이지 '판매불가 사유'로 노출됩니다.",
             confirmLabel: "폐기",
-            run: () => applyGradeAndSave("DISCARD"),
+            reasonRequired: true,
+            reasonMinLength: 3,
+            reasonPlaceholder: "예) 파손 / 오염 / 검수 불합격 / 분실",
+            run: (reason) => applyGradeAndSave("DISCARD", reason),
           });
           break;
         case "p":
@@ -893,7 +933,7 @@ function AdminShipmentDetailPage() {
     setSelectedBookIds(new Set());
   }, [bookSearchQuery, bookListPage]);
 
-  const runBulkBookRpc = async (rpcName, params) => {
+  const runBulkBookRpc = async (rpcName, params, { noticeSuffix = "" } = {}) => {
     setBulkBookProcessing(true);
     try {
       const { data, error } = await supabase.rpc(rpcName, params);
@@ -902,7 +942,7 @@ function AdminShipmentDetailPage() {
       } else {
         const ok = data?.success_count ?? data?.updated_count ?? 0;
         const fail = data?.fail_count ?? 0;
-        setNotice(`처리 완료 — 성공 ${ok}건${fail > 0 ? ` / 실패 ${fail}건` : ""}`);
+        setNotice(`처리 완료 — 성공 ${ok}건${fail > 0 ? ` / 실패 ${fail}건` : ""}${noticeSuffix}`);
       }
       setSelectedBookIds(new Set());
       await refreshBooks();
@@ -951,10 +991,12 @@ function AdminShipmentDetailPage() {
         reasonMinLength: 3,
         reasonPlaceholder: "예) 파손 / 오염 / 검수 불합격 / 분실",
         confirmLabel: `${ids.length}권 폐기`,
-        run: async () => {
+        run: async (reason) => {
+          // 사유는 books.discard_reason에 저장돼 셀러 마이페이지 '판매불가 사유'로 노출된다
           await runBulkBookRpc("admin_bulk_update_books_status", {
             p_ids: ids,
             p_status: "discarded",
+            p_reason: typeof reason === "string" && reason.trim() ? reason.trim() : null,
           });
         },
       });
@@ -968,9 +1010,41 @@ function AdminShipmentDetailPage() {
         setError("유효한 변동 비율이 아닙니다.");
         return;
       }
-      void runBulkBookRpc("admin_bulk_update_books_price_delta", {
-        p_ids: ids,
-        p_delta_percent: percent,
+      // 정산완료/폐기 책은 가격 보호 — 선택에 섞여 있으면 제외하고 실행 (RPC도 이중 방어)
+      const lockedIdSet = new Set(books.filter(isBookPriceLocked).map((b) => b.id));
+      const targetIds = ids.filter((id) => !lockedIdSet.has(id));
+      const excludedCount = ids.length - targetIds.length;
+      if (targetIds.length === 0) {
+        setError("선택한 책이 모두 정산완료/폐기 상태라 가격을 변경할 수 없습니다.");
+        return;
+      }
+      void runBulkBookRpc(
+        "admin_bulk_update_books_price_delta",
+        { p_ids: targetIds, p_delta_percent: percent },
+        { noticeSuffix: excludedCount > 0 ? ` (정산완료/폐기 ${excludedCount}권 제외)` : "" },
+      );
+      return;
+    }
+
+    if (action === "grade-set") {
+      // 등급 일괄 지정 (S / A+) — 신규 입고 전량 S 디폴트 정책의 반복 입력을 한 번에.
+      // DISCARD는 비가역이라 기존 '일괄 폐기'(확인 모달 + 사유 필수) 경로만 유지.
+      const grade = opts.grade === "A_PLUS" ? "A_PLUS" : "S";
+      const gradeLabel = grade === "A_PLUS" ? "A+" : "S";
+      setDestructiveModal({
+        title: `${ids.length}권 등급 일괄 지정 — '${gradeLabel}'`,
+        description:
+          `선택 ${ids.length}권의 상태 등급을 '${gradeLabel}'로 일괄 지정합니다.\n\n` +
+          `· 정산완료/폐기 상태의 책은 자동으로 제외됩니다.\n` +
+          `· 등급은 이후 개별 행에서 다시 변경할 수 있습니다.`,
+        reasonRequired: false,
+        confirmLabel: `${ids.length}권 등급 ${gradeLabel}`,
+        run: async () => {
+          await runBulkBookRpc("admin_bulk_update_books_grade", {
+            p_ids: ids,
+            p_grade: grade,
+          });
+        },
       });
     }
   };
@@ -1365,6 +1439,13 @@ function AdminShipmentDetailPage() {
       return;
     }
 
+    // 상품 마스터 모달과 동일한 가격 보호 — UI 비활성화를 우회해도(단축키 Enter 등) 차단
+    if (isBookPriceLocked(book)) {
+      setError(PRICE_LOCKED_MESSAGE);
+      resetBookPriceDraft(book.id);
+      return;
+    }
+
     if (!hasBookPriceChange(book)) {
       resetBookPriceDraft(book.id);
       return;
@@ -1707,7 +1788,9 @@ function AdminShipmentDetailPage() {
                         isDirty={isPriceDirty}
                         isDisabled={isRowBusy}
                         isInvalid={isPriceInvalid}
+                        isLocked={isBookPriceLocked(book)}
                         isSaving={updatingBookPriceId === book.id}
+                        netPreview={estimateSellerNet(priceDraftValue, shipment?.pickup_date)}
                         onChange={(value) => handlePriceDraftChange(book.id, value)}
                         onReset={() => resetBookPriceDraft(book.id)}
                         onSave={() => handleSaveBookPrice(book)}
@@ -1781,6 +1864,22 @@ function AdminShipmentDetailPage() {
                     type="button"
                   >
                     일괄 숨김
+                  </button>
+                  <button
+                    className="text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-md px-3 py-1.5 disabled:opacity-60"
+                    disabled={bulkBookProcessing}
+                    onClick={() => handleBulkBookAction("grade-set", { grade: "S" })}
+                    type="button"
+                  >
+                    등급 S 일괄
+                  </button>
+                  <button
+                    className="text-xs font-semibold text-white bg-violet-600 hover:bg-violet-700 rounded-md px-3 py-1.5 disabled:opacity-60"
+                    disabled={bulkBookProcessing}
+                    onClick={() => handleBulkBookAction("grade-set", { grade: "A_PLUS" })}
+                    type="button"
+                  >
+                    등급 A+ 일괄
                   </button>
                   <button
                     className="text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-md px-3 py-1.5 disabled:opacity-60"
@@ -1892,7 +1991,9 @@ function AdminShipmentDetailPage() {
                                   isDirty={isPriceDirty}
                                   isDisabled={isRowBusy}
                                   isInvalid={isPriceInvalid}
+                                  isLocked={isBookPriceLocked(book)}
                                   isSaving={updatingBookPriceId === book.id}
+                                  netPreview={estimateSellerNet(priceDraftValue, shipment?.pickup_date)}
                                   onChange={(value) => handlePriceDraftChange(book.id, value)}
                                   onReset={() => resetBookPriceDraft(book.id)}
                                   onSave={() => handleSaveBookPrice(book)}

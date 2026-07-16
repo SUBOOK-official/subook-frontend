@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AdminShell from "../components/AdminShell";
+import AdminPageTabs from "../components/AdminPageTabs";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import {
   WITHDRAWAL_REASON_CATEGORIES,
@@ -110,10 +111,18 @@ function AdminWithdrawalReasonsPage() {
 
   return (
     <AdminShell
-      activeModule="withdrawal-reasons"
+      activeModule="members"
       description="회원탈퇴 설문 응답 통계 — 개인정보 파기 후에도 익명으로 보관되는 서비스 개선 데이터입니다"
-      title="탈퇴 사유"
+      title="회원"
     >
+      {/* R1 IA 개편: 회원 메뉴의 탭 (사이드바 단독 메뉴에서 이동) */}
+      <AdminPageTabs
+        activeKey="withdrawal"
+        tabs={[
+          { key: "members", label: "회원 목록", to: "/admin/members" },
+          { key: "withdrawal", label: "탈퇴 사유", hint: "설문 통계" },
+        ]}
+      />
       {errorMessage ? (
         <p className="mb-3 rounded-lg bg-rose-50 border border-rose-200 text-sm text-rose-700 px-4 py-3">
           {errorMessage}

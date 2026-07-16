@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import AdminDialog from "../components/AdminDialog";
 import AdminShell from "../components/AdminShell";
+import AdminPageTabs from "../components/AdminPageTabs";
 import AdminPagination from "../components/AdminPagination";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import { formatCurrency, formatDate, maskEmail, maskPhone } from "@shared-domain/format";
@@ -123,10 +125,13 @@ function DetailSection({ title, children, right = null }) {
 }
 
 function AdminMembersPage() {
+  // 주문·수거 화면의 '회원 조회' 크로스 링크가 검색을 걸어 진입할 수 있게 (?q=)
+  const [searchParams] = useSearchParams();
+
   const [members, setMembers] = useState([]);
   const [summary, setSummary] = useState({});
   const [totalCount, setTotalCount] = useState(0);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(searchParams.get("q") ?? "");
   const [statusFilter, setStatusFilter] = useState("all");
   const [isLoading, setIsLoading] = useState(true);
   const [selectedMember, setSelectedMember] = useState(null);
@@ -139,12 +144,70 @@ function AdminMembersPage() {
   // 회원 차단 시 통지 토글 (디폴트 OFF — 사용자에게는 차단 사실을 알리지 않음)
   const [notifyOnBlock, setNotifyOnBlock] = useState(false);
   const [blockHistory, setBlockHistory] = useState([]); // member_block_history (차단/해제 영구 audit)
+  // CS 메모 (member_notes) — 응대 이력 타임라인. 담당자 교대·재문의 시 맥락 유지용
+  const [memberNotes, setMemberNotes] = useState([]);
+  const [noteInput, setNoteInput] = useState("");
+  const [isNoteSaving, setIsNoteSaving] = useState(false);
   const requestIdRef = useRef(0);
 
   const showToast = useCallback((message, tone = "info") => {
     setToast({ message, tone });
     window.setTimeout(() => setToast(null), 3500);
   }, []);
+
+  // 회원 상세가 열리면 CS 메모 로드 (최근 50건)
+  useEffect(() => {
+    setNoteInput("");
+    if (!selectedMember?.user_id || !isSupabaseConfigured) {
+      setMemberNotes([]);
+      return undefined;
+    }
+
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("member_notes")
+        .select("id,note,author_email,created_at")
+        .eq("member_user_id", selectedMember.user_id)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (!cancelled) {
+        setMemberNotes(!error && Array.isArray(data) ? data : []);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedMember?.user_id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleAddMemberNote = async () => {
+    const trimmedNote = noteInput.trim();
+    if (!trimmedNote || !selectedMember?.user_id || isNoteSaving || !isSupabaseConfigured) {
+      return;
+    }
+
+    setIsNoteSaving(true);
+    const { data: userData } = await supabase.auth.getUser();
+    const { data, error } = await supabase
+      .from("member_notes")
+      .insert({
+        member_user_id: selectedMember.user_id,
+        note: trimmedNote,
+        author_email: userData?.user?.email ?? null,
+      })
+      .select("id,note,author_email,created_at")
+      .single();
+    setIsNoteSaving(false);
+
+    if (error) {
+      showToast(error.message || "메모 저장에 실패했습니다. 최신 migration 적용 여부를 확인해 주세요.", "error");
+      return;
+    }
+
+    setMemberNotes((current) => [data, ...current]);
+    setNoteInput("");
+  };
 
   const loadMembers = useCallback(async () => {
     if (!isSupabaseConfigured || !supabase) {
@@ -358,8 +421,17 @@ function AdminMembersPage() {
       activeModule="members"
       description="회원 프로필과 수거, 주문, 정산 이력을 한 화면에서 확인합니다."
       summaryCards={summaryCards}
-      title="회원 관리"
+      title="회원"
     >
+      {/* R1 IA 개편: 탈퇴 사유(저빈도 통계)를 사이드바 메뉴 대신 회원 메뉴의 탭으로 */}
+      <AdminPageTabs
+        activeKey="members"
+        tabs={[
+          { key: "members", label: "회원 목록" },
+          { key: "withdrawal", label: "탈퇴 사유", hint: "설문 통계", to: "/admin/withdrawal-reasons" },
+        ]}
+      />
+
       <section className="card space-y-4">
         <div className="flex flex-wrap items-end gap-3">
           <label className="min-w-[240px] flex-1">
@@ -562,6 +634,25 @@ function AdminMembersPage() {
                 <p className="mt-1 text-sm font-semibold text-slate-500">
                   {detailMember?.email || "-"} · {detailMember?.phone || "연락처 없음"}
                 </p>
+                {/* R1 크로스 링크: CS 시 검색을 다시 하지 않도록 이 회원의 업무 화면으로 점프 */}
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Link
+                    className="btn-secondary !w-auto !px-3 !py-1.5 text-xs"
+                    to={`/admin/orders?q=${encodeURIComponent(
+                      detailMember?.display_name || detailMember?.name || detailMember?.email || "",
+                    )}`}
+                  >
+                    이 회원 주문 보기
+                  </Link>
+                  <Link
+                    className="btn-secondary !w-auto !px-3 !py-1.5 text-xs"
+                    to={`/admin/pickups?q=${encodeURIComponent(
+                      detailMember?.display_name || detailMember?.name || detailMember?.phone || "",
+                    )}`}
+                  >
+                    수거·검수 보기
+                  </Link>
+                </div>
                 {detailMember?.is_blocked && detailMember?.block_reason ? (
                   <p className="mt-1 text-xs text-red-600">사유: {detailMember.block_reason}</p>
                 ) : null}
@@ -635,6 +726,51 @@ function AdminMembersPage() {
                 <p>차단 사유: {detailMember?.block_reason || "(기록 없음)"}</p>
               </div>
             ) : null}
+
+            {/* CS 메모 (R2) — 응대 이력 타임라인. 담당자 교대·재문의 시 맥락 유지 */}
+            <div className="mt-3 rounded-lg border border-slate-200 px-4 py-3">
+              <p className="text-xs font-bold text-slate-900">CS 메모</p>
+              <div className="mt-2 flex gap-2">
+                <input
+                  className="input-base !mt-0 flex-1 !py-2 text-sm"
+                  maxLength={2000}
+                  onChange={(event) => setNoteInput(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                      event.preventDefault();
+                      void handleAddMemberNote();
+                    }
+                  }}
+                  placeholder="예) 7/16 환불계좌 오류 문의 — 재입력 안내함"
+                  type="text"
+                  value={noteInput}
+                />
+                <button
+                  className="btn-secondary !w-auto !px-4 !py-2 text-xs"
+                  disabled={isNoteSaving || !noteInput.trim()}
+                  onClick={() => void handleAddMemberNote()}
+                  type="button"
+                >
+                  {isNoteSaving ? "저장 중..." : "메모 추가"}
+                </button>
+              </div>
+              {memberNotes.length > 0 ? (
+                <ul className="mt-3 max-h-48 space-y-2 overflow-y-auto text-xs text-slate-700">
+                  {memberNotes.map((entry) => (
+                    <li className="border-l-2 border-slate-300 pl-3" key={entry.id}>
+                      <p className="whitespace-pre-wrap">{entry.note}</p>
+                      <p className="mt-0.5 text-slate-400">
+                        {entry.author_email || "운영자"} · {formatDate(entry.created_at)}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-2 text-xs text-slate-400">
+                  아직 메모가 없습니다. 응대 내용을 남기면 다음 문의 때 맥락이 이어집니다.
+                </p>
+              )}
+            </div>
 
             {isDetailLoading ? (
               <div className="p-10 text-center text-sm font-semibold text-slate-400">회원 상세를 불러오는 중...</div>

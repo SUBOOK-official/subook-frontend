@@ -503,6 +503,7 @@ function mapSettlementRow(row) {
     bookCount: Number(row.book_count ?? 1),
     grossSales: Number(row.sale_amount ?? 0),
     feeAmount: Number(row.fee_amount ?? 0),
+    boxCostDeducted: Number(row.box_cost_deducted ?? 0),
     bankLabel: row.bank_name || "계좌 미등록",
     maskedAccount: maskSettlementAccount(row),
     status: row.status,

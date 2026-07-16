@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import AdminDialog from "./AdminDialog";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { formatCurrency } from "@shared-domain/format";
-import { COVER_BUCKET, DETAIL_BUCKET, uploadImageToBucket } from "../lib/adminImageUpload";
+import { COVER_BUCKET, DETAIL_BUCKET, MAX_DETAIL_PHOTOS, uploadImageToBucket } from "../lib/adminImageUpload";
 import { CloseIcon } from "./icons";
 import { BOOK_TYPE_OPTIONS, BRAND_OPTIONS, SUBJECT_OPTIONS } from "../lib/productCategories";
+import { PRICE_LOCKED_MESSAGE, isBookPriceLocked } from "../lib/bookEditRules";
 
 // 상품 마스터 수정 모달 (2026-07-06 운영 피드백: 제목/가격/사진 수정 기능).
 //
@@ -112,7 +114,7 @@ function ProductMasterEditModal({ onClose, onSaved, product }) {
     (async () => {
       const { data, error } = await supabase
         .from("books")
-        .select("id,price,original_price,condition_grade,status,is_public,inspection_image_urls,cover_image_url")
+        .select("id,shipment_id,price,original_price,condition_grade,status,is_public,inspection_image_urls,cover_image_url")
         .eq("product_id", product.id)
         .order("id", { ascending: true });
 
@@ -128,6 +130,7 @@ function ProductMasterEditModal({ onClose, onSaved, product }) {
       setBooks(
         rows.map((row) => ({
           id: row.id,
+          shipmentId: row.shipment_id,
           priceInput: row.price != null ? String(row.price) : "",
           originalPrice: row.original_price,
           conditionGrade: row.condition_grade,
@@ -175,18 +178,30 @@ function ProductMasterEditModal({ onClose, onSaved, product }) {
   };
 
   const uploadBookDetails = async (bookId, files) => {
+    // 상세사진은 최대 MAX_DETAIL_PHOTOS장 — 현재 개수를 보고 남은 만큼만 업로드한다.
+    const currentCount = books.find((b) => b.id === bookId)?.images?.length ?? 0;
+    const remaining = MAX_DETAIL_PHOTOS - currentCount;
+    if (remaining <= 0) {
+      setErrorMessage(`상세사진은 최대 ${MAX_DETAIL_PHOTOS}장까지 등록할 수 있습니다.`);
+      return;
+    }
+    const incoming = Array.from(files).slice(0, remaining);
     setDetailBusyBookId(bookId);
-    setErrorMessage("");
+    setErrorMessage(
+      files.length > incoming.length
+        ? `상세사진은 최대 ${MAX_DETAIL_PHOTOS}장까지입니다. ${incoming.length}장만 추가했습니다.`
+        : "",
+    );
     try {
       const urls = [];
-      for (const file of files) {
+      for (const file of incoming) {
         // eslint-disable-next-line no-await-in-loop
         const url = await uploadImageToBucket(DETAIL_BUCKET, file, "edit-detail");
         if (url) urls.push(url);
       }
       setBooks((current) =>
         current.map((book) =>
-          book.id === bookId ? { ...book, images: [...book.images, ...urls] } : book,
+          book.id === bookId ? { ...book, images: [...book.images, ...urls].slice(0, MAX_DETAIL_PHOTOS) } : book,
         ),
       );
       if (urls.length > 0) setTouched(true);
@@ -430,7 +445,8 @@ function ProductMasterEditModal({ onClose, onSaved, product }) {
                 ) : (
                   <div className="space-y-3">
                     {books.map((book) => {
-                      const priceLocked = ["settled", "discarded"].includes(book.status);
+                      // 공용 규칙(lib/bookEditRules) — 수거 상세 워크스페이스와 동일 잠금
+                      const priceLocked = isBookPriceLocked(book);
                       return (
                         <div className="rounded-lg border border-slate-200 p-3" key={book.id}>
                           <div className="flex flex-wrap items-center gap-3">
@@ -442,6 +458,15 @@ function ProductMasterEditModal({ onClose, onSaved, product }) {
                               {BOOK_STATUS_LABEL[book.status] ?? book.status}
                               {book.isPublic ? " · 노출 중" : ""}
                             </span>
+                            {book.shipmentId ? (
+                              <Link
+                                className="text-xs font-bold text-brand underline underline-offset-2"
+                                onClick={onClose}
+                                to={`/admin/shipments/${book.shipmentId}`}
+                              >
+                                수거 건 열기
+                              </Link>
+                            ) : null}
                             <div className="flex-1" />
                             <label className="flex items-center gap-2">
                               <span className="text-xs font-semibold text-slate-600">판매가</span>
@@ -450,7 +475,7 @@ function ProductMasterEditModal({ onClose, onSaved, product }) {
                                 disabled={priceLocked}
                                 inputMode="numeric"
                                 onChange={(event) => setBookPrice(book.id, event.target.value)}
-                                title={priceLocked ? "정산완료/폐기된 책의 가격은 변경할 수 없습니다." : ""}
+                                title={priceLocked ? PRICE_LOCKED_MESSAGE : ""}
                                 type="text"
                                 value={book.priceInput}
                               />
@@ -479,13 +504,15 @@ function ProductMasterEditModal({ onClose, onSaved, product }) {
                                 </button>
                               </div>
                             ))}
-                            <FileButton
-                              busy={detailBusyBookId === book.id}
-                              multiple
-                              onFiles={(files) => uploadBookDetails(book.id, files)}
-                            >
-                              + 상세사진 추가
-                            </FileButton>
+                            {book.images.length < MAX_DETAIL_PHOTOS ? (
+                              <FileButton
+                                busy={detailBusyBookId === book.id}
+                                multiple
+                                onFiles={(files) => uploadBookDetails(book.id, files)}
+                              >
+                                + 상세사진 추가
+                              </FileButton>
+                            ) : null}
                           </div>
                         </div>
                       );

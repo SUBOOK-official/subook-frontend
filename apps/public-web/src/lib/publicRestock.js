@@ -24,6 +24,21 @@ export async function fetchMyRestockSubscribedProductIds() {
   return { productIds, error: null };
 }
 
+// 키워드 입고 알림 구독 — 아직 입고된 적 없는 교재를 기다리는 수요용.
+// 신규 입고 시 서버 트리거가 products.search_text 매칭으로 인앱 알림을 보낸다.
+export async function subscribeRestockKeyword(keyword) {
+  if (!isSupabaseConfigured || !supabase) {
+    return { success: false, error: "서비스 연결이 준비되지 않았어요." };
+  }
+  const { data, error } = await supabase.rpc("subscribe_restock_keyword", {
+    p_keyword: keyword,
+  });
+  if (error) {
+    return { success: false, error: error.message };
+  }
+  return { success: true, keyword: data?.keyword ?? keyword };
+}
+
 export async function subscribeRestock(productId) {
   if (!isSupabaseConfigured || !supabase) {
     return { error: new Error("Supabase가 설정되지 않았습니다.") };

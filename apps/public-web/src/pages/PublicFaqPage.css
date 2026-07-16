@@ -5,6 +5,14 @@
 .public-faq-page {
   background: #ffffff;
   min-height: 100vh;
+  /* 콘텐츠가 짧은 페이지(알림함 빈 상태 등)에서 푸터가 뷰포트 바닥에 붙도록
+     플렉스 컬럼 + 목록 섹션 확장. 안 하면 min-height 잔여분이 푸터 아래 흰 띠로 남는다. */
+  display: flex;
+  flex-direction: column;
+}
+
+.public-faq-page > .public-faq-list {
+  flex: 1 0 auto;
 }
 
 /* ── 빵부스러기 경로 ─────────────────────────────────────────── */
@@ -250,4 +258,53 @@
   .public-faq-item__panel {
     padding: 4px 16px 18px;
   }
+}
+
+/* 어드민 리치텍스트 답변 (sanitizeRichHtml 통과 HTML) — 기존 paragraph 톤과 통일 */
+.public-faq-item__rich {
+  margin-top: 18px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--public-ds-text-secondary, #55565b);
+  word-break: keep-all;
+}
+
+.public-faq-item__rich p,
+.public-faq-item__rich div {
+  margin: 0 0 10px;
+}
+
+.public-faq-item__rich p:last-child,
+.public-faq-item__rich div:last-child {
+  margin-bottom: 0;
+}
+
+.public-faq-item__rich b,
+.public-faq-item__rich strong {
+  font-weight: 800;
+  color: var(--public-ds-text, #232323);
+}
+
+.public-faq-item__rich ul,
+.public-faq-item__rich ol {
+  margin: 0 0 10px;
+  padding-left: 1.4em;
+}
+
+.public-faq-item__rich ul {
+  list-style: disc;
+}
+
+.public-faq-item__rich ol {
+  list-style: decimal;
+}
+
+.public-faq-item__rich li {
+  margin-top: 4px;
+}
+
+.public-faq-item__rich a {
+  color: var(--public-primary, #080f47);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }

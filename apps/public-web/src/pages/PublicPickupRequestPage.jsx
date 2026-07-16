@@ -16,6 +16,7 @@ import {
 import boxIconPng from "../assets/icons/box.png";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { BANK_LIST, submitPickupRequest } from "../lib/pickupRequest";
+import { KAKAO_CHANNEL_URL } from "../lib/supportChannels";
 import { loadMemberPortalSnapshot } from "../lib/memberPortal";
 import { isValidKoreanMobile } from "../lib/publicAuthFormUtils";
 import { usePageMeta } from "../lib/usePageMeta";
@@ -1209,7 +1210,7 @@ function PickupSuccess({ result, expectedCount, boxCount }) {
           1~2일 내 CJ대한통운 택배기사가 수거합니다. 문제가 생기면{" "}
           <a
             className="pickup-success__guide-link"
-            href="https://pf.kakao.com/_subook"
+            href={KAKAO_CHANNEL_URL}
             rel="noopener noreferrer"
             target="_blank"
           >

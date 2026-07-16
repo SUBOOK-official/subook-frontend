@@ -8,6 +8,7 @@ const AdminFaqsPage = lazy(() => import("./pages/AdminFaqsPage"));
 const AdminLoginPage = lazy(() => import("./pages/AdminLoginPage"));
 const AdminManualSettlementsPage = lazy(() => import("./pages/AdminManualSettlementsPage"));
 const AdminNoticesPage = lazy(() => import("./pages/AdminNoticesPage"));
+const AdminNotificationLogsPage = lazy(() => import("./pages/AdminNotificationLogsPage"));
 const AdminMembersPage = lazy(() => import("./pages/AdminMembersPage"));
 const AdminOrdersPage = lazy(() => import("./pages/AdminOrdersPage"));
 const AdminPickupRequestsPage = lazy(() => import("./pages/AdminPickupRequestsPage"));
@@ -75,7 +76,7 @@ function App() {
           <Route
             element={
               <AdminRoute>
-                <AdminDashboardPage view="overview" />
+                <AdminDashboardPage />
               </AdminRoute>
             }
             path="/admin"
@@ -96,20 +97,13 @@ function App() {
             }
             path="/admin/pickups"
           />
+          {/* R1 IA 개편: 검수는 수거·검수 통합 페이지의 탭으로, catalog 유령 라우트는 상품 재고로 */}
           <Route
-            element={
-              <AdminRoute>
-                <AdminDashboardPage view="inspection" />
-              </AdminRoute>
-            }
+            element={<Navigate replace to="/admin/pickups?tab=inspection" />}
             path="/admin/inspections"
           />
           <Route
-            element={
-              <AdminRoute>
-                <AdminDashboardPage view="catalog" />
-              </AdminRoute>
-            }
+            element={<Navigate replace to="/admin/products" />}
             path="/admin/catalog"
           />
           <Route
@@ -191,6 +185,14 @@ function App() {
               </AdminRoute>
             }
             path="/admin/studio"
+          />
+          <Route
+            element={
+              <AdminRoute>
+                <AdminNotificationLogsPage />
+              </AdminRoute>
+            }
+            path="/admin/notification-logs"
           />
           <Route
             element={

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   addRecentSearchTerm,
   buildStoreAutocomplete,
+  buildStoreAutocompleteFromSearchRows,
   extractInitialConsonants,
   hasAutocompleteResults,
   matchesKeyword,
@@ -146,4 +147,97 @@ test("recent search helpers deduplicate, cap to five, and remove items safely", 
     "EBS 수능완성",
     "시대인재",
   ]);
+});
+
+// ─── 서버 검색 rows 기반 자동완성 (카탈로그 500 상한 탈출 이후 경로) ───
+
+const serverSearchRows = [
+  {
+    id: 501,
+    title: "시대인재 서바이벌 수학 시즌1",
+    brand: "시대인재",
+    subject: "수학",
+    published_year: 2026,
+    instructor_name: "현우진",
+  },
+  {
+    id: 502,
+    title: "시대인재 서바이벌 수학 시즌2",
+    brand: "시대인재",
+    subject: "수학",
+    published_year: 2026,
+    instructor_name: "현우진",
+  },
+  {
+    // 같은 제목 중복 → dedupe 대상
+    id: 503,
+    title: "시대인재 서바이벌 수학 시즌1",
+    brand: "시대인재",
+    subject: "수학",
+    published_year: 2026,
+    instructor_name: null,
+  },
+  {
+    // 제목은 매칭됐지만 강사/브랜드는 키워드와 무관 → 강사·브랜드 제안으로 승격 금지
+    id: 504,
+    title: "수학의 정석 시대별 기출",
+    brand: "성지출판",
+    subject: "수학",
+    published_year: 2025,
+    instructor_name: "홍성지",
+  },
+];
+
+test("buildStoreAutocompleteFromSearchRows maps snake_case rows and dedupes titles", () => {
+  const autocomplete = buildStoreAutocompleteFromSearchRows(serverSearchRows, "시대인재");
+
+  assert.deepEqual(
+    autocomplete.books.map((book) => book.productId),
+    [501, 502, 504],
+  );
+  assert.equal(autocomplete.books[0].meta.includes("2026"), true);
+
+  // 강사 '현우진'은 키워드 '시대인재'와 무관 → 승격 안 됨
+  assert.deepEqual(autocomplete.instructors, []);
+
+  // 브랜드 '시대인재'는 매칭 3건으로 승격, '성지출판'은 미매칭
+  assert.equal(autocomplete.brands.length, 1);
+  assert.equal(autocomplete.brands[0].brand, "시대인재");
+  assert.equal(autocomplete.brands[0].count, 3);
+});
+
+test("buildStoreAutocompleteFromSearchRows promotes instructor when keyword matches (초성 포함)", () => {
+  const byName = buildStoreAutocompleteFromSearchRows(serverSearchRows, "현우진");
+  assert.equal(byName.instructors.length, 1);
+  assert.equal(byName.instructors[0].label, "현우진");
+
+  const byChosung = buildStoreAutocompleteFromSearchRows(serverSearchRows, "ㅎㅇㅈ");
+  assert.equal(byChosung.instructors.length, 1);
+  assert.equal(byChosung.instructors[0].label, "현우진");
+});
+
+test("buildStoreAutocompleteFromSearchRows returns empty for short keyword or invalid rows", () => {
+  assert.deepEqual(buildStoreAutocompleteFromSearchRows(serverSearchRows, "수"), {
+    books: [],
+    instructors: [],
+    brands: [],
+  });
+  assert.deepEqual(buildStoreAutocompleteFromSearchRows(null, "시대인재"), {
+    books: [],
+    instructors: [],
+    brands: [],
+  });
+});
+
+test("buildStoreAutocompleteFromSearchRows caps book suggestions at the shared limit", () => {
+  const manyRows = Array.from({ length: 12 }, (_, index) => ({
+    id: 700 + index,
+    title: `수학 문제집 ${index + 1}권`,
+    brand: "수북문고",
+    subject: "수학",
+    published_year: 2026,
+    instructor_name: "",
+  }));
+  const autocomplete = buildStoreAutocompleteFromSearchRows(manyRows, "수학");
+  assert.equal(autocomplete.books.length, 5);
 });

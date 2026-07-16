@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import AdminShell from "../components/AdminShell";
+import AdminPageTabs from "../components/AdminPageTabs";
 import AdminDialog from "../components/AdminDialog";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import NotificationResultModal from "../components/NotificationResultModal";
 import { notifyPickupAccepted } from "../lib/adminNotification";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { formatDate, maskAddress, maskName, maskPhone } from "@shared-domain/format";
-import { pickupRequestStatusLabel } from "@shared-domain/status";
+import { pickupRequestStatusLabel, shipmentStatusLabel } from "@shared-domain/status";
 import StatusBadge from "@shared-domain/StatusBadge";
 
 const PAGE_SIZE = 30;
@@ -250,15 +252,239 @@ async function callAdminApi(path, options = {}) {
   return payload;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// [검수 작업] 탭 — shipments(검수 단위) 목록.
+// 예전 사이드바 '검수' 메뉴(대시보드 변형 뷰)를 대체한다. 회원 수거신청은
+// '수거 신청' 탭에서 [상품 등록]으로 전환하면 여기에 나타나고, 직접 입고
+// 고객(비회원·식스샵)은 상품 등록 위저드에서 새로 만들 수 있다.
+// ─────────────────────────────────────────────────────────────────────────────
+const INSPECTION_PAGE_SIZE = 30;
+const INSPECTION_STATUS_OPTIONS = [
+  { value: "scheduled", label: shipmentStatusLabel.scheduled ?? "수거예정" },
+  { value: "inspecting", label: shipmentStatusLabel.inspecting ?? "검수중" },
+  { value: "inspected", label: shipmentStatusLabel.inspected ?? "검수완료" },
+];
+
+function InspectionWorkbenchSection() {
+  const [searchInput, setSearchInput] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
+  // 기본 필터 = 아직 작업이 남은 건 (수거예정 + 검수중)
+  const [statusFilters, setStatusFilters] = useState(["scheduled", "inspecting"]);
+  const [rows, setRows] = useState([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [page, setPage] = useState(1);
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState("");
+  const requestSeqRef = useRef(0);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured) return undefined;
+    let cancelled = false;
+    const seq = ++requestSeqRef.current;
+    setIsLoading(true);
+    setLoadError("");
+
+    (async () => {
+      const { data, error } = await supabase.rpc("list_admin_shipments", {
+        p_search: appliedSearch || null,
+        p_statuses: statusFilters.length > 0 ? statusFilters : null,
+        p_from_date: null,
+        p_to_date: null,
+        p_limit: INSPECTION_PAGE_SIZE,
+        p_offset: (page - 1) * INSPECTION_PAGE_SIZE,
+      });
+      if (cancelled || seq !== requestSeqRef.current) return;
+      if (error) {
+        setLoadError(error.message || "검수 건 목록을 불러오지 못했습니다.");
+        setRows([]);
+        setTotalCount(0);
+      } else {
+        const list = Array.isArray(data) ? data : [];
+        setRows(list);
+        setTotalCount(list[0]?.total_count ?? list.length);
+      }
+      setIsLoading(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [appliedSearch, statusFilters, page]);
+
+  const totalPages = Math.max(1, Math.ceil(totalCount / INSPECTION_PAGE_SIZE));
+
+  const toggleStatus = (value) => {
+    setPage(1);
+    setStatusFilters((current) =>
+      current.includes(value) ? current.filter((item) => item !== value) : [...current, value],
+    );
+  };
+
+  return (
+    <>
+      <section className="card space-y-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="section-title">검수 건 검색</h2>
+            <p className="mt-1 text-sm font-semibold text-slate-500">
+              셀러명 또는 연락처로 검색합니다. 회원 수거신청은 [수거 신청] 탭에서 '상품 등록'을
+              누르면 검수 건으로 전환돼 여기에 나타나요.
+            </p>
+          </div>
+        </div>
+
+        <form
+          className="grid gap-3 xl:grid-cols-[1fr_auto]"
+          onSubmit={(event) => {
+            event.preventDefault();
+            setPage(1);
+            setAppliedSearch(searchInput.trim());
+          }}
+        >
+          <label className="block">
+            <span className="label">검색</span>
+            <input
+              className="input-base"
+              onChange={(event) => setSearchInput(event.target.value)}
+              placeholder="셀러명, 연락처"
+              type="search"
+              value={searchInput}
+            />
+          </label>
+          <div className="flex items-end">
+            <button className="btn-primary !w-auto !px-5" type="submit">
+              검색
+            </button>
+          </div>
+        </form>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-bold text-slate-500">상태</span>
+          {INSPECTION_STATUS_OPTIONS.map((option) => {
+            const isActive = statusFilters.includes(option.value);
+            return (
+              <button
+                aria-pressed={isActive}
+                className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
+                  isActive
+                    ? "bg-slate-950 text-white"
+                    : "border border-slate-300 bg-white text-slate-600 hover:bg-slate-100"
+                }`}
+                key={option.value}
+                onClick={() => toggleStatus(option.value)}
+                type="button"
+              >
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="card space-y-3">
+        {loadError ? <p className="notice-error">{loadError}</p> : null}
+        {isLoading ? (
+          <p className="py-8 text-center text-sm font-semibold text-slate-400">불러오는 중...</p>
+        ) : rows.length === 0 ? (
+          <p className="py-8 text-center text-sm font-semibold text-slate-400">
+            조건에 맞는 검수 건이 없습니다.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-200 text-sm">
+              <thead className="bg-slate-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-black text-slate-500">#</th>
+                  <th className="px-4 py-3 text-left text-xs font-black text-slate-500">셀러</th>
+                  <th className="px-4 py-3 text-left text-xs font-black text-slate-500">연락처</th>
+                  <th className="px-4 py-3 text-left text-xs font-black text-slate-500">수거일</th>
+                  <th className="px-4 py-3 text-left text-xs font-black text-slate-500">상태</th>
+                  <th className="px-4 py-3 text-right text-xs font-black text-slate-500">책</th>
+                  <th className="px-4 py-3 text-right text-xs font-black text-slate-500">작업</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {rows.map((shipment) => (
+                  <tr className="hover:bg-slate-50" key={shipment.id}>
+                    <td className="px-4 py-3 font-bold text-slate-500">{shipment.id}</td>
+                    <td className="px-4 py-3 font-semibold text-slate-800">
+                      {maskName(shipment.seller_name)}
+                    </td>
+                    <td className="px-4 py-3 text-slate-600">{maskPhone(shipment.seller_phone)}</td>
+                    <td className="px-4 py-3 text-slate-600">{formatDate(shipment.pickup_date)}</td>
+                    <td className="px-4 py-3">
+                      <StatusBadge status={shipment.status} type="shipment" />
+                    </td>
+                    <td className="px-4 py-3 text-right font-bold text-slate-700">
+                      {shipment.book_count ?? 0}권
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <Link
+                        className="btn-primary !inline-flex !w-auto !px-3 !py-2 text-xs"
+                        to={`/admin/shipments/${shipment.id}`}
+                      >
+                        검수 열기
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {totalPages > 1 ? (
+          <div className="flex items-center justify-center gap-3 pt-1">
+            <button
+              className="btn-secondary !w-auto !px-3 !py-2 text-xs"
+              disabled={page <= 1}
+              onClick={() => setPage((current) => Math.max(1, current - 1))}
+              type="button"
+            >
+              이전
+            </button>
+            <span className="text-xs font-bold text-slate-500">
+              {page} / {totalPages}
+            </span>
+            <button
+              className="btn-secondary !w-auto !px-3 !py-2 text-xs"
+              disabled={page >= totalPages}
+              onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+              type="button"
+            >
+              다음
+            </button>
+          </div>
+        ) : null}
+      </section>
+    </>
+  );
+}
+
 function AdminPickupRequestsPage() {
   const requestIdRef = useRef(0);
+
+  // R1 IA 개편: [수거 신청] / [검수 작업] 탭 — URL ?tab= 으로 상태 유지 (북마크·새로고침 안전)
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get("tab") === "inspection" ? "inspection" : "requests";
+  const handleSelectTab = (tabKey) => {
+    const nextParams = new URLSearchParams(searchParams);
+    if (tabKey === "inspection") {
+      nextParams.set("tab", "inspection");
+    } else {
+      nextParams.delete("tab");
+    }
+    setSearchParams(nextParams, { replace: true });
+  };
 
   const [pickupRequests, setPickupRequests] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [searchInput, setSearchInput] = useState("");
-  const [appliedSearch, setAppliedSearch] = useState("");
+  // 회원 상세의 '수거·검수 보기' 크로스 링크가 검색을 걸어 진입할 수 있게 (?q=)
+  const initialSearchParam = searchParams.get("q") ?? "";
+  const [searchInput, setSearchInput] = useState(initialSearchParam);
+  const [appliedSearch, setAppliedSearch] = useState(initialSearchParam);
   const [statusFilters, setStatusFilters] = useState([]);
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
@@ -276,6 +502,29 @@ function AdminPickupRequestsPage() {
   // 수동 상태 전환 확인 모달 { pickupRequest, nextStatus } — CJ 미연동 기간 운영용
   const [statusChangeModal, setStatusChangeModal] = useState(null);
   const [statusChangingId, setStatusChangingId] = useState(null);
+  // 수거요청 → 검수(shipment) 전환 진행 중인 요청 id
+  const [startingInspectionId, setStartingInspectionId] = useState(null);
+  const navigate = useNavigate();
+
+  // 수거요청에서 연결된 검수(shipment)를 멱등 생성하고 상품 등록 위저드로 이동.
+  // 이 경로로 만들어야 shipments에 user_id·pickup_request_id가 채워져
+  // 셀러 마이페이지에 교재별 검수 결과(등급·확정가·폐기사유)가 노출된다.
+  const handleStartInspection = async (pickupRequest) => {
+    if (!isSupabaseConfigured || startingInspectionId !== null) {
+      return;
+    }
+    setError("");
+    setStartingInspectionId(pickupRequest.id);
+    const { data, error: rpcError } = await supabase.rpc("admin_start_inspection_from_pickup", {
+      p_pickup_request_id: pickupRequest.id,
+    });
+    setStartingInspectionId(null);
+    if (rpcError || !data?.shipment_id) {
+      setError(rpcError?.message || "검수 전환에 실패했습니다. 최신 migration 적용 여부를 확인해 주세요.");
+      return;
+    }
+    navigate(`/admin/register?shipmentId=${data.shipment_id}`);
+  };
   // 알림톡/RPC 부분 실패를 전체 노출 — 이전엔 setError에 3건만 보여 4건 이후가 사라지는 P0 사고
   const [cjFailureModal, setCjFailureModal] = useState(null);
   const [notificationResult, setNotificationResult] = useState(null);
@@ -654,9 +903,9 @@ function AdminPickupRequestsPage() {
   return (
     <AdminShell
       activeModule="pickups"
-      description="판매자 수거 요청, CJ 수거 접수, 운송장 추적"
-      summaryCards={summaryCards}
-      title="수거 관리"
+      description="수거 신청 접수부터 검수·등록까지 — 셀러 물건이 판매로 가는 전 과정"
+      summaryCards={activeTab === "requests" ? summaryCards : []}
+      title="수거·검수"
     >
       {!isSupabaseConfigured ? (
         <p className="notice-error">
@@ -667,6 +916,19 @@ function AdminPickupRequestsPage() {
       {error ? <p className="notice-error whitespace-pre-line">{error}</p> : null}
       {notice ? <p className="notice-success">{notice}</p> : null}
 
+      <AdminPageTabs
+        activeKey={activeTab}
+        onSelect={handleSelectTab}
+        tabs={[
+          { key: "requests", label: "수거 신청", hint: "회원 신청 접수·CJ" },
+          { key: "inspection", label: "검수 작업", hint: "입고된 책 등록·검수" },
+        ]}
+      />
+
+      {activeTab === "inspection" ? <InspectionWorkbenchSection /> : null}
+
+      {activeTab === "requests" ? (
+      <>
       <section className="card space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -953,6 +1215,18 @@ function AdminPickupRequestsPage() {
                               </button>
                             ) : null}
 
+                            {/* 입고 이후 단계에서만 — 이 수거요청의 책을 등록 위저드로 (신청↔검수 브리지) */}
+                            {["arrived", "inspecting", "inspected"].includes(pickupRequest.status) ? (
+                              <button
+                                className="!w-auto rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60"
+                                disabled={startingInspectionId !== null}
+                                onClick={() => void handleStartInspection(pickupRequest)}
+                                type="button"
+                              >
+                                {startingInspectionId === pickupRequest.id ? "전환 중..." : "상품 등록"}
+                              </button>
+                            ) : null}
+
                             {/* 수동 상태 전환 — CJ 미연동 기간에도 검수중 등으로 진행 가능 (취소 상태 제외) */}
                             {pickupRequest.status !== "cancelled" ? (
                               <select
@@ -1030,6 +1304,8 @@ function AdminPickupRequestsPage() {
           </nav>
         ) : null}
       </section>
+      </>
+      ) : null}
 
       <PickupDetailModal request={detailModal} onClose={() => setDetailModal(null)} />
 

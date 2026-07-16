@@ -698,6 +698,12 @@ function normalizeStoreSort(value) {
     return "latest";
   }
 
+  // 관련도순 — 서버 RPC가 검색어 match_score로 정렬. 검색어가 없으면 서버가
+  // match_score=0으로 처리해 최신순 fallback과 동일하게 동작하므로 그대로 통과.
+  if (value === "relevance") {
+    return "relevance";
+  }
+
   return "popular";
 }
 
@@ -821,7 +827,9 @@ function buildMockStorefrontProductsResult(filters = {}) {
     conditionGrades: filters.conditionGrades,
     search: filters.search,
   });
-  const sortedProducts = sortStorefrontProducts(filteredProducts, filters.sort ?? "latest");
+  // 클라이언트 정렬 유틸은 relevance(서버 match_score)를 모름 — mock에선 인기순으로 대체
+  const mockSort = filters.sort === "relevance" ? "popular" : (filters.sort ?? "latest");
+  const sortedProducts = sortStorefrontProducts(filteredProducts, mockSort);
   const offset = normalizeNonNegativeInteger(filters.offset) ?? 0;
   const limit = normalizeNonNegativeInteger(filters.limit) ?? DEFAULT_CATALOG_LIMIT;
   const pagedProducts = sortedProducts.slice(offset, offset + limit);
@@ -829,6 +837,7 @@ function buildMockStorefrontProductsResult(filters = {}) {
   return {
     products: pagedProducts,
     books: pagedProducts,
+    totalCount: sortedProducts.length,
     source: "mock",
     error: null,
   };
@@ -951,36 +960,15 @@ async function fetchStorefrontProducts(filters = {}) {
     return {
       products: [],
       books: [],
+      totalCount: 0,
       source: "unavailable",
       error: null,
     };
   }
 
-  // 검색어가 있으면 FTS + 초성 매칭 RPC 우선 사용 (한글 부분/오타/초성 매칭)
-  const searchTerm = normalizeNullableText(filters.search);
-  if (searchTerm) {
-    const { data: searchData, error: searchError } = await supabase.rpc(
-      "search_storefront_products",
-      {
-        p_query: searchTerm,
-        p_limit: normalizeInteger(filters.limit) ?? DEFAULT_CATALOG_LIMIT,
-        p_offset: normalizeInteger(filters.offset) ?? 0,
-      },
-    );
-    if (!searchError && Array.isArray(searchData)) {
-      const searchProducts = searchData
-        .map(normalizeStorefrontProductRow)
-        .filter((product) => Boolean(product.id));
-      return {
-        products: searchProducts,
-        books: searchProducts,
-        source: "supabase-search",
-        error: null,
-      };
-    }
-    // search RPC 실패 시 기존 RPC로 fallback (LIKE 검색)
-  }
-
+  // 검색도 list RPC 단일 경로로 처리 — p_search가 서버에서 FTS+초성+오타(trgm) 매칭을
+  // 수행하므로(20260715 마이그레이션) 별도 search RPC 분기가 필요 없다.
+  // search_storefront_products는 헤더 자동완성 전용으로 남는다.
   const rpcArgs = buildStorefrontRpcArgs(filters);
   const { data, error, source } = await rpcWithFallback(
     PRODUCT_LIST_RPC_NAME,
@@ -996,14 +984,21 @@ async function fetchStorefrontProducts(filters = {}) {
     return {
       products: [],
       books: [],
+      totalCount: 0,
       source,
       error,
     };
   }
 
-  const products = unwrapStorefrontRows(data)
+  const rawRows = unwrapStorefrontRows(data);
+  const products = rawRows
     .map(normalizeStorefrontProductRow)
     .filter((product) => Boolean(product.id));
+  // 서버 페이지네이션용 전체 건수 — RPC가 각 row에 count(*) over()를 실어 보낸다.
+  // (레거시 RPC fallback 등으로 없으면 현재 페이지 길이로 근사)
+  const totalCount =
+    normalizeNonNegativeInteger(rawRows[0]?.total_count ?? rawRows[0]?.totalCount) ??
+    products.length;
 
   if (products.length === 0 && allowImplicitMockFallback) {
     return buildMockStorefrontProductsResult(filters);
@@ -1012,6 +1007,7 @@ async function fetchStorefrontProducts(filters = {}) {
   return {
     products,
     books: products,
+    totalCount,
     source,
     error: null,
   };

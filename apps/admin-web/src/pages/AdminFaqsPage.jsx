@@ -1,27 +1,70 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AdminDialog from "../components/AdminDialog";
 import AdminShell from "../components/AdminShell";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
+import RichTextEditor from "../components/RichTextEditor";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
+import { looksLikeRichHtml, plainTextToHtml, richTextToPlain } from "@shared-domain/richText";
+import { computeCardOffset, computeReorderTarget, reorderArray } from "../lib/pointerReorder";
+
+// FAQ 고정 카테고리 (2026-07-14 확정 6종) — 자유 입력 폐지.
+// 기존 데이터는 마이그레이션 20260714072449에서 이 목록으로 재분류됨.
+const FAQ_CATEGORIES = ["판매·수거", "검수·등급", "정산", "구매·배송", "반품·환불", "서비스 안내"];
 
 const EMPTY_FORM = {
   id: null,
   category: "",
   question: "",
   answer: "",
-  // 표시 순서는 1 이상만 허용 (DB CHECK constraint와 일치). 0/음수는 차단.
   display_order: 1,
   is_published: true,
 };
+
+// 레거시 plain text 답변은 에디터용 HTML로 변환해서 연다
+function toEditorHtml(answer) {
+  const value = answer || "";
+  return looksLikeRichHtml(value) ? value : plainTextToHtml(value);
+}
+
+// 목록 미리보기용 — 리치텍스트는 태그를 벗겨 순수 텍스트로
+function toPreviewText(answer) {
+  const value = answer || "";
+  return looksLikeRichHtml(value) ? richTextToPlain(value) : value;
+}
+
+function GripIcon() {
+  return (
+    <svg aria-hidden="true" fill="none" height="16" viewBox="0 0 16 16" width="16">
+      <path
+        d="M3 5h10M3 8h10M3 11h10"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.6"
+      />
+    </svg>
+  );
+}
 
 function AdminFaqsPage() {
   const [faqs, setFaqs] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
-  const [editor, setEditor] = useState(null); // EMPTY_FORM | row
+  const [editor, setEditor] = useState(null); // EMPTY_FORM | row(+answer=HTML)
   const [isSaving, setIsSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isReorderSaving, setIsReorderSaving] = useState(false);
+  // 드래그 상태 — HTML5 DnD 대신 포인터 이벤트 기반 커스텀 구현.
+  // (HTML5 DnD는 드래그 중 React가 목록을 재정렬해 소스 노드가 DOM에서 이동하면
+  //  브라우저가 드래그를 취소해버려 순서 변경이 동작하지 않았음)
+  // { id, sourceIndex, targetIndex, startPageY, delta, slotSize, mids: number[] }
+  const [dragState, setDragState] = useState(null);
+  // 핸들러 클로저 지연 회피용 최신값 미러
+  const faqsRef = useRef(faqs);
+  faqsRef.current = faqs;
+  const dragStateRef = useRef(dragState);
+  dragStateRef.current = dragState;
+  const cardRefs = useRef(new Map());
 
   const loadFaqs = useCallback(async () => {
     if (!isSupabaseConfigured || !supabase) {
@@ -49,7 +92,7 @@ function AdminFaqsPage() {
   }, [loadFaqs]);
 
   const openNew = () => setEditor({ ...EMPTY_FORM });
-  const openEdit = (row) => setEditor({ ...row });
+  const openEdit = (row) => setEditor({ ...row, answer: toEditorHtml(row.answer) });
   const closeEditor = () => setEditor(null);
 
   const editorDirty = useMemo(() => {
@@ -59,32 +102,29 @@ function AdminFaqsPage() {
       return (
         (editor.category || "") !== (baseline.category || "") ||
         editor.question !== baseline.question ||
-        editor.answer !== baseline.answer ||
-        Number(editor.display_order) !== Number(baseline.display_order) ||
+        editor.answer !== toEditorHtml(baseline.answer) ||
         Boolean(editor.is_published) !== Boolean(baseline.is_published)
       );
     }
     // 새 FAQ — 어느 한 필드라도 입력되어 있으면 dirty 취급.
     return Boolean(
-      editor.category?.trim() || editor.question?.trim() || editor.answer?.trim(),
+      editor.category?.trim() || editor.question?.trim() || richTextToPlain(editor.answer),
     );
   }, [editor, faqs]);
 
   const handleSave = async () => {
     if (!editor) return;
-    // 표시 순서는 1 이상만 허용 — DB CHECK constraint와 일치.
-    const orderNum = Number(editor.display_order);
-    if (!Number.isFinite(orderNum) || orderNum < 1) {
-      setErrorMessage("표시 순서는 1 이상의 숫자를 입력해주세요.");
-      return;
-    }
+    // 새 FAQ는 맨 뒤에 추가 — 순서는 목록 드래그로 조정.
+    const orderNum = editor.id
+      ? Number(editor.display_order) || 1
+      : Math.max(0, ...faqs.map((f) => Number(f.display_order) || 0)) + 1;
     setIsSaving(true);
     const { error } = await supabase.rpc("admin_upsert_faq", {
       p_id: editor.id,
       p_category: editor.category || null,
       p_question: editor.question,
       p_answer: editor.answer,
-      p_display_order: Math.trunc(orderNum),
+      p_display_order: Math.max(1, Math.trunc(orderNum)),
       p_is_published: editor.is_published,
     });
     setIsSaving(false);
@@ -113,11 +153,110 @@ function AdminFaqsPage() {
     await loadFaqs();
   };
 
+  // ── 드래그 정렬 (포인터 이벤트 기반) ─────────────────────────
+  // 드래그 중에는 DOM 순서를 건드리지 않고 transform으로만 움직인다:
+  //   · 잡은 카드 = 커서를 따라 translateY (transition 없음)
+  //   · 나머지 카드 = 자리 비켜주기 translateY(±슬롯 높이) + transition → 슬라이드 애니메이션
+  // 놓는 순간(pointerup)에만 배열을 재정렬하고 서버에 저장한다.
+  const CARD_GAP = 8; // space-y-2
+
+  const persistOrder = async (ordered) => {
+    setIsReorderSaving(true);
+    const { error } = await supabase.rpc("admin_reorder_faqs", {
+      p_ids: ordered.map((row) => row.id),
+    });
+    setIsReorderSaving(false);
+    if (error) {
+      setErrorMessage(error.message || "순서 저장에 실패했습니다.");
+      await loadFaqs(); // 서버 기준으로 원복
+      return;
+    }
+    setFaqs(ordered.map((row, index) => ({ ...row, display_order: index + 1 })));
+  };
+
+  const handleGripPointerDown = (event, index) => {
+    if (event.button !== 0 || isReorderSaving || dragStateRef.current) return;
+    event.preventDefault();
+    // 시작 시점의 각 카드 세로 중심(페이지 좌표) — 스크롤돼도 유효하도록 pageY 기준
+    const mids = faqsRef.current.map((row) => {
+      const el = cardRefs.current.get(row.id);
+      const rect = el?.getBoundingClientRect();
+      return rect ? rect.top + window.scrollY + rect.height / 2 : 0;
+    });
+    const sourceRect = cardRefs.current.get(faqsRef.current[index].id)?.getBoundingClientRect();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setDragState({
+      id: faqsRef.current[index].id,
+      sourceIndex: index,
+      targetIndex: index,
+      startPageY: event.pageY,
+      delta: 0,
+      slotSize: (sourceRect?.height ?? 0) + CARD_GAP,
+      mids,
+    });
+  };
+
+  const handleGripPointerMove = (event) => {
+    if (!dragStateRef.current) return;
+    // 뷰포트 가장자리에서 자동 스크롤 (긴 목록 대비)
+    if (event.clientY < 90) window.scrollBy(0, -14);
+    else if (event.clientY > window.innerHeight - 90) window.scrollBy(0, 14);
+    const pageY = event.pageY;
+    setDragState((s) => {
+      if (!s) return s;
+      const delta = pageY - s.startPageY;
+      return { ...s, delta, targetIndex: computeReorderTarget(s.mids, s.sourceIndex, delta) };
+    });
+  };
+
+  const handleGripPointerUp = () => {
+    const s = dragStateRef.current;
+    setDragState(null);
+    if (!s || s.targetIndex === s.sourceIndex) return;
+    const next = reorderArray(faqsRef.current, s.sourceIndex, s.targetIndex);
+    setFaqs(next);
+    void persistOrder(next);
+  };
+
+  const handleGripPointerCancel = () => setDragState(null);
+
+  // Esc로 드래그 취소 (카드들이 제자리로 슬라이드 복귀)
+  useEffect(() => {
+    if (!dragState) return undefined;
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") setDragState(null);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [dragState]);
+
+  // 드래그 중 각 카드의 시각적 위치 (transform)
+  const getCardStyle = (index) => {
+    const s = dragState;
+    if (!s) return undefined;
+    if (index === s.sourceIndex) {
+      return {
+        transform: `translateY(${s.delta}px) scale(1.01)`,
+        transition: "none",
+        zIndex: 20,
+        position: "relative",
+      };
+    }
+    const offset = computeCardOffset(index, s.sourceIndex, s.targetIndex, s.slotSize);
+    return {
+      transform: `translateY(${offset}px)`,
+      transition: "transform 200ms cubic-bezier(0.2, 0, 0, 1)",
+    };
+  };
+
   return (
     <AdminShell activeModule="faqs" description="자주 묻는 질문 — 사이트의 /faq에 즉시 반영됩니다" title="FAQ 관리">
       <div className="flex items-center justify-between mb-4">
         <p className="text-sm text-slate-500">
           전체 {faqs.length}건 · 게시 {faqs.filter((f) => f.is_published).length}건
+          <span className="ml-2 text-slate-400">
+            {isReorderSaving ? "순서 저장 중..." : "카드를 드래그해서 노출 순서를 바꿀 수 있어요"}
+          </span>
         </p>
         <button className="btn-primary !w-auto !px-4 !py-2 text-sm" onClick={openNew} type="button">
           + FAQ 추가
@@ -135,9 +274,33 @@ function AdminFaqsPage() {
       ) : faqs.length === 0 ? (
         <p className="text-sm text-slate-400 py-12 text-center">등록된 FAQ가 없습니다.</p>
       ) : (
-        <div className="space-y-2">
-          {faqs.map((row) => (
-            <div className="rounded-xl border border-slate-200 bg-white p-4 flex items-start gap-4" key={row.id}>
+        <div className={`space-y-2 ${dragState ? "select-none cursor-grabbing" : ""}`}>
+          {faqs.map((row, index) => (
+            <div
+              className={`rounded-xl border bg-white p-4 flex items-start gap-3 ${
+                dragState?.id === row.id
+                  ? "border-blue-400 shadow-lg"
+                  : "border-slate-200"
+              }`}
+              key={row.id}
+              ref={(el) => {
+                if (el) cardRefs.current.set(row.id, el);
+                else cardRefs.current.delete(row.id);
+              }}
+              style={getCardStyle(index)}
+            >
+              <div
+                className="shrink-0 -m-1 mt-0 p-1 flex flex-col items-center gap-1 text-slate-300 cursor-grab active:cursor-grabbing"
+                onPointerCancel={handleGripPointerCancel}
+                onPointerDown={(event) => handleGripPointerDown(event, index)}
+                onPointerMove={handleGripPointerMove}
+                onPointerUp={handleGripPointerUp}
+                style={{ touchAction: "none" }}
+                title="드래그해서 순서 변경"
+              >
+                <GripIcon />
+                <span className="text-[10px] font-bold text-slate-400">{index + 1}</span>
+              </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap mb-1">
                   {row.category ? (
@@ -150,10 +313,11 @@ function AdminFaqsPage() {
                       미게시
                     </span>
                   ) : null}
-                  <span className="text-xs text-slate-400">순서 {row.display_order}</span>
                 </div>
                 <p className="font-bold text-slate-900">{row.question}</p>
-                <p className="mt-1 text-sm text-slate-600 line-clamp-3 whitespace-pre-wrap">{row.answer}</p>
+                <p className="mt-1 text-sm text-slate-600 line-clamp-3 whitespace-pre-wrap">
+                  {toPreviewText(row.answer)}
+                </p>
               </div>
               <div className="flex flex-col gap-2 shrink-0">
                 <button
@@ -185,31 +349,24 @@ function AdminFaqsPage() {
       >
         {editor ? (
           <div className="space-y-4 p-6">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-semibold text-slate-600 block mb-1.5">카테고리 (선택)</label>
-                <input
-                  className="input-base"
-                  onChange={(e) => setEditor((p) => ({ ...p, category: e.target.value }))}
-                  placeholder="예: 수거 / 검수 / 정산"
-                  type="text"
-                  value={editor.category || ""}
-                />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-600 block mb-1.5">
-                  표시 순서 <span className="text-slate-400 font-normal">(1 이상)</span>
-                </label>
-                <input
-                  className="input-base"
-                  inputMode="numeric"
-                  min={1}
-                  onChange={(e) => setEditor((p) => ({ ...p, display_order: e.target.value }))}
-                  step={1}
-                  type="number"
-                  value={editor.display_order}
-                />
-              </div>
+            <div>
+              <label className="text-xs font-semibold text-slate-600 block mb-1.5">카테고리</label>
+              <select
+                className="input-base"
+                onChange={(e) => setEditor((p) => ({ ...p, category: e.target.value }))}
+                value={editor.category || ""}
+              >
+                <option value="">카테고리 선택</option>
+                {/* 고정 목록 외 레거시 값이면 보존을 위해 함께 노출 */}
+                {editor.category && !FAQ_CATEGORIES.includes(editor.category) ? (
+                  <option value={editor.category}>{editor.category} (이전 분류)</option>
+                ) : null}
+                {FAQ_CATEGORIES.map((category) => (
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>
@@ -225,10 +382,9 @@ function AdminFaqsPage() {
 
             <div>
               <label className="text-xs font-semibold text-slate-600 block mb-1.5">답변 *</label>
-              <textarea
-                className="input-base !h-40 resize-y"
-                onChange={(e) => setEditor((p) => ({ ...p, answer: e.target.value }))}
-                placeholder="답변 본문 (줄바꿈 가능)"
+              <RichTextEditor
+                onChange={(html) => setEditor((p) => ({ ...p, answer: html }))}
+                placeholder="답변 본문 — 굵게·밑줄·목록·링크를 쓸 수 있어요"
                 value={editor.answer}
               />
             </div>
@@ -248,7 +404,7 @@ function AdminFaqsPage() {
               </button>
               <button
                 className="btn-primary flex-1"
-                disabled={isSaving || !editor.question?.trim() || !editor.answer?.trim()}
+                disabled={isSaving || !editor.question?.trim() || !richTextToPlain(editor.answer)}
                 onClick={handleSave}
                 type="button"
               >

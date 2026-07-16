@@ -1021,11 +1021,33 @@
   color: var(--public-ds-text-muted, #9a9aa0);
   font-size: 13px;
   font-weight: 600;
+  overflow: hidden;
+}
+
+/* 실제 상세 사진 — 1:1 슬롯을 꽉 채우도록 커버 크롭 */
+.public-detail-photo-grid__item--photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* 상세 사진이 1장뿐일 때 두 번째 칸을 채우는 은은한 수북 로고 워터마크 */
+.public-detail-photo-grid__item--brand img {
+  width: 46%;
+  max-width: 150px;
+  height: auto;
+  opacity: 0.3;
 }
 
 @media (max-width: 767px) {
   .public-detail-photo-grid {
     grid-template-columns: 1fr;
+  }
+
+  /* 모바일은 세로 1열이라 빈 칸이 없다 → 로고 필러 불필요 */
+  .public-detail-photo-grid__item--brand {
+    display: none;
   }
 }
 

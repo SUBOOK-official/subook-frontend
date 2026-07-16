@@ -50,6 +50,23 @@
     <!-- Favicon (새 브랜드 심볼 — 책+별) -->
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <!-- Organization 구조화 데이터 — 브랜드 검색 결과용 (도메인은 최종 도메인 기준) -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": "수북 (SUBOOK)",
+        "url": "https://subook.kr",
+        "logo": "https://subook.kr/og-image.png",
+        "description": "수험생을 위한 수능 교재 위탁판매 플랫폼 — 수거·검수·판매·정산까지.",
+        "contactPoint": {
+          "@type": "ContactPoint",
+          "contactType": "customer service",
+          "email": "subook2025@gmail.com",
+          "availableLanguage": "Korean"
+        }
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

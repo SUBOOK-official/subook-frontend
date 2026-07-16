@@ -469,21 +469,37 @@ function AiSummarySection({ summary }) {
   );
 }
 
-// 상품 상세 사진 — 아직 실제 이미지 연동 전이라 틀만 제공. 데스크톱 2열, 좁은 화면에서 1열.
-function DetailPhotoSection() {
+// 상품 상세 사진 — admin에서 올린 상세페이지 사진(inspection_image_urls)을 최대 2장까지 노출.
+// 1장뿐이면 데스크톱 2열 균형을 위해 오른쪽 칸을 은은한 수북 로고 워터마크로 채운다
+// (모바일은 1열이라 빈 칸이 없어 로고 필러는 생략). 상세 사진이 없으면 섹션 자체를 감춘다.
+function DetailPhotoSection({ images }) {
+  const photos = (images ?? []).filter(Boolean).slice(0, 2);
+  if (photos.length === 0) return null;
+
   return (
     <div className="public-detail-photo-section">
       <h3 className="public-detail-tab-content__heading">상품 상세 사진</h3>
-      <div
-        aria-label="상품 상세 사진 (준비 중)"
-        className="public-detail-photo-grid"
-      >
-        <div className="public-detail-photo-grid__item">
-          <span>교재 이미지</span>
-        </div>
-        <div className="public-detail-photo-grid__item">
-          <span>교재 이미지</span>
-        </div>
+      <div aria-label="상품 상세 사진" className="public-detail-photo-grid">
+        {photos.map((url, index) => (
+          <div
+            className="public-detail-photo-grid__item public-detail-photo-grid__item--photo"
+            key={`${url}-${index}`}
+          >
+            <img
+              alt={`상품 상세 사진 ${index + 1}`}
+              loading="lazy"
+              src={getDetailImageUrl(url)}
+            />
+          </div>
+        ))}
+        {photos.length === 1 ? (
+          <div
+            aria-hidden="true"
+            className="public-detail-photo-grid__item public-detail-photo-grid__item--brand"
+          >
+            <img alt="" src={brandLogoImage} />
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -865,13 +881,37 @@ function PublicProductDetailPage() {
   const { favoriteIds, isFavoritePending, toggleFavorite } =
     usePublicWishlist();
   const [product, setProduct] = useState(null);
-  // 상품명·과목 동적 title + description (SEO/공유 미리보기에 노출)
+  // 상품명·과목 동적 title + description + canonical/og:image + Product JSON-LD
+  // (카톡/SNS 공유 미리보기에 교재 표지·가격이 정확히 뜨고, 검색 리치스니펫 대응)
+  const metaCoverImage = product?.coverImageUrl ?? product?.cover_image_url ?? null;
+  const metaPrice = Number(product?.price);
   usePageMeta({
     title: product?.title
       ? `${product.title}${product.subject ? ` · ${product.subject}` : ""}`
       : undefined,
     description: product?.title
       ? `${product.title}${product.instructor_name ? ` (${product.instructor_name})` : ""} ${product.subject ?? ""} 위탁판매 — 검수 완료된 새 책 수준의 교재를 합리적인 가격에.`
+      : undefined,
+    canonicalPath: productId ? `/store/${productId}` : undefined,
+    image: metaCoverImage ?? undefined,
+    jsonLd: product?.title
+      ? {
+          "@context": "https://schema.org",
+          "@type": "Product",
+          name: product.title,
+          ...(metaCoverImage ? { image: [metaCoverImage] } : {}),
+          ...(product.brand ? { brand: { "@type": "Brand", name: product.brand } } : {}),
+          category: product.subject ?? undefined,
+          offers: {
+            "@type": "Offer",
+            priceCurrency: "KRW",
+            ...(Number.isFinite(metaPrice) && metaPrice > 0 ? { price: metaPrice } : {}),
+            itemCondition: "https://schema.org/UsedCondition",
+            availability: product.isSoldOut
+              ? "https://schema.org/OutOfStock"
+              : "https://schema.org/InStock",
+          },
+        }
       : undefined,
   });
   const [relatedProducts, setRelatedProducts] = useState([]);
@@ -1694,7 +1734,7 @@ function PublicProductDetailPage() {
               }}
             >
               <AiSummarySection summary={aiSummary} />
-              <DetailPhotoSection />
+              <DetailPhotoSection images={product.inspectionImageUrls} />
               <DetailInfoContent activeDisplay={product} />
             </section>
 

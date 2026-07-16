@@ -155,8 +155,9 @@ export default function CjWaybillFormLabel({
         <T x={78} y={0.8} size={2.71}>1/1</T>
         {reprint > 0 ? <T x={93.8} y={0.8} size={2.71}>재출력:{reprint}</T> : null}
 
-        {/* ── 분류코드 영역 — 흰박스(0~41.5): 바코드+첫글자 / 노란박스(41.5~94): 나머지+서브 ── */}
-        <B x={0.5} y={4} w={26} h={12.5} value={clsfMain} format="CODE128A" />
+        {/* ── 분류코드 영역 — 흰박스(0~41.5): 바코드+첫글자 / 노란박스(41.5~94): 나머지+서브 ──
+            바코드 상단은 운송장번호 파란 박스(~5mm)와 겹치지 않게 5.4부터 (3회차 실물 피드백) */}
+        <B x={0.5} y={5.4} w={26} h={11.1} value={clsfMain} format="CODE128A" />
         {[
           { x: 29.4, size: 12.19, underline: true, text: clsfMain.slice(0, 1), dy: 0 },
           { x: 39.8, size: 12.19, underline: false, text: clsfMain.slice(1), dy: 0 },
@@ -211,13 +212,13 @@ export default function CjWaybillFormLabel({
             {addr.p2pCd}
           </div>
         ) : null}
-        <B x={74.5} y={21.3} w={35.5} h={4.6} value={waybill} format="CODE128C" />
-
         {/* ── 받는분 ── */}
         <T x={2.5} y={21} size={3.39}>{maskName(order.shipping_recipient_name)}</T>
         <T x={18} y={21} size={3.39}>{maskPhone(order.shipping_recipient_phone)}</T>
-        <T x={2.5} y={24.9} w={95} size={3.05}>{rcvrAddr}</T>
-        <T x={2.5} y={32} w={95} size={8.13} weight={700}>{addr.clsfAddr || ""}</T>
+        <T x={2.5} y={24.7} w={95} size={3.05}>{rcvrAddr}</T>
+        {/* 상단 운송장 바코드 — P7 박스·주소와 겹치지 않게 주소 아래 줄로 (3회차 실물 피드백) */}
+        <B x={74.5} y={28.3} w={35.5} h={4} value={waybill} format="CODE128C" />
+        <T x={2.5} y={32.7} w={95} size={8.13} weight={700}>{addr.clsfAddr || ""}</T>
 
         {/* ── 보내는분 + 수량/운임/정산 ── */}
         <T x={2.5} y={40.6} size={2.37}>{sender.name || "수북"}</T>
@@ -238,9 +239,9 @@ export default function CjWaybillFormLabel({
 
         {/* ── 하단 ── */}
         <T x={61.5} y={81.3} size={3.05}>총수량:{qty}</T>
-        <B x={76} y={80} w={34.5} h={11} value={waybill} format="CODE128C" />
-        {/* 사람이 읽는 운송장 숫자 — 샘플 실측 84.9~107 */}
-        <T x={76} y={90.7} w={31} size={3.1} align="right" spacing={0.42}>{waybill}</T>
+        {/* 하단 바코드 — 흰 칸 경계선(~81) 아래로 내접 (3회차 실물 피드백) */}
+        <B x={76} y={81.2} w={34.5} h={9.6} value={waybill} format="CODE128C" />
+        <T x={76} y={91} w={31} size={3.1} align="right" spacing={0.42}>{waybill}</T>
         {/* 배달점소-별칭 — 가이드 18pt×0.96≈5.9mm, 자연 글자폭(변형 금지) */}
         <T x={2.5} y={86.6} w={72} size={5.9} weight={900}>{branchAlias}</T>
       </div>

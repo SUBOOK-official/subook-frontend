@@ -8,13 +8,13 @@ import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { createDisplayName } from "../lib/memberPortal";
 import { getCartItems } from "../lib/cart";
-import { fetchStorefrontProducts } from "../lib/storefront";
+import { isSupabaseConfigured, supabase } from "@shared-supabase/publicSupabaseClient";
 import {
   STORE_AUTOCOMPLETE_MIN_KEYWORD_LENGTH,
   STORE_RECENT_SEARCH_LIMIT,
   STORE_RECENT_SEARCH_STORAGE_KEY,
   addRecentSearchTerm,
-  buildStoreAutocomplete,
+  buildStoreAutocompleteFromSearchRows,
   hasAutocompleteResults,
   normalizeRecentSearches,
   removeRecentSearchTerm,
@@ -22,39 +22,41 @@ import {
 import { SEARCH_DEBOUNCE_MS } from "../lib/publicStoreNavigation";
 import { BellIcon, CartIcon, ClockIcon, MenuIcon, CloseIcon } from "./icons";
 
-// catalog snapshot은 헤더 단 한 곳에서만 캐싱하면 충분.
-// 30초 in-memory 캐시 — 사용자 한 명이 짧은 시간에 여러 글자를 치는 동안
-// Supabase RPC를 반복 호출하지 않게 한다.
-const CATALOG_CACHE_TTL_MS = 30_000;
-let catalogCachedAt = 0;
-let catalogCache = null;
-let catalogInflight = null;
+// 자동완성 = 서버 검색 RPC(search_storefront_products, FTS+초성+오타 매칭).
+// 예전 방식(최신 500개 스냅샷을 통째로 받아 클라이언트 매칭)은 카탈로그가 500개를
+// 넘는 순간 이후 상품이 제안에서 통째로 빠지는 구조라 폐기했다.
+// 키워드 단위 30초 캐시 — 같은 키워드 재타이핑(백스페이스 등)에 RPC 재호출 방지.
+const AUTOCOMPLETE_CACHE_TTL_MS = 30_000;
+const AUTOCOMPLETE_CACHE_MAX_ENTRIES = 50;
+const AUTOCOMPLETE_FETCH_LIMIT = 20;
+const autocompleteRowsCache = new Map();
 
-async function loadCatalogSnapshot() {
+async function fetchAutocompleteSearchRows(keyword) {
   const now = Date.now();
-  if (catalogCache && now - catalogCachedAt < CATALOG_CACHE_TTL_MS) {
-    return catalogCache;
+  const cached = autocompleteRowsCache.get(keyword);
+  if (cached && now - cached.cachedAt < AUTOCOMPLETE_CACHE_TTL_MS) {
+    return cached.rows;
   }
 
-  if (catalogInflight) {
-    return catalogInflight;
+  if (!isSupabaseConfigured || !supabase) {
+    return [];
   }
 
-  catalogInflight = (async () => {
-    try {
-      const result = await fetchStorefrontProducts({ limit: 500, sort: "latest" });
-      catalogCache = Array.isArray(result.products) ? result.products : [];
-      catalogCachedAt = Date.now();
-      return catalogCache;
-    } catch {
-      // 실패해도 캐시는 비우지 않고 빈 배열로 진행. 다음 시도에서 다시 fetch.
-      return [];
-    } finally {
-      catalogInflight = null;
+  try {
+    const { data, error } = await supabase.rpc("search_storefront_products", {
+      p_query: keyword,
+      p_limit: AUTOCOMPLETE_FETCH_LIMIT,
+    });
+    const rows = !error && Array.isArray(data) ? data : [];
+    if (autocompleteRowsCache.size >= AUTOCOMPLETE_CACHE_MAX_ENTRIES) {
+      const oldestKey = autocompleteRowsCache.keys().next().value;
+      autocompleteRowsCache.delete(oldestKey);
     }
-  })();
-
-  return catalogInflight;
+    autocompleteRowsCache.set(keyword, { rows, cachedAt: now });
+    return rows;
+  } catch {
+    return [];
+  }
 }
 
 function readRecentSearches() {
@@ -90,6 +92,7 @@ function SearchSuggestionsPanel({
   onPickAutocomplete,
   onPickRecent,
   onRemoveRecent,
+  onSubmitKeyword,
   recentSearches,
 }) {
   const hasAuto = hasAutocompleteResults(autocomplete);
@@ -101,12 +104,14 @@ function SearchSuggestionsPanel({
           <p className="public-search-suggestion__empty">
             "{keyword}"에 맞는 추천을 찾지 못했어요. 그대로 검색하거나, 원하는 교재가 들어오면 알려드릴게요.
           </p>
-          <Link
+          {/* 검색 실행 → 그리드 빈 상태의 '입고 알림 받기'(키워드 구독 모달)로 이어지는 단일 동선 */}
+          <button
             className="public-search-suggestion__cta"
-            to="/notifications"
+            onClick={() => onSubmitKeyword?.(keyword)}
+            type="button"
           >
-            <BellIcon size={14} /> 입고 알림 설정하기
-          </Link>
+            <BellIcon size={14} /> 이 키워드로 입고 알림 받기
+          </button>
         </div>
       );
     }
@@ -248,6 +253,34 @@ function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
     };
   }, [isAuthenticated, location.pathname]);
 
+  // 미읽음 알림 카운트 — 카트 카운트와 동일 트리거(인증 변화 + 라우트 변경)로 갱신.
+  // 알림함에서 읽음 처리 후 다른 페이지로 이동하면 자연히 재조회되어 배지가 줄어든다.
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    if (!isAuthenticated || !isSupabaseConfigured || !supabase) {
+      setUnreadNotificationCount(0);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const fetchUnreadCount = async () => {
+      try {
+        const { data, error } = await supabase.rpc("count_my_unread_notifications");
+        if (cancelled) return;
+        setUnreadNotificationCount(error ? 0 : Number(data) || 0);
+      } catch {
+        if (!cancelled) setUnreadNotificationCount(0);
+      }
+    };
+    void fetchUnreadCount();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, location.pathname]);
+
   // 알림/장바구니/마이페이지는 isAuthenticated 일 때만 렌더되므로 클릭 가드는 불필요.
   // 비로그인 사용자는 헤더에서 해당 메뉴 자체가 보이지 않는다.
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
@@ -275,7 +308,8 @@ function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
     return () => window.clearTimeout(handle);
   }, [searchValue]);
 
-  // 자동완성 lookup: 키워드가 최소 길이 이상이면 catalog snapshot에 대해 buildStoreAutocomplete.
+  // 자동완성 lookup: 키워드가 최소 길이 이상이면 서버 검색 RPC로 제안을 만든다.
+  // (전체 카탈로그 대상 FTS라 상품 수와 무관하게 정확한 제안)
   useEffect(() => {
     let cancelled = false;
     const normalizedKeyword = debouncedKeyword;
@@ -285,9 +319,9 @@ function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
     }
 
     (async () => {
-      const catalog = await loadCatalogSnapshot();
+      const rows = await fetchAutocompleteSearchRows(normalizedKeyword);
       if (cancelled) return;
-      setAutocomplete(buildStoreAutocomplete(catalog, normalizedKeyword));
+      setAutocomplete(buildStoreAutocompleteFromSearchRows(rows, normalizedKeyword));
     })();
 
     return () => {
@@ -522,6 +556,8 @@ function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
     : "";
 
   const cartBadge = cartItemCount > 0 ? (cartItemCount > 99 ? "99+" : cartItemCount) : null;
+  const notificationBadge =
+    unreadNotificationCount > 0 ? (unreadNotificationCount > 99 ? "99+" : unreadNotificationCount) : null;
   const visibleRecent = useMemo(
     () => recentSearches.slice(0, STORE_RECENT_SEARCH_LIMIT),
     [recentSearches],
@@ -569,6 +605,10 @@ function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
                   onPickAutocomplete={handlePickAutocomplete}
                   onPickRecent={handlePickRecent}
                   onRemoveRecent={handleRemoveRecent}
+                  onSubmitKeyword={(value) => {
+                    setIsSuggestionsOpen(false);
+                    navigateToSearch(value);
+                  }}
                   recentSearches={visibleRecent}
                 />
               ) : null}
@@ -585,6 +625,18 @@ function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
           </Link>
           {isAuthenticated ? (
             <>
+              <button
+                aria-label={`알림 ${unreadNotificationCount}개`}
+                className="public-nav-link public-nav-link--cart"
+                onClick={() => navigate("/notifications")}
+                type="button"
+              >
+                <BellIcon size={15} />
+                <span>알림</span>
+                {notificationBadge !== null ? (
+                  <span className="public-nav-link__badge">{notificationBadge}</span>
+                ) : null}
+              </button>
               <button
                 aria-label={`장바구니 ${cartItemCount}개`}
                 className="public-nav-link public-nav-link--cart"
@@ -635,17 +687,30 @@ function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
         {/* 모바일 헤더 우측 (768px 미만): 비로그인 = 햄버거만, 로그인 = 장바구니 + 햄버거 */}
         <div className="public-nav-mobile-actions">
           {isAuthenticated ? (
-            <button
-              aria-label={`장바구니 ${cartItemCount}개`}
-              className="public-nav-mobile-cart"
-              onClick={handleCartClick}
-              type="button"
-            >
-              <CartIcon size={20} />
-              {cartBadge !== null ? (
-                <span className="public-nav-mobile-cart__badge">{cartBadge}</span>
-              ) : null}
-            </button>
+            <>
+              <button
+                aria-label={`알림 ${unreadNotificationCount}개`}
+                className="public-nav-mobile-cart"
+                onClick={() => navigate("/notifications")}
+                type="button"
+              >
+                <BellIcon size={20} />
+                {notificationBadge !== null ? (
+                  <span className="public-nav-mobile-cart__badge">{notificationBadge}</span>
+                ) : null}
+              </button>
+              <button
+                aria-label={`장바구니 ${cartItemCount}개`}
+                className="public-nav-mobile-cart"
+                onClick={handleCartClick}
+                type="button"
+              >
+                <CartIcon size={20} />
+                {cartBadge !== null ? (
+                  <span className="public-nav-mobile-cart__badge">{cartBadge}</span>
+                ) : null}
+              </button>
+            </>
           ) : null}
           <button
             aria-expanded={isMobileMenuOpen}
@@ -718,6 +783,12 @@ function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
                     <span className="public-nav-link__badge" style={{ marginLeft: 8 }}>{cartBadge}</span>
                   ) : null}
                 </button>
+                <Link className="public-nav-drawer__item" to="/notifications" onClick={() => setIsMobileMenuOpen(false)}>
+                  알림
+                  {notificationBadge !== null ? (
+                    <span className="public-nav-link__badge" style={{ marginLeft: 8 }}>{notificationBadge}</span>
+                  ) : null}
+                </Link>
                 <Link className="public-nav-drawer__item" to="/mypage" onClick={() => setIsMobileMenuOpen(false)}>
                   마이페이지
                 </Link>

@@ -7,6 +7,7 @@ import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
 import { usePageMeta } from "../lib/usePageMeta";
 import { ChevronRightIcon, ChevronUpIcon } from "../components/icons";
+import { looksLikeRichHtml, sanitizeRichHtml } from "@shared-domain/richText";
 import "./PublicFaqPage.css";
 
 const FAQ_ITEMS = [
@@ -134,8 +135,19 @@ function renderAnswerLine(line, index) {
 // DB row를 기존 FAQ_ITEMS 형식으로 정규화. answer 텍스트의 줄바꿈을 paragraph로 분리.
 // ⚠ renderAnswerLine은 typeof === "string"이거나 {type:'subheading'|'note'}만 처리한다.
 //   기존엔 {type:'text'} 객체를 만들어 본문이 통째 null로 렌더됐던 버그. string으로 반환해야 함.
+// 어드민 리치텍스트 답변(HTML)은 화이트리스트 새니타이즈를 거쳐 html 필드로 렌더한다.
 function normalizeDbFaq(row) {
-  const lines = (row.answer || "")
+  const rawAnswer = row.answer || "";
+  if (looksLikeRichHtml(rawAnswer)) {
+    return {
+      id: `db-${row.id}`,
+      category: row.category || "기타",
+      question: row.question,
+      answer: [],
+      html: sanitizeRichHtml(rawAnswer),
+    };
+  }
+  const lines = rawAnswer
     .split(/\n+/)
     .map((s) => s.trim())
     .filter(Boolean);
@@ -143,7 +155,7 @@ function normalizeDbFaq(row) {
     id: `db-${row.id}`,
     category: row.category || "기타",
     question: row.question,
-    answer: lines.length > 0 ? lines : [row.answer || ""],
+    answer: lines.length > 0 ? lines : [rawAnswer],
   };
 }
 
@@ -151,6 +163,18 @@ function PublicFaqPage() {
   usePageMeta({
     title: "자주 묻는 질문",
     description: "수북 위탁판매 서비스의 수거·검수·등급·정산·결제·반품에 대한 자주 묻는 질문 모음.",
+    canonicalPath: "/faq",
+    // FAQPage 리치스니펫 — 정적 fallback(FAQ_ITEMS) 기준. answer가 배열(문단)인
+    // 항목만 사용해 DB 리치텍스트(HTML)가 JSON-LD에 섞이지 않게 한다.
+    jsonLd: {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      mainEntity: FAQ_ITEMS.filter((item) => Array.isArray(item.answer)).map((item) => ({
+        "@type": "Question",
+        name: item.question,
+        acceptedAnswer: { "@type": "Answer", text: item.answer.join(" ") },
+      })),
+    },
   });
   // DB에서 받은 FAQ. 비어있으면 기존 하드코딩 FAQ_ITEMS fallback.
   const [dbFaqs, setDbFaqs] = useState(null); // null=로딩, []=DB비어있음
@@ -260,7 +284,15 @@ function PublicFaqPage() {
                     id={`faq-panel-${item.id}`}
                     role="region"
                   >
-                    {item.answer.map((line, index) => renderAnswerLine(line, index))}
+                    {item.html ? (
+                      /* 어드민 리치텍스트 — sanitizeRichHtml(화이트리스트)을 거친 HTML만 주입 */
+                      <div
+                        className="public-faq-item__rich"
+                        dangerouslySetInnerHTML={{ __html: item.html }}
+                      />
+                    ) : (
+                      item.answer.map((line, index) => renderAnswerLine(line, index))
+                    )}
                   </div>
                 ) : null}
               </li>

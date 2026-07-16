@@ -3,67 +3,73 @@
 // icon은 이모지 문자열이 아니라 icons.jsx의 컴포넌트 "참조"를 담는다 (.js 파일이라 JSX 사용 불가).
 // 렌더는 AdminShell의 NavList가 <item.icon size={16} />으로 수행.
 import {
+  BellIcon,
   BoxIcon,
   CameraIcon,
   CartIcon,
   ChartBarIcon,
   CoinIcon,
   FolderIcon,
-  HeartOffIcon,
   HelpCircleIcon,
   MegaphoneIcon,
   PlusIcon,
-  ReceiptIcon,
-  SearchIcon,
   TicketIcon,
   TrendingUpIcon,
   UserIcon,
 } from "./icons";
 
+// 2026-07-16 R1 개편: 기능 축 → "업무 축" 그룹핑.
+// 신입 운영자의 멘탈 모델(셀러 물건이 들어와서 팔리는 흐름 / 구매자 주문이 나가는 흐름)을
+// 사이드바 순서 그대로 반영한다. 저빈도 페이지(탈퇴 사유)는 회원 페이지 내부 탭으로 흡수,
+// 검수는 수거·검수 통합 페이지의 탭으로 흡수 (별도 메뉴 제거).
 export const adminNavigationGroups = [
   {
     key: "overview",
     label: null, // hero — 그룹 헤더 없이 단독 노출
     items: [
-      { key: "overview", label: "개요", to: "/admin", icon: ChartBarIcon },
+      { key: "overview", label: "오늘 할 일", to: "/admin", icon: ChartBarIcon },
     ],
   },
   {
-    key: "ops",
-    label: "운영",
+    key: "seller-flow",
+    label: "셀러 흐름",
     items: [
-      { key: "pickups", label: "수거", to: "/admin/pickups", icon: BoxIcon },
-      { key: "inspection", label: "검수", to: "/admin/inspections", icon: SearchIcon },
-      { key: "orders", label: "주문", to: "/admin/orders", icon: CartIcon },
-      { key: "settlements", label: "정산", to: "/admin/settlements", icon: CoinIcon },
-      { key: "manual-settlements", label: "수동 정산", to: "/admin/manual-settlements", icon: ReceiptIcon },
-    ],
-  },
-  {
-    key: "catalog",
-    label: "카탈로그",
-    items: [
+      { key: "pickups", label: "수거·검수", to: "/admin/pickups", icon: BoxIcon },
       { key: "register", label: "상품 등록", to: "/admin/register", icon: PlusIcon },
-      { key: "products", label: "상품 마스터", to: "/admin/products", icon: FolderIcon },
-      { key: "studio", label: "사진 스튜디오 (AI)", to: "/admin/studio", icon: CameraIcon },
+      { key: "products", label: "상품 재고", to: "/admin/products", icon: FolderIcon },
     ],
   },
   {
-    key: "marketing",
-    label: "마케팅",
+    key: "buyer-flow",
+    label: "구매자 흐름",
     items: [
+      { key: "orders", label: "주문·배송", to: "/admin/orders", icon: CartIcon },
+      { key: "settlements", label: "정산", to: "/admin/settlements", icon: CoinIcon },
+    ],
+  },
+  {
+    key: "customer",
+    label: "고객",
+    items: [
+      { key: "members", label: "회원", to: "/admin/members", icon: UserIcon },
       { key: "coupons", label: "쿠폰", to: "/admin/coupons", icon: TicketIcon },
+    ],
+  },
+  {
+    key: "content",
+    label: "콘텐츠",
+    items: [
       { key: "notices", label: "공지사항", to: "/admin/notices", icon: MegaphoneIcon },
       { key: "faqs", label: "FAQ", to: "/admin/faqs", icon: HelpCircleIcon },
     ],
   },
   {
-    key: "data",
-    label: "회원·분석",
+    key: "tools",
+    label: "도구",
     items: [
-      { key: "members", label: "회원", to: "/admin/members", icon: UserIcon },
+      { key: "studio", label: "사진 스튜디오 (AI)", to: "/admin/studio", icon: CameraIcon },
+      { key: "notification-logs", label: "알림 발송 로그", to: "/admin/notification-logs", icon: BellIcon },
       { key: "analytics", label: "분석", to: "/admin/analytics", icon: TrendingUpIcon },
-      { key: "withdrawal-reasons", label: "탈퇴 사유", to: "/admin/withdrawal-reasons", icon: HeartOffIcon },
     ],
   },
 ];
@@ -75,6 +81,10 @@ export function resolveActiveAdminModule({ pathname, explicitModule }) {
 
   if (pathname.startsWith("/admin/studio")) {
     return "studio";
+  }
+
+  if (pathname.startsWith("/admin/notification-logs")) {
+    return "notification-logs";
   }
 
   if (pathname.startsWith("/admin/analytics")) {
@@ -89,8 +99,9 @@ export function resolveActiveAdminModule({ pathname, explicitModule }) {
     return "notices";
   }
 
+  // 검수(shipment 상세·구 inspections 경로)는 수거·검수 통합 메뉴에 속한다
   if (pathname.startsWith("/admin/shipments/") || pathname.startsWith("/admin/inspections")) {
-    return "inspection";
+    return "pickups";
   }
 
   if (pathname.startsWith("/admin/pickups")) {
@@ -106,15 +117,16 @@ export function resolveActiveAdminModule({ pathname, explicitModule }) {
   }
 
   if (pathname.startsWith("/admin/catalog")) {
-    return "catalog";
+    return "products";
   }
 
   if (pathname.startsWith("/admin/orders")) {
     return "orders";
   }
 
+  // 수동(식스샵) 정산은 정산 메뉴의 탭 — 사이드바 하이라이트는 '정산'으로
   if (pathname.startsWith("/admin/manual-settlements")) {
-    return "manual-settlements";
+    return "settlements";
   }
 
   if (pathname.startsWith("/admin/settlements")) {
@@ -125,8 +137,9 @@ export function resolveActiveAdminModule({ pathname, explicitModule }) {
     return "coupons";
   }
 
+  // 탈퇴 사유는 회원 메뉴의 탭 — 사이드바 하이라이트는 '회원'으로
   if (pathname.startsWith("/admin/withdrawal-reasons")) {
-    return "withdrawal-reasons";
+    return "members";
   }
 
   if (pathname.startsWith("/admin/members")) {

@@ -24,6 +24,20 @@ async function callSendNotification(payload) {
   }
 }
 
+// 알림 로그 뷰어의 재발송 — 저장된 로그 행(notification_logs)을 그대로 다시 발송.
+// 서버리스 페이로드가 제네릭 형태라 타입별 래퍼를 거치지 않고 재구성할 수 있다.
+export async function resendNotificationFromLog(log) {
+  return callSendNotification({
+    notificationType: log.notification_type,
+    recipientPhone: log.recipient_phone,
+    recipientName: log.recipient_name,
+    recipientUserId: log.recipient_user_id ?? null,
+    refType: log.ref_type ?? null,
+    refId: log.ref_id ?? null,
+    templateVariables: log.template_variables ?? {},
+  });
+}
+
 // 수거접수 완료 알림 (판매자)
 export async function notifyPickupAccepted({ pickupRequest }) {
   return callSendNotification({

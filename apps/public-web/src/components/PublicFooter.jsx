@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import ContentContainer from "./ContentContainer";
+import { KAKAO_CHANNEL_URL } from "../lib/supportChannels";
 import brandLogoWhiteImage from "../assets/brand/logo-horizontal-white.png";
 
 const CONTACT_EMAIL = "subook2025@gmail.com";
@@ -46,7 +47,7 @@ const footerTopLinks = [
   { label: "개인정보처리방침", to: "/privacy", bold: true },
   { label: "환불정책", to: "/refund" },
   // 1:1문의는 카카오톡 채널 우선 (답장 속도/접근성), 이메일은 socials 아이콘으로 보조
-  { label: "1:1문의 (카카오톡)", href: "https://pf.kakao.com/_xdhxdyn", external: true },
+  { label: "1:1문의 (카카오톡)", href: KAKAO_CHANNEL_URL, external: true },
 ];
 
 const footerMetaLines = [
@@ -58,7 +59,8 @@ const footerMetaLines = [
   [
     ["전화", "010-6271-5792"],
     ["이메일", "subook2025@gmail.com"],
-    ["주소", "서울 서대문구 연세로 50 제1공학관"],
+    // 2026-07-16 정본 사업장 주소로 통일 (이용약관 사업자정보표와 일치)
+    ["주소", "광주광역시 서구 치평로 15"],
   ],
   [
     [
@@ -179,7 +181,7 @@ function PublicFooter() {
             <a aria-label="인스타그램" className="public-footer__social" href="https://instagram.com/subook.official" rel="noopener noreferrer" target="_blank">
               <FooterInstagramIcon />
             </a>
-            <a aria-label="카카오톡 채널" className="public-footer__social" href="https://pf.kakao.com/_xdhxdyn" rel="noopener noreferrer" target="_blank">
+            <a aria-label="카카오톡 채널" className="public-footer__social" href={KAKAO_CHANNEL_URL} rel="noopener noreferrer" target="_blank">
               <FooterChatIcon />
             </a>
           </div>

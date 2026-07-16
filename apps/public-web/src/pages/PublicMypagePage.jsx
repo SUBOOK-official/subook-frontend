@@ -33,6 +33,7 @@ import { supabase as publicSupabase } from "@shared-supabase/publicSupabaseClien
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { usePublicWishlist } from "../contexts/PublicWishlistContext";
 import usePublicMemberGate from "../lib/publicMemberGate";
+import { KAKAO_CHANNEL_URL } from "../lib/supportChannels";
 import { usePageMeta } from "../lib/usePageMeta";
 import { DEMO_MEMBER_PROFILE, DEMO_MEMBER_USER } from "../lib/publicMypageDemo";
 import {
@@ -1823,7 +1824,7 @@ function RejectableBookRow({ item, requestNumber }) {
             <div className="public-mypage-book-row__dispute-actions">
               <a
                 className="public-mypage-book-row__dispute public-mypage-book-row__dispute--primary"
-                href="https://pf.kakao.com/_subook"
+                href={KAKAO_CHANNEL_URL}
                 rel="noopener noreferrer"
                 target="_blank"
               >
@@ -1979,20 +1980,24 @@ function SettlementCard({ settlement, status }) {
       </div>
       <p>
         {settlement.orderReference ? `주문 #${settlement.orderReference} · ` : ""}
-        수거 #{settlement.pickupReference} · 교재 {settlement.bookCount}권
+        {/* 브리지된 신청은 셀러가 아는 PU-xxxx 요청번호, 레거시는 내부 번호(#) */}
+        수거 {String(settlement.pickupReference).startsWith("PU") ? settlement.pickupReference : `#${settlement.pickupReference}`} · 교재 {settlement.bookCount}권
+      </p>
+      {/* 정산 명세 breakdown — 예정 건에도 노출 (RPC가 예정 건에도 수수료·실수령을 반환) */}
+      <p>
+        판매 {formatCurrency(settlement.grossSales)} − 수수료 {formatCurrency(settlement.feeAmount)}
+        {settlement.grossSales > 0
+          ? ` (${Math.round((settlement.feeAmount / settlement.grossSales) * 100)}%)`
+          : ""}
+        {settlement.boxCostDeducted > 0
+          ? ` − 박스비 ${formatCurrency(settlement.boxCostDeducted)}`
+          : ""}
+        {` = ${isCompleted ? "실수령" : "예상 실수령"} ${formatCurrency(settlement.amount)}`}
       </p>
       {isCompleted ? (
-        <>
-          <p>
-            판매 {formatCurrency(settlement.grossSales)} − 수수료 {formatCurrency(settlement.feeAmount)}
-            {settlement.grossSales > 0
-              ? ` (수수료율 ${Math.round((settlement.feeAmount / settlement.grossSales) * 100)}%)`
-              : ""}
-          </p>
-          <p>
-            입금: {settlement.bankLabel} {settlement.maskedAccount}
-          </p>
-        </>
+        <p>
+          입금: {settlement.bankLabel} {settlement.maskedAccount}
+        </p>
       ) : (
         <span className={`public-mypage-chip public-mypage-chip--${settlement.tone ?? "warning"}`}>
           {settlement.statusLabel}
@@ -2753,8 +2758,8 @@ function PurchasesView({
                     {order.canConfirm && order.autoConfirmDaysRemaining != null ? (
                       <p className="public-mypage-purchase-card__auto-confirm">
                         {order.autoConfirmDaysRemaining <= 0
-                          ? "곧 자동으로 구매 확정"
-                          : `${order.autoConfirmDaysRemaining}일 뒤 자동으로 구매 확정`}
+                          ? "곧 자동으로 구매 확정 · 확정 후에는 반품할 수 없어요"
+                          : `${order.autoConfirmDaysRemaining}일 뒤 자동으로 구매 확정 · 확정 후에는 반품할 수 없어요`}
                       </p>
                     ) : null}
                   </article>

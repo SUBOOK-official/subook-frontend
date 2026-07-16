@@ -6,6 +6,7 @@ import PublicFooter from "../components/PublicFooter";
 import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
 import { usePageMeta } from "../lib/usePageMeta";
+import { looksLikeRichHtml, sanitizeRichHtml } from "@shared-domain/richText";
 import { ChevronRightIcon, ChevronUpIcon, PinIcon } from "../components/icons";
 // 공지 페이지는 FAQ 아코디언 스타일(public-faq-*)을 재사용한다.
 // lazy 청크가 분리돼 있어 이 import가 없으면 /notices 직접 진입 시 무스타일로 렌더됨.
@@ -159,15 +160,23 @@ function PublicNoticesPage() {
                           id={`notice-panel-${notice.id}`}
                           role="region"
                         >
-                          {notice.body
-                            .split(/\n+/)
-                            .map((para) => para.trim())
-                            .filter(Boolean)
-                            .map((para, idx) => (
-                              <p className="public-faq-item__text" key={idx}>
-                                {para}
-                              </p>
-                            ))}
+                          {looksLikeRichHtml(notice.body) ? (
+                            /* 어드민 리치텍스트 — sanitizeRichHtml(화이트리스트) 통과 HTML만 주입 */
+                            <div
+                              className="public-faq-item__rich"
+                              dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(notice.body) }}
+                            />
+                          ) : (
+                            notice.body
+                              .split(/\n+/)
+                              .map((para) => para.trim())
+                              .filter(Boolean)
+                              .map((para, idx) => (
+                                <p className="public-faq-item__text" key={idx}>
+                                  {para}
+                                </p>
+                              ))
+                          )}
                           <p className="public-faq-item__note" style={{ marginTop: 12 }}>
                             게시일 {formatKstDate(notice.published_at)}
                           </p>
