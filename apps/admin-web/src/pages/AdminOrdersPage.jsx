@@ -1035,6 +1035,17 @@ function AdminOrdersPage() {
                           <span className="text-slate-400"> 외 {order.item_count - 1}건</span>
                         )}
                       </div>
+                      {(() => {
+                        // 피킹 힌트 — 아이템들의 창고 위치를 중복 제거해 표시
+                        const locs = [
+                          ...new Set((order.items ?? []).map((i) => i.book_location).filter(Boolean)),
+                        ];
+                        return locs.length > 0 ? (
+                          <div className="mt-0.5 truncate font-mono text-[11px] font-bold text-indigo-600">
+                            위치 {locs.join(" · ")}
+                          </div>
+                        ) : null;
+                      })()}
                     </td>
                     <td className="px-4 py-3 text-right font-bold whitespace-nowrap">
                       {formatCurrency(order.total_amount)}
@@ -1135,10 +1146,24 @@ function AdminOrdersPage() {
                 <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2" key={item.id}>
                   <div>
                     <span className="text-sm font-semibold">{item.title}</span>
+                    {item.option_label && (
+                      <span className="ml-2 text-xs text-slate-400">{item.option_label}</span>
+                    )}
                     {item.condition_grade && (
                       <span className="ml-2 text-xs text-slate-400">{item.condition_grade}</span>
                     )}
                     <span className="ml-2 text-xs text-slate-400">×{item.quantity}</span>
+                    {/* 피킹 정보 — 위치로 가서 일련번호로 실물 확인 (2026-07-18) */}
+                    {item.book_location || item.book_serial_number != null ? (
+                      <span className="ml-2 inline-flex items-center rounded bg-indigo-50 px-1.5 py-0.5 font-mono text-[11px] font-bold text-indigo-700">
+                        {item.book_location ?? "위치 미지정"}
+                        {item.book_serial_number != null ? ` · No.${item.book_serial_number}` : ""}
+                      </span>
+                    ) : (
+                      <span className="ml-2 inline-flex items-center rounded bg-amber-50 px-1.5 py-0.5 text-[11px] font-bold text-amber-700">
+                        위치 미지정
+                      </span>
+                    )}
                   </div>
                   <span className="text-sm font-bold">{formatCurrency(item.total_price)}</span>
                 </div>

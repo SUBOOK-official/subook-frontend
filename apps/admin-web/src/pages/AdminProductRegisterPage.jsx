@@ -52,6 +52,7 @@ function blankNewRow() {
     brand: "",
     bookType: "",
     option: "",
+    location: "",
     originalPrice: "",
     discountType: "none",
     discountValue: "",
@@ -215,6 +216,8 @@ function AdminProductRegisterPage() {
   // 완료/공개
   const [publishOnComplete, setPublishOnComplete] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  // 등록 완료 모달 — 자동 채번된 일련번호를 보여주고 라벨링 안내 후 이동
+  const [completeInfo, setCompleteInfo] = useState(null);
 
   // shipmentId 쿼리로 진입 시 해당 고객 자동 로드
   useEffect(() => {
@@ -356,10 +359,13 @@ function AdminProductRegisterPage() {
       quantity: "",
       price: o.price ?? product.representative_original_price ?? "",
     }));
+    // 이미 목록에 추가해 둔 배치를 수정하는 경우 위치 입력값은 유지
+    const prevAddition = existingAdditions.find((a) => a.product.id === product.id);
     setFramePanel({
       product,
       existingOptions,
       newOptions: [{ option: "", quantity: "", price: product.representative_original_price ?? "" }],
+      location: prevAddition?.location ?? "",
     });
   };
 
@@ -411,6 +417,7 @@ function AdminProductRegisterPage() {
           uid: nextUid(),
           product: fp.product,
           options,
+          location: (fp.location ?? "").trim(),
           coverUrl: fp.product.cover_image_url || "",
           coverBusy: false,
           detailUrls: [],
@@ -536,12 +543,14 @@ function AdminProductRegisterPage() {
       discount_type: r.discountType || "none",
       discount_value: r.discountType === "none" ? null : String(r.discountValue).replaceAll(",", "").trim() || null,
       option: r.option.trim(),
+      location: r.location.trim() || null,
       cover_image_url: r.coverUrl || null,
       inspection_image_urls: r.detailUrls || [],
       is_public: publishOnComplete,
     }));
     const existing_additions = existingAdditions.map((a) => ({
       product_id: a.product.id,
+      location: a.location || null,
       cover_image_url: a.coverUrl || null,
       inspection_image_urls: a.detailUrls || [],
       is_public: publishOnComplete,
@@ -565,11 +574,24 @@ function AdminProductRegisterPage() {
     }
     const createdProducts = data?.created_products ?? 0;
     const createdBooks = data?.created_books ?? 0;
+    const createdSerials = Array.isArray(data?.created_serials) ? data.created_serials : [];
     showToast(
       `교재 ${createdProducts}종 · 재고 ${createdBooks}권 등록 완료${publishOnComplete ? " (스토어 공개)" : ""}`,
       "success",
     );
-    navigate(`/admin/shipments/${shipment.id}`);
+    // 자동 채번된 일련번호를 확인하고 실물에 라벨을 붙일 수 있게 완료 모달을 띄운 뒤 이동
+    setCompleteInfo({
+      products: createdProducts,
+      books: createdBooks,
+      serials: createdSerials,
+      shipmentId: shipment.id,
+    });
+  };
+
+  const goAfterComplete = () => {
+    const sid = completeInfo?.shipmentId;
+    setCompleteInfo(null);
+    navigate(sid ? `/admin/shipments/${sid}` : "/admin/products");
   };
 
   const canChangeCustomer = !shipmentIdParam;
@@ -780,12 +802,13 @@ function AdminProductRegisterPage() {
                   · 할인 방식을 정가로 두면 정가 그대로 판매 · 옵션은 콤마(,)로 여러 개 자동 등록
                 </p>
                 <div className="mt-3 overflow-x-auto">
-                  <table className="w-full min-w-[720px] text-sm">
+                  <table className="w-full min-w-[780px] text-sm">
                     <thead>
                       <tr className="border-b border-slate-200 text-left text-xs font-bold text-slate-500">
                         <th className="py-2 pr-2">상품명</th>
                         <th className="py-2 pr-2 w-24">카테고리</th>
                         <th className="py-2 pr-2 w-28">옵션</th>
+                        <th className="py-2 pr-2 w-20">위치</th>
                         <th className="py-2 pr-2 w-24">정가</th>
                         <th className="py-2 pr-2 w-24">할인 방식</th>
                         <th className="py-2 pr-2 w-20">할인 값</th>
@@ -826,6 +849,15 @@ function AdminProductRegisterPage() {
                                 value={row.option}
                                 onChange={(e) => handleRowChange(row.uid, "option", e.target.value)}
                                 placeholder="2권, 3권"
+                                className="w-full rounded border border-slate-200 px-2 py-1.5"
+                              />
+                            </td>
+                            <td className="py-1.5 pr-2">
+                              <input
+                                type="text"
+                                value={row.location}
+                                onChange={(e) => handleRowChange(row.uid, "location", e.target.value)}
+                                placeholder="A1"
                                 className="w-full rounded border border-slate-200 px-2 py-1.5"
                               />
                             </td>
@@ -903,6 +935,7 @@ function AdminProductRegisterPage() {
                           {a.options
                             .map((o) => `${o.option || "기본"} ${o.quantity}권`)
                             .join(" · ")}
+                          {a.location ? ` · 위치 ${a.location}` : ""}
                         </p>
                       </div>
                       <div className="flex items-center gap-3">
@@ -1248,6 +1281,18 @@ function AdminProductRegisterPage() {
               </table>
             </div>
 
+            {/* 창고 위치 — 이 배치로 추가되는 모든 책에 적용 (권별 수정은 상품 재고에서) */}
+            <div className="mt-6">
+              <h3 className="text-sm font-black text-slate-900">창고 위치</h3>
+              <input
+                type="text"
+                value={framePanel.location ?? ""}
+                onChange={(e) => setFramePanel((fp) => ({ ...fp, location: e.target.value }))}
+                placeholder="예: A1, 모7"
+                className="mt-2 w-48 rounded border border-slate-200 px-2 py-1.5 text-sm"
+              />
+            </div>
+
             <div className="mt-6 flex items-center justify-end gap-2">
               <button
                 type="button"
@@ -1264,6 +1309,44 @@ function AdminProductRegisterPage() {
                 목록에 추가
               </button>
             </div>
+          </div>
+        ) : null}
+      </AdminDialog>
+
+      {/* 등록 완료 — 자동 채번된 일련번호 안내 (실물 라벨링용) */}
+      <AdminDialog
+        open={Boolean(completeInfo)}
+        onClose={goAfterComplete}
+        title="등록 완료"
+        size="sm"
+        footer={
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={goAfterComplete}
+              className="btn-primary !w-auto !px-5 !py-2 text-sm"
+            >
+              확인
+            </button>
+          </div>
+        }
+      >
+        {completeInfo ? (
+          <div className="space-y-3 px-6 py-5">
+            <p className="text-sm font-bold text-slate-900">
+              교재 {completeInfo.products}종 · 재고 {completeInfo.books}권 등록 완료
+              {publishOnComplete ? " (스토어 공개)" : ""}
+            </p>
+            {completeInfo.serials.length > 0 ? (
+              <>
+                <p className="text-xs text-slate-500">
+                  아래 일련번호가 자동 부여되었습니다. 실물 책에 번호 라벨을 붙여주세요.
+                </p>
+                <p className="max-h-40 overflow-y-auto rounded-lg bg-slate-50 px-3 py-2 font-mono text-sm font-bold text-slate-800">
+                  {completeInfo.serials.join(", ")}
+                </p>
+              </>
+            ) : null}
           </div>
         ) : null}
       </AdminDialog>

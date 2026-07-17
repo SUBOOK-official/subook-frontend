@@ -72,6 +72,9 @@ function AdminProductMastersPage() {
   const [detailData, setDetailData] = useState(null);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [bookBusyId, setBookBusyId] = useState(null);
+  // 권별 위치/일련번호 인라인 수정 (2026-07-18 재고 실사 이관)
+  const [invEdit, setInvEdit] = useState(null);
+  const [invSaving, setInvSaving] = useState(false);
   // 수정 모달 (제목/가격/사진 — 2026-07-06 피드백)
   const [editTarget, setEditTarget] = useState(null);
   const requestIdRef = useRef(0);
@@ -296,6 +299,7 @@ function AdminProductMastersPage() {
   const openDetail = async (product) => {
     setDetailTarget(product);
     setDetailData(null);
+    setInvEdit(null);
     setIsDetailLoading(true);
     const { data, error } = await supabase.rpc("admin_get_product_inventory", {
       p_product_id: product.id,
@@ -310,6 +314,7 @@ function AdminProductMastersPage() {
   const closeDetail = () => {
     setDetailTarget(null);
     setDetailData(null);
+    setInvEdit(null);
   };
 
   const handleBookVisibility = async (book, nextValue) => {
@@ -325,6 +330,35 @@ function AdminProductMastersPage() {
     }
     showToast(nextValue ? "노출 처리되었습니다." : "노출 해제되었습니다.", "success");
     // 모달 데이터 갱신 + 목록 갱신 (재고/min/max 변동)
+    if (detailTarget) await openDetail(detailTarget);
+    await loadProducts();
+  };
+
+  // 권별 위치/일련번호 저장 — 빈 입력은 값 비우기(clear)로 처리
+  const handleInventoryMetaSave = async () => {
+    if (!invEdit) return;
+    const serialTrim = String(invEdit.serial ?? "").trim();
+    const locTrim = String(invEdit.location ?? "").trim();
+    const serialNum = serialTrim === "" ? null : Number(serialTrim);
+    if (serialTrim !== "" && (!Number.isInteger(serialNum) || serialNum <= 0)) {
+      showToast("일련번호는 1 이상의 정수여야 합니다.", "error");
+      return;
+    }
+    setInvSaving(true);
+    const { error } = await supabase.rpc("admin_update_book_inventory_meta", {
+      p_book_id: invEdit.bookId,
+      p_serial_number: serialNum,
+      p_location: locTrim || null,
+      p_clear_serial: serialTrim === "",
+      p_clear_location: locTrim === "",
+    });
+    setInvSaving(false);
+    if (error) {
+      showToast(error.message || "위치/일련번호 저장에 실패했습니다.", "error");
+      return;
+    }
+    showToast("위치/일련번호가 저장되었습니다.", "success");
+    setInvEdit(null);
     if (detailTarget) await openDetail(detailTarget);
     await loadProducts();
   };
@@ -404,7 +438,7 @@ function AdminProductMastersPage() {
               setSearch(e.target.value);
               setCurrentPage(1);
             }}
-            placeholder="상품명, 강사명, 옵션으로 검색"
+            placeholder="상품명, 강사명, 옵션, 일련번호로 검색"
             className="w-72 rounded-md border border-slate-300 px-3 py-2"
           />
           <select
@@ -581,6 +615,11 @@ function AdminProductMastersPage() {
                     <td className="px-3 py-3 text-center">
                       <span className="font-bold text-slate-900">{product.inventory_count ?? 0}</span>
                       <span className="text-xs text-slate-400"> · 노출 {product.public_count ?? 0}</span>
+                      {Array.isArray(product.locations) && product.locations.length > 0 ? (
+                        <div className="mt-0.5 font-mono text-[11px] font-semibold text-indigo-600">
+                          {product.locations.join(" · ")}
+                        </div>
+                      ) : null}
                     </td>
                     <td className="px-3 py-3 text-center">
                       <span
@@ -694,6 +733,7 @@ function AdminProductMastersPage() {
                     <tr>
                       <th className="px-3 py-2 text-left">셀러</th>
                       <th className="px-3 py-2 text-left">옵션</th>
+                      <th className="px-3 py-2 text-left">위치 · 번호</th>
                       <th className="px-3 py-2 text-left">등급</th>
                       <th className="px-3 py-2 text-right">가격</th>
                       <th className="px-3 py-2 text-center">재고 상태</th>
@@ -713,6 +753,66 @@ function AdminProductMastersPage() {
                             <span className="font-mono text-xs">{book.option}</span>
                           ) : (
                             <span className="text-slate-400">-</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2">
+                          {invEdit?.bookId === book.id ? (
+                            <div className="flex items-center gap-1">
+                              <input
+                                className="w-16 rounded border border-slate-300 px-1.5 py-1 text-xs"
+                                onChange={(e) => setInvEdit((v) => ({ ...v, location: e.target.value }))}
+                                placeholder="위치"
+                                type="text"
+                                value={invEdit.location}
+                              />
+                              <input
+                                className="w-16 rounded border border-slate-300 px-1.5 py-1 text-xs"
+                                onChange={(e) => setInvEdit((v) => ({ ...v, serial: e.target.value }))}
+                                placeholder="번호"
+                                type="number"
+                                value={invEdit.serial}
+                              />
+                              <button
+                                className="rounded bg-slate-900 px-2 py-1 text-[11px] font-bold text-white disabled:opacity-50"
+                                disabled={invSaving}
+                                onClick={handleInventoryMetaSave}
+                                type="button"
+                              >
+                                {invSaving ? "..." : "저장"}
+                              </button>
+                              <button
+                                className="text-[11px] font-semibold text-slate-400 hover:text-slate-700"
+                                onClick={() => setInvEdit(null)}
+                                type="button"
+                              >
+                                취소
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              className="group flex items-center gap-1 text-left"
+                              onClick={() =>
+                                setInvEdit({
+                                  bookId: book.id,
+                                  location: book.location ?? "",
+                                  serial: book.serial_number != null ? String(book.serial_number) : "",
+                                })
+                              }
+                              title="위치/일련번호 수정"
+                              type="button"
+                            >
+                              {book.location || book.serial_number != null ? (
+                                <span className="font-mono text-xs font-bold text-indigo-700">
+                                  {book.location ?? "미지정"}
+                                  {book.serial_number != null ? ` · No.${book.serial_number}` : ""}
+                                </span>
+                              ) : (
+                                <span className="text-xs text-slate-400">미지정</span>
+                              )}
+                              <span className="text-[10px] font-semibold text-slate-300 group-hover:text-slate-500">
+                                수정
+                              </span>
+                            </button>
                           )}
                         </td>
                         <td className="px-3 py-2 text-slate-700">

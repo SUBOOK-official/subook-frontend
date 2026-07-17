@@ -1,5 +1,6 @@
 // 재고 전수조사 엑셀 다운로드 — R2 IA 개편에서 대시보드(구 catalog 뷰)에서 이식.
-// 전체 shipments/books를 페이지 단위로 걷어 셀러·상품·가격·정산여부로 그룹핑해 XLSX 생성.
+// 2026-07-18 재고 실사 이관: 운영 구글시트("새 DB")와 동일한 1권=1행 형식으로 개편.
+//   일련번호·위치가 실물 피킹 기준이므로 그룹핑 없이 권 단위로 내려받는다.
 // 진입점: 상품 재고(AdminProductMastersPage) 헤더 액션.
 import { exportRowsToXlsx } from "./excelFile";
 import { supabase } from "@shared-supabase/adminSupabaseClient";
@@ -9,10 +10,12 @@ const BOOK_FETCH_PAGE_SIZE = 1000;
 const INVENTORY_AUDIT_FILE_NAME_PREFIX = "subook-inventory-audit";
 const INVENTORY_AUDIT_SHEET_NAME = "inventory_audit";
 const INVENTORY_AUDIT_EXPORT_HEADERS = [
+  "일련번호",
+  "위치",
   "수거신청자",
   "상품명",
-  "판매가",
   "옵션",
+  "판매가",
   "정산여부",
 ];
 
@@ -20,55 +23,21 @@ function collapseWhitespace(value) {
   return String(value ?? "").trim().replace(/\s+/g, " ");
 }
 
-function toNullableText(value) {
-  const text = collapseWhitespace(value);
-  return text === "" ? null : text;
-}
-
-function normalizeOptionalText(value) {
-  const text = toNullableText(value);
-  if (!text) {
-    return null;
-  }
-
-  return text
-    .normalize("NFKC")
-    .toLowerCase()
-    .replace(/[×✕]/g, "x")
-    .replace(/\s+/g, "");
-}
-
 function getInventoryAuditStatusLabel(status) {
   return status === "settled" ? "정산완료" : "미정산";
 }
 
-function buildInventoryAuditGroupKey(book) {
-  const hasOption = Boolean(toNullableText(book.option));
-
-  return JSON.stringify([
-    book.shipment_id ?? "",
-    normalizeOptionalText(book.title) ?? "",
-    book.price ?? "",
-    book.status ?? "",
-    hasOption ? "option-group" : `book-${book.id}`,
-  ]);
-}
-
-function formatInventoryAuditOptionText(optionValues) {
-  return optionValues
-    .map((value) => toNullableText(value))
-    .filter((value) => value !== null)
-    .join(",");
-}
-
+// 일련번호 오름차순(미지정은 뒤로) → 셀러 → 상품명 → id
 function compareInventoryAuditRows(a, b) {
+  const serialA = typeof a.serialNumber === "number" ? a.serialNumber : Number.POSITIVE_INFINITY;
+  const serialB = typeof b.serialNumber === "number" ? b.serialNumber : Number.POSITIVE_INFINITY;
+  if (serialA !== serialB) {
+    return serialA - serialB;
+  }
+
   const sellerCompare = a.sellerName.localeCompare(b.sellerName, "ko-KR");
   if (sellerCompare !== 0) {
     return sellerCompare;
-  }
-
-  if (a.shipmentId !== b.shipmentId) {
-    return a.shipmentId - b.shipmentId;
   }
 
   const titleCompare = a.title.localeCompare(b.title, "ko-KR");
@@ -76,18 +45,7 @@ function compareInventoryAuditRows(a, b) {
     return titleCompare;
   }
 
-  const priceA = typeof a.price === "number" ? a.price : -1;
-  const priceB = typeof b.price === "number" ? b.price : -1;
-  if (priceA !== priceB) {
-    return priceA - priceB;
-  }
-
-  const statusCompare = a.settlementStatus.localeCompare(b.settlementStatus, "ko-KR");
-  if (statusCompare !== 0) {
-    return statusCompare;
-  }
-
-  return a.firstBookId - b.firstBookId;
+  return a.bookId - b.bookId;
 }
 
 function getInventoryAuditFileName() {
@@ -139,7 +97,7 @@ async function fetchAllInventoryBooks() {
     const to = from + BOOK_FETCH_PAGE_SIZE - 1;
     const { data, error: booksError } = await supabase
       .from("books")
-      .select("id,shipment_id,title,option,status,price")
+      .select("id,shipment_id,title,option,status,price,serial_number,location")
       .order("id", { ascending: true })
       .range(from, to);
 
@@ -170,41 +128,35 @@ export async function downloadInventoryAuditXlsx() {
     fetchAllInventoryBooks(),
   ]);
   const shipmentMap = new Map(shipmentIndex.map((shipment) => [shipment.id, shipment]));
-  const groupedRows = new Map();
 
-  books.forEach((book) => {
-    const shipment = shipmentMap.get(book.shipment_id);
-    if (!shipment) {
-      return;
-    }
+  const exportRows = books
+    .map((book) => {
+      const shipment = shipmentMap.get(book.shipment_id);
+      if (!shipment) {
+        return null;
+      }
 
-    const groupKey = buildInventoryAuditGroupKey(book);
-    const existingRow = groupedRows.get(groupKey);
-
-    if (existingRow) {
-      existingRow.options.push(book.option);
-      return;
-    }
-
-    groupedRows.set(groupKey, {
-      shipmentId: shipment.id,
-      sellerName: collapseWhitespace(shipment.seller_name),
-      title: collapseWhitespace(book.title),
-      price: book.price,
-      options: [book.option],
-      settlementStatus: getInventoryAuditStatusLabel(book.status),
-      firstBookId: book.id,
-    });
-  });
-
-  const exportRows = [...groupedRows.values()]
+      return {
+        bookId: book.id,
+        serialNumber: book.serial_number,
+        location: collapseWhitespace(book.location),
+        sellerName: collapseWhitespace(shipment.seller_name),
+        title: collapseWhitespace(book.title),
+        option: collapseWhitespace(book.option),
+        price: book.price,
+        settlementStatus: getInventoryAuditStatusLabel(book.status),
+      };
+    })
+    .filter(Boolean)
     .sort(compareInventoryAuditRows)
     .map((row) => ({
-      [INVENTORY_AUDIT_EXPORT_HEADERS[0]]: row.sellerName,
-      [INVENTORY_AUDIT_EXPORT_HEADERS[1]]: row.title,
-      [INVENTORY_AUDIT_EXPORT_HEADERS[2]]: row.price ?? "",
-      [INVENTORY_AUDIT_EXPORT_HEADERS[3]]: formatInventoryAuditOptionText(row.options),
-      [INVENTORY_AUDIT_EXPORT_HEADERS[4]]: row.settlementStatus,
+      [INVENTORY_AUDIT_EXPORT_HEADERS[0]]: row.serialNumber ?? "",
+      [INVENTORY_AUDIT_EXPORT_HEADERS[1]]: row.location,
+      [INVENTORY_AUDIT_EXPORT_HEADERS[2]]: row.sellerName,
+      [INVENTORY_AUDIT_EXPORT_HEADERS[3]]: row.title,
+      [INVENTORY_AUDIT_EXPORT_HEADERS[4]]: row.option,
+      [INVENTORY_AUDIT_EXPORT_HEADERS[5]]: row.price ?? "",
+      [INVENTORY_AUDIT_EXPORT_HEADERS[6]]: row.settlementStatus,
     }));
 
   if (exportRows.length === 0) {
@@ -214,16 +166,23 @@ export async function downloadInventoryAuditXlsx() {
   await exportRowsToXlsx({
     rows: exportRows,
     columns: [
-      { key: INVENTORY_AUDIT_EXPORT_HEADERS[0], header: INVENTORY_AUDIT_EXPORT_HEADERS[0], width: 18 },
-      { key: INVENTORY_AUDIT_EXPORT_HEADERS[1], header: INVENTORY_AUDIT_EXPORT_HEADERS[1], width: 36 },
       {
-        key: INVENTORY_AUDIT_EXPORT_HEADERS[2],
-        header: INVENTORY_AUDIT_EXPORT_HEADERS[2],
+        key: INVENTORY_AUDIT_EXPORT_HEADERS[0],
+        header: INVENTORY_AUDIT_EXPORT_HEADERS[0],
+        type: Number,
+        width: 10,
+      },
+      { key: INVENTORY_AUDIT_EXPORT_HEADERS[1], header: INVENTORY_AUDIT_EXPORT_HEADERS[1], width: 10 },
+      { key: INVENTORY_AUDIT_EXPORT_HEADERS[2], header: INVENTORY_AUDIT_EXPORT_HEADERS[2], width: 14 },
+      { key: INVENTORY_AUDIT_EXPORT_HEADERS[3], header: INVENTORY_AUDIT_EXPORT_HEADERS[3], width: 42 },
+      { key: INVENTORY_AUDIT_EXPORT_HEADERS[4], header: INVENTORY_AUDIT_EXPORT_HEADERS[4], width: 16 },
+      {
+        key: INVENTORY_AUDIT_EXPORT_HEADERS[5],
+        header: INVENTORY_AUDIT_EXPORT_HEADERS[5],
         type: Number,
         width: 12,
       },
-      { key: INVENTORY_AUDIT_EXPORT_HEADERS[3], header: INVENTORY_AUDIT_EXPORT_HEADERS[3], width: 28 },
-      { key: INVENTORY_AUDIT_EXPORT_HEADERS[4], header: INVENTORY_AUDIT_EXPORT_HEADERS[4], width: 12 },
+      { key: INVENTORY_AUDIT_EXPORT_HEADERS[6], header: INVENTORY_AUDIT_EXPORT_HEADERS[6], width: 12 },
     ],
     fileName: getInventoryAuditFileName(),
     sheetName: INVENTORY_AUDIT_SHEET_NAME,
