@@ -273,6 +273,7 @@ function ProductMasterEditModal({ onClose, onSaved, product }) {
     const { data, error } = await supabase.rpc("admin_update_product_master", {
       p_product_id: product.id,
       p_title: trimmedTitle,
+      // 옵션 입력 UI 없음 — 프리필된 기존 값을 그대로 보내 products.option 유지
       p_option: option.trim() || null,
       p_original_price: originalPrice,
       p_cover_image_url: coverDirty ? coverUrl || null : null,
@@ -293,11 +294,6 @@ function ProductMasterEditModal({ onClose, onSaved, product }) {
   };
 
   const busy = isSaving || coverBusy || detailBusy;
-
-  // 권별 옵션 현황 — 서로 다르면 옵션 칸은 상품 공통 표기로만 저장됨 (서버 가드와 동일 규칙)
-  const distinctBookOptions = [...new Set(books.map((b) => (b.option ?? "").trim()))];
-  const optionHeterogeneous = distinctBookOptions.length > 1;
-  const namedBookOptions = distinctBookOptions.filter(Boolean);
 
   return (
     <AdminDialog
@@ -333,30 +329,8 @@ function ProductMasterEditModal({ onClose, onSaved, product }) {
                     value={title}
                   />
                 </label>
-                <label>
-                  <span className="mb-1.5 block text-xs font-semibold text-slate-600">옵션 (상품 공통 표기)</span>
-                  <input
-                    className="input-base"
-                    onChange={(event) => {
-                      setOption(event.target.value);
-                      setTouched(true);
-                    }}
-                    placeholder={optionHeterogeneous ? "권별 옵션이 달라 대개 비워둡니다" : "예: 2026, 상/하 세트"}
-                    type="text"
-                    value={option}
-                  />
-                  {optionHeterogeneous ? (
-                    <span className="mt-1 block text-[11px] leading-relaxed text-amber-700">
-                      권별 옵션이 서로 달라요 ({namedBookOptions.slice(0, 6).join(", ")}
-                      {namedBookOptions.length > 6 ? " 외" : ""}) — 저장해도 각 권의 옵션은
-                      바뀌지 않습니다. 권별 옵션은 아래 목록에서 확인하세요.
-                    </span>
-                  ) : (
-                    <span className="mt-1 block text-[11px] text-slate-400">
-                      저장 시 모든 책의 옵션에 함께 적용됩니다.
-                    </span>
-                  )}
-                </label>
+                {/* 상품 공통 옵션 입력은 제거(2026-07-19) — 옵션은 권별(books)로만 관리.
+                    저장 시에는 기존 products.option 값을 그대로 보내 유지한다. */}
                 <label>
                   <span className="mb-1.5 block text-xs font-semibold text-slate-600">
                     정가(원){originalPriceUniform ? "" : " — 권별 상이"}
@@ -564,9 +538,8 @@ function ProductMasterEditModal({ onClose, onSaved, product }) {
 
               <p className="rounded-lg bg-amber-50 px-4 py-3 text-xs text-amber-800">
                 제목·정가·대표사진·상세사진·카테고리(과목/브랜드/유형)는 이 상품의{" "}
-                <strong>모든 책</strong>에 함께 적용됩니다. 옵션은 권별 옵션이{" "}
-                <strong>모두 같을 때만</strong> 함께 바뀌고, 서로 다르면 각 권의 옵션이
-                보존됩니다. 저장 즉시 고객 사이트(검색·카테고리 필터 포함)에 반영됩니다.
+                <strong>모든 책</strong>에 함께 적용됩니다. 저장 즉시 고객 사이트
+                (검색·카테고리 필터 포함)에 반영됩니다.
               </p>
 
               <div className="flex gap-2">
