@@ -1123,11 +1123,7 @@ function AdminShipmentDetailPage() {
     fetchDetail();
   }, [parsedShipmentId]);
 
-  const performUpdateShipmentStatus = async ({
-    nextStatus,
-    successMessage,
-    skipArrivedNotification = false,
-  }) => {
+  const performUpdateShipmentStatus = async ({ nextStatus, successMessage }) => {
     if (!isSupabaseConfigured || !shipment) {
       return;
     }
@@ -1147,17 +1143,8 @@ function AdminShipmentDetailPage() {
       return;
     }
 
-    // 책 0권 상태로 검수중 전환하면 "교재 0권이 도착했습니다" 알림톡이 나가 셀러가
-    // 당황하는 사고가 있었음 — 0권이면 플래그와 무관하게 입고 알림을 보내지 않는다.
-    const skipArrived =
-      nextStatus === "inspecting" && (skipArrivedNotification || books.length === 0);
-
     setShipment((prev) => (prev ? { ...prev, status: nextStatus } : prev));
-    setNotice(
-      skipArrived
-        ? `${successMessage} 등록된 책이 0권이라 입고 알림톡은 발송되지 않았습니다.`
-        : successMessage,
-    );
+    setNotice(successMessage);
     setActionLoading(false);
 
     // 알림톡 발송 — 결과를 명시적으로 모달에 노출 (성공/실패 분리).
@@ -1165,7 +1152,7 @@ function AdminShipmentDetailPage() {
     try {
       let result = null;
       let label = "알림톡";
-      if (nextStatus === "inspecting" && !skipArrived) {
+      if (nextStatus === "inspecting") {
         label = "입고 완료 알림";
         result = await notifyArrived({ shipment: { ...shipment, book_count: books.length } });
       } else if (nextStatus === "inspected") {
@@ -1220,25 +1207,12 @@ function AdminShipmentDetailPage() {
 
   const handleUpdateShipmentStatus = ({ nextStatus, successMessage }) => {
     // 책을 등록하기 전에 검수중으로 바꾸면 입고 알림톡이 "교재 0권 도착"으로 나간다 —
-    // 상품 등록을 먼저 하도록 안내하고, 강행하면 알림톡 없이 상태만 변경한다.
+    // 전환 자체를 차단해 상품 등록 → 검수중 순서를 강제한다.
+    // (버튼도 비활성화되어 있어 평소엔 도달하지 않는 방어 코드)
     if (nextStatus === "inspecting" && books.length === 0) {
-      setDestructiveModal({
-        title: "등록된 책이 0권입니다",
-        description:
-          "검수중으로 변경하면 셀러에게 '교재 N권이 도착했습니다' 입고 알림톡이 나가는데, " +
-          "지금은 등록된 책이 없어 '0권 도착'으로 발송됩니다.\n\n" +
-          "· 권장: 취소 후 '이 고객 상품 등록하기'로 책을 먼저 등록하면 정확한 권수로 알림톡이 나갑니다.\n" +
-          "· 지금 전환하면 입고 알림톡 없이 상태만 변경됩니다.",
-        reasonRequired: false,
-        confirmLabel: "알림톡 없이 전환",
-        run: async () => {
-          await performUpdateShipmentStatus({
-            nextStatus,
-            successMessage,
-            skipArrivedNotification: true,
-          });
-        },
-      });
+      setError(
+        "등록된 책이 0권입니다. '이 고객 상품 등록하기'로 책을 먼저 등록한 뒤 검수중으로 변경하세요.",
+      );
       return;
     }
 
@@ -1670,19 +1644,27 @@ function AdminShipmentDetailPage() {
             </div>
 
             {isScheduled ? (
-              <button
-                className="btn-primary mt-2"
-                disabled={actionLoading}
-                onClick={() =>
-                  handleUpdateShipmentStatus({
-                    nextStatus: "inspecting",
-                    successMessage: "검수중 상태로 변경되었습니다.",
-                  })
-                }
-                type="button"
-              >
-                {actionLoading ? "변경 중..." : "검수중으로 변경"}
-              </button>
+              <>
+                <button
+                  className="btn-primary mt-2"
+                  disabled={actionLoading || books.length === 0}
+                  onClick={() =>
+                    handleUpdateShipmentStatus({
+                      nextStatus: "inspecting",
+                      successMessage: "검수중 상태로 변경되었습니다.",
+                    })
+                  }
+                  type="button"
+                >
+                  {actionLoading ? "변경 중..." : "검수중으로 변경"}
+                </button>
+                {books.length === 0 ? (
+                  <p className="mt-1 text-xs text-slate-500">
+                    책을 먼저 등록해야 변경할 수 있습니다 — 아래 '이 고객 상품 등록하기'로
+                    등록하면 입고 알림톡에 정확한 권수가 담깁니다.
+                  </p>
+                ) : null}
+              </>
             ) : null}
 
             {isInspecting ? (
