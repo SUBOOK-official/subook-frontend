@@ -1760,7 +1760,7 @@ function AdminShipmentDetailPage() {
                             <tr
                               className={`align-top transition hover:bg-slate-50 ${
                                 selectedBookIds.has(book.id) ? "bg-amber-50" : ""
-                              } ${isExpanded ? "bg-slate-50" : ""}`}
+                              }`}
                             >
                               <td className="px-2 py-4">
                                 <input
