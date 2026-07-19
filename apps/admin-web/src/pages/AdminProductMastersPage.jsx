@@ -7,6 +7,7 @@ import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import ProductMasterEditModal from "../components/ProductMasterEditModal";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { formatCurrency, formatDate } from "@shared-domain/format";
+import StatusBadge from "@shared-domain/StatusBadge";
 import { CloseIcon } from "../components/icons";
 import { downloadInventoryAuditXlsx } from "../lib/inventoryAuditExport";
 
@@ -721,12 +722,12 @@ function AdminProductMastersPage() {
 
             <div className="p-6">
               <h3 className="mb-3 text-sm font-bold text-slate-700">
-                인스턴스 ({detailBooks.length}권)
+                권별 현황 ({detailBooks.length}권)
               </h3>
               {isDetailLoading ? (
                 <div className="p-8 text-center text-sm text-slate-400">불러오는 중...</div>
               ) : detailBooks.length === 0 ? (
-                <div className="p-8 text-center text-sm text-slate-400">아직 검수된 인스턴스가 없습니다.</div>
+                <div className="p-8 text-center text-sm text-slate-400">아직 등록된 책이 없습니다.</div>
               ) : (
                 <table className="w-full text-sm">
                   <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500">
@@ -736,7 +737,7 @@ function AdminProductMastersPage() {
                       <th className="px-3 py-2 text-left">위치 · 번호</th>
                       <th className="px-3 py-2 text-left">등급</th>
                       <th className="px-3 py-2 text-right">가격</th>
-                      <th className="px-3 py-2 text-center">재고 상태</th>
+                      <th className="px-3 py-2 text-center">판매 상태</th>
                       <th className="px-3 py-2 text-center">노출</th>
                       <th className="px-3 py-2 text-right">검수일</th>
                     </tr>
@@ -821,7 +822,9 @@ function AdminProductMastersPage() {
                         <td className="px-3 py-2 text-right font-bold text-slate-900">
                           {book.price != null ? formatCurrency(book.price) : "-"}
                         </td>
-                        <td className="px-3 py-2 text-center text-xs text-slate-600">{book.status}</td>
+                        <td className="px-3 py-2 text-center">
+                          <StatusBadge status={book.status} />
+                        </td>
                         <td className="px-3 py-2 text-center">
                           <button
                             type="button"

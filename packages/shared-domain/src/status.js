@@ -17,9 +17,13 @@ export const pickupRequestStatusLabel = {
   cancelled: "취소",
 };
 
+// 책 상태 = 판매(재고) 축. 셀러 입금 여부는 settlements/manual_settlements가 별도로
+// 추적하므로 settled는 '정산완료'가 아니라 '판매완료'로 표기한다 (2026-07-19 용어 정리).
 export const bookStatusLabel = {
   on_sale: "판매중",
-  settled: "정산완료",
+  reserved: "주문 진행중",
+  settled: "판매완료",
+  discarded: "폐기",
 };
 
 export const productStatusLabel = {
@@ -27,7 +31,7 @@ export const productStatusLabel = {
   sold_out: "품절",
   hidden: "숨김",
   on_sale: "판매중",
-  settled: "정산완료",
+  settled: "판매완료",
 };
 
 // 2026-05-19 정책: 신규 입고는 모두 S(새 책) 등급으로 매입. 등급은 S / A+ 두 종류로 이원화.

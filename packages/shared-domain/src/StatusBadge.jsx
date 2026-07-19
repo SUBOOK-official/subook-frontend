@@ -27,7 +27,9 @@ const COLOR_MAP_BY_TYPE = {
   },
   book: {
     on_sale: "bg-emerald-100 text-emerald-800",
+    reserved: "bg-amber-100 text-amber-800",
     settled: "bg-indigo-100 text-indigo-800",
+    discarded: "bg-rose-100 text-rose-700",
   },
   product: {
     selling: "bg-emerald-100 text-emerald-800",
@@ -85,12 +87,14 @@ const DANGER_STATUSES = new Set([
   "blocked",
   "withdrawn",
   "rejected",
+  "discarded",
 ]);
 const WARN_STATUSES = new Set([
   "pending",
   "scheduled",
   "inspecting",
   "sold_out",
+  "reserved",
 ]);
 const SUCCESS_STATUSES = new Set([
   "completed",

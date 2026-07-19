@@ -16,15 +16,23 @@ const INVENTORY_AUDIT_EXPORT_HEADERS = [
   "상품명",
   "옵션",
   "판매가",
-  "정산여부",
+  "판매완료여부",
 ];
 
 function collapseWhitespace(value) {
   return String(value ?? "").trim().replace(/\s+/g, " ");
 }
 
+// 책 상태 → 운영 용어 (셀러 입금 여부는 정산 레코드가 별도 추적하므로 '판매완료'로 표기)
+const BOOK_EXPORT_STATUS_LABEL = {
+  on_sale: "재고",
+  reserved: "주문 진행중",
+  settled: "판매완료",
+  discarded: "폐기",
+};
+
 function getInventoryAuditStatusLabel(status) {
-  return status === "settled" ? "정산완료" : "미정산";
+  return BOOK_EXPORT_STATUS_LABEL[status] ?? status;
 }
 
 // 일련번호 오름차순(미지정은 뒤로) → 셀러 → 상품명 → id

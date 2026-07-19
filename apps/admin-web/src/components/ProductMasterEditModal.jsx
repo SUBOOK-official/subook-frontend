@@ -122,7 +122,7 @@ function ProductMasterEditModal({ onClose, onSaved, product }) {
       setIsLoading(false);
 
       if (error) {
-        setErrorMessage(error.message || "인스턴스 목록을 불러오지 못했습니다.");
+        setErrorMessage(error.message || "책 목록을 불러오지 못했습니다.");
         return;
       }
 
@@ -337,7 +337,7 @@ function ProductMasterEditModal({ onClose, onSaved, product }) {
                 </label>
                 <label>
                   <span className="mb-1.5 block text-xs font-semibold text-slate-600">
-                    정가(원){originalPriceUniform ? "" : " — 인스턴스별 상이"}
+                    정가(원){originalPriceUniform ? "" : " — 권별 상이"}
                   </span>
                   <input
                     className="input-base font-mono"
@@ -347,7 +347,7 @@ function ProductMasterEditModal({ onClose, onSaved, product }) {
                       setOriginalPriceDirty(true);
                       setTouched(true);
                     }}
-                    placeholder={originalPriceUniform ? "예: 32,000" : "입력 시 전체 인스턴스에 일괄 적용"}
+                    placeholder={originalPriceUniform ? "예: 32,000" : "입력 시 모든 책에 일괄 적용"}
                     type="text"
                     value={originalPriceInput}
                   />
@@ -428,7 +428,7 @@ function ProductMasterEditModal({ onClose, onSaved, product }) {
                       사진 교체
                     </FileButton>
                     <p className="text-xs text-slate-400">
-                      교체 시 이 상품의 모든 인스턴스 커버에 함께 적용됩니다.
+                      교체 시 이 상품의 모든 책 표지에 함께 적용됩니다.
                     </p>
                   </div>
                 </div>
@@ -436,11 +436,11 @@ function ProductMasterEditModal({ onClose, onSaved, product }) {
 
               <div>
                 <h3 className="mb-2 text-sm font-bold text-slate-700">
-                  인스턴스별 판매가·상세사진 ({books.length}권)
+                  권별 판매가·상세사진 ({books.length}권)
                 </h3>
                 {books.length === 0 ? (
                   <p className="rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-400">
-                    연결된 인스턴스가 없습니다. (제목/옵션/대표사진만 수정됩니다)
+                    연결된 책이 없습니다. (제목/옵션/대표사진만 수정됩니다)
                   </p>
                 ) : (
                   <div className="space-y-3">
@@ -523,7 +523,7 @@ function ProductMasterEditModal({ onClose, onSaved, product }) {
 
               <p className="rounded-lg bg-amber-50 px-4 py-3 text-xs text-amber-800">
                 제목·옵션·정가·대표사진·카테고리(과목/브랜드/유형)는 이 상품의{" "}
-                <strong>모든 인스턴스</strong>에 함께 적용됩니다. 저장 즉시 고객 사이트
+                <strong>모든 책</strong>에 함께 적용됩니다. 저장 즉시 고객 사이트
                 (검색·카테고리 필터 포함)에 반영됩니다.
               </p>
 
