@@ -3,7 +3,7 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import AdminShell from "../components/AdminShell";
 import BulkPriceDeltaModal from "../components/BulkPriceDeltaModal";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
-import InspectionImageUploader from "../components/InspectionImageUploader";
+import ProductMasterEditModal from "../components/ProductMasterEditModal";
 import { formatCurrency, formatDate } from "@shared-domain/format";
 import { bookConditionLabel, bookStatusLabel, shipmentStatusLabel } from "@shared-domain/status";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
@@ -18,18 +18,6 @@ const adminBookStatusOptions = [
   { value: "on_sale", label: bookStatusLabel.on_sale },
   { value: "settled", label: bookStatusLabel.settled },
 ];
-
-// 2026-05-19 정책: 신규 입고는 모두 S(새 책). 등급은 S / A+ 두 종류로 이원화.
-// A 등급은 신규 입력 옵션에서 제거 (기존 A 데이터는 화면에서 계속 노출, 재고 소진까지).
-const adminBookConditionOptions = [
-  { value: "", label: "등급 선택" },
-  { value: "S", label: bookConditionLabel.S },
-  { value: "A_PLUS", label: bookConditionLabel.A_PLUS },
-  { value: "DISCARD", label: bookConditionLabel.DISCARD },
-];
-
-// EBS는 브랜드로만 분류 — 유형 옵션에서 제외 (2026-07-13, public 스토어 필터와 동일 정책).
-const adminBookTypeOptions = ["기출", "모의고사", "N제", "주간지", "내신"];
 
 function toNullableText(value) {
   const text = String(value ?? "").trim();
@@ -362,234 +350,6 @@ function BookStatusEditor({
   );
 }
 
-function BookPublicStoreEditor({
-  book,
-  draft,
-  isDirty,
-  isSaving,
-  isDisabled,
-  validationMessage,
-  onChange,
-  onSave,
-  onReset,
-}) {
-  const inputClass = "input-base !mt-0 !py-2 text-sm";
-  const textareaClass = "input-base !mt-0 min-h-[96px] !py-2 text-sm";
-  const selectClass = "input-base !mt-0 !py-2 text-sm";
-  const switchId = `book-public-switch-${book.id}`;
-  const productId = normalizeOptionalInteger(draft.product_id);
-
-  return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-      <p className="mb-3 text-sm font-extrabold text-slate-800">공개 스토어 정보</p>
-      <div className="space-y-3">
-        {productId !== null || toNullableText(draft.product_title) ? (
-          <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-            <p className="label">상품 그룹</p>
-            <div className="mt-1 grid gap-1 text-sm font-semibold text-slate-700 md:grid-cols-2">
-              <span>상품 ID: {productId !== null ? productId : "미등록"}</span>
-              <span>상품명: {toNullableText(draft.product_title) || "미등록"}</span>
-            </div>
-          </div>
-        ) : null}
-
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <label className="block">
-            <span className="label">과목</span>
-            <input
-              className={inputClass}
-              disabled={isDisabled}
-              onChange={(event) => onChange("subject", event.target.value)}
-              placeholder="예: 수학"
-              type="text"
-              value={draft.subject}
-            />
-          </label>
-
-          <label className="block">
-            <span className="label">브랜드</span>
-            <input
-              className={inputClass}
-              disabled={isDisabled}
-              onChange={(event) => onChange("brand", event.target.value)}
-              placeholder="예: 시대인재"
-              type="text"
-              value={draft.brand}
-            />
-          </label>
-
-          <label className="block">
-            <span className="label">유형</span>
-            <select
-              className={selectClass}
-              disabled={isDisabled}
-              onChange={(event) => onChange("book_type", event.target.value)}
-              value={draft.book_type}
-            >
-              <option value="">유형 선택</option>
-              {adminBookTypeOptions.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="block">
-            <span className="label">연도</span>
-            <input
-              className={inputClass}
-              disabled={isDisabled}
-              onChange={(event) => onChange("published_year", event.target.value)}
-              placeholder="예: 2026"
-              type="number"
-              value={draft.published_year}
-            />
-          </label>
-
-          <label className="block">
-            <span className="label">강사명</span>
-            <input
-              className={inputClass}
-              disabled={isDisabled}
-              onChange={(event) => onChange("instructor_name", event.target.value)}
-              placeholder="예: 이지영"
-              type="text"
-              value={draft.instructor_name}
-            />
-          </label>
-
-          <label className="block">
-            <span className="label">정가</span>
-            <input
-              className={inputClass}
-              disabled={isDisabled}
-              onChange={(event) => onChange("original_price", event.target.value)}
-              placeholder="예: 18000"
-              type="number"
-              value={draft.original_price}
-            />
-          </label>
-
-          <label className="block">
-            <span className="label">상태등급</span>
-            <select
-              className={selectClass}
-              disabled={isDisabled}
-              onChange={(event) => onChange("condition_grade", event.target.value)}
-              value={draft.condition_grade}
-            >
-              {adminBookConditionOptions.map((option) => (
-                <option key={option.value || "empty"} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-        </div>
-
-        <label className="block">
-          <span className="label">표지 이미지 URL</span>
-          <input
-            className={inputClass}
-            disabled={isDisabled}
-            onChange={(event) => onChange("cover_image_url", event.target.value)}
-            placeholder="https://..."
-            type="url"
-            value={draft.cover_image_url}
-          />
-        </label>
-
-        <div className="grid gap-3 md:grid-cols-2">
-          <label className="block">
-            <span className="label">검수 사진 (업로드)</span>
-            <InspectionImageUploader
-              bookId={book.id}
-              disabled={isDisabled}
-              onUploaded={(urls) => {
-                const currentLines = String(draft.inspection_image_urls || "")
-                  .split(/\r?\n|,/)
-                  .map((l) => l.trim())
-                  .filter(Boolean);
-                const merged = [...currentLines, ...urls].join("\n");
-                onChange("inspection_image_urls", merged);
-              }}
-            />
-            <textarea
-              className={`${textareaClass} mt-2`}
-              disabled={isDisabled}
-              onChange={(event) => onChange("inspection_image_urls", event.target.value)}
-              placeholder="업로드 시 자동 추가됩니다. 직접 입력 시 한 줄에 하나씩."
-              value={draft.inspection_image_urls}
-            />
-          </label>
-
-          <label className="block">
-            <span className="label">검수 메모</span>
-            <textarea
-              className={textareaClass}
-              disabled={isDisabled}
-              onChange={(event) => onChange("inspection_notes", event.target.value)}
-              placeholder="필기 비율, 훼손 여부, 특이사항을 입력해 주세요."
-              value={draft.inspection_notes}
-            />
-          </label>
-        </div>
-
-        <div className="grid gap-3">
-          <label className="block">
-            <span className="label">공개 여부</span>
-            <div className="mt-1 flex h-[46px] items-center rounded-xl border border-slate-300 bg-white px-3">
-              <input
-                checked={Boolean(draft.is_public)}
-                disabled={isDisabled}
-                id={switchId}
-                onChange={(event) => onChange("is_public", event.target.checked)}
-                type="checkbox"
-              />
-              <label className="ml-2 text-sm font-semibold text-slate-700" htmlFor={switchId}>
-                스토어에 노출
-              </label>
-            </div>
-          </label>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 border-t border-slate-200 pt-3">
-          <button
-            className="btn-secondary !w-auto !px-3 !py-2 text-xs"
-            disabled={isDisabled || isSaving || !isDirty || Boolean(validationMessage)}
-            onClick={onSave}
-            type="button"
-          >
-            {isSaving ? "저장 중..." : "공개 정보 저장"}
-          </button>
-          {isDirty ? (
-            <button
-              className="inline-flex items-center justify-center rounded-lg px-3 py-2 text-xs font-bold text-slate-500 transition hover:bg-slate-200 hover:text-slate-700"
-              disabled={isDisabled || isSaving}
-              onClick={onReset}
-              type="button"
-            >
-              취소
-            </button>
-          ) : (
-            <span className="text-xs font-semibold text-slate-400">변경 없음</span>
-          )}
-        </div>
-
-        {validationMessage ? (
-          <p className="text-xs font-semibold text-amber-700">{validationMessage}</p>
-        ) : (
-          <p className="text-xs font-semibold text-slate-400">
-            공개 전환 시 필수 정보가 모두 입력되어야 합니다.
-          </p>
-        )}
-      </div>
-    </div>
-  );
-}
-
 function AdminShipmentDetailPage() {
   const { shipmentId } = useParams();
   // 검색어와 현재 페이지를 URL에 반영 → 뒤로가기 회복 가능.
@@ -680,7 +440,9 @@ function AdminShipmentDetailPage() {
   const [focusedBookId, setFocusedBookId] = useState(null);
   // 데스크탑 table에서 한 책의 "공개 스토어 정보"를 expand row로 펼치기 위한 state.
   // 좁은 td 안에 grid를 넣으면 1열로 stack되는 문제를 해결.
-  const [expandedBookId, setExpandedBookId] = useState(null);
+  // 공개 정보(상품 메타·사진·정가) 편집은 상품 수정 모달로 통합 (2026-07-19)
+  const [editProductTarget, setEditProductTarget] = useState(null);
+  const [openingProductEditId, setOpeningProductEditId] = useState(null);
 
   useEffect(() => {
     if (pagedBooks.length === 0) {
@@ -903,6 +665,27 @@ function AdminShipmentDetailPage() {
     return () => window.removeEventListener("keydown", handleKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pagedBooks, focusedBookId, bookPriceDrafts, bookPublicDrafts]);
+
+  // 책의 소속 상품을 불러와 상품 수정 모달을 연다 — 공개 정보 편집 대체 (2026-07-19)
+  const openProductEdit = async (book) => {
+    const productId = normalizeOptionalInteger(book.product_id);
+    if (productId === null) {
+      setError("이 책은 상품에 연결되어 있지 않아 상품 정보를 수정할 수 없습니다.");
+      return;
+    }
+    setOpeningProductEditId(book.id);
+    const { data, error: fetchError } = await supabase
+      .from("products")
+      .select("*")
+      .eq("id", productId)
+      .maybeSingle();
+    setOpeningProductEditId(null);
+    if (fetchError || !data) {
+      setError(fetchError?.message || "상품 정보를 불러오지 못했습니다.");
+      return;
+    }
+    setEditProductTarget(data);
+  };
 
   const toggleSelectBook = (id) => {
     setSelectedBookIds((current) => {
@@ -1825,29 +1608,34 @@ function AdminShipmentDetailPage() {
                         onSave={() => handleSaveBookStatus(book)}
                       />
 
-                      <BookPublicStoreEditor
-                        book={book}
-                        draft={getBookPublicDraftValue(book)}
-                        isDirty={hasBookPublicDraftChange(book)}
-                        isDisabled={isRowBusy}
-                        isSaving={updatingBookPublicId === book.id}
-                        validationMessage={getPublicStoreValidationMessage(
-                          book,
-                          getBookPublicDraftValue(book),
-                        )}
-                        onChange={(field, value) => handleBookPublicDraftChange(book, field, value)}
-                        onReset={() => resetBookPublicDraft(book.id)}
-                        onSave={() => handleSaveBookPublicDraft(book)}
-                      />
-
-                      <button
-                        className="mt-3 inline-flex rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700"
-                        disabled={isRowBusy}
-                        onClick={() => handleDeleteBook(book)}
-                        type="button"
-                      >
-                        {deletingBookId === book.id ? "삭제 중..." : "책 삭제"}
-                      </button>
+                      {/* 공개 정보(메타·사진·정가) 편집은 상품 수정 모달로 통합 (2026-07-19) */}
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <button
+                          className="inline-flex rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+                          disabled={
+                            isRowBusy ||
+                            openingProductEditId === book.id ||
+                            normalizeOptionalInteger(book.product_id) === null
+                          }
+                          onClick={() => openProductEdit(book)}
+                          title={
+                            normalizeOptionalInteger(book.product_id) === null
+                              ? "상품 미연결 — 상품 등록 후 수정할 수 있어요"
+                              : undefined
+                          }
+                          type="button"
+                        >
+                          {openingProductEditId === book.id ? "여는 중..." : "상품 정보 수정"}
+                        </button>
+                        <button
+                          className="inline-flex rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700"
+                          disabled={isRowBusy}
+                          onClick={() => handleDeleteBook(book)}
+                          type="button"
+                        >
+                          {deletingBookId === book.id ? "삭제 중..." : "책 삭제"}
+                        </button>
+                      </div>
                     </article>
                   );
                 })}
@@ -1966,8 +1754,6 @@ function AdminShipmentDetailPage() {
                           updatingBookPriceId === book.id ||
                           updatingBookStatusId === book.id ||
                           updatingBookPublicId === book.id;
-                        const isExpanded = expandedBookId === book.id;
-                        const isPublicDirty = hasBookPublicDraftChange(book);
 
                         return (
                           <Fragment key={book.id}>
@@ -2031,24 +1817,23 @@ function AdminShipmentDetailPage() {
                               </td>
                               <td className="px-4 py-4">
                                 <div className="flex flex-col gap-2">
+                                  {/* 공개 정보 편집은 상품 수정 모달로 통합 (2026-07-19) */}
                                   <button
-                                    aria-expanded={isExpanded}
-                                    className={`inline-flex items-center justify-center rounded-lg border px-3 py-2 text-xs font-bold transition ${
-                                      isExpanded
-                                        ? "border-slate-400 bg-slate-100 text-slate-800"
-                                        : isPublicDirty
-                                          ? "border-amber-400 bg-amber-50 text-amber-800 hover:bg-amber-100"
-                                          : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
-                                    }`}
-                                    disabled={isRowBusy}
-                                    onClick={() => setExpandedBookId(isExpanded ? null : book.id)}
+                                    className="inline-flex items-center justify-center whitespace-nowrap rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+                                    disabled={
+                                      isRowBusy ||
+                                      openingProductEditId === book.id ||
+                                      normalizeOptionalInteger(book.product_id) === null
+                                    }
+                                    onClick={() => openProductEdit(book)}
+                                    title={
+                                      normalizeOptionalInteger(book.product_id) === null
+                                        ? "상품 미연결 — 상품 등록 후 수정할 수 있어요"
+                                        : undefined
+                                    }
                                     type="button"
                                   >
-                                    {isExpanded
-                                      ? "공개 정보 접기 ▲"
-                                      : isPublicDirty
-                                        ? "공개 정보 편집 (수정중) ▼"
-                                        : "공개 정보 편집 ▼"}
+                                    {openingProductEditId === book.id ? "여는 중..." : "상품 정보 수정"}
                                   </button>
                                   <button
                                     className="inline-flex justify-center rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700"
@@ -2061,28 +1846,6 @@ function AdminShipmentDetailPage() {
                                 </div>
                               </td>
                             </tr>
-                            {isExpanded ? (
-                              <tr className="bg-slate-50">
-                                <td className="px-4 pb-5 pt-0" colSpan={7}>
-                                  <BookPublicStoreEditor
-                                    book={book}
-                                    draft={getBookPublicDraftValue(book)}
-                                    isDirty={isPublicDirty}
-                                    isDisabled={isRowBusy}
-                                    isSaving={updatingBookPublicId === book.id}
-                                    validationMessage={getPublicStoreValidationMessage(
-                                      book,
-                                      getBookPublicDraftValue(book),
-                                    )}
-                                    onChange={(field, value) =>
-                                      handleBookPublicDraftChange(book, field, value)
-                                    }
-                                    onReset={() => resetBookPublicDraft(book.id)}
-                                    onSave={() => handleSaveBookPublicDraft(book)}
-                                  />
-                                </td>
-                              </tr>
-                            ) : null}
                           </Fragment>
                         );
                       })}
@@ -2094,6 +1857,17 @@ function AdminShipmentDetailPage() {
           ) : null}
         </section>
       </div>
+
+      {/* 상품 정보 수정 — 상품 재고 탭과 동일한 모달 (공개 정보 편집 대체) */}
+      <ProductMasterEditModal
+        onClose={() => setEditProductTarget(null)}
+        onSaved={async () => {
+          setEditProductTarget(null);
+          setNotice("상품 정보가 수정되었습니다.");
+          await refreshBooks();
+        }}
+        product={editProductTarget}
+      />
 
       <DestructiveConfirmModal
         busy={bulkBookProcessing}

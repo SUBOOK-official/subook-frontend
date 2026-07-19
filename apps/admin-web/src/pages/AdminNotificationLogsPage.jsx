@@ -201,7 +201,7 @@ function AdminNotificationLogsPage() {
           <label className="block">
             <span className="label">유형</span>
             <select
-              className="input-base !mt-1 !w-44 !py-2 text-sm"
+              className="input-base !mt-1 !block !w-44 !py-2 text-sm"
               onChange={(event) => {
                 setCurrentPage(1);
                 setTypeFilter(event.target.value);

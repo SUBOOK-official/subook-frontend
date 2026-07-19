@@ -550,7 +550,7 @@ function AdminProductMastersPage() {
                   <th className="w-32 px-3 py-3 text-right">판매가</th>
                   <th className="w-24 px-3 py-3 text-center">재고</th>
                   <th className="w-24 px-3 py-3 text-center">상태</th>
-                  <th className="w-32 px-3 py-3 text-right">액션</th>
+                  <th className="w-44 px-3 py-3 text-right">액션</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -634,7 +634,7 @@ function AdminProductMastersPage() {
                     <td className="px-3 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1.5">
                         <button
-                          className="rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:border-slate-500 hover:bg-slate-50"
+                          className="whitespace-nowrap rounded-md border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:border-slate-500 hover:bg-slate-50"
                           onClick={() => setEditTarget(product)}
                           type="button"
                         >
