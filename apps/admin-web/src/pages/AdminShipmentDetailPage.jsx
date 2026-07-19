@@ -1123,7 +1123,11 @@ function AdminShipmentDetailPage() {
     fetchDetail();
   }, [parsedShipmentId]);
 
-  const performUpdateShipmentStatus = async ({ nextStatus, successMessage }) => {
+  const performUpdateShipmentStatus = async ({
+    nextStatus,
+    successMessage,
+    skipArrivedNotification = false,
+  }) => {
     if (!isSupabaseConfigured || !shipment) {
       return;
     }
@@ -1143,8 +1147,17 @@ function AdminShipmentDetailPage() {
       return;
     }
 
+    // 책 0권 상태로 검수중 전환하면 "교재 0권이 도착했습니다" 알림톡이 나가 셀러가
+    // 당황하는 사고가 있었음 — 0권이면 플래그와 무관하게 입고 알림을 보내지 않는다.
+    const skipArrived =
+      nextStatus === "inspecting" && (skipArrivedNotification || books.length === 0);
+
     setShipment((prev) => (prev ? { ...prev, status: nextStatus } : prev));
-    setNotice(successMessage);
+    setNotice(
+      skipArrived
+        ? `${successMessage} 등록된 책이 0권이라 입고 알림톡은 발송되지 않았습니다.`
+        : successMessage,
+    );
     setActionLoading(false);
 
     // 알림톡 발송 — 결과를 명시적으로 모달에 노출 (성공/실패 분리).
@@ -1152,7 +1165,7 @@ function AdminShipmentDetailPage() {
     try {
       let result = null;
       let label = "알림톡";
-      if (nextStatus === "inspecting") {
+      if (nextStatus === "inspecting" && !skipArrived) {
         label = "입고 완료 알림";
         result = await notifyArrived({ shipment: { ...shipment, book_count: books.length } });
       } else if (nextStatus === "inspected") {
@@ -1206,6 +1219,29 @@ function AdminShipmentDetailPage() {
   };
 
   const handleUpdateShipmentStatus = ({ nextStatus, successMessage }) => {
+    // 책을 등록하기 전에 검수중으로 바꾸면 입고 알림톡이 "교재 0권 도착"으로 나간다 —
+    // 상품 등록을 먼저 하도록 안내하고, 강행하면 알림톡 없이 상태만 변경한다.
+    if (nextStatus === "inspecting" && books.length === 0) {
+      setDestructiveModal({
+        title: "등록된 책이 0권입니다",
+        description:
+          "검수중으로 변경하면 셀러에게 '교재 N권이 도착했습니다' 입고 알림톡이 나가는데, " +
+          "지금은 등록된 책이 없어 '0권 도착'으로 발송됩니다.\n\n" +
+          "· 권장: 취소 후 '이 고객 상품 등록하기'로 책을 먼저 등록하면 정확한 권수로 알림톡이 나갑니다.\n" +
+          "· 지금 전환하면 입고 알림톡 없이 상태만 변경됩니다.",
+        reasonRequired: false,
+        confirmLabel: "알림톡 없이 전환",
+        run: async () => {
+          await performUpdateShipmentStatus({
+            nextStatus,
+            successMessage,
+            skipArrivedNotification: true,
+          });
+        },
+      });
+      return;
+    }
+
     if (nextStatus === "inspected") {
       const discardedCount = books.filter((book) => book.condition_grade === "DISCARD").length;
       const ungradedCount = books.filter(

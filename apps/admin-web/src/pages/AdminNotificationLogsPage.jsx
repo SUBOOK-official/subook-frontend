@@ -68,7 +68,21 @@ function AdminNotificationLogsPage() {
   const [toast, setToast] = useState(null);
   const [resendTarget, setResendTarget] = useState(null);
   const [isResending, setIsResending] = useState(false);
+  const [expandedIds, setExpandedIds] = useState(() => new Set());
   const requestIdRef = useRef(0);
+
+  // 발송 본문은 여러 줄이라 truncate로는 CS 확인이 안 됨 — 행 단위로 전체 내용 토글.
+  const toggleExpanded = (id) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
 
   const showToast = useCallback((message, tone = "info") => {
     setToast({ message, tone });
@@ -270,6 +284,7 @@ function AdminNotificationLogsPage() {
                     chip: "bg-slate-100 text-slate-600",
                   };
                   const isFailed = row.status === "failed";
+                  const isExpanded = expandedIds.has(row.id);
                   return (
                     <tr className={isFailed ? "bg-rose-50/60" : "hover:bg-slate-50"} key={row.id}>
                       <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-500">
@@ -297,14 +312,30 @@ function AdminNotificationLogsPage() {
                         </span>
                       </td>
                       <td className="max-w-[360px] px-4 py-3 text-xs text-slate-600">
-                        <p className="truncate" title={row.message_body}>
+                        <p
+                          className={isExpanded ? "whitespace-pre-line break-words" : "truncate"}
+                          title={isExpanded ? undefined : row.message_body}
+                        >
                           {row.message_body}
                         </p>
                         {isFailed && row.error_message ? (
-                          <p className="mt-0.5 truncate font-semibold text-rose-600" title={row.error_message}>
+                          <p
+                            className={`mt-0.5 font-semibold text-rose-600 ${
+                              isExpanded ? "whitespace-pre-line break-words" : "truncate"
+                            }`}
+                            title={isExpanded ? undefined : row.error_message}
+                          >
                             {row.error_message}
                           </p>
                         ) : null}
+                        <button
+                          aria-expanded={isExpanded}
+                          className="mt-1 text-[11px] font-bold text-slate-400 underline underline-offset-2 hover:text-slate-700"
+                          onClick={() => toggleExpanded(row.id)}
+                          type="button"
+                        >
+                          {isExpanded ? "접기" : "전체 보기"}
+                        </button>
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-right">
                         <button
