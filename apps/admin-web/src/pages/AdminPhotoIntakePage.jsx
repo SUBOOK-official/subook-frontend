@@ -598,7 +598,7 @@ function AdminPhotoIntakePage() {
     <AdminShell
       activeModule="photo-intake"
       description="스캐너 폴더를 감시해 상세사진을 상품에 바로 붙입니다 — 스캔 → Enter(저장&다음)"
-      title="사진 입고 (스캐너)"
+      title="상세 사진 촬영"
     >
       {!isSupabaseConfigured ? (
         <p className="notice-error">Supabase 환경 변수가 설정되지 않아 사용할 수 없습니다.</p>
@@ -644,7 +644,7 @@ function AdminPhotoIntakePage() {
                 jumpToSerial();
               }
             }}
-            placeholder="일련번호 점프"
+            placeholder="일련번호 검색"
             type="text"
             value={serialQuery}
           />
@@ -852,9 +852,8 @@ function AdminPhotoIntakePage() {
 
           <p className="text-xs leading-relaxed text-slate-400">
             사용법: ① 스캔 폴더 연결 → ② 큐의 현재 책을 스캐너에 올리고 스캔 (1~2장) → ③ Enter로
-            저장&다음. 순서 없이 작업할 땐 일련번호 점프를 쓰세요. 저장된 스캔 파일은 폴더 안{" "}
-            <strong>그 상품명으로 된 하위폴더</strong>로 분류 이동합니다 (상품별 원본 아카이브).
-            상세사진은 책 종류 단위라 그 상품의 모든 권에 함께 적용돼요.
+            저장&다음. 순서 없이 작업할 땐 일련번호 검색을 쓰면 됩니당구리. 저장된 스캔 파일은
+            폴더 안 그 상품명으로 된 하위폴더로 분류 이동합니다로롱!
           </p>
         </div>
       </div>
