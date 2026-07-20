@@ -65,6 +65,8 @@ function blankNewRow(location = "") {
     coverBusy: false,
     detailUrls: [],
     detailBusy: false,
+    // 신규 교재는 생사진을 올리는 경우가 대부분 → 표지 AI 자동 변환 기본 켜짐
+    coverAutoStudio: true,
   };
 }
 
@@ -261,8 +263,6 @@ function AdminProductRegisterPage() {
   const [batchLocation, setBatchLocation] = useState("");
   // 시작 일련번호 — 운영자가 정하면 등록 순서대로 start, start+1, ... 순차 배정
   const [serialStart, setSerialStart] = useState("");
-  // 표지 업로드 시 사진 스튜디오(AI) 자동 변환
-  const [autoStudioCover, setAutoStudioCover] = useState(true);
 
   // 완료/공개
   const [publishOnComplete, setPublishOnComplete] = useState(true);
@@ -482,6 +482,7 @@ function AdminProductRegisterPage() {
       return;
     }
     setExistingAdditions((prev) => {
+      const prevAddition = prev.find((a) => a.product.id === fp.product.id);
       const others = prev.filter((a) => a.product.id !== fp.product.id);
       return [
         ...others,
@@ -490,10 +491,13 @@ function AdminProductRegisterPage() {
           product: fp.product,
           options,
           location: (fp.location ?? "").trim(),
-          coverUrl: fp.product.cover_image_url || "",
+          // 목록 수정 후 재확정해도 사진 단계에서 올린 사진·토글 상태는 유지
+          coverUrl: prevAddition?.coverUrl ?? (fp.product.cover_image_url || ""),
           coverBusy: false,
-          detailUrls: [],
+          detailUrls: prevAddition?.detailUrls ?? [],
           detailBusy: false,
+          // 기존 교재는 변환된 표지를 이미 갖고 있는 경우가 대부분 → AI 자동 변환 기본 꺼짐
+          coverAutoStudio: prevAddition?.coverAutoStudio ?? false,
         },
       ];
     });
@@ -508,12 +512,13 @@ function AdminProductRegisterPage() {
     kind === "new" ? patchRow(uid, { [field]: busy }) : patchAddition(uid, { [field]: busy });
 
   const uploadCover = async (kind, uid, file) => {
+    // 항목별 토글 — 신규/기존이 섞인 배치에서 어떤 표지는 AI 변환, 어떤 표지는 원본 그대로.
+    const list = kind === "new" ? newRows : existingAdditions;
+    const autoStudio = list.find((x) => x.uid === uid)?.coverAutoStudio === true;
     setItemBusy(kind, uid, "coverBusy", true);
     try {
       let uploadFile = file;
-      // 표지는 사진 스튜디오(AI) 변환을 자동으로 거친 뒤 업로드한다.
-      // 이미 변환된 이미지를 올릴 때는 토글을 끄면 원본 그대로 업로드.
-      if (autoStudioCover) {
+      if (autoStudio) {
         const { data: sessionData } = await supabase.auth.getSession();
         const accessToken = sessionData?.session?.access_token || "";
         if (!accessToken) {
@@ -530,8 +535,8 @@ function AdminProductRegisterPage() {
       }
     } catch (err) {
       showToast(
-        autoStudioCover
-          ? `AI 표지 변환 실패: ${err?.message || "알 수 없는 오류"} — 다시 시도하거나, AI 변환을 끄고 원본을 올려주세요.`
+        autoStudio
+          ? `AI 표지 변환 실패: ${err?.message || "알 수 없는 오류"} — 다시 시도하거나, 이 항목의 AI 변환을 끄고 원본을 올려주세요.`
           : err?.message || "표지 업로드 실패",
         "error",
       );
@@ -605,6 +610,7 @@ function AdminProductRegisterPage() {
         coverBusy: r.coverBusy,
         detailUrls: r.detailUrls || [],
         detailBusy: r.detailBusy,
+        coverAutoStudio: r.coverAutoStudio === true,
       })),
       ...existingAdditions.map((a) => ({
         kind: "existing",
@@ -615,6 +621,7 @@ function AdminProductRegisterPage() {
         coverBusy: a.coverBusy,
         detailUrls: a.detailUrls || [],
         detailBusy: a.detailBusy,
+        coverAutoStudio: a.coverAutoStudio === true,
       })),
     ],
     [newProductsForSubmit, existingAdditions],
@@ -1158,22 +1165,10 @@ function AdminProductRegisterPage() {
               <p className="text-sm text-slate-500">표지 사진 1장 + 상세페이지 사진 최대 {MAX_DETAIL_PHOTOS}장 (선택 사항)</p>
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-indigo-50 px-4 py-2">
-              <p className="text-xs font-semibold text-indigo-700">
-                표지 사진은 올리는 순간 사진 스튜디오(AI) 변환을 자동으로 거쳐 등록됩니다. 빈칸 클릭 또는
-                드래그&드롭.
-              </p>
-              <label className="flex items-center gap-2 text-xs font-bold text-indigo-800">
-                <input
-                  type="checkbox"
-                  checked={autoStudioCover}
-                  onChange={(e) => setAutoStudioCover(e.target.checked)}
-                  className="h-3.5 w-3.5"
-                />
-                표지 AI 자동 변환
-                <span className="font-semibold text-indigo-500">(이미 변환된 사진이면 끄기)</span>
-              </label>
-            </div>
+            <p className="rounded-lg bg-indigo-50 px-4 py-2 text-xs font-semibold text-indigo-700">
+              교재별 <strong>AI 자동 변환</strong>이 켜진 표지는 올리는 순간 사진 스튜디오 변환을 거쳐
+              등록됩니다. 신규 교재는 기본 켜짐 · 기존 교재는 기본 꺼짐 — 이미 변환된 사진을 올릴 땐 꺼주세요.
+            </p>
 
             <div className="space-y-4">
               {photoTargets.map((t) => (
@@ -1188,7 +1183,23 @@ function AdminProductRegisterPage() {
                   <div className="grid gap-5 md:grid-cols-2">
                     {/* 표지 */}
                     <div>
-                      <p className="mb-2 text-xs font-bold text-slate-700">표지 사진</p>
+                      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-xs font-bold text-slate-700">표지 사진</p>
+                        {/* 항목별 AI 변환 토글 — 신규(생사진)와 기존(변환 완료본)이 섞여도 개별 제어 */}
+                        <label className="flex items-center gap-1.5 text-[11px] font-bold text-indigo-700">
+                          <input
+                            type="checkbox"
+                            checked={t.coverAutoStudio}
+                            onChange={(e) =>
+                              t.kind === "new"
+                                ? patchRow(t.uid, { coverAutoStudio: e.target.checked })
+                                : patchAddition(t.uid, { coverAutoStudio: e.target.checked })
+                            }
+                            className="h-3.5 w-3.5"
+                          />
+                          AI 자동 변환
+                        </label>
+                      </div>
                       {t.coverUrl ? (
                         <div className="relative h-32 w-32 overflow-hidden rounded-lg border border-slate-200">
                           {/* eslint-disable-next-line jsx-a11y/img-redundant-alt */}
@@ -1209,7 +1220,7 @@ function AdminProductRegisterPage() {
                         >
                           <span className="text-2xl leading-none"><PlusIcon size={22} /></span>
                           <span className="mt-1 text-[10px]">
-                            {t.coverBusy ? (autoStudioCover ? "AI 변환 중..." : "업로드 중...") : "표지 추가"}
+                            {t.coverBusy ? (t.coverAutoStudio ? "AI 변환 중..." : "업로드 중...") : "표지 추가"}
                           </span>
                         </DropBox>
                       )}
