@@ -117,6 +117,8 @@ function AdminPhotoIntakePage() {
   const [lastAction, setLastAction] = useState(null); // { productId, title, prevImagesByBook, fileNames }
   const [toast, setToast] = useState(null);
   const [serialQuery, setSerialQuery] = useState("");
+  // 스캔 확대 미리보기 (썸네일에선 과목명 등 작은 글씨 확인이 어려움 — 2026-07-20 현장 피드백)
+  const [previewScan, setPreviewScan] = useState(null);
 
   const showToast = useCallback((message, tone = "info") => {
     setToast({ message, tone });
@@ -573,6 +575,14 @@ function AdminPhotoIntakePage() {
       const target = event.target;
       const tag = target instanceof HTMLElement ? target.tagName : "";
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      // 미리보기가 열려 있으면 어떤 키든 닫기만 한다 (Enter가 저장으로 새지 않게)
+      if (previewScan) {
+        if (event.key === "Escape" || event.key === "Enter") {
+          event.preventDefault();
+          setPreviewScan(null);
+        }
+        return;
+      }
       if (event.key === "Enter") {
         event.preventDefault();
         void saveCurrent();
@@ -586,7 +596,7 @@ function AdminPhotoIntakePage() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [saveCurrent, goToOffset]);
+  }, [saveCurrent, goToOffset, previewScan]);
 
   const missingCount = useMemo(
     () => products.filter((p) => !p.hasDetail && p.status === "selling" && p.onSaleCount > 0).length,
@@ -750,11 +760,19 @@ function AdminPhotoIntakePage() {
                     const scan = staged[slot];
                     return scan ? (
                       <div className="relative h-40 w-32" key={scan.name}>
-                        <img
-                          alt={`스캔 ${slot + 1}`}
-                          className="h-full w-full rounded-lg border border-slate-200 object-cover"
-                          src={scan.url}
-                        />
+                        <button
+                          aria-label="스캔 크게 보기"
+                          className="block h-full w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-50"
+                          onClick={() => setPreviewScan(scan)}
+                          title="클릭하면 크게 보여요"
+                          type="button"
+                        >
+                          <img
+                            alt={`스캔 ${slot + 1}`}
+                            className="h-full w-full object-contain"
+                            src={scan.url}
+                          />
+                        </button>
                         <button
                           aria-label="이 스캔을 트레이로 빼기"
                           className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-white hover:bg-rose-600"
@@ -828,12 +846,12 @@ function AdminPhotoIntakePage() {
                 {tray.map((scan) => (
                   <div className="relative" key={scan.name}>
                     <button
-                      className="block h-28 w-24 overflow-hidden rounded-lg border border-slate-200 transition hover:ring-2 hover:ring-indigo-400"
+                      className="block h-36 w-28 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 transition hover:ring-2 hover:ring-indigo-400"
                       onClick={() => assignFromTray(scan.name)}
                       title={`${scan.name} — 현재 상품에 추가`}
                       type="button"
                     >
-                      <img alt={scan.name} className="h-full w-full object-cover" src={scan.url} />
+                      <img alt={scan.name} className="h-full w-full object-contain" src={scan.url} />
                     </button>
                     <button
                       aria-label="스캔 삭제"
@@ -843,6 +861,15 @@ function AdminPhotoIntakePage() {
                       type="button"
                     >
                       <CloseIcon size={11} />
+                    </button>
+                    <button
+                      aria-label="스캔 크게 보기"
+                      className="absolute bottom-1 right-1 flex h-6 w-6 items-center justify-center rounded-full bg-slate-900/75 text-white hover:bg-indigo-600"
+                      onClick={() => setPreviewScan(scan)}
+                      title="크게 보기"
+                      type="button"
+                    >
+                      <SearchIcon size={12} />
                     </button>
                   </div>
                 ))}
@@ -857,6 +884,26 @@ function AdminPhotoIntakePage() {
           </p>
         </div>
       </div>
+
+      {/* 스캔 확대 미리보기 — 클릭/Esc/Enter로 닫기 */}
+      {previewScan ? (
+        <div
+          aria-label="스캔 미리보기 닫기"
+          className="fixed inset-0 z-[60] flex cursor-zoom-out items-center justify-center bg-slate-950/80 p-6"
+          onClick={() => setPreviewScan(null)}
+          role="button"
+          tabIndex={-1}
+        >
+          <img
+            alt={previewScan.name}
+            className="max-h-[88vh] max-w-[92vw] rounded-lg bg-white object-contain shadow-2xl"
+            src={previewScan.url}
+          />
+          <p className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-slate-900/80 px-4 py-1.5 text-xs font-bold text-white">
+            {previewScan.name} — 클릭하거나 Esc로 닫기
+          </p>
+        </div>
+      ) : null}
 
       {toast ? (
         <div
