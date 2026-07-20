@@ -185,7 +185,6 @@ function PublicNotificationsPage() {
         </ContentContainer>
 
         <ContentContainer as="section" className="public-faq-hero" aria-label="페이지 안내">
-          <p className="public-faq-hero__eyebrow">내 활동</p>
           <h1 className="public-faq-hero__title">알림함</h1>
           <p className="public-faq-hero__subtitle">
             주문/검수/정산/재입고 등 활동 알림을 한 곳에서 확인하세요.

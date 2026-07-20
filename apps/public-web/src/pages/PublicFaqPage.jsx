@@ -237,7 +237,6 @@ function PublicFaqPage() {
       </ContentContainer>
 
       <ContentContainer as="section" className="public-faq-hero" aria-label="페이지 안내">
-        <p className="public-faq-hero__eyebrow">도움말</p>
         <h1 className="public-faq-hero__title">자주 묻는 질문</h1>
         <p className="public-faq-hero__subtitle">
           수북 이용 전후 가장 많이 받는 질문을 모았어요.

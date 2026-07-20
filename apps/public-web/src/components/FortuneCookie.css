@@ -133,7 +133,7 @@
 
 .fc-modal__label {
   margin: 0 0 12px;
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 700;
   letter-spacing: 0.06em;
   color: var(--public-text-muted, #6e6e73);
@@ -155,25 +155,8 @@
   color: var(--public-text-muted, #6e6e73);
 }
 
-.fc-modal__done {
-  margin-top: 20px;
-  width: 100%;
-  min-height: 48px;
-  border: 0;
-  border-radius: var(--public-radius-lg, 12px);
-  background: var(--public-primary, #080f47);
-  color: #ffffff;
-  font-size: 15px;
-  font-weight: 700;
-}
-
-.fc-modal__done:hover,
-.fc-modal__done:focus-visible {
-  background: #050933;
-}
-
 .fc-modal__optout {
-  margin-top: 12px;
+  margin-top: 20px;
   border: 0;
   padding: 4px 8px;
   background: transparent;

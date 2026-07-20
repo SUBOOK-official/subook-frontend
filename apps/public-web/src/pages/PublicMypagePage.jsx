@@ -2811,17 +2811,6 @@ function SettlementsTab({ completedSettlements, onRequestPickup, scheduledSettle
           ]}
         />
 
-        <div className="public-mypage-settlement-summary">
-          <div className="public-mypage-settlement-summary__item">
-            <span>이번 달 정산</span>
-            <strong>{formatCurrency(settlementMetrics.currentMonthAmount)}</strong>
-          </div>
-          <div className="public-mypage-settlement-summary__item">
-            <span>총 누적 정산</span>
-            <strong>{formatCurrency(settlementMetrics.totalAmount)}</strong>
-          </div>
-        </div>
-
         <div className="public-mypage-settlement-list">
           {completedSettlements.map((settlement) => (
             <SettlementCard key={settlement.id} settlement={settlement} status="completed" />

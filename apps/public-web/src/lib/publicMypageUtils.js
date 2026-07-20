@@ -107,15 +107,9 @@ export function findSidebarItem(key) {
 }
 
 // 첫 진입 시 어떤 탭을 보여줄지 결정.
-// 변경(2026-05-25): 신규 회원(둘 다 0건)은 "sales"로 보낸다. 인스타 광고 등 셀러 진입 경로가 핵심이고,
-//   "구매 내역 없음" 화면이 첫 인상이면 셀러 의도와 정반대로 보여 이탈 위험이 크다.
-//   기존 구매자 동선은 orders 1건이라도 있으면 그대로 purchases로 유지.
-export function getDefaultTabForMember(snapshot = {}) {
-  const shipments = Array.isArray(snapshot.shipments) ? snapshot.shipments : [];
-  const orders = Array.isArray(snapshot.orders) ? snapshot.orders : [];
-  if (shipments.length > 0) return "sales";
-  if (orders.length > 0) return "purchases";
-  return "sales";
+// 변경(2026-07-20): 웹·모바일 공통으로 항상 "구매 내역"을 기본 노출한다.
+export function getDefaultTabForMember() {
+  return "purchases";
 }
 
 export const SALES_STATUS_FILTERS = [

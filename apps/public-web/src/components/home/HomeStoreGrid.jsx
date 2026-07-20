@@ -558,7 +558,6 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
             {filterGroupsJsx}
             {selectedSummaryChips.length > 0 ? (
               <div className="public-home-store-grid__sidebar-selected">
-                <h3 className="public-home-store-grid__sidebar-label">선택한 항목</h3>
                 <ul className="public-home-store-grid__selected-chips" role="list">
                   {selectedSummaryChips.map((chip) => (
                     <li key={chip.key}>
