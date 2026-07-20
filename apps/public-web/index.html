@@ -11,6 +11,8 @@
       name="description"
       content="안 쓴 수능 교재를 합리적인 가격에 판매하고, 검수된 새 책 수준의 교재를 알맞게 구매하세요. 수거부터 검수, 정산까지 한 번에."
     />
+    <!-- 도메인 전환(식스샵→신규) SEO: 정식 도메인 기준 canonical — temp 도메인 중복 색인 방지 -->
+    <link rel="canonical" href="https://subook.kr/" />
 
     <!-- Open Graph (카카오톡 / 페이스북 등 미리보기) -->
     <meta property="og:type" content="website" />
@@ -67,9 +69,38 @@
         }
       }
     </script>
+    <!-- WebSite 구조화 데이터 — '수북' 브랜드 검색어와 사이트 연관 강화 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "수북",
+        "alternateName": ["SUBOOK", "수북 SUBOOK"],
+        "url": "https://subook.kr"
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
+    <!-- JS 미실행 크롤러(특히 네이버 Yeti) 폴백 — SPA 빈 화면 방지용 정적 브랜드 콘텐츠 -->
+    <noscript>
+      <main>
+        <h1>수북 SUBOOK — 수능 교재 위탁판매 플랫폼</h1>
+        <p>
+          수북(SUBOOK)은 수험생을 위한 수능 교재 위탁판매 플랫폼입니다. 안 쓴 수능
+          교재를 무료 방문 수거로 보내면 전문 검수를 거쳐 판매하고, 판매된 금액은
+          매월 정산해 드립니다. 검수를 통과한 새 책 수준의 수능특강·수능완성·기출
+          문제집 등 수능 교재를 합리적인 가격에 구매할 수도 있습니다.
+        </p>
+        <ul>
+          <li><a href="/store">교재 스토어 — 검수된 수능 교재 구매</a></li>
+          <li><a href="/pickup/new">수거 신청 — 안 쓴 교재 판매하기</a></li>
+          <li><a href="/faq">자주 묻는 질문</a></li>
+          <li><a href="/notices">공지사항</a></li>
+        </ul>
+        <p>이 사이트는 JavaScript가 필요한 서비스입니다. 브라우저에서 JavaScript를 활성화해 주세요.</p>
+      </main>
+    </noscript>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
