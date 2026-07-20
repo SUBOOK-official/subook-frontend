@@ -11,6 +11,7 @@ import {
   CoinIcon,
   FolderIcon,
   HelpCircleIcon,
+  InboxIcon,
   MegaphoneIcon,
   PlusIcon,
   TicketIcon,
@@ -37,6 +38,7 @@ export const adminNavigationGroups = [
       { key: "pickups", label: "수거·검수", to: "/admin/pickups", icon: BoxIcon },
       { key: "register", label: "상품 등록", to: "/admin/register", icon: PlusIcon },
       { key: "products", label: "상품 재고", to: "/admin/products", icon: FolderIcon },
+      { key: "photo-intake", label: "사진 입고 (스캐너)", to: "/admin/photo-intake", icon: InboxIcon },
     ],
   },
   {
@@ -110,6 +112,10 @@ export function resolveActiveAdminModule({ pathname, explicitModule }) {
 
   if (pathname.startsWith("/admin/register")) {
     return "register";
+  }
+
+  if (pathname.startsWith("/admin/photo-intake")) {
+    return "photo-intake";
   }
 
   if (pathname.startsWith("/admin/products")) {
