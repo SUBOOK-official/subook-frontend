@@ -9,13 +9,14 @@ const SHIPMENT_INDEX_PAGE_SIZE = 1000;
 const BOOK_FETCH_PAGE_SIZE = 1000;
 const INVENTORY_AUDIT_FILE_NAME_PREFIX = "subook-inventory-audit";
 const INVENTORY_AUDIT_SHEET_NAME = "inventory_audit";
+// 운영 구글시트 "새 DB(3/30~)" 탭과 동일한 열 순서 (2026-07-20: 판매가·옵션 순서 교정)
 const INVENTORY_AUDIT_EXPORT_HEADERS = [
   "일련번호",
   "위치",
   "수거신청자",
   "상품명",
-  "옵션",
   "판매가",
+  "옵션",
   "판매완료여부",
 ];
 
@@ -162,8 +163,8 @@ export async function downloadInventoryAuditXlsx() {
       [INVENTORY_AUDIT_EXPORT_HEADERS[1]]: row.location,
       [INVENTORY_AUDIT_EXPORT_HEADERS[2]]: row.sellerName,
       [INVENTORY_AUDIT_EXPORT_HEADERS[3]]: row.title,
-      [INVENTORY_AUDIT_EXPORT_HEADERS[4]]: row.option,
-      [INVENTORY_AUDIT_EXPORT_HEADERS[5]]: row.price ?? "",
+      [INVENTORY_AUDIT_EXPORT_HEADERS[4]]: row.price ?? "",
+      [INVENTORY_AUDIT_EXPORT_HEADERS[5]]: row.option,
       [INVENTORY_AUDIT_EXPORT_HEADERS[6]]: row.settlementStatus,
     }));
 
@@ -183,13 +184,13 @@ export async function downloadInventoryAuditXlsx() {
       { key: INVENTORY_AUDIT_EXPORT_HEADERS[1], header: INVENTORY_AUDIT_EXPORT_HEADERS[1], width: 10 },
       { key: INVENTORY_AUDIT_EXPORT_HEADERS[2], header: INVENTORY_AUDIT_EXPORT_HEADERS[2], width: 14 },
       { key: INVENTORY_AUDIT_EXPORT_HEADERS[3], header: INVENTORY_AUDIT_EXPORT_HEADERS[3], width: 42 },
-      { key: INVENTORY_AUDIT_EXPORT_HEADERS[4], header: INVENTORY_AUDIT_EXPORT_HEADERS[4], width: 16 },
       {
-        key: INVENTORY_AUDIT_EXPORT_HEADERS[5],
-        header: INVENTORY_AUDIT_EXPORT_HEADERS[5],
+        key: INVENTORY_AUDIT_EXPORT_HEADERS[4],
+        header: INVENTORY_AUDIT_EXPORT_HEADERS[4],
         type: Number,
         width: 12,
       },
+      { key: INVENTORY_AUDIT_EXPORT_HEADERS[5], header: INVENTORY_AUDIT_EXPORT_HEADERS[5], width: 16 },
       { key: INVENTORY_AUDIT_EXPORT_HEADERS[6], header: INVENTORY_AUDIT_EXPORT_HEADERS[6], width: 12 },
     ],
     fileName: getInventoryAuditFileName(),

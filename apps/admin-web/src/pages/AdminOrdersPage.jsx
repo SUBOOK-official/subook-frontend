@@ -16,6 +16,7 @@ import {
 } from "../lib/adminNotification";
 import { CjWaybillFormPrintModal } from "../components/CjWaybillFormLabel";
 import { AlertTriangleIcon, CheckIcon } from "../components/icons";
+import { downloadSalesSheetXlsx } from "../lib/salesSheetExport";
 
 const PAGE_SIZE = 30;
 
@@ -214,6 +215,9 @@ function AdminOrdersPage() {
   // 비가역 작업 확인 모달 (환불)
   const [destructiveModal, setDestructiveModal] = useState(null);
 
+  // 판매내역 엑셀 (운영 구글시트 판매내역 탭과 동일 양식) 생성 중 여부
+  const [isSalesExporting, setIsSalesExporting] = useState(false);
+
   // CJ 송장 출력 라벨 모달 데이터 (cj-delivery 응답의 단건 result)
   const [labelData, setLabelData] = useState(null);
 
@@ -361,6 +365,28 @@ function AdminOrdersPage() {
       setSummary(data);
     }
   }, []);
+
+  // 판매내역 엑셀 — 운영 구글시트(식스샵 양식)와 같은 열 구조, 현재 필터 그대로 반영
+  const handleSalesExport = async () => {
+    if (isSalesExporting) return;
+    setIsSalesExporting(true);
+    try {
+      const { rowCount } = await downloadSalesSheetXlsx({
+        search: search.trim() || undefined,
+        statuses: statusFilters.length > 0 ? statusFilters : undefined,
+        fromDate: fromDate || undefined,
+        toDate: toDate || undefined,
+      });
+      showToast(`판매내역 ${rowCount.toLocaleString("ko-KR")}행 엑셀을 다운로드했습니다.`, "success");
+    } catch (exportError) {
+      showToast(
+        exportError instanceof Error ? exportError.message : "판매내역 엑셀 생성에 실패했습니다.",
+        "error",
+      );
+    } finally {
+      setIsSalesExporting(false);
+    }
+  };
 
   useEffect(() => {
     const timerId = setTimeout(() => {
@@ -891,6 +917,18 @@ function AdminOrdersPage() {
                 {preset.label}
               </button>
             ))}
+          </div>
+          {/* 판매내역 엑셀 — 운영 구글시트 "판매내역" 탭과 동일 열 구조 (현재 필터 반영) */}
+          <div className="ml-auto pb-1">
+            <button
+              className="btn-secondary !w-auto !px-4 !py-2 text-sm"
+              disabled={isSalesExporting}
+              onClick={handleSalesExport}
+              title="현재 검색·상태·기간 필터 그대로, 운영 구글시트(판매내역 탭) 양식으로 다운로드"
+              type="button"
+            >
+              {isSalesExporting ? "생성 중..." : "판매내역 엑셀"}
+            </button>
           </div>
         </div>
 
