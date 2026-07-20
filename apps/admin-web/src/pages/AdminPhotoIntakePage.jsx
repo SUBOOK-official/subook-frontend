@@ -19,7 +19,18 @@ import { CheckCircleIcon, CloseIcon, InboxIcon, SearchIcon } from "../components
 const SCAN_EXTENSIONS = [".png", ".jpg", ".jpeg", ".webp"];
 const POLL_INTERVAL_MS = 1500;
 const RESIZE_MAX_EDGE = 1600;
-const DONE_DIR_NAME = "완료";
+
+// 상품명 → Windows에서 유효한 폴더명 (금지문자 치환, 끝의 점 제거, 길이 제한)
+function sanitizeFolderName(title) {
+  const cleaned = String(title || "")
+    .replace(/[\\/:*?"<>|]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\.+$/, "")
+    .slice(0, 80)
+    .trim();
+  return cleaned || "무제";
+}
 
 const locationCollator = new Intl.Collator("ko", { numeric: true, sensitivity: "base" });
 
@@ -300,21 +311,27 @@ function AdminPhotoIntakePage() {
     saveProcessedNames(dirHandleRef.current?.name, processedRef.current);
   }, []);
 
-  const moveToDone = useCallback(
-    async (name) => {
+  // 저장된 스캔은 그 책 종류(상품명) 폴더로 분류 이동 — 상품별 원본 아카이브 (2026-07-20 피드백)
+  const moveToProductFolder = useCallback(
+    async (name, productTitle) => {
       const dir = dirHandleRef.current;
       markProcessed(name);
       if (!dir) return;
       try {
         const fileHandle = await dir.getFileHandle(name);
-        const doneDir = await dir.getDirectoryHandle(DONE_DIR_NAME, { create: true });
+        const folder = await dir.getDirectoryHandle(sanitizeFolderName(productTitle), {
+          create: true,
+        });
         if (typeof fileHandle.move === "function") {
-          await fileHandle.move(doneDir, name);
-          return;
+          try {
+            await fileHandle.move(folder, name);
+            return;
+          } catch {
+            // 동명 파일 존재 등 — 아래 복사 폴백으로 덮어쓰기
+          }
         }
-        // move 미지원 브라우저 폴백: 복사 후 원본 삭제
         const file = await fileHandle.getFile();
-        const target = await doneDir.getFileHandle(name, { create: true });
+        const target = await folder.getFileHandle(name, { create: true });
         const writable = await target.createWritable();
         await writable.write(file);
         await writable.close();
@@ -469,7 +486,7 @@ function AdminPhotoIntakePage() {
     });
     for (const name of fileNames) {
       // eslint-disable-next-line no-await-in-loop
-      await moveToDone(name);
+      await moveToProductFolder(name, current.title);
     }
 
     // 로컬 상태 갱신 — 재조회 없이 큐에서 빠지도록
@@ -491,7 +508,7 @@ function AdminPhotoIntakePage() {
     showToast(`"${current.title}" 상세사진 ${urls.length}장 저장 완료`, "success");
     // 큐 모드: 저장한 상품이 필터에서 빠지므로 자연스럽게 다음 항목이 current가 된다
     setCurrentId(null);
-  }, [current, staged, isSaving, moveToDone, showToast]);
+  }, [current, staged, isSaving, moveToProductFolder, showToast]);
 
   const undoLast = async () => {
     if (!lastAction || isSaving) return;
@@ -527,7 +544,7 @@ function AdminPhotoIntakePage() {
     setCurrentId(lastAction.productId);
     setSavedCount((n) => Math.max(0, n - 1));
     showToast(
-      "마지막 저장을 되돌렸습니다. (스캔 파일은 완료 폴더에 그대로 있어요)",
+      "마지막 저장을 되돌렸습니다. (스캔 파일은 상품명 폴더에 그대로 있어요)",
       "info",
     );
     setLastAction(null);
@@ -835,9 +852,9 @@ function AdminPhotoIntakePage() {
 
           <p className="text-xs leading-relaxed text-slate-400">
             사용법: ① 스캔 폴더 연결 → ② 큐의 현재 책을 스캐너에 올리고 스캔 (1~2장) → ③ Enter로
-            저장&다음. 순서 없이 작업할 땐 일련번호 점프를 쓰세요. 저장된 스캔 파일은 폴더 안 "
-            {DONE_DIR_NAME}" 하위폴더로 이동합니다. 상세사진은 책 종류 단위라 그 상품의 모든 권에
-            함께 적용돼요.
+            저장&다음. 순서 없이 작업할 땐 일련번호 점프를 쓰세요. 저장된 스캔 파일은 폴더 안{" "}
+            <strong>그 상품명으로 된 하위폴더</strong>로 분류 이동합니다 (상품별 원본 아카이브).
+            상세사진은 책 종류 단위라 그 상품의 모든 권에 함께 적용돼요.
           </p>
         </div>
       </div>
