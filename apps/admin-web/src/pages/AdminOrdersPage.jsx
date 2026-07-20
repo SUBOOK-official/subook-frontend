@@ -14,7 +14,7 @@ import {
   notifyRefundCompleted,
   notifyShippingStarted,
 } from "../lib/adminNotification";
-import CjWaybillLabelModal from "../components/CjWaybillLabel";
+import { CjWaybillFormPrintModal } from "../components/CjWaybillFormLabel";
 import { AlertTriangleIcon, CheckIcon } from "../components/icons";
 
 const PAGE_SIZE = 30;
@@ -1801,7 +1801,7 @@ function AdminOrdersPage() {
         title={destructiveModal?.title ?? ""}
       />
 
-      <CjWaybillLabelModal
+      <CjWaybillFormPrintModal
         data={labelData}
         onClose={() => setLabelData(null)}
         open={!!labelData}

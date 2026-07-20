@@ -96,6 +96,70 @@ function formatWaybill(no) {
   return String(no ?? "");
 }
 
+// 주문관리 '송장 출력' 인쇄 모달 — CJ 지급 양식(96×120 롤, PS70 회전 급지) 전용.
+// 1건=1문서 원칙(크롬 다건 인쇄 축소 버그 회피). 인쇄 CSS는 label-preview 하네스에서
+// 실물 4회 검증된 것과 동일 (@page 96×120·회전·데이터만).
+export function CjWaybillFormPrintModal({ open, data, onClose }) {
+  if (!open || !data) return null;
+  const offsetX = Number(import.meta.env.VITE_CJ_PRINT_OFFSET_X ?? 2.6); // PS70 실측 캘리브레이션
+  const offsetY = Number(import.meta.env.VITE_CJ_PRINT_OFFSET_Y ?? 0.4);
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.55)",
+        zIndex: 100,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "flex-start",
+        padding: "24px",
+        overflow: "auto",
+      }}
+    >
+      <style>{`
+        @media print {
+          @page { size: 96mm 120mm; margin: 0; }
+          body * { visibility: hidden !important; }
+          .cj-form-sheet, .cj-form-sheet * { visibility: visible !important; }
+          .cj-form-sheet { position: absolute !important; left: 0; top: 0; margin: 0 !important; box-shadow: none !important; width: 96mm; height: 120mm; overflow: hidden; }
+          .cj-form-rot { position: absolute; top: 0; left: 0; width: 0; height: 0; overflow: visible; transform-origin: top left; transform: translateX(96mm) rotate(90deg); }
+          .cj-form-noprint { display: none !important; }
+        }
+      `}</style>
+
+      <div className="cj-form-noprint" style={{ marginBottom: "12px", display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
+        <div style={{ display: "flex", gap: "8px" }}>
+          <button
+            type="button"
+            onClick={() => window.print()}
+            style={{ background: "#2563eb", color: "#fff", border: "none", borderRadius: "8px", padding: "10px 20px", fontWeight: 700, cursor: "pointer" }}
+          >
+            🖨 송장 인쇄
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{ background: "#fff", color: "#334155", border: "1px solid #cbd5e1", borderRadius: "8px", padding: "10px 20px", fontWeight: 600, cursor: "pointer" }}
+          >
+            닫기
+          </button>
+        </div>
+        <div style={{ background: "#fff", borderRadius: "8px", padding: "8px 14px", fontSize: "12px", color: "#475569" }}>
+          CJ 양식 라벨을 프린터에 넣고 인쇄 — 용지 <b>cj테스트(96×120)</b> · 여백 <b>없음</b> · 배율 <b>100%</b> · 양면 <b>해제</b>
+        </div>
+      </div>
+
+      <div className="cj-form-sheet" style={{ background: "#fff", boxShadow: "0 4px 20px rgba(0,0,0,0.3)" }}>
+        <div className="cj-form-rot">
+          <CjWaybillFormLabel data={data} offsetX={offsetX} offsetY={offsetY} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function CjWaybillFormLabel({
   data,
   offsetX = 0, // 프린터 캘리브레이션 (mm, +면 오른쪽)
