@@ -19,6 +19,23 @@
 const DEFAULT_GROUP_KEY = "";
 const DEFAULT_GROUP_LABEL = "기본 옵션";
 
+// 회차 라벨 자연 정렬용 collator. numeric:true 로 "4" < "9" < "28" 같은 숫자 회차는 물론
+// "시즌1 2주차" < "시즌1 11주차", "vol.7" < "vol.14", "9월" < "10월" 같은 혼합 라벨도
+// 사람이 기대하는 오름차순으로 비교된다. (책 입고 순서를 따르던 기존 순서는 뒤죽박죽이었음)
+const optionLabelCollator = new Intl.Collator("ko", {
+  numeric: true,
+  sensitivity: "base",
+});
+
+// 무옵션(기본 옵션) 그룹은 항상 맨 앞, 나머지는 라벨 오름차순.
+function compareVariantGroups(a, b) {
+  if (a.key === DEFAULT_GROUP_KEY || b.key === DEFAULT_GROUP_KEY) {
+    if (a.key === b.key) return 0;
+    return a.key === DEFAULT_GROUP_KEY ? -1 : 1;
+  }
+  return optionLabelCollator.compare(a.label, b.label);
+}
+
 function normalizeVariantKey(option) {
   const label = typeof option?.option === "string" ? option.option.trim() : "";
   return label || DEFAULT_GROUP_KEY;
@@ -26,7 +43,8 @@ function normalizeVariantKey(option) {
 
 // 회차(option)별로 개별 book을 묶는다. 입력은 storefront.js가 정규화한 option row 배열.
 // 반환: [{ key, label, books, availableBooks, availableCount, soldOut, unitPrice, originalPrice }]
-// books 배열은 RPC가 내려준 정렬(재고 우선 → 등급 → 가격)을 그대로 유지하므로,
+// 그룹 순서는 라벨 자연 정렬 오름차순(compareVariantGroups) — dropdown 표시 순서가 된다.
+// 그룹 안의 books 배열은 RPC가 내려준 정렬(재고 우선 → 등급 → 가격)을 그대로 유지하므로,
 // availableBooks 앞에서부터 할당하면 가장 저렴/좋은 등급부터 빠진다.
 function groupOptionsByVariant(options = []) {
   const orderedGroups = [];
@@ -50,7 +68,7 @@ function groupOptionsByVariant(options = []) {
     group.books.push(option);
   }
 
-  return orderedGroups.map((group) => {
+  return orderedGroups.sort(compareVariantGroups).map((group) => {
     const availableBooks = group.books.filter((book) => !book.isSoldOut);
     const availablePrices = availableBooks
       .map((book) => book.price)

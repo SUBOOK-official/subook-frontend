@@ -35,6 +35,55 @@ test("groupOptionsByVariant 가 회차별로 중복을 합치고 남은 재고�
   assert.equal(calculus.availableCount, 1, "미분은 품절 1권 제외하고 1권 남음");
 });
 
+test("groupOptionsByVariant 가 숫자 회차를 자연 정렬 오름차순으로 배열한다", () => {
+  // 입고(RPC) 순서가 뒤죽박죽이어도 dropdown 순서는 4 < 9 < 17 < 28 < 29.
+  // 사전순 정렬이면 "17" < "28" < "29" < "4" < "9" 가 되므로 자연 정렬 여부를 함께 검증한다.
+  const groups = groupOptionsByVariant(
+    ["9", "4", "29", "17", "28"].map((option, index) => ({
+      id: String(index + 1),
+      option,
+      conditionGrade: "S",
+      price: 4000,
+      isSoldOut: false,
+    })),
+  );
+  assert.deepEqual(
+    groups.map((g) => g.label),
+    ["4", "9", "17", "28", "29"],
+  );
+});
+
+test("groupOptionsByVariant 가 텍스트+숫자 혼합 라벨도 오름차순으로 배열한다", () => {
+  const groups = groupOptionsByVariant(
+    ["시즌2 1", "시즌1 11주차", "시즌1 2주차", "vol.14", "vol.7", "10월", "9월"].map(
+      (option, index) => ({
+        id: String(index + 1),
+        option,
+        conditionGrade: "S",
+        price: 4000,
+        isSoldOut: false,
+      }),
+    ),
+  );
+  // ko collation은 숫자 → 한글 → 라틴 순서. 같은 접두사 안에서는 숫자 오름차순.
+  assert.deepEqual(
+    groups.map((g) => g.label),
+    ["9월", "10월", "시즌1 2주차", "시즌1 11주차", "시즌2 1", "vol.7", "vol.14"],
+  );
+});
+
+test("무옵션 그룹이 회차 라벨과 섞여 있으면 항상 맨 앞에 온다", () => {
+  const groups = groupOptionsByVariant([
+    { id: "1", option: "수학2", conditionGrade: "S", price: 4000, isSoldOut: false },
+    { id: "2", option: null, conditionGrade: "S", price: 4000, isSoldOut: false },
+    { id: "3", option: "확률과통계", conditionGrade: "S", price: 4000, isSoldOut: false },
+  ]);
+  assert.deepEqual(
+    groups.map((g) => g.label),
+    ["기본 옵션", "수학2", "확률과통계"],
+  );
+});
+
 test("groupOptionsByVariant 가 회차 전량 품절이면 soldOut 처리한다", () => {
   const groups = groupOptionsByVariant([
     { id: "10", option: "극한", conditionGrade: "S", price: 12000, isSoldOut: true },
