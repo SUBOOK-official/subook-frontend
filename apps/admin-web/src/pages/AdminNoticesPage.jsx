@@ -171,7 +171,7 @@ function AdminNoticesPage() {
           {/* subook.kr은 아직 구 사이트(식스샵) — 정식 도메인 전환 후 subook.kr/notices로 교체 */}
           <a
             className="ml-3 font-semibold text-blue-600 hover:underline"
-            href="https://subook-public-web-temp.vercel.app/notices"
+            href="https://subook.kr/notices"
             rel="noreferrer"
             target="_blank"
           >
