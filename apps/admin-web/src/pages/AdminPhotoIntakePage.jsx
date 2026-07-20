@@ -420,11 +420,26 @@ function AdminPhotoIntakePage() {
     setStaged((list) => (list.length >= MAX_DETAIL_PHOTOS ? list : [...list, target]));
   };
 
-  const discardScan = async (name, from) => {
-    if (from === "tray") setTray((list) => list.filter((s) => s.name !== name));
-    else setStaged((list) => list.filter((s) => s.name !== name));
-    await moveToDone(name);
-    showToast("스캔을 무시 처리했습니다. (완료 폴더로 이동)", "info");
+  // 트레이 X = 완전 삭제 — 폴더 원본 파일과 업로드된 스토리지 사본까지 지운다 (2026-07-20 피드백)
+  const deleteScan = async (scan) => {
+    setTray((list) => list.filter((s) => s.name !== scan.name));
+    markProcessed(scan.name); // 파일 삭제가 실패해도 재수집은 막는다
+    try {
+      await dirHandleRef.current?.removeEntry(scan.name);
+    } catch {
+      /* 이미 없거나 잠긴 파일 — processed 기록으로 충분 */
+    }
+    try {
+      const marker = `/object/public/${DETAIL_BUCKET}/`;
+      const idx = String(scan.url).indexOf(marker);
+      if (idx !== -1) {
+        const path = decodeURIComponent(String(scan.url).slice(idx + marker.length));
+        await supabase.storage.from(DETAIL_BUCKET).remove([path]);
+      }
+    } catch {
+      /* 스토리지 잔재는 무해 — 실패해도 진행 */
+    }
+    showToast("스캔을 삭제했습니다.", "info");
   };
 
   // ── 저장 · 되돌리기 ────────────────────────────────────────────
@@ -804,9 +819,10 @@ function AdminPhotoIntakePage() {
                       <img alt={scan.name} className="h-full w-full object-cover" src={scan.url} />
                     </button>
                     <button
-                      aria-label="스캔 무시(완료 폴더로)"
+                      aria-label="스캔 삭제"
                       className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-slate-900 text-[10px] font-bold text-white hover:bg-rose-600"
-                      onClick={() => void discardScan(scan.name, "tray")}
+                      onClick={() => void deleteScan(scan)}
+                      title="스캔 삭제 (파일도 지워집니다)"
                       type="button"
                     >
                       <CloseIcon size={11} />
