@@ -70,6 +70,12 @@ function blankNewRow(location = "") {
   };
 }
 
+// 기존 교재 모달의 신규 옵션 행 — 수량 1·기준 판매가 프리필.
+// priceAuto: 수동으로 판매가를 고치기 전까지는 다른 행의 판매가 입력을 따라간다.
+function blankNewOption(price = "") {
+  return { option: "", quantity: "1", price, priceAuto: true };
+}
+
 function isNewRowBlank(row) {
   return (
     !row.title.trim() &&
@@ -431,12 +437,17 @@ function AdminProductRegisterPage() {
       quantity: "",
       price: o.price ?? product.representative_original_price ?? "",
     }));
+    // 신규 옵션 기본 판매가 — 이미 판매 중인 옵션이 있으면 그 판매가를 따라간다 (없으면 정가)
+    const defaultNewPrice =
+      existingOptions.find((o) => String(o.price ?? "").trim() !== "")?.price ??
+      product.representative_original_price ??
+      "";
     // 이미 목록에 추가해 둔 배치를 수정하는 경우 위치 입력값은 유지, 아니면 배치 위치 프리필
     const prevAddition = existingAdditions.find((a) => a.product.id === product.id);
     setFramePanel({
       product,
       existingOptions,
-      newOptions: [{ option: "", quantity: "", price: product.representative_original_price ?? "" }],
+      newOptions: [blankNewOption(defaultNewPrice)],
       location: prevAddition?.location ?? batchLocation,
     });
   };
@@ -446,12 +457,22 @@ function AdminProductRegisterPage() {
       ...fp,
       existingOptions: fp.existingOptions.map((o, i) => (i === idx ? { ...o, [field]: val } : o)),
     }));
+  // 신규 옵션 편집 — 판매가는 아직 수동 수정 전(자동 상태)인 행 전체에 함께 전파되고,
+  // 마지막 행에 옵션명이 채워지면 다음 행(수량 1·판매가 승계)을 자동 추가한다.
   const updateNewOpt = (idx, field, val) =>
     setFramePanel((fp) => {
-      let arr = fp.newOptions.map((o, i) => (i === idx ? { ...o, [field]: val } : o));
+      let arr = fp.newOptions.map((o, i) => {
+        if (i === idx) {
+          return { ...o, [field]: val, ...(field === "price" ? { priceAuto: false } : {}) };
+        }
+        if (field === "price" && (o.priceAuto || String(o.price ?? "").trim() === "")) {
+          return { ...o, price: val };
+        }
+        return o;
+      });
       const last = arr[arr.length - 1];
-      if (last && (last.option.trim() || String(last.quantity).trim() || String(last.price).trim())) {
-        arr = [...arr, { option: "", quantity: "", price: "" }];
+      if (last && last.option.trim()) {
+        arr = [...arr, blankNewOption(last.price)];
       }
       return { ...fp, newOptions: arr };
     });
@@ -473,12 +494,13 @@ function AdminProductRegisterPage() {
     });
     fp.newOptions.forEach((o) => {
       const q = toNumber(o.quantity);
-      if (q !== null && q >= 1) {
+      // 수량 1·판매가가 프리필되므로, 옵션명을 입력한 행만 실제 등록 대상으로 본다
+      if (o.option.trim() && q !== null && q >= 1) {
         options.push({ option: o.option.trim(), quantity: Math.trunc(q), price: o.price });
       }
     });
     if (options.length === 0) {
-      showToast("추가할 옵션의 수량을 1 이상 입력하세요.", "error");
+      showToast("기존 옵션의 추가 수량을 입력하거나, 신규 옵션명을 입력하세요.", "error");
       return;
     }
     setExistingAdditions((prev) => {
@@ -1435,6 +1457,10 @@ function AdminProductRegisterPage() {
             {/* 신규 옵션 추가 */}
             <div className="mt-6">
               <h3 className="text-sm font-black text-slate-900">신규 옵션 추가하기</h3>
+              <p className="mt-1 text-xs text-slate-500">
+                수량 1 · 판매가(판매 중 가격)는 미리 채워져요 — 옵션명만 입력하면 됩니다. 판매가를 고치면
+                아직 손대지 않은 행에도 같이 적용돼요.
+              </p>
               <table className="mt-2 w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 text-left text-xs font-bold text-slate-500">
