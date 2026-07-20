@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import AdminShell from "../components/AdminShell";
 import AdminDialog from "../components/AdminDialog";
@@ -269,6 +269,9 @@ function AdminProductRegisterPage() {
   const [batchLocation, setBatchLocation] = useState("");
   // 시작 일련번호 — 운영자가 정하면 등록 순서대로 start, start+1, ... 순차 배정
   const [serialStart, setSerialStart] = useState("");
+  // 유사 시세 힌트 — uid → RPC 결과, 같은 조건은 세션 내 캐시 재사용
+  const [priceHints, setPriceHints] = useState({});
+  const hintCacheRef = useRef(new Map());
 
   // 완료/공개
   const [publishOnComplete, setPublishOnComplete] = useState(true);
@@ -355,6 +358,52 @@ function AdminProductRegisterPage() {
       window.clearTimeout(timer);
     };
   }, [prodSearch, step, showToast]);
+
+  // 유사 시세 힌트 (디바운스, RPC admin_suggest_register_price)
+  // 제목이 있는 신규 행마다 같은 과목·비슷한 제목의 기존 교재 판매가 중앙값을 조회한다.
+  useEffect(() => {
+    if (step !== "list" || !isSupabaseConfigured) return undefined;
+    const targets = newRows
+      .filter((r) => r.title.trim().length >= 4)
+      .map((r) => ({
+        uid: r.uid,
+        title: r.title.trim(),
+        subject: r.subject || "",
+        brand: r.brand || "",
+        bookType: r.bookType || "",
+      }));
+    let active = true;
+    const timer = window.setTimeout(async () => {
+      const nextHints = {};
+      await Promise.all(
+        targets.map(async (t) => {
+          const key = `${t.title}|${t.subject}|${t.brand}|${t.bookType}`;
+          let data = hintCacheRef.current.get(key);
+          if (data === undefined) {
+            const { data: rpcData, error } = await supabase.rpc("admin_suggest_register_price", {
+              p_title: t.title,
+              p_subject: t.subject || null,
+              p_brand: t.brand || null,
+              p_book_type: t.bookType || null,
+            });
+            if (error) {
+              // 일시 오류는 캐시하지 않고 이번 표시만 생략 (다음 편집 때 재시도)
+              nextHints[t.uid] = { found: false };
+              return;
+            }
+            data = rpcData ?? { found: false };
+            hintCacheRef.current.set(key, data);
+          }
+          nextHints[t.uid] = data;
+        }),
+      );
+      if (active) setPriceHints(nextHints);
+    }, 500);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [newRows, step]);
 
   const handleCreateCustomer = async (event) => {
     event.preventDefault();
@@ -675,6 +724,23 @@ function AdminProductRegisterPage() {
     return range ? formatSerialRange(range.from, range.count) : "";
   };
 
+  // 유사 시세 적용 — 정가가 비었으면 시세를 정가로(정가 그대로 판매 = 자체 산정 가격 패턴),
+  // 정가가 있으면 판매가가 시세가 되도록 정액 할인으로 환산한다.
+  const applyPriceHint = (uid) => {
+    const suggested = toNumber(priceHints[uid]?.suggested_price);
+    if (suggested === null) return;
+    const row = newRows.find((r) => r.uid === uid);
+    if (!row) return;
+    const orig = toNumber(row.originalPrice);
+    if (orig === null) {
+      patchRow(uid, { originalPrice: String(suggested), discountType: "none", discountValue: "" });
+    } else if (suggested < orig) {
+      patchRow(uid, { discountType: "amount", discountValue: String(orig - suggested) });
+    } else {
+      patchRow(uid, { discountType: "none", discountValue: "" });
+    }
+  };
+
   const handleSubmit = async () => {
     if (!shipment) return;
     if (serialPlan.invalid) {
@@ -978,8 +1044,11 @@ function AdminProductRegisterPage() {
                       {newRows.map((row) => {
                         const sell = computeSellPrice(row.originalPrice, row.discountType, row.discountValue);
                         const blank = isNewRowBlank(row);
+                        const hint = priceHints[row.uid];
+                        const showHint = !blank && hint?.found && toNumber(hint.suggested_price) !== null;
                         return (
-                          <tr key={row.uid} className="border-b border-slate-100 align-top">
+                          <Fragment key={row.uid}>
+                          <tr className={`align-top ${showHint ? "" : "border-b border-slate-100"}`}>
                             <td className="py-1.5 pr-2">
                               <input
                                 type="text"
@@ -1077,6 +1146,30 @@ function AdminProductRegisterPage() {
                               ) : null}
                             </td>
                           </tr>
+                          {showHint ? (
+                            <tr className="border-b border-slate-100 bg-indigo-50/50">
+                              <td colSpan={10} className="px-2 py-1.5 text-[11px] font-semibold text-indigo-800">
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                                  <span className="font-bold">
+                                    유사 시세 {formatCurrency(hint.suggested_price)}
+                                    {hint.avg_discount_rate ? ` (정가 대비 약 -${hint.avg_discount_rate}%)` : ""}
+                                  </span>
+                                  <span className="min-w-0 flex-1 truncate font-medium text-indigo-500">
+                                    {hint.product_count}종 {hint.book_count}권 기준:{" "}
+                                    {(hint.samples || []).slice(0, 3).map((s) => s.title).join(" · ")}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => applyPriceHint(row.uid)}
+                                    className="rounded border border-indigo-300 bg-white px-2 py-0.5 text-[11px] font-bold text-indigo-700 hover:bg-indigo-100"
+                                  >
+                                    이 가격 적용
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ) : null}
+                          </Fragment>
                         );
                       })}
                     </tbody>
