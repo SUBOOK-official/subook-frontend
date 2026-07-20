@@ -7,6 +7,11 @@ import { formatCurrency } from "@shared-domain/format";
 import { CheckIcon, CloseIcon, PlusIcon } from "../components/icons";
 import { BOOK_TYPE_OPTIONS, BRAND_OPTIONS, SUBJECT_OPTIONS } from "../lib/productCategories";
 import { MAX_DETAIL_PHOTOS } from "../lib/adminImageUpload";
+import {
+  prepareStudioImagePayload,
+  requestStudioGeneration,
+  studioResultToFile,
+} from "../lib/studioClient";
 
 // 통합 상품 등록 플로우 (Frame 2~4 프로토타입).
 //   고객(수거) 선택/생성 → 교재 목록 작성(기존 검색 + 신규 표) → 사진 일괄 → 등록 완료
@@ -44,7 +49,7 @@ function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function blankNewRow() {
+function blankNewRow(location = "") {
   return {
     uid: nextUid(),
     title: "",
@@ -52,7 +57,7 @@ function blankNewRow() {
     brand: "",
     bookType: "",
     option: "",
-    location: "",
+    location,
     originalPrice: "",
     discountType: "none",
     discountValue: "",
@@ -116,6 +121,46 @@ function optionSummary(optionStr) {
     .map((s) => s.trim())
     .filter(Boolean);
   return items.length > 0 ? items.join(", ") : "옵션 없음";
+}
+
+// ── 일련번호 배정 미리보기 ──────────────────────────────────────────
+// RPC(admin_register_customer_inventory)와 동일 규칙으로 권수를 세야
+// 미리보기 번호와 실제 배정 번호가 어긋나지 않는다.
+//   신규 교재: 콤마 옵션 1개당 1권 (옵션 없으면 1권)
+//   기존 교재: 옵션별 추가 수량 합
+function countBooksForNewRow(row) {
+  const optionCount = String(row.option || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean).length;
+  return optionCount > 0 ? optionCount : 1;
+}
+
+function countBooksForAddition(addition) {
+  return addition.options.reduce((sum, o) => sum + (Number(o.quantity) || 0), 0);
+}
+
+// 시작 일련번호 입력값 → 유효한 양의 정수 또는 null
+function parseSerialStart(value) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  const n = Number(raw);
+  return Number.isInteger(n) && n >= 1 && n <= 999_999_999 ? n : null;
+}
+
+function formatSerialRange(from, count) {
+  if (from == null || count <= 0) return "";
+  return count === 1 ? `${from}` : `${from}~${from + count - 1}`;
+}
+
+// 완료 모달용 — 연속 구간이면 "2105 ~ 2110"으로 압축, 아니면 그대로 나열
+function formatSerialList(serials) {
+  if (!Array.isArray(serials) || serials.length === 0) return "";
+  const contiguous = serials.every((s, i) => i === 0 || s === serials[i - 1] + 1);
+  if (contiguous && serials.length > 1) {
+    return `${serials[0]} ~ ${serials[serials.length - 1]}`;
+  }
+  return serials.join(", ");
 }
 
 // ── 드래그&드롭 + 클릭 업로드 박스 ──────────────────────────────────
@@ -212,6 +257,12 @@ function AdminProductRegisterPage() {
   const [framePanel, setFramePanel] = useState(null);
   // 신규 교재 카테고리(과목·브랜드·유형) 설정 모달 — 대상 행 uid
   const [categoryModalUid, setCategoryModalUid] = useState(null);
+  // 창고 위치 항상성 — 한 곳에서 입력하면 배치 전체(신규 행·기존 교재)에 같은 값이 따라간다
+  const [batchLocation, setBatchLocation] = useState("");
+  // 시작 일련번호 — 운영자가 정하면 등록 순서대로 start, start+1, ... 순차 배정
+  const [serialStart, setSerialStart] = useState("");
+  // 표지 업로드 시 사진 스튜디오(AI) 자동 변환
+  const [autoStudioCover, setAutoStudioCover] = useState(true);
 
   // 완료/공개
   const [publishOnComplete, setPublishOnComplete] = useState(true);
@@ -331,21 +382,42 @@ function AdminProductRegisterPage() {
     setStep("list");
   };
 
-  // 신규 교재 행 편집 — 마지막 행이 채워지면 빈 행 자동 추가
+  // 신규 교재 행 편집 — 마지막 행이 채워지면 빈 행 자동 추가 (위치는 배치 위치로 프리필)
   const handleRowChange = (uid, field, value) => {
     setNewRows((prev) => {
       let rows = prev.map((r) => (r.uid === uid ? { ...r, [field]: value } : r));
       const last = rows[rows.length - 1];
-      if (last && !isNewRowBlank(last)) rows = [...rows, blankNewRow()];
+      if (last && !isNewRowBlank(last)) rows = [...rows, blankNewRow(batchLocation)];
       return rows;
     });
   };
   const handleRowDelete = (uid) => {
     setNewRows((prev) => {
       const rows = prev.filter((r) => r.uid !== uid);
-      if (rows.length === 0 || !isNewRowBlank(rows[rows.length - 1])) rows.push(blankNewRow());
+      if (rows.length === 0 || !isNewRowBlank(rows[rows.length - 1])) rows.push(blankNewRow(batchLocation));
       return rows;
     });
+  };
+
+  // 창고 위치 항상성 — 어느 한 곳(신규 행·기존 교재 모달)에서 위치를 입력하면
+  // 아직 같은 값을 따라가던 항목(빈 값 또는 직전 배치 위치와 동일)을 전부 갱신한다.
+  const applyLocationEverywhere = (value, source) => {
+    const prevShared = batchLocation;
+    const inSync = (loc) => !String(loc ?? "").trim() || loc === prevShared;
+    setNewRows((prev) =>
+      prev.map((r) =>
+        (source?.kind === "row" && r.uid === source.uid) || inSync(r.location)
+          ? { ...r, location: value }
+          : r,
+      ),
+    );
+    setExistingAdditions((prev) => prev.map((a) => (inSync(a.location) ? { ...a, location: value } : a)));
+    setFramePanel((fp) => {
+      if (!fp) return fp;
+      if (source?.kind === "panel" || inSync(fp.location)) return { ...fp, location: value };
+      return fp;
+    });
+    setBatchLocation(value);
   };
   const patchRow = (uid, patch) => setNewRows((prev) => prev.map((r) => (r.uid === uid ? { ...r, ...patch } : r)));
   const patchAddition = (uid, patch) =>
@@ -359,13 +431,13 @@ function AdminProductRegisterPage() {
       quantity: "",
       price: o.price ?? product.representative_original_price ?? "",
     }));
-    // 이미 목록에 추가해 둔 배치를 수정하는 경우 위치 입력값은 유지
+    // 이미 목록에 추가해 둔 배치를 수정하는 경우 위치 입력값은 유지, 아니면 배치 위치 프리필
     const prevAddition = existingAdditions.find((a) => a.product.id === product.id);
     setFramePanel({
       product,
       existingOptions,
       newOptions: [{ option: "", quantity: "", price: product.representative_original_price ?? "" }],
-      location: prevAddition?.location ?? "",
+      location: prevAddition?.location ?? batchLocation,
     });
   };
 
@@ -438,13 +510,31 @@ function AdminProductRegisterPage() {
   const uploadCover = async (kind, uid, file) => {
     setItemBusy(kind, uid, "coverBusy", true);
     try {
-      const url = await uploadImageToBucket(COVER_BUCKET, file);
+      let uploadFile = file;
+      // 표지는 사진 스튜디오(AI) 변환을 자동으로 거친 뒤 업로드한다.
+      // 이미 변환된 이미지를 올릴 때는 토글을 끄면 원본 그대로 업로드.
+      if (autoStudioCover) {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData?.session?.access_token || "";
+        if (!accessToken) {
+          throw new Error("로그인 세션이 만료되었습니다. 다시 로그인해 주세요.");
+        }
+        const payload = await prepareStudioImagePayload(file);
+        const generated = await requestStudioGeneration(accessToken, payload);
+        uploadFile = studioResultToFile(generated, file.name);
+      }
+      const url = await uploadImageToBucket(COVER_BUCKET, uploadFile);
       if (url) {
         if (kind === "new") patchRow(uid, { coverUrl: url });
         else patchAddition(uid, { coverUrl: url });
       }
     } catch (err) {
-      showToast(err?.message || "표지 업로드 실패", "error");
+      showToast(
+        autoStudioCover
+          ? `AI 표지 변환 실패: ${err?.message || "알 수 없는 오류"} — 다시 시도하거나, AI 변환을 끄고 원본을 올려주세요.`
+          : err?.message || "표지 업로드 실패",
+        "error",
+      );
     } finally {
       setItemBusy(kind, uid, "coverBusy", false);
     }
@@ -530,8 +620,38 @@ function AdminProductRegisterPage() {
     [newProductsForSubmit, existingAdditions],
   );
 
+  // 일련번호 배정 플랜 — 시작 번호부터 등록 순서(신규 표 → 기존 교재)대로 순차 배정.
+  // RPC가 같은 순서로 배정하므로 여기 미리보기와 실제 결과가 일치한다.
+  const serialPlan = useMemo(() => {
+    const startNum = parseSerialStart(serialStart);
+    const invalid = String(serialStart).trim() !== "" && startNum === null;
+    const ranges = new Map();
+    let cursor = startNum;
+    let total = 0;
+    const assign = (key, count) => {
+      if (count <= 0) return;
+      if (cursor !== null) {
+        ranges.set(key, { from: cursor, count });
+        cursor += count;
+      }
+      total += count;
+    };
+    newProductsForSubmit.forEach((r) => assign(`new-${r.uid}`, countBooksForNewRow(r)));
+    existingAdditions.forEach((a) => assign(`existing-${a.uid}`, countBooksForAddition(a)));
+    return { startNum, invalid, ranges, total };
+  }, [serialStart, newProductsForSubmit, existingAdditions]);
+
+  const serialRangeText = (kind, uid) => {
+    const range = serialPlan.ranges.get(`${kind}-${uid}`);
+    return range ? formatSerialRange(range.from, range.count) : "";
+  };
+
   const handleSubmit = async () => {
     if (!shipment) return;
+    if (serialPlan.invalid) {
+      showToast("시작 일련번호는 1 이상의 정수로 입력해 주세요.", "error");
+      return;
+    }
     setSubmitting(true);
     const new_products = newProductsForSubmit.map((r) => ({
       title: r.title.trim(),
@@ -565,7 +685,12 @@ function AdminProductRegisterPage() {
 
     const { data, error } = await supabase.rpc("admin_register_customer_inventory", {
       p_shipment_id: shipment.id,
-      p_payload: { new_products, existing_additions },
+      p_payload: {
+        new_products,
+        existing_additions,
+        // 시작 일련번호 지정 시 등록 순서대로 순차 배정 (비우면 시퀀스 자동 채번)
+        serial_start: serialPlan.startNum,
+      },
     });
     setSubmitting(false);
     if (error) {
@@ -801,14 +926,18 @@ function AdminProductRegisterPage() {
                 <p className="mt-1 text-xs text-indigo-600">
                   · 할인 방식을 정가로 두면 정가 그대로 판매 · 옵션은 콤마(,)로 여러 개 자동 등록
                 </p>
+                <p className="mt-1 text-xs text-indigo-600">
+                  · 위치는 한 칸만 입력하면 전체에 자동 적용 · 일련번호는 아래 시작 번호부터 순서대로 자동 배정
+                </p>
                 <div className="mt-3 overflow-x-auto">
-                  <table className="w-full min-w-[780px] text-sm">
+                  <table className="w-full min-w-[860px] text-sm">
                     <thead>
                       <tr className="border-b border-slate-200 text-left text-xs font-bold text-slate-500">
                         <th className="py-2 pr-2">상품명</th>
                         <th className="py-2 pr-2 w-24">카테고리</th>
                         <th className="py-2 pr-2 w-28">옵션</th>
                         <th className="py-2 pr-2 w-20">위치</th>
+                        <th className="py-2 pr-2 w-24">일련번호</th>
                         <th className="py-2 pr-2 w-24">정가</th>
                         <th className="py-2 pr-2 w-24">할인 방식</th>
                         <th className="py-2 pr-2 w-20">할인 값</th>
@@ -856,10 +985,18 @@ function AdminProductRegisterPage() {
                               <input
                                 type="text"
                                 value={row.location}
-                                onChange={(e) => handleRowChange(row.uid, "location", e.target.value)}
+                                onChange={(e) =>
+                                  applyLocationEverywhere(e.target.value, { kind: "row", uid: row.uid })
+                                }
                                 placeholder="A1"
                                 className="w-full rounded border border-slate-200 px-2 py-1.5"
                               />
+                            </td>
+                            <td className="py-1.5 pr-2">
+                              {/* 시작 일련번호 기준 자동 배정 — 이 행 몫의 번호 미리보기 */}
+                              <span className="block px-1 py-1.5 font-mono text-xs font-bold text-slate-700">
+                                {blank ? "-" : serialRangeText("new", row.uid) || "자동"}
+                              </span>
                             </td>
                             <td className="py-1.5 pr-2">
                               <input
@@ -936,6 +1073,9 @@ function AdminProductRegisterPage() {
                             .map((o) => `${o.option || "기본"} ${o.quantity}권`)
                             .join(" · ")}
                           {a.location ? ` · 위치 ${a.location}` : ""}
+                          {serialRangeText("existing", a.uid)
+                            ? ` · 일련번호 ${serialRangeText("existing", a.uid)}`
+                            : ""}
                         </p>
                       </div>
                       <div className="flex items-center gap-3">
@@ -960,7 +1100,35 @@ function AdminProductRegisterPage() {
               </section>
             ) : null}
 
-            <div className="flex items-center justify-end gap-3">
+            <div className="flex flex-wrap items-center justify-end gap-3">
+              {/* 시작 일련번호 — 신규 표 → 기존 교재 순서로 start, start+1, ... 자동 배정 */}
+              <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2">
+                <label className="text-xs font-bold text-slate-700" htmlFor="register-serial-start">
+                  시작 일련번호
+                </label>
+                <input
+                  id="register-serial-start"
+                  type="number"
+                  min="1"
+                  value={serialStart}
+                  onChange={(e) => setSerialStart(e.target.value)}
+                  placeholder="예: 2105"
+                  className="w-24 rounded border border-slate-200 px-2 py-1.5 text-sm"
+                />
+                <span
+                  className={`text-xs font-semibold ${
+                    serialPlan.invalid ? "text-rose-600" : "text-slate-500"
+                  }`}
+                >
+                  {serialPlan.invalid
+                    ? "1 이상의 정수를 입력하세요"
+                    : serialPlan.total === 0
+                      ? "등록할 교재를 추가하세요"
+                      : serialPlan.startNum !== null
+                        ? `총 ${serialPlan.total}권 → ${formatSerialRange(serialPlan.startNum, serialPlan.total)} 배정`
+                        : `총 ${serialPlan.total}권 · 비우면 이어서 자동 채번`}
+                </span>
+              </div>
               <span className="text-sm text-slate-500">
                 신규 {newProductsForSubmit.length}종 · 기존 {existingAdditions.length}종
               </span>
@@ -990,16 +1158,32 @@ function AdminProductRegisterPage() {
               <p className="text-sm text-slate-500">표지 사진 1장 + 상세페이지 사진 최대 {MAX_DETAIL_PHOTOS}장 (선택 사항)</p>
             </div>
 
-            <p className="rounded-lg bg-indigo-50 px-4 py-2 text-xs font-semibold text-indigo-700">
-              AI 사진 변환(사진 스튜디오)에서 변환·다운로드한 이미지를 아래 칸에 추가하세요. 빈칸 클릭 또는 드래그&드롭.
-            </p>
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-indigo-50 px-4 py-2">
+              <p className="text-xs font-semibold text-indigo-700">
+                표지 사진은 올리는 순간 사진 스튜디오(AI) 변환을 자동으로 거쳐 등록됩니다. 빈칸 클릭 또는
+                드래그&드롭.
+              </p>
+              <label className="flex items-center gap-2 text-xs font-bold text-indigo-800">
+                <input
+                  type="checkbox"
+                  checked={autoStudioCover}
+                  onChange={(e) => setAutoStudioCover(e.target.checked)}
+                  className="h-3.5 w-3.5"
+                />
+                표지 AI 자동 변환
+                <span className="font-semibold text-indigo-500">(이미 변환된 사진이면 끄기)</span>
+              </label>
+            </div>
 
             <div className="space-y-4">
               {photoTargets.map((t) => (
                 <section key={`${t.kind}-${t.uid}`} className="rounded-2xl border border-slate-200 bg-white p-5">
                   <div className="mb-3">
                     <p className="text-sm font-black text-slate-900">{t.title}</p>
-                    <p className="text-xs text-slate-500">옵션: {t.subtitle}</p>
+                    <p className="text-xs text-slate-500">
+                      옵션: {t.subtitle}
+                      {serialRangeText(t.kind, t.uid) ? ` · 일련번호 ${serialRangeText(t.kind, t.uid)}` : ""}
+                    </p>
                   </div>
                   <div className="grid gap-5 md:grid-cols-2">
                     {/* 표지 */}
@@ -1024,7 +1208,9 @@ function AdminProductRegisterPage() {
                           onFiles={(files) => uploadCover(t.kind, t.uid, files[0])}
                         >
                           <span className="text-2xl leading-none"><PlusIcon size={22} /></span>
-                          <span className="mt-1 text-[10px]">{t.coverBusy ? "업로드 중..." : "표지 추가"}</span>
+                          <span className="mt-1 text-[10px]">
+                            {t.coverBusy ? (autoStudioCover ? "AI 변환 중..." : "업로드 중...") : "표지 추가"}
+                          </span>
                         </DropBox>
                       )}
                     </div>
@@ -1077,9 +1263,12 @@ function AdminProductRegisterPage() {
                   (정가/판매가가 입력된 책만 공개됩니다. 끄면 비공개로 등록 후 나중에 공개)
                 </span>
               </label>
-              <div className="mt-4 flex items-center justify-end gap-3">
+              <div className="mt-4 flex flex-wrap items-center justify-end gap-3">
                 <span className="text-sm text-slate-500">
                   신규 {newProductsForSubmit.length}종 · 기존 {existingAdditions.length}종
+                  {serialPlan.startNum !== null && serialPlan.total > 0
+                    ? ` · 일련번호 ${formatSerialRange(serialPlan.startNum, serialPlan.total)}`
+                    : ""}
                 </span>
                 <button
                   type="button"
@@ -1281,16 +1470,20 @@ function AdminProductRegisterPage() {
               </table>
             </div>
 
-            {/* 창고 위치 — 이 배치로 추가되는 모든 책에 적용 (권별 수정은 상품 재고에서) */}
+            {/* 창고 위치 — 이 배치로 추가되는 모든 책에 적용 (권별 수정은 상품 재고에서)
+                입력하면 신규 교재 표 등 배치 전체 위치도 함께 따라간다(항상성). */}
             <div className="mt-6">
               <h3 className="text-sm font-black text-slate-900">창고 위치</h3>
               <input
                 type="text"
                 value={framePanel.location ?? ""}
-                onChange={(e) => setFramePanel((fp) => ({ ...fp, location: e.target.value }))}
+                onChange={(e) => applyLocationEverywhere(e.target.value, { kind: "panel" })}
                 placeholder="예: A1, 모7"
                 className="mt-2 w-48 rounded border border-slate-200 px-2 py-1.5 text-sm"
               />
+              <p className="mt-2 text-xs text-slate-500">
+                일련번호는 목록 확정 후 시작 번호부터 등록 순서대로 자동 배정됩니다.
+              </p>
             </div>
 
             <div className="mt-6 flex items-center justify-end gap-2">
@@ -1343,7 +1536,7 @@ function AdminProductRegisterPage() {
                   아래 일련번호가 자동 부여되었습니다. 실물 책에 번호 라벨을 붙여주세요.
                 </p>
                 <p className="max-h-40 overflow-y-auto rounded-lg bg-slate-50 px-3 py-2 font-mono text-sm font-bold text-slate-800">
-                  {completeInfo.serials.join(", ")}
+                  {formatSerialList(completeInfo.serials)}
                 </p>
               </>
             ) : null}

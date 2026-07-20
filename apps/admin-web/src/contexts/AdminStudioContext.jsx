@@ -8,11 +8,11 @@ import {
   useState,
 } from "react";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
-
-const STUDIO_MAX_IMAGE_SIDE = 1600;
-const STUDIO_MAX_BASE64_LENGTH = 3_000_000;
-const STUDIO_OUTPUT_QUALITY_STEPS = [0.9, 0.82, 0.75, 0.68];
-const STUDIO_REQUEST_TIMEOUT_MS = 240_000;
+import {
+  STUDIO_REQUEST_TIMEOUT_MS,
+  prepareStudioImagePayload,
+  requestStudioGeneration,
+} from "../lib/studioClient";
 
 const AdminStudioContext = createContext(null);
 
@@ -22,72 +22,6 @@ function revokeStudioPreviewUrls(items) {
       URL.revokeObjectURL(item.sourcePreviewUrl);
     }
   });
-}
-
-function getImageDataFromDataUrl(dataUrl) {
-  const marker = ";base64,";
-  const markerIndex = dataUrl.indexOf(marker);
-  if (markerIndex < 0) {
-    throw new Error("이미지 변환 형식이 올바르지 않습니다.");
-  }
-
-  const mimeType = dataUrl.slice(5, markerIndex);
-  const imageBase64 = dataUrl.slice(markerIndex + marker.length);
-  return { mimeType, imageBase64 };
-}
-
-function readFileAsDataUrl(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ""));
-    reader.onerror = () => reject(new Error("이미지를 읽지 못했습니다."));
-    reader.readAsDataURL(file);
-  });
-}
-
-function loadImage(dataUrl) {
-  return new Promise((resolve, reject) => {
-    const image = new Image();
-    image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error("이미지를 불러오지 못했습니다."));
-    image.src = dataUrl;
-  });
-}
-
-async function prepareStudioImagePayload(file) {
-  const sourceDataUrl = await readFileAsDataUrl(file);
-  const sourceImage = await loadImage(sourceDataUrl);
-
-  const sourceWidth = sourceImage.naturalWidth || sourceImage.width;
-  const sourceHeight = sourceImage.naturalHeight || sourceImage.height;
-  if (!sourceWidth || !sourceHeight) {
-    throw new Error("이미지 크기를 확인할 수 없습니다.");
-  }
-
-  const scale = Math.min(1, STUDIO_MAX_IMAGE_SIDE / Math.max(sourceWidth, sourceHeight));
-  const targetWidth = Math.max(1, Math.round(sourceWidth * scale));
-  const targetHeight = Math.max(1, Math.round(sourceHeight * scale));
-
-  const canvas = document.createElement("canvas");
-  canvas.width = targetWidth;
-  canvas.height = targetHeight;
-
-  const context = canvas.getContext("2d");
-  if (!context) {
-    throw new Error("이미지 처리를 시작할 수 없습니다.");
-  }
-
-  context.drawImage(sourceImage, 0, 0, targetWidth, targetHeight);
-
-  for (const quality of STUDIO_OUTPUT_QUALITY_STEPS) {
-    const compressed = canvas.toDataURL("image/jpeg", quality);
-    const payload = getImageDataFromDataUrl(compressed);
-    if (payload.imageBase64.length <= STUDIO_MAX_BASE64_LENGTH) {
-      return payload;
-    }
-  }
-
-  throw new Error("이미지 용량이 너무 큽니다. 더 작은 이미지를 선택해 주세요.");
 }
 
 function getStudioDownloadName(originalName, mimeType) {
@@ -249,75 +183,6 @@ export function AdminStudioProvider({ children }) {
     setNotice("");
   }, []);
 
-  const requestStudioGeneration = useCallback(async (accessToken, payload) => {
-    const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => {
-      controller.abort();
-    }, STUDIO_REQUEST_TIMEOUT_MS);
-
-    let response;
-    try {
-      response = await fetch("/api/admin/book-studio", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify(payload),
-        signal: controller.signal,
-      });
-    } catch (requestError) {
-      if (requestError instanceof DOMException && requestError.name === "AbortError") {
-        throw new Error(
-          `요청 시간이 초과되었습니다. (${Math.floor(STUDIO_REQUEST_TIMEOUT_MS / 1000)}초) 잠시 후 다시 시도해 주세요.`,
-        );
-      }
-      throw requestError;
-    } finally {
-      window.clearTimeout(timeoutId);
-    }
-
-    let responseBody = {};
-    try {
-      responseBody = await response.json();
-    } catch (_parseError) {
-      responseBody = {};
-    }
-
-    if (!response.ok) {
-      const code = String(responseBody.code || "").trim();
-      const errorMessage = String(responseBody.error || "AI 사진 생성에 실패했습니다.").trim();
-      const detail = String(responseBody.detail || "").trim();
-      const statusText = response.status ? `HTTP ${response.status}` : "";
-
-      const segments = [];
-      if (statusText) {
-        segments.push(statusText);
-      }
-      if (code) {
-        segments.push(code);
-      }
-      segments.push(errorMessage);
-      if (detail) {
-        segments.push(detail);
-      }
-
-      throw new Error(segments.join(" | "));
-    }
-
-    if (!responseBody.imageBase64 || !responseBody.mimeType) {
-      const code = String(responseBody.code || "INVALID_STUDIO_RESPONSE").trim();
-      const detail = String(responseBody.detail || "").trim();
-      const segments = ["AI 사진 생성 결과 형식이 올바르지 않습니다.", code];
-      if (detail) {
-        segments.push(detail);
-      }
-      throw new Error(segments.join(" | "));
-    }
-
-    return responseBody;
-  }, []);
-
   const processQueuedJob = useCallback(
     async (job) => {
       if (!job) {
@@ -406,7 +271,7 @@ export function AdminStudioProvider({ children }) {
         isProcessingRef.current = false;
       }
     },
-    [requestStudioGeneration],
+    [],
   );
 
   useEffect(() => {
