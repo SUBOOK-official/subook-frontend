@@ -52,6 +52,27 @@ test("getStoreCardTags returns subject, brand, and preferred condition tags", ()
   );
 });
 
+test("getProductCardPrice hides discount UI when there is no real discount", () => {
+  // 정가 = 판매가 (정가 미상 재고) → 0% 배지·취소선 없음
+  assert.deepEqual(
+    getProductCardPrice({ price: 5000, original_price: 5000, discount_rate: 0 }),
+    { discountRate: null, originalPrice: null, price: 5000 },
+  );
+
+  // 정가 자체가 없으면 그대로 없음
+  assert.deepEqual(getProductCardPrice({ price: 5000 }), {
+    discountRate: null,
+    originalPrice: null,
+    price: 5000,
+  });
+
+  // 실할인은 그대로 노출
+  assert.deepEqual(
+    getProductCardPrice({ price: 4200, original_price: 14000, discount_rate: 70 }),
+    { discountRate: 70, originalPrice: 14000, price: 4200 },
+  );
+});
+
 test("getStoreCardCoverImageUrl prefers real cover URLs and ignores mock svg covers", () => {
   const actualCoverImageUrl = "https://cdn.subook.kr/books/cover-1.jpg";
   const mockSvgCoverImageUrl = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(

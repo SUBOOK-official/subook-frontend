@@ -204,21 +204,30 @@ export function getProductCardPlaceholderEyebrow(product = {}) {
 export function getProductCardPrice(product = {}) {
   const preferredOption = getPreferredOption(product);
 
-  return {
-    discountRate:
-      preferredOption?.discountRate ??
-      preferredOption?.discount_rate ??
-      product.discountRate ??
-      product.discount_rate ??
-      null,
-    originalPrice:
-      preferredOption?.originalPrice ??
-      preferredOption?.original_price ??
-      product.originalPrice ??
-      product.original_price ??
-      null,
-    price: preferredOption?.price ?? product.price ?? null,
-  };
+  const price = preferredOption?.price ?? product.price ?? null;
+  const rawOriginalPrice =
+    preferredOption?.originalPrice ??
+    preferredOption?.original_price ??
+    product.originalPrice ??
+    product.original_price ??
+    null;
+  const rawDiscountRate =
+    preferredOption?.discountRate ??
+    preferredOption?.discount_rate ??
+    product.discountRate ??
+    product.discount_rate ??
+    null;
+
+  // 실할인이 없으면(정가 ≤ 판매가 → 0%) 배지·취소선 데이터를 만들지 않는다.
+  // 정가 미상 재고가 정가=판매가로 들어오면 "0% + 같은 금액 취소선"으로 그려지던 버그 방지.
+  const originalPrice =
+    rawOriginalPrice !== null && price !== null && Number(rawOriginalPrice) > Number(price)
+      ? rawOriginalPrice
+      : null;
+  const discountRate =
+    rawDiscountRate !== null && Number(rawDiscountRate) > 0 ? rawDiscountRate : null;
+
+  return { discountRate, originalPrice, price };
 }
 
 export function getStoreCardTags(product = {}) {
