@@ -63,7 +63,9 @@ function NavList({ groups, resolvedModuleKey, badgeCounts, onItemClick }) {
   );
 }
 
-function AdminShell({ title, description = "", activeModule, actions = null, summaryCards = [], children }) {
+// description prop은 받기만 하고 렌더하지 않는다 — 탭마다 붙던 회색 설명 문구 일괄 제거
+// (2026-07-20 운영 지시: "너무 AI스러워"). 페이지들의 description= 전달은 무해하게 무시된다.
+function AdminShell({ title, activeModule, actions = null, summaryCards = [], children }) {
   const location = useLocation();
   const navigate = useNavigate();
   const sellerPortalUrl = getSellerLookupOrigin();
@@ -146,9 +148,6 @@ function AdminShell({ title, description = "", activeModule, actions = null, sum
                 </button>
                 <div className="min-w-0">
                   <h1 className="text-2xl font-black tracking-tight text-slate-950">{title}</h1>
-                  {description ? (
-                    <p className="mt-1 text-sm font-medium text-slate-500">{description}</p>
-                  ) : null}
                 </div>
               </div>
 
