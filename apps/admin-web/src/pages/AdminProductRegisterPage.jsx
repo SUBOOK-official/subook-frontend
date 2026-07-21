@@ -677,6 +677,7 @@ function AdminProductRegisterPage() {
         uid: r.uid,
         title: r.title,
         subtitle: optionSummary(r.option),
+        location: r.location,
         coverUrl: r.coverUrl,
         coverBusy: r.coverBusy,
         detailUrls: r.detailUrls || [],
@@ -688,6 +689,7 @@ function AdminProductRegisterPage() {
         uid: a.uid,
         title: a.product.title,
         subtitle: a.options.map((o) => o.option || "옵션 없음").join(", "),
+        location: a.location,
         coverUrl: a.coverUrl,
         coverBusy: a.coverBusy,
         detailUrls: a.detailUrls || [],
@@ -1293,6 +1295,7 @@ function AdminProductRegisterPage() {
                     <p className="text-xs text-slate-500">
                       옵션: {t.subtitle}
                       {serialRangeText(t.kind, t.uid) ? ` · 일련번호 ${serialRangeText(t.kind, t.uid)}` : ""}
+                      {t.location && t.location.trim() ? ` · 위치 ${t.location.trim()}` : ""}
                     </p>
                   </div>
                   <div className="grid gap-5 md:grid-cols-2">
