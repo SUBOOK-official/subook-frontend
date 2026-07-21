@@ -131,9 +131,6 @@ function FortuneCookie() {
           <p className="fc-modal__label">오늘의 포춘쿠키</p>
           <p className="fc-modal__msg">{fortune}</p>
           <p className="fc-modal__sub">내일 또 만나요</p>
-          <button className="fc-modal__done" onClick={closeModal} type="button">
-            닫기
-          </button>
           <button className="fc-modal__optout" onClick={optOut} type="button">
             앞으로 포춘쿠키를 보지 않을래요
           </button>

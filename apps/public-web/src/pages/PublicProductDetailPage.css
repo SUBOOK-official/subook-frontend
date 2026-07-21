@@ -781,9 +781,10 @@
 }
 
 .public-detail-tab-content {
-  background: var(--public-bg-soft, #f9f9f9);
-  border-radius: 12px;
-  padding: 24px;
+  background: #ffffff;
+  border-radius: 0;
+  border-top: 1px solid var(--public-border, #e5e5e5);
+  padding: 24px 0;
   margin-bottom: 48px;
   font-size: 14px;
   color: var(--public-ds-text-secondary, #55565b);
@@ -1024,11 +1025,15 @@
   overflow: hidden;
 }
 
-/* 실제 상세 사진 — 1:1 슬롯을 꽉 채우도록 커버 크롭 */
+/* 실제 상세 사진 — 크롭 없이 전체가 보이도록 contain, 남는 여백은 흰색 */
+.public-detail-photo-grid__item--photo {
+  background: #ffffff;
+}
+
 .public-detail-photo-grid__item--photo img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   display: block;
 }
 

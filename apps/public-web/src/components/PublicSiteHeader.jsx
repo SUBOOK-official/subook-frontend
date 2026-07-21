@@ -631,7 +631,6 @@ function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
                 onClick={() => navigate("/notifications")}
                 type="button"
               >
-                <BellIcon size={15} />
                 <span>알림</span>
                 {notificationBadge !== null ? (
                   <span className="public-nav-link__badge">{notificationBadge}</span>
@@ -643,7 +642,6 @@ function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
                 onClick={handleCartClick}
                 type="button"
               >
-                <CartIcon size={15} />
                 <span>장바구니</span>
                 {cartBadge !== null ? (
                   <span className="public-nav-link__badge">{cartBadge}</span>

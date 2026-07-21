@@ -31,7 +31,7 @@
 
 .public-mypage-overview-card {
   padding: 14px 16px;
-  border: 1px solid var(--public-ds-border);
+  border: 0;
   border-radius: var(--public-ds-radius);
   background: #ffffff;
   display: flex;
@@ -56,7 +56,7 @@
 .public-mypage-order-card,
 .public-mypage-settlement-card {
   padding: 16px;
-  border: 1px solid var(--public-ds-border);
+  border: 0;
   border-radius: var(--public-ds-radius);
   background: #ffffff;
 }
@@ -423,29 +423,6 @@
   color: #d0342c;
 }
 
-.public-mypage-settlement-summary {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.public-mypage-settlement-summary__item {
-  padding: 16px;
-  border-radius: var(--public-ds-radius);
-  background: #ffffff;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.public-mypage-settlement-summary__item span {
-  color: var(--public-ds-text-secondary);
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-.public-mypage-settlement-summary__item strong,
 .public-mypage-settlement-card__amount {
   color: var(--public-ds-text);
   font-size: 18px;
@@ -478,7 +455,7 @@
   padding: 12px 14px;
   background: #ffffff;
   border-radius: 8px;
-  border: 1px dashed var(--public-ds-border);
+  border: 0;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -570,10 +547,6 @@
 
   .public-mypage-overview-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .public-mypage-settlement-summary {
-    grid-template-columns: 1fr;
   }
 
   .public-mypage-order-card__actions {

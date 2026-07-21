@@ -300,15 +300,39 @@ img {
 }
 
 @media (max-width: 1023px) {
+  /* 좁은 화면: 필터를 상단에 sticky 고정하고, 각 그룹을 "과목 | 전체 국어 …"
+     한 줄 배치로 컴팩트하게 → 세로 높이를 최소화한다 */
   .public-home-store-grid__sidebar {
-    position: static;
-    top: auto;
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 16px 24px;
-    background: var(--public-bg-soft);
-    padding: 14px 16px;
+    position: sticky;
+    top: var(--public-sticky-header-height, 120px);
+    z-index: 15;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 8px;
+    background: #ffffff;
+    padding: 12px 16px;
+    border: 1px solid var(--public-border, #e5e5e5);
     border-radius: var(--public-radius-lg);
+  }
+
+  /* 그룹: 라벨 | 칩들 을 한 줄에 (자손 선택자로 base 규칙보다 우선) */
+  .public-home-store-grid__sidebar .public-home-store-grid__sidebar-group {
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .public-home-store-grid__sidebar .public-home-store-grid__sidebar-label {
+    flex-shrink: 0;
+    width: 58px;
+    padding-right: 12px;
+    border-right: 1px solid var(--public-border, #e5e5e5);
+    line-height: 1.4;
+    white-space: nowrap;
+  }
+
+  .public-home-store-grid__sidebar .public-home-store-grid__sidebar-list {
+    flex: 1;
   }
 }
 
@@ -8435,6 +8459,8 @@ img {
 
 .public-home-sell-banner {
   padding: 16px 0 24px;
+  background: #ffffff;
+  border-top: 1px solid var(--public-ds-divider);
 }
 
 .public-home-sell-banner__shell {
@@ -8448,19 +8474,16 @@ img {
   justify-content: space-between;
   gap: 12px;
   padding: 16px 20px;
-  border: 1px solid var(--public-ds-divider);
-  border-radius: 12px;
-  background: var(--public-ds-card);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   cursor: pointer;
-  transition:
-    background 180ms ease,
-    border-color 180ms ease;
+  transition: opacity 180ms ease;
 }
 
 .public-home-sell-banner__button:hover,
 .public-home-sell-banner__button:focus-visible {
-  background: var(--public-ds-background);
-  border-color: var(--public-ds-primary);
+  opacity: 0.7;
 }
 
 .public-home-sell-banner__text {
@@ -9518,13 +9541,6 @@ img {
 .public-nav-drawer__recent-chip:focus-visible {
   background: #f4f4f4;
   border-color: var(--public-primary, #080F47);
-}
-
-/* ── HomeStoreGrid 사이드바 CSS sticky (JS 구현 제거 후 환원) ──── */
-.public-home-store-grid__sidebar {
-  position: sticky;
-  top: 96px;
-  align-self: flex-start;
 }
 
 /* HomeStoreGrid 활성 검색 칩 */
