@@ -565,7 +565,13 @@ function AdminProductRegisterPage() {
           // 목록 수정 후 재확정해도 사진 단계에서 올린 사진·토글 상태는 유지
           coverUrl: prevAddition?.coverUrl ?? (fp.product.cover_image_url || ""),
           coverBusy: false,
-          detailUrls: prevAddition?.detailUrls ?? [],
+          // 기존 상품에 이미 등록된 상세사진을 프리필 — 화면 표시 + 신규 책이 동일 세트 상속
+          // (책 종류 단위 규칙). 검색 RPC의 detail_image_urls (2026-07-21).
+          detailUrls:
+            prevAddition?.detailUrls ??
+            (Array.isArray(fp.product.detail_image_urls)
+              ? fp.product.detail_image_urls.slice(0, MAX_DETAIL_PHOTOS)
+              : []),
           detailBusy: false,
           // 기존 교재는 변환된 표지를 이미 갖고 있는 경우가 대부분 → AI 자동 변환 기본 꺼짐
           coverAutoStudio: prevAddition?.coverAutoStudio ?? false,
