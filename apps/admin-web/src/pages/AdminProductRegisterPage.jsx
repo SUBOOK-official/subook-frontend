@@ -31,6 +31,13 @@ const DISCOUNT_TYPES = [
   { value: "rate", label: "정률(%)" },
 ];
 
+// 기존 교재 모달 전용 — 'none'은 정가 그대로가 아니라 "판매가 직접 입력" 의미라 라벨 분리
+const FRAME_DISCOUNT_TYPES = [
+  { value: "none", label: "직접 입력" },
+  { value: "amount", label: "정액(원)" },
+  { value: "rate", label: "정률(%)" },
+];
+
 // 신규 교재의 카테고리(과목/브랜드/유형) 선택지 — productCategories.js가 canonical.
 // 빈 값("자동")이면 RPC가 상품명에서 파싱하고, 선택하면 파싱보다 우선한다.
 
@@ -59,7 +66,11 @@ function blankNewRow(location = "") {
     brand: "",
     bookType: "",
     option: "",
+    // 같은 구성(옵션 세트)을 여러 권 등록할 때 — 옵션 수 × 수량 만큼 books 생성
+    quantity: "1",
     location,
+    // 비우면 시작 번호 순차 배정, 입력하면 이 행만 그 번호부터 배정
+    serialOverride: "",
     originalPrice: "",
     discountType: "none",
     discountValue: "",
@@ -74,8 +85,16 @@ function blankNewRow(location = "") {
 
 // 기존 교재 모달의 신규 옵션 행 — 수량 1·기준 판매가 프리필.
 // priceAuto: 수동으로 판매가를 고치기 전까지는 다른 행의 판매가 입력을 따라간다.
-function blankNewOption(price = "") {
-  return { option: "", quantity: "1", price, priceAuto: true };
+function blankNewOption(price = "", originalPrice = "") {
+  return {
+    option: "",
+    quantity: "1",
+    price,
+    priceAuto: true,
+    originalPrice,
+    discountType: "none",
+    discountValue: "",
+  };
 }
 
 function isNewRowBlank(row) {
@@ -133,17 +152,24 @@ function optionSummary(optionStr) {
   return items.length > 0 ? items.join(", ") : "옵션 없음";
 }
 
+// 신규 교재 행 수량 — 비우거나 잘못 입력하면 1, 1~999로 클램프 (RPC와 동일 규칙)
+function parseRowQuantity(value) {
+  const n = toNumber(value);
+  if (n === null) return 1;
+  return Math.min(Math.max(Math.trunc(n), 1), 999);
+}
+
 // ── 일련번호 배정 미리보기 ──────────────────────────────────────────
 // RPC(admin_register_customer_inventory)와 동일 규칙으로 권수를 세야
 // 미리보기 번호와 실제 배정 번호가 어긋나지 않는다.
-//   신규 교재: 콤마 옵션 1개당 1권 (옵션 없으면 1권)
+//   신규 교재: 콤마 옵션 수(없으면 1) × 행 수량
 //   기존 교재: 옵션별 추가 수량 합
 function countBooksForNewRow(row) {
   const optionCount = String(row.option || "")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean).length;
-  return optionCount > 0 ? optionCount : 1;
+  return (optionCount > 0 ? optionCount : 1) * parseRowQuantity(row.quantity);
 }
 
 function countBooksForAddition(addition) {
@@ -456,24 +482,14 @@ function AdminProductRegisterPage() {
     });
   };
 
-  // 창고 위치 항상성 — 어느 한 곳(신규 행·기존 교재 모달)에서 위치를 입력하면
-  // 아직 같은 값을 따라가던 항목(빈 값 또는 직전 배치 위치와 동일)을 전부 갱신한다.
-  const applyLocationEverywhere = (value, source) => {
-    const prevShared = batchLocation;
-    const inSync = (loc) => !String(loc ?? "").trim() || loc === prevShared;
-    setNewRows((prev) =>
-      prev.map((r) =>
-        (source?.kind === "row" && r.uid === source.uid) || inSync(r.location)
-          ? { ...r, location: value }
-          : r,
-      ),
-    );
-    setExistingAdditions((prev) => prev.map((a) => (inSync(a.location) ? { ...a, location: value } : a)));
-    setFramePanel((fp) => {
-      if (!fp) return fp;
-      if (source?.kind === "panel" || inSync(fp.location)) return { ...fp, location: value };
-      return fp;
-    });
+  // 창고 위치 전체 적용 — '전체 적용' 버튼에서만 호출.
+  // (2026-07-22 운영자 피드백: 한 행을 바꾸면 전체가 따라 바뀌어 행별 설정이 불가능했음.
+  //  자동 전파를 제거하고 행별 입력 + 명시적 일괄 채움으로 전환. batchLocation은
+  //  새 행/모달의 프리필 기본값으로만 쓰인다.)
+  const applyLocationEverywhere = (value) => {
+    setNewRows((prev) => prev.map((r) => ({ ...r, location: value })));
+    setExistingAdditions((prev) => prev.map((a) => ({ ...a, location: value })));
+    setFramePanel((fp) => (fp ? { ...fp, location: value } : fp));
     setBatchLocation(value);
   };
   const patchRow = (uid, patch) => setNewRows((prev) => prev.map((r) => (r.uid === uid ? { ...r, ...patch } : r)));
@@ -482,23 +498,41 @@ function AdminProductRegisterPage() {
 
   // Frame 3 열기
   const openFramePanel = (product) => {
-    const existingOptions = (product.options || []).map((o) => ({
+    const repOriginal = product.representative_original_price ?? "";
+    let existingOptions = (product.options || []).map((o) => ({
       option: o.option ?? "",
       stock_count: o.stock_count ?? 0,
       quantity: "",
-      price: o.price ?? product.representative_original_price ?? "",
+      price: o.price ?? repOriginal,
+      originalPrice: o.original_price ?? repOriginal,
+      discountType: "none",
+      discountValue: "",
     }));
+    // 옵션이 없는 교재(깡통 상품)도 옵션명 없이 '기본 옵션'으로 수량만 추가할 수 있게
+    // 합성 행을 노출한다 (2026-07-22 운영자 피드백). RPC는 옵션명이 비면 null로 저장하고,
+    // 공개 사이트는 null 옵션을 "기본 옵션"으로 렌더한다.
+    if (existingOptions.length === 0) {
+      existingOptions = [{
+        option: "",
+        stock_count: 0,
+        quantity: "",
+        price: repOriginal,
+        originalPrice: repOriginal,
+        discountType: "none",
+        discountValue: "",
+        isDefaultSynthetic: true,
+      }];
+    }
     // 신규 옵션 기본 판매가 — 이미 판매 중인 옵션이 있으면 그 판매가를 따라간다 (없으면 정가)
     const defaultNewPrice =
       existingOptions.find((o) => String(o.price ?? "").trim() !== "")?.price ??
-      product.representative_original_price ??
-      "";
+      repOriginal;
     // 이미 목록에 추가해 둔 배치를 수정하는 경우 위치 입력값은 유지, 아니면 배치 위치 프리필
     const prevAddition = existingAdditions.find((a) => a.product.id === product.id);
     setFramePanel({
       product,
       existingOptions,
-      newOptions: [blankNewOption(defaultNewPrice)],
+      newOptions: [blankNewOption(defaultNewPrice, repOriginal)],
       location: prevAddition?.location ?? batchLocation,
     });
   };
@@ -523,14 +557,29 @@ function AdminProductRegisterPage() {
       });
       const last = arr[arr.length - 1];
       if (last && last.option.trim()) {
-        arr = [...arr, blankNewOption(last.price)];
+        arr = [...arr, blankNewOption(last.price, last.originalPrice)];
       }
       return { ...fp, newOptions: arr };
     });
 
+  // 정가+할인 입력 시 판매가를 계산하고 할인 메타를 함께 남긴다 — 신규 교재 표와 동일 규칙.
+  // '직접 입력'(none)이면 판매가 입력값을 그대로 사용.
+  const resolveOptionPricing = (o, fallbackOriginal) => {
+    const type = o.discountType || "none";
+    const original = String(o.originalPrice ?? "").trim() !== "" ? o.originalPrice : fallbackOriginal;
+    if (type !== "none") {
+      const computed = computeSellPrice(original, type, o.discountValue);
+      if (computed !== null) {
+        return { price: computed, original_price: original, discount_type: type, discount_value: o.discountValue };
+      }
+    }
+    return { price: o.price, original_price: original, discount_type: "none", discount_value: null };
+  };
+
   const confirmFramePanel = () => {
     const fp = framePanel;
     if (!fp) return;
+    const repOriginal = fp.product.representative_original_price ?? "";
     const options = [];
     fp.existingOptions.forEach((o) => {
       const q = toNumber(o.quantity);
@@ -538,8 +587,7 @@ function AdminProductRegisterPage() {
         options.push({
           option: o.option || "",
           quantity: Math.trunc(q),
-          price: o.price,
-          original_price: fp.product.representative_original_price ?? "",
+          ...resolveOptionPricing(o, repOriginal),
         });
       }
     });
@@ -547,7 +595,11 @@ function AdminProductRegisterPage() {
       const q = toNumber(o.quantity);
       // 수량 1·판매가가 프리필되므로, 옵션명을 입력한 행만 실제 등록 대상으로 본다
       if (o.option.trim() && q !== null && q >= 1) {
-        options.push({ option: o.option.trim(), quantity: Math.trunc(q), price: o.price });
+        options.push({
+          option: o.option.trim(),
+          quantity: Math.trunc(q),
+          ...resolveOptionPricing(o, repOriginal),
+        });
       }
     });
     if (options.length === 0) {
@@ -564,6 +616,8 @@ function AdminProductRegisterPage() {
           product: fp.product,
           options,
           location: (fp.location ?? "").trim(),
+          // 행별 일련번호 직접 지정값은 재확정해도 유지
+          serialOverride: prevAddition?.serialOverride ?? "",
           // 목록 수정 후 재확정해도 사진 단계에서 올린 사진·토글 상태는 유지
           coverUrl: prevAddition?.coverUrl ?? (fp.product.cover_image_url || ""),
           coverBusy: false,
@@ -627,7 +681,9 @@ function AdminProductRegisterPage() {
   const uploadDetails = async (kind, uid, files) => {
     // 상세 사진은 최대 MAX_DETAIL_PHOTOS장 — 현재 개수를 보고 남은 만큼만 업로드한다.
     const list = kind === "new" ? newRows : existingAdditions;
-    const current = list.find((x) => x.uid === uid)?.detailUrls?.length ?? 0;
+    const target = list.find((x) => x.uid === uid);
+    const current = target?.detailUrls?.length ?? 0;
+    const hadNoCover = !String(target?.coverUrl ?? "").trim();
     const remaining = MAX_DETAIL_PHOTOS - current;
     if (remaining <= 0) {
       showToast(`상세 사진은 최대 ${MAX_DETAIL_PHOTOS}장까지 등록할 수 있어요.`, "error");
@@ -655,6 +711,32 @@ function AdminProductRegisterPage() {
       setExistingAdditions((prev) =>
         prev.map((a) => (a.uid === uid ? { ...a, detailUrls: [...(a.detailUrls || []), ...urls].slice(0, MAX_DETAIL_PHOTOS), detailBusy: false } : a)),
       );
+    }
+    // 표지가 아직 없으면 방금 올린 상세 1번을 표지로 자동 승계 — 같은 사진을 두 번 올리는
+    // 수고 제거 (2026-07-22 운영자 피드백). AI 변환 토글이 켜져 있으면 변환을 거쳐 표지 생성.
+    if (hadNoCover && current === 0 && urls.length > 0 && incoming.length > 0) {
+      showToast("상세 1번 사진을 표지로도 등록합니다 (AI 변환 토글 적용)", "info");
+      await uploadCover(kind, uid, incoming[0]);
+    }
+  };
+
+  // '상세 1번을 표지로 사용' 버튼 — 이미 올라간 상세 사진을 내려받아 표지 업로드
+  // 경로(AI 토글 포함)로 태운다. 자동 승계를 놓쳤거나 표지를 지운 경우의 수동 경로.
+  const useDetailAsCover = async (kind, uid) => {
+    const list = kind === "new" ? newRows : existingAdditions;
+    const firstDetail = list.find((x) => x.uid === uid)?.detailUrls?.[0];
+    if (!firstDetail) return;
+    setItemBusy(kind, uid, "coverBusy", true);
+    try {
+      const res = await fetch(firstDetail);
+      if (!res.ok) throw new Error("상세 사진을 불러오지 못했습니다.");
+      const blob = await res.blob();
+      const name = decodeURIComponent((firstDetail.split("/").pop() || "detail.jpg").split("?")[0]);
+      const file = new File([blob], name, { type: blob.type || "image/jpeg" });
+      await uploadCover(kind, uid, file);
+    } catch (err) {
+      showToast(err?.message || "상세 사진을 표지로 사용하지 못했습니다.", "error");
+      setItemBusy(kind, uid, "coverBusy", false);
     }
   };
 
@@ -709,24 +791,38 @@ function AdminProductRegisterPage() {
   );
 
   // 일련번호 배정 플랜 — 시작 번호부터 등록 순서(신규 표 → 기존 교재)대로 순차 배정.
-  // RPC가 같은 순서로 배정하므로 여기 미리보기와 실제 결과가 일치한다.
+  // 행별 직접 지정(serialOverride)이 있으면 그 행만 지정 번호부터 배정하고, 순차
+  // 카운터는 지정 행을 건너뛰고 이어간다 (스티커 롤은 계속 이어 쓰는 운영 방식).
+  // RPC가 같은 규칙으로 배정하므로 여기 미리보기와 실제 결과가 일치한다.
   const serialPlan = useMemo(() => {
     const startNum = parseSerialStart(serialStart);
     const invalid = String(serialStart).trim() !== "" && startNum === null;
     const ranges = new Map();
+    const used = new Map(); // 번호 → 배정 횟수 (배치 내 중복 검사)
+    let overrideInvalid = false;
     let cursor = startNum;
     let total = 0;
-    const assign = (key, count) => {
+    const markUsed = (from, count) => {
+      for (let i = 0; i < count; i += 1) used.set(from + i, (used.get(from + i) || 0) + 1);
+    };
+    const assign = (key, count, overrideRaw) => {
       if (count <= 0) return;
-      if (cursor !== null) {
+      const overrideNum = parseSerialStart(overrideRaw);
+      if (String(overrideRaw ?? "").trim() !== "" && overrideNum === null) overrideInvalid = true;
+      if (overrideNum !== null) {
+        ranges.set(key, { from: overrideNum, count, manual: true });
+        markUsed(overrideNum, count);
+      } else if (cursor !== null) {
         ranges.set(key, { from: cursor, count });
+        markUsed(cursor, count);
         cursor += count;
       }
       total += count;
     };
-    newProductsForSubmit.forEach((r) => assign(`new-${r.uid}`, countBooksForNewRow(r)));
-    existingAdditions.forEach((a) => assign(`existing-${a.uid}`, countBooksForAddition(a)));
-    return { startNum, invalid, ranges, total };
+    newProductsForSubmit.forEach((r) => assign(`new-${r.uid}`, countBooksForNewRow(r), r.serialOverride));
+    existingAdditions.forEach((a) => assign(`existing-${a.uid}`, countBooksForAddition(a), a.serialOverride));
+    const conflicts = [...used.entries()].filter(([, c]) => c > 1).map(([n]) => n).sort((a, b) => a - b);
+    return { startNum, invalid, overrideInvalid, conflicts, ranges, total };
   }, [serialStart, newProductsForSubmit, existingAdditions]);
 
   const serialRangeText = (kind, uid) => {
@@ -757,6 +853,18 @@ function AdminProductRegisterPage() {
       showToast("시작 일련번호는 1 이상의 정수로 입력해 주세요.", "error");
       return;
     }
+    if (serialPlan.overrideInvalid) {
+      showToast("행별 일련번호는 1 이상의 정수로 입력해 주세요.", "error");
+      return;
+    }
+    if (serialPlan.conflicts.length > 0) {
+      const preview = serialPlan.conflicts.slice(0, 5).join(", ");
+      showToast(
+        `일련번호가 겹칩니다: ${preview}${serialPlan.conflicts.length > 5 ? " 외" : ""} — 행별 지정 번호를 확인해 주세요.`,
+        "error",
+      );
+      return;
+    }
     setSubmitting(true);
     const new_products = newProductsForSubmit.map((r) => ({
       title: r.title.trim(),
@@ -768,7 +876,11 @@ function AdminProductRegisterPage() {
       discount_type: r.discountType || "none",
       discount_value: r.discountType === "none" ? null : String(r.discountValue).replaceAll(",", "").trim() || null,
       option: r.option.trim(),
+      // 같은 구성 여러 권 등록 — RPC가 옵션 수 × 수량 만큼 books 생성
+      quantity: parseRowQuantity(r.quantity),
       location: r.location.trim() || null,
+      // 행별 일련번호 직접 지정 (비우면 시작 번호 순차/자동 채번)
+      serial_override: parseSerialStart(r.serialOverride),
       cover_image_url: r.coverUrl || null,
       inspection_image_urls: r.detailUrls || [],
       is_public: publishOnComplete,
@@ -776,6 +888,7 @@ function AdminProductRegisterPage() {
     const existing_additions = existingAdditions.map((a) => ({
       product_id: a.product.id,
       location: a.location || null,
+      serial_override: parseSerialStart(a.serialOverride),
       cover_image_url: a.coverUrl || null,
       inspection_image_urls: a.detailUrls || [],
       is_public: publishOnComplete,
@@ -785,6 +898,9 @@ function AdminProductRegisterPage() {
         price: o.price === "" || o.price == null ? null : String(o.price).replaceAll(",", "").trim(),
         original_price:
           o.original_price === "" || o.original_price == null ? null : String(o.original_price).replaceAll(",", "").trim(),
+        discount_type: o.discount_type || "none",
+        discount_value:
+          o.discount_value === "" || o.discount_value == null ? null : String(o.discount_value).replaceAll(",", "").trim(),
       })),
     }));
 
@@ -1036,18 +1152,19 @@ function AdminProductRegisterPage() {
                   등록 순서: 연도+브랜드명+교재명+과목+선생님 (예: 2026 강남대성 크럭스 CRUX 수학1 현우진T)
                 </p>
                 <p className="mt-1 text-xs text-indigo-600">
-                  · 할인 방식을 정가로 두면 정가 그대로 판매 · 옵션은 콤마(,)로 여러 개 자동 등록
+                  · 할인 방식을 정가로 두면 정가 그대로 판매 · 옵션은 콤마(,)로 여러 개 자동 등록 · 같은 구성이 여러 권이면 수량만 올리면 돼요
                 </p>
                 <p className="mt-1 text-xs text-indigo-600">
-                  · 위치는 한 칸만 입력하면 전체에 자동 적용 · 일련번호는 아래 시작 번호부터 순서대로 자동 배정
+                  · 위치는 행별 입력 (아래 '전체 적용'으로 일괄 채움) · 일련번호는 시작 번호부터 순차 배정, 행별로 직접 지정도 가능
                 </p>
                 <div className="mt-3 overflow-x-auto">
-                  <table className="w-full min-w-[860px] text-sm">
+                  <table className="w-full min-w-[920px] text-sm">
                     <thead>
                       <tr className="border-b border-slate-200 text-left text-xs font-bold text-slate-500">
                         <th className="py-2 pr-2">상품명</th>
                         <th className="py-2 pr-2 w-24">카테고리</th>
                         <th className="py-2 pr-2 w-28">옵션</th>
+                        <th className="py-2 pr-2 w-14">수량</th>
                         <th className="py-2 pr-2 w-20">위치</th>
                         <th className="py-2 pr-2 w-24">일련번호</th>
                         <th className="py-2 pr-2 w-24">정가</th>
@@ -1097,21 +1214,40 @@ function AdminProductRegisterPage() {
                               />
                             </td>
                             <td className="py-1.5 pr-2">
+                              {/* 같은 구성 여러 권 — 옵션 수 × 수량 만큼 등록 */}
+                              <input
+                                type="number"
+                                min="1"
+                                value={row.quantity}
+                                onChange={(e) => handleRowChange(row.uid, "quantity", e.target.value)}
+                                className="w-full rounded border border-slate-200 px-2 py-1.5"
+                              />
+                            </td>
+                            <td className="py-1.5 pr-2">
+                              {/* 행별 위치 — 개별 수정 가능, 일괄 채움은 하단 '전체 적용' */}
                               <input
                                 type="text"
                                 value={row.location}
-                                onChange={(e) =>
-                                  applyLocationEverywhere(e.target.value, { kind: "row", uid: row.uid })
-                                }
+                                onChange={(e) => handleRowChange(row.uid, "location", e.target.value)}
                                 placeholder="A1"
                                 className="w-full rounded border border-slate-200 px-2 py-1.5"
                               />
                             </td>
                             <td className="py-1.5 pr-2">
-                              {/* 시작 일련번호 기준 자동 배정 — 이 행 몫의 번호 미리보기 */}
-                              <span className="block px-1 py-1.5 font-mono text-xs font-bold text-slate-700">
-                                {blank ? "-" : serialRangeText("new", row.uid) || "자동"}
-                              </span>
+                              {/* 비우면 시작 번호 순차 배정, 입력하면 이 행만 그 번호부터 배정 */}
+                              <input
+                                type="number"
+                                min="1"
+                                value={row.serialOverride}
+                                onChange={(e) => handleRowChange(row.uid, "serialOverride", e.target.value)}
+                                placeholder={blank ? "-" : serialRangeText("new", row.uid) || "자동"}
+                                className="w-full rounded border border-slate-200 px-2 py-1.5 font-mono text-xs"
+                              />
+                              {!blank && String(row.serialOverride).trim() && countBooksForNewRow(row) > 1 ? (
+                                <span className="mt-0.5 block px-1 font-mono text-[10px] font-bold text-indigo-600">
+                                  {serialRangeText("new", row.uid)}
+                                </span>
+                              ) : null}
                             </td>
                             <td className="py-1.5 pr-2">
                               <input
@@ -1165,7 +1301,7 @@ function AdminProductRegisterPage() {
                           </tr>
                           {showHint ? (
                             <tr className="border-b border-slate-100 bg-indigo-50/50">
-                              <td colSpan={10} className="px-2 py-1.5 text-[11px] font-semibold text-indigo-800">
+                              <td colSpan={11} className="px-2 py-1.5 text-[11px] font-semibold text-indigo-800">
                                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                                   <span className="font-bold">
                                     유사 시세 {formatCurrency(hint.suggested_price)}
@@ -1218,6 +1354,16 @@ function AdminProductRegisterPage() {
                         </p>
                       </div>
                       <div className="flex items-center gap-3">
+                        {/* 행별 일련번호 직접 지정 — 비우면 시작 번호 순차 배정 */}
+                        <input
+                          type="number"
+                          min="1"
+                          value={a.serialOverride ?? ""}
+                          onChange={(e) => patchAddition(a.uid, { serialOverride: e.target.value })}
+                          placeholder="번호 지정"
+                          title="이 교재의 시작 일련번호 직접 지정 (비우면 순차 배정)"
+                          className="w-24 rounded border border-slate-200 px-2 py-1 font-mono text-xs"
+                        />
                         <button
                           type="button"
                           onClick={() => openFramePanel(a.product)}
@@ -1240,6 +1386,27 @@ function AdminProductRegisterPage() {
             ) : null}
 
             <div className="flex flex-wrap items-center justify-end gap-3">
+              {/* 창고 위치 일괄 채움 — 행별 입력이 기본, 이 버튼으로만 전체 적용 (2026-07-22) */}
+              <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2">
+                <label className="text-xs font-bold text-slate-700" htmlFor="register-batch-location">
+                  창고 위치
+                </label>
+                <input
+                  id="register-batch-location"
+                  type="text"
+                  value={batchLocation}
+                  onChange={(e) => setBatchLocation(e.target.value)}
+                  placeholder="예: A1"
+                  className="w-20 rounded border border-slate-200 px-2 py-1.5 text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => applyLocationEverywhere(batchLocation.trim())}
+                  className="rounded border border-slate-300 px-2 py-1 text-xs font-bold text-slate-600 hover:bg-slate-50"
+                >
+                  전체 적용
+                </button>
+              </div>
               {/* 시작 일련번호 — 신규 표 → 기존 교재 순서로 start, start+1, ... 자동 배정 */}
               <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2">
                 <label className="text-xs font-bold text-slate-700" htmlFor="register-serial-start">
@@ -1346,16 +1513,28 @@ function AdminProductRegisterPage() {
                           </button>
                         </div>
                       ) : (
-                        <DropBox
-                          className="h-32 w-32"
-                          disabled={t.coverBusy}
-                          onFiles={(files) => uploadCover(t.kind, t.uid, files[0])}
-                        >
-                          <span className="text-2xl leading-none"><PlusIcon size={22} /></span>
-                          <span className="mt-1 text-[10px]">
-                            {t.coverBusy ? (t.coverAutoStudio ? "AI 변환 중..." : "업로드 중...") : "표지 추가"}
-                          </span>
-                        </DropBox>
+                        <>
+                          <DropBox
+                            className="h-32 w-32"
+                            disabled={t.coverBusy}
+                            onFiles={(files) => uploadCover(t.kind, t.uid, files[0])}
+                          >
+                            <span className="text-2xl leading-none"><PlusIcon size={22} /></span>
+                            <span className="mt-1 text-[10px]">
+                              {t.coverBusy ? (t.coverAutoStudio ? "AI 변환 중..." : "업로드 중...") : "표지 추가"}
+                            </span>
+                          </DropBox>
+                          {t.detailUrls.length > 0 ? (
+                            <button
+                              type="button"
+                              disabled={t.coverBusy}
+                              onClick={() => useDetailAsCover(t.kind, t.uid)}
+                              className="mt-2 block text-[11px] font-bold text-indigo-600 underline hover:text-indigo-800 disabled:opacity-50"
+                            >
+                              상세 1번 사진을 표지로 사용
+                            </button>
+                          ) : null}
+                        </>
                       )}
                     </div>
 
@@ -1518,9 +1697,14 @@ function AdminProductRegisterPage() {
               </div>
             </div>
 
-            {/* 기존 옵션 재고 추가 */}
+            {/* 기존 옵션 재고 추가 — 정가/할인 입력 시 판매가 자동 계산 (신규 등록과 동일 규칙) */}
             <div className="mt-5">
               <h3 className="text-sm font-black text-slate-900">재고 수량 추가하기</h3>
+              {framePanel.existingOptions.some((o) => o.isDefaultSynthetic) ? (
+                <p className="mt-1 text-xs text-slate-500">
+                  옵션이 없는 교재입니다 — 옵션명 없이 <strong>기본 옵션</strong>으로 수량만 추가됩니다.
+                </p>
+              ) : null}
               {framePanel.existingOptions.length === 0 ? (
                 <p className="mt-2 text-sm text-slate-400">기존 옵션이 없습니다. 아래에서 새 옵션을 추가하세요.</p>
               ) : (
@@ -1528,15 +1712,18 @@ function AdminProductRegisterPage() {
                   <thead>
                     <tr className="border-b border-slate-200 text-left text-xs font-bold text-slate-500">
                       <th className="py-2">옵션명</th>
-                      <th className="py-2 w-24 text-center">현재 재고</th>
-                      <th className="py-2 w-28">추가 수량</th>
-                      <th className="py-2 w-28">판매가</th>
+                      <th className="py-2 w-20 text-center">현재 재고</th>
+                      <th className="py-2 w-24">추가 수량</th>
+                      <th className="py-2 w-24">정가</th>
+                      <th className="py-2 w-24">할인 방식</th>
+                      <th className="py-2 w-20">할인 값</th>
+                      <th className="py-2 w-24">판매가</th>
                     </tr>
                   </thead>
                   <tbody>
                     {framePanel.existingOptions.map((o, idx) => (
                       <tr key={`${o.option}-${idx}`} className="border-b border-slate-100">
-                        <td className="py-2 font-semibold text-slate-800">{o.option || "기본"}</td>
+                        <td className="py-2 font-semibold text-slate-800">{o.option || "기본 옵션"}</td>
                         <td className="py-2 text-center text-slate-500">{o.stock_count}권</td>
                         <td className="py-2">
                           <input
@@ -1552,11 +1739,51 @@ function AdminProductRegisterPage() {
                           <input
                             type="number"
                             min="0"
-                            value={o.price}
-                            onChange={(e) => updateExistingOpt(idx, "price", e.target.value)}
+                            value={o.originalPrice}
+                            onChange={(e) => updateExistingOpt(idx, "originalPrice", e.target.value)}
                             placeholder="원"
                             className="w-full rounded border border-slate-200 px-2 py-1.5"
                           />
+                        </td>
+                        <td className="py-2">
+                          <select
+                            value={o.discountType}
+                            onChange={(e) => updateExistingOpt(idx, "discountType", e.target.value)}
+                            className="w-full rounded border border-slate-200 px-1 py-1.5"
+                          >
+                            {FRAME_DISCOUNT_TYPES.map((d) => (
+                              <option key={d.value} value={d.value}>{d.label}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="py-2">
+                          <input
+                            type="number"
+                            min="0"
+                            value={o.discountValue}
+                            disabled={o.discountType === "none"}
+                            onChange={(e) => updateExistingOpt(idx, "discountValue", e.target.value)}
+                            placeholder={o.discountType === "rate" ? "%" : o.discountType === "amount" ? "원" : "-"}
+                            className="w-full rounded border border-slate-200 px-2 py-1.5 disabled:bg-slate-100"
+                          />
+                        </td>
+                        <td className="py-2">
+                          {o.discountType === "none" ? (
+                            <input
+                              type="number"
+                              min="0"
+                              value={o.price}
+                              onChange={(e) => updateExistingOpt(idx, "price", e.target.value)}
+                              placeholder="원"
+                              className="w-full rounded border border-slate-200 px-2 py-1.5"
+                            />
+                          ) : (
+                            <span className="block px-1 py-1.5 text-right font-bold text-slate-900">
+                              {computeSellPrice(o.originalPrice, o.discountType, o.discountValue) == null
+                                ? "—"
+                                : formatCurrency(computeSellPrice(o.originalPrice, o.discountType, o.discountValue))}
+                            </span>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -1570,14 +1797,17 @@ function AdminProductRegisterPage() {
               <h3 className="text-sm font-black text-slate-900">신규 옵션 추가하기</h3>
               <p className="mt-1 text-xs text-slate-500">
                 수량 1 · 판매가(판매 중 가격)는 미리 채워져요 — 옵션명만 입력하면 됩니다. 판매가를 고치면
-                아직 손대지 않은 행에도 같이 적용돼요.
+                아직 손대지 않은 행에도 같이 적용되고, 정가+할인을 입력하면 판매가가 자동 계산돼요.
               </p>
               <table className="mt-2 w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 text-left text-xs font-bold text-slate-500">
                     <th className="py-2">옵션명</th>
-                    <th className="py-2 w-28">재고 수량</th>
-                    <th className="py-2 w-28">판매가</th>
+                    <th className="py-2 w-24">재고 수량</th>
+                    <th className="py-2 w-24">정가</th>
+                    <th className="py-2 w-24">할인 방식</th>
+                    <th className="py-2 w-20">할인 값</th>
+                    <th className="py-2 w-24">판매가</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1606,11 +1836,51 @@ function AdminProductRegisterPage() {
                         <input
                           type="number"
                           min="0"
-                          value={o.price}
-                          onChange={(e) => updateNewOpt(idx, "price", e.target.value)}
+                          value={o.originalPrice}
+                          onChange={(e) => updateNewOpt(idx, "originalPrice", e.target.value)}
                           placeholder="원"
                           className="w-full rounded border border-slate-200 px-2 py-1.5"
                         />
+                      </td>
+                      <td className="py-2">
+                        <select
+                          value={o.discountType}
+                          onChange={(e) => updateNewOpt(idx, "discountType", e.target.value)}
+                          className="w-full rounded border border-slate-200 px-1 py-1.5"
+                        >
+                          {FRAME_DISCOUNT_TYPES.map((d) => (
+                            <option key={d.value} value={d.value}>{d.label}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="py-2">
+                        <input
+                          type="number"
+                          min="0"
+                          value={o.discountValue}
+                          disabled={o.discountType === "none"}
+                          onChange={(e) => updateNewOpt(idx, "discountValue", e.target.value)}
+                          placeholder={o.discountType === "rate" ? "%" : o.discountType === "amount" ? "원" : "-"}
+                          className="w-full rounded border border-slate-200 px-2 py-1.5 disabled:bg-slate-100"
+                        />
+                      </td>
+                      <td className="py-2">
+                        {o.discountType === "none" ? (
+                          <input
+                            type="number"
+                            min="0"
+                            value={o.price}
+                            onChange={(e) => updateNewOpt(idx, "price", e.target.value)}
+                            placeholder="원"
+                            className="w-full rounded border border-slate-200 px-2 py-1.5"
+                          />
+                        ) : (
+                          <span className="block px-1 py-1.5 text-right font-bold text-slate-900">
+                            {computeSellPrice(o.originalPrice, o.discountType, o.discountValue) == null
+                              ? "—"
+                              : formatCurrency(computeSellPrice(o.originalPrice, o.discountType, o.discountValue))}
+                          </span>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -1618,19 +1888,19 @@ function AdminProductRegisterPage() {
               </table>
             </div>
 
-            {/* 창고 위치 — 이 배치로 추가되는 모든 책에 적용 (권별 수정은 상품 재고에서)
-                입력하면 신규 교재 표 등 배치 전체 위치도 함께 따라간다(항상성). */}
+            {/* 창고 위치 — 이 교재(배치)로 추가되는 책들에만 적용 (권별 수정은 상품 재고에서) */}
             <div className="mt-6">
               <h3 className="text-sm font-black text-slate-900">창고 위치</h3>
               <input
                 type="text"
                 value={framePanel.location ?? ""}
-                onChange={(e) => applyLocationEverywhere(e.target.value, { kind: "panel" })}
+                onChange={(e) => setFramePanel((fp) => (fp ? { ...fp, location: e.target.value } : fp))}
                 placeholder="예: A1, 모7"
                 className="mt-2 w-48 rounded border border-slate-200 px-2 py-1.5 text-sm"
               />
               <p className="mt-2 text-xs text-slate-500">
-                일련번호는 목록 확정 후 시작 번호부터 등록 순서대로 자동 배정됩니다.
+                이 교재에만 적용됩니다. 일련번호는 목록 확정 후 시작 번호부터 순차 배정되고,
+                목록 화면에서 교재별로 직접 지정할 수도 있어요.
               </p>
             </div>
 
