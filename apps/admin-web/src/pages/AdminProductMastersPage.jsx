@@ -65,6 +65,9 @@ function AdminProductMastersPage() {
   const [summary, setSummary] = useState({ total: 0, selling: 0, sold_out: 0, hidden: 0 });
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState({ brand: "", subject: "", book_type: "", status: "" });
+  // 정렬 — 기본 '최근 수정순' (2026-07-22 운영자 피드백: 기존 상품에 재고를 추가하면
+  // 등록순 정렬에선 과거 위치에 묻혀 못 찾음. updated_at은 books 변경 트리거가 유지)
+  const [sortKey, setSortKey] = useState("updated");
   const [isLoading, setIsLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
   const [toast, setToast] = useState(null);
@@ -123,17 +126,26 @@ function AdminProductMastersPage() {
     }
   };
 
-  const runBulkProductStatus = async (action, ids) => {
+  // 일괄 노출/숨김 — books.is_public을 직접 플립 (2026-07-22 수리).
+  // 구 admin_bulk_update_product_status는 파생값 products.status만 바꿔 스토어에
+  // 반영되지 않고 다음 트리거 때 원복되는 버그가 있어 사용 중단.
+  const runBulkProductVisibility = async (isPublic, ids) => {
     setBulkProcessing(true);
     try {
-      const { data, error } = await supabase.rpc("admin_bulk_update_product_status", {
-        p_ids: ids,
-        p_status: action,
+      const { data, error } = await supabase.rpc("admin_bulk_set_products_visibility", {
+        p_product_ids: ids,
+        p_is_public: isPublic,
       });
       if (error) {
         showToast(error.message || "일괄 변경에 실패했습니다.", "error");
       } else {
-        showToast(`${data?.updated_count ?? 0}개 상품 상태 변경 완료`, "success");
+        const books = data?.updated_books ?? 0;
+        const skipped = Array.isArray(data?.skipped_product_ids) ? data.skipped_product_ids.length : 0;
+        showToast(
+          `재고 ${books}권 ${isPublic ? "노출" : "숨김"} 전환 완료` +
+            (skipped > 0 ? ` / ${skipped}개 상품은 노출된 재고 없음(판매중·가격·검수 메타 조건 미충족)` : ""),
+          skipped > 0 ? "info" : "success",
+        );
       }
       setSelectedIds(new Set());
       await loadProducts();
@@ -164,21 +176,20 @@ function AdminProductMastersPage() {
       return;
     }
 
-    const label = { selling: "공개(판매중)", hidden: "숨김", sold_out: "품절" }[action] ?? action;
+    const isPublic = action === "selling";
+    const label = isPublic ? "공개(노출)" : "숨김";
     setDestructiveModal({
-      title: `${ids.length}개 상품 상태 일괄 변경 — '${label}'`,
+      title: `${ids.length}개 상품 일괄 ${label}`,
       description:
-        `선택 ${ids.length}개 상품을 '${label}' 상태로 일괄 변경합니다.\n\n` +
-        (action === "selling"
-          ? `· 즉시 스토어에 노출됩니다.\n· 검수가 완료되지 않은 상품이 공개되면 클레임이 발생할 수 있습니다.`
-          : action === "sold_out"
-            ? `· 즉시 '품절' 표시로 전환됩니다. 진행 중인 장바구니에 영향이 있을 수 있습니다.`
-            : `· 즉시 스토어에서 숨김 처리됩니다.`),
+        `선택 ${ids.length}개 상품의 재고(권)를 일괄 ${label} 처리합니다.\n\n` +
+        (isPublic
+          ? `· 판매중이고 가격이 입력된 재고가 즉시 스토어에 노출됩니다.\n· 가격이 없는 재고는 노출 대상에서 제외됩니다.\n· 검수가 완료되지 않은 상품이 공개되면 클레임이 발생할 수 있습니다.`
+          : `· 모든 재고가 즉시 스토어에서 숨김 처리됩니다.`),
       confirmPhrase: action,
       reasonRequired: false,
       confirmLabel: `${ids.length}건 ${label}`,
       run: async () => {
-        await runBulkProductStatus(action, ids);
+        await runBulkProductVisibility(isPublic, ids);
       },
     });
   };
@@ -197,7 +208,7 @@ function AdminProductMastersPage() {
 
   useEffect(() => {
     setSelectedIds(new Set());
-  }, [search, filters, currentPage]);
+  }, [search, filters, currentPage, sortKey]);
 
   const showToast = useCallback((message, tone = "info") => {
     setToast({ message, tone });
@@ -231,6 +242,7 @@ function AdminProductMastersPage() {
     const params = {
       p_limit: PRODUCTS_PAGE_SIZE,
       p_offset: (currentPage - 1) * PRODUCTS_PAGE_SIZE,
+      p_sort: sortKey,
     };
     if (search.trim()) params.p_search = search.trim();
     if (filters.brand) params.p_brand = filters.brand;
@@ -271,7 +283,7 @@ function AdminProductMastersPage() {
       setSummary(summaryRes.data);
     }
     setIsLoading(false);
-  }, [search, filters, showToast, currentPage]);
+  }, [search, filters, showToast, currentPage, sortKey]);
 
   useEffect(() => {
     const timerId = window.setTimeout(() => {
@@ -480,6 +492,17 @@ function AdminProductMastersPage() {
             {BOOK_TYPE_OPTIONS.map((t) => (
               <option key={t} value={t}>{t}</option>
             ))}
+          </select>
+          <select
+            value={sortKey}
+            onChange={(e) => {
+              setSortKey(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="rounded-md border border-slate-300 px-3 py-2"
+          >
+            <option value="updated">최근 수정순</option>
+            <option value="created">최신 등록순</option>
           </select>
           <span className="ml-auto text-xs text-slate-500">{productCount}개 표시</span>
         </div>

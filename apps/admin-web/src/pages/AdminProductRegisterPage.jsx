@@ -22,6 +22,8 @@ const COVER_BUCKET = "product-covers";
 const DETAIL_BUCKET = "inspection-images";
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
+// 기존 교재 검색 결과 상한 — RPC clamp(100) 이내. 상한에 걸리면 목록 하단에 안내 표시.
+const PROD_SEARCH_LIMIT = 50;
 
 const DISCOUNT_TYPES = [
   { value: "none", label: "정가" },
@@ -342,11 +344,11 @@ function AdminProductRegisterPage() {
     const timer = window.setTimeout(async () => {
       const { data, error } = await supabase.rpc("admin_search_products_for_register", {
         p_search: q,
-        p_limit: 20,
+        p_limit: PROD_SEARCH_LIMIT,
       });
       if (!active) return;
       if (error) {
-        showToast(error.message || "교재 검색에 실패했습니다.", "error");
+        showToast(`교재 검색에 실패했습니다${error?.message ? ` — ${error.message}` : ""}`, "error");
         setProdResults([]);
       } else {
         setProdResults(Array.isArray(data) ? data : []);
@@ -973,7 +975,8 @@ function AdminProductRegisterPage() {
                       {prodSearch.trim() ? "검색 결과가 없습니다. 오른쪽에서 신규 교재로 등록하세요." : "검색어를 입력하세요."}
                     </p>
                   ) : (
-                    prodResults.map((p) => (
+                    <>
+                    {prodResults.map((p) => (
                       <button
                         key={p.id}
                         type="button"
@@ -1015,7 +1018,13 @@ function AdminProductRegisterPage() {
                           </p>
                         </div>
                       </button>
-                    ))
+                    ))}
+                    {prodResults.length >= PROD_SEARCH_LIMIT ? (
+                      <p className="rounded-md bg-amber-50 px-3 py-2 text-center text-xs font-semibold text-amber-700">
+                        상위 {PROD_SEARCH_LIMIT}건만 표시 중입니다 — 원하는 교재가 안 보이면 검색어를 더 좁혀보세요.
+                      </p>
+                    ) : null}
+                    </>
                   )}
                 </div>
               </section>
