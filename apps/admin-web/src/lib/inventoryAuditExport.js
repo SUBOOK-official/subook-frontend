@@ -9,7 +9,8 @@ const SHIPMENT_INDEX_PAGE_SIZE = 1000;
 const BOOK_FETCH_PAGE_SIZE = 1000;
 const INVENTORY_AUDIT_FILE_NAME_PREFIX = "subook-inventory-audit";
 const INVENTORY_AUDIT_SHEET_NAME = "inventory_audit";
-// 운영 구글시트 "새 DB(3/30~)" 탭과 동일한 열 순서 (2026-07-20: 판매가·옵션 순서 교정)
+// 운영 구글시트 "새 DB(3/30~)" 탭과 동일한 열 순서 (2026-07-20: 판매가·옵션 순서 교정).
+// 등록일은 기간 추출 확인용으로 맨 뒤에 추가 (2026-07-22) — 시트 열 순서는 그대로 유지.
 const INVENTORY_AUDIT_EXPORT_HEADERS = [
   "일련번호",
   "위치",
@@ -18,7 +19,27 @@ const INVENTORY_AUDIT_EXPORT_HEADERS = [
   "판매가",
   "옵션",
   "판매완료여부",
+  "등록일",
 ];
+
+// KST 기준 YYYY-MM-DD (books.created_at → 등록일 표기·필터 경계)
+function toKstDateStr(value) {
+  if (!value) return "";
+  try {
+    return new Date(value).toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" });
+  } catch {
+    return "";
+  }
+}
+
+function nextDayStr(dateStr) {
+  const d = new Date(`${dateStr}T00:00:00`);
+  d.setDate(d.getDate() + 1);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${dd}`;
+}
 
 function collapseWhitespace(value) {
   return String(value ?? "").trim().replace(/\s+/g, " ");
@@ -98,17 +119,21 @@ async function fetchShipmentIndex() {
   return shipmentIndex;
 }
 
-async function fetchAllInventoryBooks() {
+async function fetchAllInventoryBooks({ fromDate, toDate } = {}) {
   const books = [];
   let from = 0;
 
   while (true) {
     const to = from + BOOK_FETCH_PAGE_SIZE - 1;
-    const { data, error: booksError } = await supabase
+    let query = supabase
       .from("books")
-      .select("id,shipment_id,title,option,status,price,serial_number,location")
+      .select("id,shipment_id,title,option,status,price,serial_number,location,created_at")
       .order("id", { ascending: true })
       .range(from, to);
+    // 등록일(KST) 범위 필터 — from 당일 00:00 이상, to 다음날 00:00 미만
+    if (fromDate) query = query.gte("created_at", `${fromDate}T00:00:00+09:00`);
+    if (toDate) query = query.lt("created_at", `${nextDayStr(toDate)}T00:00:00+09:00`);
+    const { data, error: booksError } = await query;
 
     if (booksError) {
       throw new Error("재고 전수조사 대상 책 목록을 불러오지 못했습니다.");
@@ -131,10 +156,11 @@ async function fetchAllInventoryBooks() {
 }
 
 // 재고 전수조사 XLSX를 생성·다운로드하고 행 수를 반환한다. 실패 시 throw.
-export async function downloadInventoryAuditXlsx() {
+// fromDate/toDate(YYYY-MM-DD, KST)를 주면 등록일 범위로 필터링한다.
+export async function downloadInventoryAuditXlsx({ fromDate = null, toDate = null } = {}) {
   const [shipmentIndex, books] = await Promise.all([
     fetchShipmentIndex(),
-    fetchAllInventoryBooks(),
+    fetchAllInventoryBooks({ fromDate, toDate }),
   ]);
   const shipmentMap = new Map(shipmentIndex.map((shipment) => [shipment.id, shipment]));
 
@@ -154,6 +180,7 @@ export async function downloadInventoryAuditXlsx() {
         option: collapseWhitespace(book.option),
         price: book.price,
         settlementStatus: getInventoryAuditStatusLabel(book.status),
+        createdDate: toKstDateStr(book.created_at),
       };
     })
     .filter(Boolean)
@@ -166,6 +193,7 @@ export async function downloadInventoryAuditXlsx() {
       [INVENTORY_AUDIT_EXPORT_HEADERS[4]]: row.price ?? "",
       [INVENTORY_AUDIT_EXPORT_HEADERS[5]]: row.option,
       [INVENTORY_AUDIT_EXPORT_HEADERS[6]]: row.settlementStatus,
+      [INVENTORY_AUDIT_EXPORT_HEADERS[7]]: row.createdDate,
     }));
 
   if (exportRows.length === 0) {
@@ -192,6 +220,7 @@ export async function downloadInventoryAuditXlsx() {
       },
       { key: INVENTORY_AUDIT_EXPORT_HEADERS[5], header: INVENTORY_AUDIT_EXPORT_HEADERS[5], width: 16 },
       { key: INVENTORY_AUDIT_EXPORT_HEADERS[6], header: INVENTORY_AUDIT_EXPORT_HEADERS[6], width: 12 },
+      { key: INVENTORY_AUDIT_EXPORT_HEADERS[7], header: INVENTORY_AUDIT_EXPORT_HEADERS[7], width: 12 },
     ],
     fileName: getInventoryAuditFileName(),
     sheetName: INVENTORY_AUDIT_SHEET_NAME,

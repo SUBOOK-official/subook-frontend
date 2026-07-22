@@ -10,6 +10,12 @@ import { formatCurrency, formatDate } from "@shared-domain/format";
 import StatusBadge from "@shared-domain/StatusBadge";
 import { CloseIcon } from "../components/icons";
 import { downloadInventoryAuditXlsx } from "../lib/inventoryAuditExport";
+import { COVER_BUCKET, uploadImageToBucket } from "../lib/adminImageUpload";
+import {
+  prepareStudioImagePayload,
+  requestStudioGeneration,
+  studioResultToFile,
+} from "../lib/studioClient";
 
 // 식스샵 스타일 어드민 상품 마스터 페이지.
 // products 테이블을 1차 단위로 표시하고, 행 클릭 시 그 product에 link된
@@ -56,6 +62,20 @@ function priceRangeLabel(min, max) {
   return `${formatCurrency(min)} ~ ${formatCurrency(max)}`;
 }
 
+// 로컬(KST) 기준 YYYY-MM-DD — 엑셀 기간 프리셋용
+function localDateStr(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function daysAgoStr(days) {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return localDateStr(d);
+}
+
 function AdminProductMastersPage() {
   const [products, setProducts] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
@@ -86,8 +106,12 @@ function AdminProductMastersPage() {
   // 일괄 선택
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [bulkProcessing, setBulkProcessing] = useState(false);
-  // 재고 전수조사 엑셀 (R2: 구 대시보드 catalog 뷰에서 이식)
+  // 표지 AI 일괄 변환 진행률 (2026-07-22)
+  const [bulkStudioProgress, setBulkStudioProgress] = useState(null);
+  // 재고 전수조사 엑셀 (R2: 구 대시보드 catalog 뷰에서 이식, 2026-07-22 등록일 범위 추가)
   const [isInventoryExporting, setIsInventoryExporting] = useState(false);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [exportRange, setExportRange] = useState({ from: "", to: "" });
 
   const toggleSelectId = (id) => {
     setSelectedIds((current) => {
@@ -105,18 +129,28 @@ function AdminProductMastersPage() {
     });
   };
 
+  // 완전 삭제 (2026-07-22): 주문·정산 이력이 없는 상품만 책과 함께 하드 삭제.
+  // 구 admin_bulk_delete_products는 책이 1권이라도 있으면 무조건 차단이라 사실상
+  // 아무것도 못 지웠음 — 이력 보호 조건만 남기고 진짜 삭제로 교체.
   const runBulkProductDelete = async (ids) => {
     setBulkProcessing(true);
     try {
-      const { data, error } = await supabase.rpc("admin_bulk_delete_products", { p_ids: ids });
+      const { data, error } = await supabase.rpc("admin_bulk_hard_delete_products", { p_ids: ids });
       if (error) {
         showToast(error.message || "삭제에 실패했습니다.", "error");
       } else {
-        const deleted = data?.deleted_count ?? 0;
-        const blocked = data?.blocked_count ?? 0;
+        const deletedProducts = data?.deleted_products ?? 0;
+        const deletedBooks = data?.deleted_books ?? 0;
+        const skipped = Array.isArray(data?.skipped) ? data.skipped : [];
+        if (skipped.length > 0) {
+          console.warn("[하드 삭제] 보호되어 건너뜀:", skipped);
+        }
         showToast(
-          `삭제 ${deleted}건 완료${blocked > 0 ? ` / 차단 ${blocked}건 (연결된 책 존재)` : ""}`,
-          blocked > 0 ? "info" : "success",
+          `완전 삭제 ${deletedProducts}종 · ${deletedBooks}권` +
+            (skipped.length > 0
+              ? ` / ${skipped.length}종 보호됨(${skipped[0]?.reason ?? "이력 존재"}${skipped.length > 1 ? " 외" : ""})`
+              : ""),
+          skipped.length > 0 ? "info" : "success",
         );
       }
       setSelectedIds(new Set());
@@ -154,23 +188,98 @@ function AdminProductMastersPage() {
     }
   };
 
+  // 표지 AI 일괄 변환 (2026-07-22): 현재 표지를 내려받아 스튜디오 변환 후 교체.
+  // 화/수 실물사진으로 등록된 표지 45종 백필 겸 영구 기능. 순차 처리(레이트리밋 회피).
+  const runBulkCoverStudio = async (ids) => {
+    setBulkProcessing(true);
+    setBulkStudioProgress({ done: 0, total: ids.length });
+    const failures = [];
+    let converted = 0;
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token || "";
+      if (!accessToken) throw new Error("로그인 세션이 만료되었습니다. 다시 로그인해 주세요.");
+      for (let i = 0; i < ids.length; i += 1) {
+        const id = ids[i];
+        const target = products.find((p) => p.id === id);
+        try {
+          const coverUrl = target?.cover_image_url;
+          if (!coverUrl) throw new Error("표지 없음");
+          const res = await fetch(coverUrl);
+          if (!res.ok) throw new Error("표지 다운로드 실패");
+          const blob = await res.blob();
+          const name = decodeURIComponent((coverUrl.split("/").pop() || "cover.jpg").split("?")[0]);
+          const file = new File([blob], name, { type: blob.type || "image/jpeg" });
+          const payload = await prepareStudioImagePayload(file);
+          const generated = await requestStudioGeneration(accessToken, payload);
+          const studioFile = studioResultToFile(generated, file.name);
+          const url = await uploadImageToBucket(COVER_BUCKET, studioFile, "studio-batch");
+          if (!url) throw new Error("변환본 업로드 실패");
+          const { error: rpcError } = await supabase.rpc("admin_set_product_cover", {
+            p_product_id: id,
+            p_cover_image_url: url,
+          });
+          if (rpcError) throw new Error(rpcError.message || "표지 반영 실패");
+          converted += 1;
+        } catch (err) {
+          failures.push({ id, title: target?.title ?? `#${id}`, message: err?.message || "알 수 없는 오류" });
+        }
+        setBulkStudioProgress({ done: i + 1, total: ids.length });
+      }
+      if (failures.length > 0) console.warn("[표지 AI 변환] 실패 목록:", failures);
+      showToast(
+        `표지 AI 변환 ${converted}건 완료` +
+          (failures.length > 0
+            ? ` / 실패 ${failures.length}건 (${failures[0].title}: ${failures[0].message}${failures.length > 1 ? " 외" : ""})`
+            : ""),
+        failures.length > 0 ? "info" : "success",
+      );
+    } catch (err) {
+      showToast(err?.message || "표지 AI 변환을 시작하지 못했습니다.", "error");
+    } finally {
+      setBulkStudioProgress(null);
+      setBulkProcessing(false);
+      setSelectedIds(new Set());
+      await loadProducts();
+    }
+  };
+
   const handleBulkProductAction = (action) => {
     const ids = Array.from(selectedIds);
     if (ids.length === 0) return;
 
     if (action === "delete") {
       setDestructiveModal({
-        title: `상품 일괄 삭제 — ${ids.length}건`,
+        title: `상품 완전 삭제 — ${ids.length}건`,
         description:
-          `선택 ${ids.length}개 상품을 삭제합니다.\n\n` +
-          `· 연결된 책이 있는 상품은 자동 skip됩니다.\n` +
-          `· 이미 등록된 주문 이력에는 영향이 없습니다.\n\n` +
+          `선택 ${ids.length}개 상품을 연결된 재고(책)와 함께 완전히 삭제합니다.\n\n` +
+          `· 주문·정산 이력이 있는 상품, 판매완료/폐기 책이 있는 상품은 자동으로 보호(건너뜀)됩니다.\n` +
+          `· 장바구니·찜·재입고 알림 연결은 함께 정리됩니다.\n\n` +
           `이 작업은 되돌릴 수 없습니다.`,
         confirmPhrase: "삭제",
         reasonRequired: false,
-        confirmLabel: `${ids.length}건 삭제`,
+        confirmLabel: `${ids.length}건 완전 삭제`,
         run: async () => {
           await runBulkProductDelete(ids);
+        },
+      });
+      return;
+    }
+
+    if (action === "cover_studio") {
+      setDestructiveModal({
+        title: `표지 AI 변환 — ${ids.length}건`,
+        description:
+          `선택 ${ids.length}개 상품의 현재 표지를 AI 스튜디오 사진으로 변환해 교체합니다.\n\n` +
+          `· 상품당 20초 안팎 걸리며 순서대로 처리됩니다.\n` +
+          `· 표지가 없는 상품은 건너뜁니다.\n` +
+          `· 이미 변환된 표지(_studio)를 다시 변환하면 이중 변환될 수 있으니 선택을 확인해 주세요.\n\n` +
+          `기존 표지 이미지는 새 변환본으로 교체됩니다.`,
+        confirmPhrase: "변환",
+        reasonRequired: false,
+        confirmLabel: `${ids.length}건 변환 시작`,
+        run: async () => {
+          await runBulkCoverStudio(ids);
         },
       });
       return;
@@ -215,15 +324,24 @@ function AdminProductMastersPage() {
     window.setTimeout(() => setToast(null), 3500);
   }, []);
 
-  // 재고 전수조사 엑셀 다운로드 — 셀러·상품·판매가·정산여부 전체 스냅샷
+  // 재고 전수조사 엑셀 다운로드 — 셀러·상품·판매가·정산여부 스냅샷.
+  // 등록일(books.created_at) 범위를 선택할 수 있다 (비우면 전체, 2026-07-22).
   const handleDownloadInventoryAudit = async () => {
     if (!isSupabaseConfigured || isInventoryExporting) {
       return;
     }
     setIsInventoryExporting(true);
     try {
-      const { rowCount } = await downloadInventoryAuditXlsx();
-      showToast(`${rowCount.toLocaleString("ko-KR")}행 재고 전수조사 엑셀을 다운로드했습니다.`, "success");
+      const { rowCount } = await downloadInventoryAuditXlsx({
+        fromDate: exportRange.from || null,
+        toDate: exportRange.to || null,
+      });
+      const rangeLabel =
+        exportRange.from || exportRange.to
+          ? ` (등록일 ${exportRange.from || "처음"}~${exportRange.to || "오늘"})`
+          : "";
+      showToast(`${rowCount.toLocaleString("ko-KR")}행 재고 엑셀을 다운로드했습니다${rangeLabel}.`, "success");
+      setExportDialogOpen(false);
     } catch (exportError) {
       showToast(
         exportError instanceof Error ? exportError.message : "재고 엑셀 생성에 실패했습니다.",
@@ -387,11 +505,11 @@ function AdminProductMastersPage() {
     <AdminShell
       actions={
         <>
-          {/* R2: 재고 전수조사 엑셀 — 구 대시보드 catalog 뷰에서 이식 */}
+          {/* R2: 재고 전수조사 엑셀 — 등록일 범위 선택 다이얼로그로 진입 (2026-07-22) */}
           <button
             className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
             disabled={isInventoryExporting}
-            onClick={handleDownloadInventoryAudit}
+            onClick={() => setExportDialogOpen(true)}
             type="button"
           >
             {isInventoryExporting ? "생성 중..." : "재고 엑셀"}
@@ -534,6 +652,16 @@ function AdminProductMastersPage() {
               type="button"
             >
               일괄 숨김
+            </button>
+            <button
+              className="text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-md px-3 py-1.5 disabled:opacity-60"
+              disabled={bulkProcessing}
+              onClick={() => handleBulkProductAction("cover_studio")}
+              type="button"
+            >
+              {bulkStudioProgress
+                ? `AI 변환 중 ${bulkStudioProgress.done}/${bulkStudioProgress.total}`
+                : "표지 AI 변환"}
             </button>
             <button
               className="text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-md px-3 py-1.5 disabled:opacity-60"
@@ -909,9 +1037,70 @@ function AdminProductMastersPage() {
         title={destructiveModal?.title ?? ""}
       />
 
+      {/* 재고 엑셀 — 등록일 범위 선택 (2026-07-22: 화/수 등록분처럼 기간별 추출 요구) */}
+      <AdminDialog
+        onClose={() => setExportDialogOpen(false)}
+        open={exportDialogOpen}
+        size="sm"
+        title="재고 엑셀 다운로드"
+      >
+        <div className="space-y-4 p-6">
+          <p className="text-xs text-slate-500">
+            등록일 기준으로 내려받을 범위를 선택하세요. 비워두면 전체 재고를 내려받습니다.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { label: "전체", from: "", to: "" },
+              { label: "오늘", from: localDateStr(new Date()), to: localDateStr(new Date()) },
+              { label: "어제", from: daysAgoStr(1), to: daysAgoStr(1) },
+              { label: "최근 7일", from: daysAgoStr(6), to: localDateStr(new Date()) },
+            ].map((preset) => (
+              <button
+                className={`rounded-md border px-3 py-1.5 text-xs font-bold ${
+                  exportRange.from === preset.from && exportRange.to === preset.to
+                    ? "border-slate-900 bg-slate-900 text-white"
+                    : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                }`}
+                key={preset.label}
+                onClick={() => setExportRange({ from: preset.from, to: preset.to })}
+                type="button"
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2 text-sm">
+            <input
+              className="rounded-md border border-slate-300 px-3 py-2"
+              onChange={(e) => setExportRange((r) => ({ ...r, from: e.target.value }))}
+              type="date"
+              value={exportRange.from}
+            />
+            <span className="text-slate-400">~</span>
+            <input
+              className="rounded-md border border-slate-300 px-3 py-2"
+              onChange={(e) => setExportRange((r) => ({ ...r, to: e.target.value }))}
+              type="date"
+              value={exportRange.to}
+            />
+          </div>
+          <button
+            className="btn-primary w-full !py-2.5 text-sm"
+            disabled={isInventoryExporting}
+            onClick={handleDownloadInventoryAudit}
+            type="button"
+          >
+            {isInventoryExporting ? "생성 중..." : "다운로드"}
+          </button>
+        </div>
+      </AdminDialog>
+
       {/* 상품 수정 모달 (제목/옵션/정가/사진 + 인스턴스별 판매가·상세사진) */}
       <ProductMasterEditModal
         onClose={() => setEditTarget(null)}
+        onRenamed={() => {
+          void loadProducts();
+        }}
         onSaved={async (result) => {
           setEditTarget(null);
           const skipped = Array.isArray(result?.skipped) ? result.skipped : [];
