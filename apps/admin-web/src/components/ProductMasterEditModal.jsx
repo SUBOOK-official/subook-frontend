@@ -61,7 +61,7 @@ function FileButton({ accept = "image/*", busy = false, children, className = ""
   );
 }
 
-function ProductMasterEditModal({ onClose, onRenamed, onSaved, product }) {
+function ProductMasterEditModal({ onClose, onSaved, product }) {
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -85,10 +85,6 @@ function ProductMasterEditModal({ onClose, onRenamed, onSaved, product }) {
   const [detailUniform, setDetailUniform] = useState(true);
   // 닫기 전 확인용 — 아무 필드든 건드리면 true
   const [touched, setTouched] = useState(false);
-  // 옵션명 일괄 변경 (2026-07-22) — 해당 옵션명을 가진 권만 rename (전권 덮어쓰기 금지)
-  const [renameDrafts, setRenameDrafts] = useState({});
-  const [renamingKey, setRenamingKey] = useState(null);
-  const [renameNotice, setRenameNotice] = useState("");
 
   // 모달이 열릴 때 소속 books 로드 + 드래프트 초기화
   useEffect(() => {
@@ -111,9 +107,6 @@ function ProductMasterEditModal({ onClose, onRenamed, onSaved, product }) {
     setDetailUniform(true);
     setErrorMessage("");
     setTouched(false);
-    setRenameDrafts({});
-    setRenamingKey(null);
-    setRenameNotice("");
     setIsLoading(true);
 
     (async () => {
@@ -137,6 +130,8 @@ function ProductMasterEditModal({ onClose, onRenamed, onSaved, product }) {
           id: row.id,
           shipmentId: row.shipment_id,
           option: row.option,
+          // 권별 옵션명 편집값 (2026-07-23) — 저장 시 p_books[].option으로 전달
+          optionInput: row.option ?? "",
           serialNumber: row.serial_number,
           location: row.location,
           priceInput: row.price != null ? String(row.price) : "",
@@ -260,7 +255,8 @@ function ProductMasterEditModal({ onClose, onRenamed, onSaved, product }) {
     const bookPayload = [];
     for (const book of books) {
       const editable = !["settled", "discarded"].includes(book.status);
-      const entry = { id: book.id };
+      // 권별 옵션명 — 항상 현재 입력값을 보낸다 (빈 값 = 옵션 없음). 상태 무관 수정 가능.
+      const entry = { id: book.id, option: book.optionInput ?? "" };
       if (detailDirty) {
         entry.inspection_image_urls = detailImages;
       }
@@ -300,42 +296,15 @@ function ProductMasterEditModal({ onClose, onRenamed, onSaved, product }) {
     onSaved?.(data);
   };
 
-  // 옵션명 일괄 변경 — 같은 옵션명을 가진 권만 새 이름으로 rename. 저장 버튼과 무관하게
-  // 즉시 DB에 반영된다 (rename은 언제든 되돌릴 수 있어 확인 절차 없이 처리).
-  const handleRenameOption = async (fromOption) => {
-    const key = fromOption ?? "";
-    const to = (renameDrafts[key] ?? "").trim();
-    if (to === (fromOption ?? "").trim()) return;
-    setRenamingKey(key);
-    setRenameNotice("");
-    const { data, error } = await supabase.rpc("admin_rename_product_option", {
-      p_product_id: product.id,
-      p_from_option: fromOption || null,
-      p_to_option: to || null,
-    });
-    setRenamingKey(null);
-    if (error) {
-      setErrorMessage(error.message || "옵션명 변경에 실패했습니다.");
-      return;
-    }
+  // 권별 옵션명 입력 (2026-07-23: 일괄 rename 대신 책 하나하나 세세하게 수정)
+  const setBookOption = (bookId, value) => {
     setBooks((current) =>
-      current.map((book) => (((book.option ?? "").trim() || "") === key.trim() ? { ...book, option: to || null } : book)),
+      current.map((book) => (book.id === bookId ? { ...book, optionInput: value } : book)),
     );
-    setRenameDrafts((d) => ({ ...d, [key]: undefined }));
-    setRenameNotice(
-      `'${key || "옵션 없음"}' → '${to || "옵션 없음"}' — ${data?.renamed_count ?? 0}권 변경 완료 (즉시 반영됨)`,
-    );
-    onRenamed?.();
+    setTouched(true);
   };
 
   const busy = isSaving || coverBusy || detailBusy;
-
-  // 권별 옵션의 고유 목록 (rename 대상) — 옵션 없음("")도 하나의 대상으로 취급
-  const distinctOptions = [...books.reduce((map, book) => {
-    const key = (book.option ?? "").trim();
-    map.set(key, (map.get(key) || 0) + 1);
-    return map;
-  }, new Map()).entries()];
 
   return (
     <AdminDialog
@@ -512,7 +481,7 @@ function ProductMasterEditModal({ onClose, onRenamed, onSaved, product }) {
 
               <div>
                 <h3 className="mb-2 text-sm font-bold text-slate-700">
-                  권별 판매가 ({books.length}권)
+                  권별 옵션·판매가 ({books.length}권)
                 </h3>
                 {books.length === 0 ? (
                   <p className="rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-400">
@@ -527,9 +496,15 @@ function ProductMasterEditModal({ onClose, onRenamed, onSaved, product }) {
                         <div className="rounded-lg border border-slate-200 p-3" key={book.id}>
                           <div className="flex flex-wrap items-center gap-3">
                             <span className="font-mono text-xs font-bold text-slate-500">#{book.id}</span>
-                            <span className="rounded bg-indigo-50 px-2 py-0.5 text-xs font-bold text-indigo-700">
-                              {(book.option ?? "").trim() || "옵션 없음"}
-                            </span>
+                            {/* 권별 옵션명 — 저장 시 이 책에만 반영 (2026-07-23) */}
+                            <input
+                              className="input-base !w-28 !py-1 text-xs font-bold"
+                              onChange={(event) => setBookOption(book.id, event.target.value)}
+                              placeholder="옵션 없음"
+                              title="이 책의 옵션명 (저장 시 반영)"
+                              type="text"
+                              value={book.optionInput ?? ""}
+                            />
                             {book.serialNumber != null || book.location ? (
                               <span className="font-mono text-[11px] font-bold text-slate-500">
                                 {book.location ?? "위치 미지정"}
@@ -578,60 +553,10 @@ function ProductMasterEditModal({ onClose, onRenamed, onSaved, product }) {
                 )}
               </div>
 
-              {/* 옵션명 일괄 변경 (2026-07-22 운영자 피드백: 재고 페이지에서 옵션 이름 수정 불가)
-                  — 해당 옵션명을 가진 권만 rename. 전권 덮어쓰기 사고 방지를 위해
-                  from→to 매칭 방식만 제공한다. */}
-              {books.length > 0 ? (
-                <div>
-                  <h3 className="mb-1 text-sm font-bold text-slate-700">옵션명 변경</h3>
-                  <p className="mb-2 text-xs text-slate-400">
-                    같은 옵션명을 가진 권들이 한 번에 새 이름으로 바뀝니다. 저장 버튼과 무관하게{" "}
-                    <strong>즉시 반영</strong>되며, 기존 다른 옵션명과 같게 바꾸면 그 옵션으로 합쳐집니다.
-                  </p>
-                  {renameNotice ? (
-                    <p className="mb-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700">
-                      {renameNotice}
-                    </p>
-                  ) : null}
-                  <div className="space-y-2">
-                    {distinctOptions.map(([optionKey, count]) => (
-                      <div className="flex flex-wrap items-center gap-2" key={optionKey || "__none__"}>
-                        <span className="min-w-24 rounded bg-indigo-50 px-2 py-1 text-xs font-bold text-indigo-700">
-                          {optionKey || "옵션 없음"}
-                        </span>
-                        <span className="text-xs text-slate-400">{count}권 →</span>
-                        <input
-                          className="input-base !w-40 text-sm"
-                          onChange={(event) =>
-                            setRenameDrafts((d) => ({ ...d, [optionKey]: event.target.value }))
-                          }
-                          placeholder="새 옵션명 (비우면 옵션 없음)"
-                          type="text"
-                          value={renameDrafts[optionKey] ?? ""}
-                        />
-                        <button
-                          className="rounded border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                          disabled={
-                            busy ||
-                            renamingKey !== null ||
-                            renameDrafts[optionKey] === undefined ||
-                            renameDrafts[optionKey].trim() === optionKey
-                          }
-                          onClick={() => handleRenameOption(optionKey || null)}
-                          type="button"
-                        >
-                          {renamingKey === optionKey ? "변경 중..." : "변경"}
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-
               <p className="rounded-lg bg-amber-50 px-4 py-3 text-xs text-amber-800">
                 제목·정가·대표사진·상세사진·카테고리(과목/브랜드/유형)는 이 상품의{" "}
-                <strong>모든 책</strong>에 함께 적용됩니다. 저장 즉시 고객 사이트
-                (검색·카테고리 필터 포함)에 반영됩니다.
+                <strong>모든 책</strong>에 함께 적용되고, <strong>옵션명·판매가는 권별로</strong>{" "}
+                저장됩니다. 저장 즉시 고객 사이트(검색·카테고리 필터 포함)에 반영됩니다.
               </p>
 
               <div className="flex gap-2">

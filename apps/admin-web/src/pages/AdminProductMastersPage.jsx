@@ -112,6 +112,8 @@ function AdminProductMastersPage() {
   const [isInventoryExporting, setIsInventoryExporting] = useState(false);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [exportRange, setExportRange] = useState({ from: "", to: "" });
+  // 사용자(책 주인 = 수거신청자)별 추출 (2026-07-23 운영자 피드백)
+  const [exportSeller, setExportSeller] = useState("");
 
   const toggleSelectId = (id) => {
     setSelectedIds((current) => {
@@ -192,7 +194,8 @@ function AdminProductMastersPage() {
   // 화/수 실물사진으로 등록된 표지 45종 백필 겸 영구 기능. 순차 처리(레이트리밋 회피).
   const runBulkCoverStudio = async (ids) => {
     setBulkProcessing(true);
-    setBulkStudioProgress({ done: 0, total: ids.length });
+    // 실시간 진행 패널 (2026-07-23 운영자 피드백: 어떤 상품이 변환 중인지 보이게)
+    setBulkStudioProgress({ done: 0, total: ids.length, current: null, log: [], finished: false });
     const failures = [];
     let converted = 0;
     try {
@@ -202,6 +205,8 @@ function AdminProductMastersPage() {
       for (let i = 0; i < ids.length; i += 1) {
         const id = ids[i];
         const target = products.find((p) => p.id === id);
+        const title = target?.title ?? `#${id}`;
+        setBulkStudioProgress((p) => (p ? { ...p, current: title } : p));
         try {
           const coverUrl = target?.cover_image_url;
           if (!coverUrl) throw new Error("표지 없음");
@@ -221,23 +226,27 @@ function AdminProductMastersPage() {
           });
           if (rpcError) throw new Error(rpcError.message || "표지 반영 실패");
           converted += 1;
+          setBulkStudioProgress((p) =>
+            p ? { ...p, done: i + 1, current: null, log: [...p.log, { id, title, ok: true }] } : p,
+          );
         } catch (err) {
-          failures.push({ id, title: target?.title ?? `#${id}`, message: err?.message || "알 수 없는 오류" });
+          const message = err?.message || "알 수 없는 오류";
+          failures.push({ id, title, message });
+          setBulkStudioProgress((p) =>
+            p ? { ...p, done: i + 1, current: null, log: [...p.log, { id, title, ok: false, message }] } : p,
+          );
         }
-        setBulkStudioProgress({ done: i + 1, total: ids.length });
       }
       if (failures.length > 0) console.warn("[표지 AI 변환] 실패 목록:", failures);
       showToast(
-        `표지 AI 변환 ${converted}건 완료` +
-          (failures.length > 0
-            ? ` / 실패 ${failures.length}건 (${failures[0].title}: ${failures[0].message}${failures.length > 1 ? " 외" : ""})`
-            : ""),
+        `표지 AI 변환 ${converted}건 완료` + (failures.length > 0 ? ` / 실패 ${failures.length}건 — 아래 패널에서 확인` : ""),
         failures.length > 0 ? "info" : "success",
       );
     } catch (err) {
       showToast(err?.message || "표지 AI 변환을 시작하지 못했습니다.", "error");
     } finally {
-      setBulkStudioProgress(null);
+      // 패널은 닫기 버튼으로 직접 닫을 때까지 유지 — 실패 목록 확인용
+      setBulkStudioProgress((p) => (p ? { ...p, current: null, finished: true } : p));
       setBulkProcessing(false);
       setSelectedIds(new Set());
       await loadProducts();
@@ -335,12 +344,14 @@ function AdminProductMastersPage() {
       const { rowCount } = await downloadInventoryAuditXlsx({
         fromDate: exportRange.from || null,
         toDate: exportRange.to || null,
+        sellerQuery: exportSeller.trim() || null,
       });
       const rangeLabel =
         exportRange.from || exportRange.to
           ? ` (등록일 ${exportRange.from || "처음"}~${exportRange.to || "오늘"})`
           : "";
-      showToast(`${rowCount.toLocaleString("ko-KR")}행 재고 엑셀을 다운로드했습니다${rangeLabel}.`, "success");
+      const sellerLabel = exportSeller.trim() ? ` · 셀러 '${exportSeller.trim()}'` : "";
+      showToast(`${rowCount.toLocaleString("ko-KR")}행 재고 엑셀을 다운로드했습니다${rangeLabel}${sellerLabel}.`, "success");
       setExportDialogOpen(false);
     } catch (exportError) {
       showToast(
@@ -671,6 +682,53 @@ function AdminProductMastersPage() {
             >
               {bulkProcessing ? "처리 중..." : "일괄 삭제"}
             </button>
+          </div>
+        ) : null}
+
+        {/* 표지 AI 변환 실시간 진행 패널 (2026-07-23) — 완료 후에도 닫기 전까지 유지 */}
+        {bulkStudioProgress ? (
+          <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-sm font-bold text-indigo-900">
+                표지 AI 변환 {bulkStudioProgress.finished ? "완료" : "진행 중"} —{" "}
+                {bulkStudioProgress.done}/{bulkStudioProgress.total}
+              </span>
+              <div className="h-1.5 min-w-32 flex-1 overflow-hidden rounded-full bg-indigo-100">
+                <div
+                  className="h-full rounded-full bg-indigo-600 transition-all duration-500"
+                  style={{
+                    width: `${bulkStudioProgress.total > 0 ? Math.round((bulkStudioProgress.done / bulkStudioProgress.total) * 100) : 0}%`,
+                  }}
+                />
+              </div>
+              {bulkStudioProgress.finished ? (
+                <button
+                  className="text-xs font-bold text-indigo-700 underline hover:text-indigo-900"
+                  onClick={() => setBulkStudioProgress(null)}
+                  type="button"
+                >
+                  닫기
+                </button>
+              ) : null}
+            </div>
+            {bulkStudioProgress.current ? (
+              <p className="mt-2 animate-pulse text-xs font-bold text-indigo-700">
+                지금 변환 중: {bulkStudioProgress.current} (상품당 20초 안팎)
+              </p>
+            ) : null}
+            {bulkStudioProgress.log.length > 0 ? (
+              <ul className="mt-2 max-h-36 space-y-0.5 overflow-y-auto text-xs">
+                {[...bulkStudioProgress.log].reverse().map((entry) => (
+                  <li
+                    className={entry.ok ? "font-semibold text-emerald-700" : "font-semibold text-rose-600"}
+                    key={entry.id}
+                  >
+                    {entry.ok ? "✓" : "✗"} {entry.title}
+                    {!entry.ok ? ` — ${entry.message}` : ""}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
           </div>
         ) : null}
 
@@ -1084,6 +1142,20 @@ function AdminProductMastersPage() {
               value={exportRange.to}
             />
           </div>
+          {/* 사용자(책 주인)별 추출 — 수거신청자 이름/전화 일부 일치 */}
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-slate-600" htmlFor="export-seller">
+              수거신청자(셀러) 필터
+            </label>
+            <input
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              id="export-seller"
+              onChange={(e) => setExportSeller(e.target.value)}
+              placeholder="이름 또는 전화번호 일부 — 비우면 전체"
+              type="text"
+              value={exportSeller}
+            />
+          </div>
           <button
             className="btn-primary w-full !py-2.5 text-sm"
             disabled={isInventoryExporting}
@@ -1098,9 +1170,6 @@ function AdminProductMastersPage() {
       {/* 상품 수정 모달 (제목/옵션/정가/사진 + 인스턴스별 판매가·상세사진) */}
       <ProductMasterEditModal
         onClose={() => setEditTarget(null)}
-        onRenamed={() => {
-          void loadProducts();
-        }}
         onSaved={async (result) => {
           setEditTarget(null);
           const skipped = Array.isArray(result?.skipped) ? result.skipped : [];

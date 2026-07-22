@@ -156,19 +156,28 @@ async function fetchAllInventoryBooks({ fromDate, toDate } = {}) {
 }
 
 // 재고 전수조사 XLSX를 생성·다운로드하고 행 수를 반환한다. 실패 시 throw.
-// fromDate/toDate(YYYY-MM-DD, KST)를 주면 등록일 범위로 필터링한다.
-export async function downloadInventoryAuditXlsx({ fromDate = null, toDate = null } = {}) {
+// fromDate/toDate(YYYY-MM-DD, KST)는 등록일 범위, sellerQuery는 수거신청자(책 주인)
+// 이름·전화 부분 일치 필터 (2026-07-23 운영자 피드백: 사용자별 재고 엑셀).
+export async function downloadInventoryAuditXlsx({ fromDate = null, toDate = null, sellerQuery = null } = {}) {
   const [shipmentIndex, books] = await Promise.all([
     fetchShipmentIndex(),
     fetchAllInventoryBooks({ fromDate, toDate }),
   ]);
   const shipmentMap = new Map(shipmentIndex.map((shipment) => [shipment.id, shipment]));
+  const normalizedSellerQuery = collapseWhitespace(sellerQuery ?? "").toLowerCase();
 
   const exportRows = books
     .map((book) => {
       const shipment = shipmentMap.get(book.shipment_id);
       if (!shipment) {
         return null;
+      }
+
+      if (normalizedSellerQuery) {
+        const haystack = `${collapseWhitespace(shipment.seller_name)} ${collapseWhitespace(shipment.seller_phone)}`.toLowerCase();
+        if (!haystack.includes(normalizedSellerQuery)) {
+          return null;
+        }
       }
 
       return {
@@ -197,7 +206,11 @@ export async function downloadInventoryAuditXlsx({ fromDate = null, toDate = nul
     }));
 
   if (exportRows.length === 0) {
-    throw new Error("다운로드할 책 데이터가 없습니다.");
+    throw new Error(
+      normalizedSellerQuery || fromDate || toDate
+        ? "조건에 맞는 책이 없습니다. 필터(등록일·수거신청자)를 확인해 주세요."
+        : "다운로드할 책 데이터가 없습니다.",
+    );
   }
 
   await exportRowsToXlsx({
