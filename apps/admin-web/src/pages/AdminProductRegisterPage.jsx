@@ -285,10 +285,13 @@ function AdminProductRegisterPage() {
   const [newRows, setNewRows] = useState([blankNewRow()]);
   // 기존 교재 재고 추가 (Frame 3 결과)
   const [existingAdditions, setExistingAdditions] = useState([]);
-  // 교재 검색 (Frame 2 좌측)
+  // 교재 검색 (Frame 2 좌측) — 50건 단위 페이지, '더 보기'로 이어 붙임 (2026-07-23)
   const [prodSearch, setProdSearch] = useState("");
   const [prodResults, setProdResults] = useState([]);
   const [prodLoading, setProdLoading] = useState(false);
+  const [prodHasMore, setProdHasMore] = useState(false);
+  const [prodLoadingMore, setProdLoadingMore] = useState(false);
+  const prodQueryRef = useRef("");
   // Frame 3 모달
   const [framePanel, setFramePanel] = useState(null);
   // 신규 교재 카테고리(과목·브랜드·유형) 설정 모달 — 대상 행 uid
@@ -371,13 +374,18 @@ function AdminProductRegisterPage() {
       const { data, error } = await supabase.rpc("admin_search_products_for_register", {
         p_search: q,
         p_limit: PROD_SEARCH_LIMIT,
+        p_offset: 0,
       });
       if (!active) return;
+      prodQueryRef.current = q;
       if (error) {
         showToast(`교재 검색에 실패했습니다${error?.message ? ` — ${error.message}` : ""}`, "error");
         setProdResults([]);
+        setProdHasMore(false);
       } else {
-        setProdResults(Array.isArray(data) ? data : []);
+        const rows = Array.isArray(data) ? data : [];
+        setProdResults(rows);
+        setProdHasMore(rows.length >= PROD_SEARCH_LIMIT);
       }
       setProdLoading(false);
     }, 250);
@@ -386,6 +394,30 @@ function AdminProductRegisterPage() {
       window.clearTimeout(timer);
     };
   }, [prodSearch, step, showToast]);
+
+  // '더 보기' — 같은 검색어로 다음 50건을 이어 붙인다. 요청 중 검색어가 바뀌면 버린다.
+  const loadMoreProducts = async () => {
+    const q = prodSearch.trim();
+    if (!q || prodLoadingMore) return;
+    setProdLoadingMore(true);
+    const { data, error } = await supabase.rpc("admin_search_products_for_register", {
+      p_search: q,
+      p_limit: PROD_SEARCH_LIMIT,
+      p_offset: prodResults.length,
+    });
+    setProdLoadingMore(false);
+    if (prodQueryRef.current !== q) return; // 검색어가 바뀐 뒤 도착한 응답은 무시
+    if (error) {
+      showToast(`교재 검색에 실패했습니다${error?.message ? ` — ${error.message}` : ""}`, "error");
+      return;
+    }
+    const rows = Array.isArray(data) ? data : [];
+    setProdResults((prev) => {
+      const seen = new Set(prev.map((p) => p.id));
+      return [...prev, ...rows.filter((p) => !seen.has(p.id))];
+    });
+    setProdHasMore(rows.length >= PROD_SEARCH_LIMIT);
+  };
 
   // 유사 시세 힌트 (디바운스, RPC admin_suggest_register_price)
   // 제목이 있는 신규 행마다 같은 과목·비슷한 제목의 기존 교재 판매가 중앙값을 조회한다.
@@ -1135,10 +1167,15 @@ function AdminProductRegisterPage() {
                         </div>
                       </button>
                     ))}
-                    {prodResults.length >= PROD_SEARCH_LIMIT ? (
-                      <p className="rounded-md bg-amber-50 px-3 py-2 text-center text-xs font-semibold text-amber-700">
-                        상위 {PROD_SEARCH_LIMIT}건만 표시 중입니다 — 원하는 교재가 안 보이면 검색어를 더 좁혀보세요.
-                      </p>
+                    {prodHasMore ? (
+                      <button
+                        type="button"
+                        disabled={prodLoadingMore}
+                        onClick={loadMoreProducts}
+                        className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-center text-xs font-bold text-slate-600 hover:border-slate-900 hover:bg-slate-50 disabled:opacity-60"
+                      >
+                        {prodLoadingMore ? "불러오는 중..." : `더 보기 ▾ (${PROD_SEARCH_LIMIT}건씩)`}
+                      </button>
                     ) : null}
                     </>
                   )}
