@@ -217,9 +217,9 @@ function Page() {
 function ModalRepro() {
   return (
     <>
-      {/* admin 앱처럼 body를 세로로 길게 만드는 더미 콘텐츠(밀림 유발 조건 재현) */}
-      <div style={{ height: "4000px", background: "#f1f5f9", padding: "40px" }}>
-        (admin 앱 시뮬레이션 — 긴 콘텐츠 위에 인쇄 모달 오버레이)
+      {/* admin 앱처럼 #root 안에 긴 콘텐츠(밀림 유발 조건). 모달은 createPortal로 body 직계라 #root 밖. */}
+      <div id="root" style={{ height: "4000px", background: "#f1f5f9", padding: "40px" }}>
+        (admin 앱 시뮬레이션 — #root 긴 콘텐츠, 인쇄 시 display:none 되어야 함)
       </div>
       <CjWaybillFormPrintModal open data={FORM_MOCK} onClose={() => {}} />
     </>

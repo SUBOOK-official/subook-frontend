@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import JsBarcode from "jsbarcode";
 import { maskName, maskPhone } from "../lib/waybillMask";
 
@@ -103,7 +104,10 @@ export function CjWaybillFormPrintModal({ open, data, onClose }) {
   if (!open || !data) return null;
   const offsetX = Number(import.meta.env.VITE_CJ_PRINT_OFFSET_X ?? 2.6); // PS70 실측 캘리브레이션
   const offsetY = Number(import.meta.env.VITE_CJ_PRINT_OFFSET_Y ?? 0.4);
-  return (
+  // 모달을 body 직계로 포털 렌더 → 인쇄 시 #root(앱 전체)를 display:none으로 완전히 제거하고
+  // 라벨 시트만 문서 흐름의 유일 요소로 남긴다(하네스와 동일 구조). visibility:hidden 방식은
+  // 레이아웃 공간을 남겨 프린터 직접 인쇄 시 라벨이 아래로 밀리는 원인이라 폐기.
+  return createPortal(
     <div
       className="cj-form-overlay"
       style={{
@@ -122,27 +126,28 @@ export function CjWaybillFormPrintModal({ open, data, onClose }) {
       <style>{`
         @media print {
           @page { size: 96mm 120mm; margin: 0; }
-          /* 밀림 방지 핵심: 인쇄 페이지를 96x120 한 장으로 강제(문서 전체 높이 무시) */
-          html, body {
-            margin: 0 !important; padding: 0 !important;
-            width: 96mm !important; height: 120mm !important;
-            overflow: hidden !important; background: #fff !important;
-          }
-          body * { visibility: hidden !important; }
+          /* 앱 전체(#root)를 아예 제거 → 문서에 라벨 시트만 남아 단일 페이지로 출력 */
+          #root { display: none !important; }
+          html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
+          /* overlay를 96×120으로 물리적으로 가둔다 → 회전 라벨의 삐침이 여기서 클리핑되어
+             문서 전체 높이가 120mm로 확정(실물 프린터가 2페이지로 못 나눔). */
           .cj-form-overlay {
             position: static !important; inset: auto !important;
             padding: 0 !important; margin: 0 !important;
-            background: none !important; overflow: visible !important; display: block !important;
+            background: none !important; display: block !important;
+            width: 96mm !important; height: 120mm !important; overflow: hidden !important;
           }
-          .cj-form-sheet, .cj-form-sheet * { visibility: visible !important; }
+          .cj-form-noprint { display: none !important; }
+          /* 시트는 문서 흐름 첫 요소 + position:relative(회전 레이어의 containing block).
+             relative가 없으면 rot(absolute)가 body 기준이 되어 회전 라벨이 문서 높이를
+             120→180mm로 늘리고 → 실물 프린터가 2페이지로 나눠 밀린다(왼쪽 사진 원인). */
           .cj-form-sheet {
-            position: fixed !important; left: 0 !important; top: 0 !important;
+            position: relative !important;
             width: 96mm !important; height: 120mm !important;
             margin: 0 !important; padding: 0 !important; box-shadow: none !important;
             overflow: hidden !important;
           }
           .cj-form-rot { position: absolute; top: 0; left: 0; width: 0; height: 0; overflow: visible; transform-origin: top left; transform: translateX(96mm) rotate(90deg); }
-          .cj-form-noprint { display: none !important; }
         }
       `}</style>
 
@@ -163,8 +168,10 @@ export function CjWaybillFormPrintModal({ open, data, onClose }) {
             닫기
           </button>
         </div>
-        <div style={{ background: "#fff", borderRadius: "8px", padding: "8px 14px", fontSize: "12px", color: "#475569" }}>
+        <div style={{ background: "#fff", borderRadius: "8px", padding: "8px 14px", fontSize: "12px", color: "#475569", textAlign: "center", lineHeight: 1.6 }}>
           CJ 양식 라벨을 프린터에 넣고 인쇄 — 용지 <b>cj테스트(96×120)</b> · 여백 <b>없음</b> · 배율 <b>100%</b> · 양면 <b>해제</b>
+          <br />
+          <span style={{ color: "#b45309" }}>혹시 라벨이 밀려 나오면 → 인쇄창 대상을 <b>"PDF로 저장"</b>으로 뽑은 뒤 그 PDF를 프린터로 출력하세요.</span>
         </div>
       </div>
 
@@ -173,7 +180,8 @@ export function CjWaybillFormPrintModal({ open, data, onClose }) {
           <CjWaybillFormLabel data={data} offsetX={offsetX} offsetY={offsetY} />
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
