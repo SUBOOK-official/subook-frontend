@@ -4,7 +4,7 @@
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { CjWaybillLabel } from "./components/CjWaybillLabel";
-import CjWaybillFormLabel from "./components/CjWaybillFormLabel";
+import CjWaybillFormLabel, { CjWaybillFormPrintModal } from "./components/CjWaybillFormLabel";
 import formBg from "./dev-assets/cj-form-rect.png";
 import sampleBg from "./dev-assets/cj-sample-rect.png";
 
@@ -212,4 +212,19 @@ function Page() {
   );
 }
 
-createRoot(document.getElementById("label-root")).render(<Page />);
+// ?modal=1 — admin 주문관리의 실제 인쇄 모달(CjWaybillFormPrintModal)을 body에 큰 앱 콘텐츠와
+// 함께 띄워 '인쇄 밀림'을 헤드리스로 재현·검증하는 모드.
+function ModalRepro() {
+  return (
+    <>
+      {/* admin 앱처럼 body를 세로로 길게 만드는 더미 콘텐츠(밀림 유발 조건 재현) */}
+      <div style={{ height: "4000px", background: "#f1f5f9", padding: "40px" }}>
+        (admin 앱 시뮬레이션 — 긴 콘텐츠 위에 인쇄 모달 오버레이)
+      </div>
+      <CjWaybillFormPrintModal open data={FORM_MOCK} onClose={() => {}} />
+    </>
+  );
+}
+
+const isModalRepro = new URLSearchParams(window.location.search).get("modal") === "1";
+createRoot(document.getElementById("label-root")).render(isModalRepro ? <ModalRepro /> : <Page />);

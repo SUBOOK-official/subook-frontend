@@ -87,10 +87,13 @@ const NEXT_STATUS_ACTIONS = {
     { action: "refund", label: "환불처리", style: "btn-danger" },
   ],
   shipping: [
+    // 이미 발급된 운송장 라벨을 다시 열어 재인쇄 (채번/접수 없이 라우팅 재조회만).
+    { action: "cj_reprint", label: "송장 재출력", style: "btn-secondary" },
     { status: "delivered", label: "배송완료", style: "btn-primary" },
     { action: "refund", label: "환불처리", style: "btn-danger" },
   ],
   delivered: [
+    { action: "cj_reprint", label: "송장 재출력", style: "btn-secondary" },
     { action: "refund", label: "환불처리", style: "btn-danger" },
   ],
   confirmed: [
@@ -494,6 +497,37 @@ function AdminOrdersPage() {
       setLabelData(row); // 라벨 모달 오픈
       setSelectedOrderId(null);
       await loadOrders();
+    } finally {
+      setBusyOrderId(null);
+    }
+  };
+
+  // 송장 재출력 — 이미 발급된 운송장(배송중/배송완료)의 라벨을 다시 연다.
+  // 채번·예약접수는 하지 않고(중복 접수 방지) 기존 운송장번호 + 주소정제 재조회로 라벨만 렌더.
+  const handleCjReprint = async (orderId) => {
+    setBusyOrderId(orderId);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        showToast("인증이 만료되었습니다. 다시 로그인해 주세요.", "error");
+        return;
+      }
+      const resp = await fetch("/api/admin/cj-delivery", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ orderId, reprint: true }),
+      });
+      const result = await resp.json().catch(() => ({}));
+      const row = result?.results?.[0];
+      if (!resp.ok || !row?.success) {
+        showToast(row?.error || result?.error || "송장 재출력에 실패했습니다.", "error");
+        return;
+      }
+      setLabelData(row); // 라벨 모달 오픈 (상태 전환·알림톡 없음)
+      setSelectedOrderId(null);
     } finally {
       setBusyOrderId(null);
     }
@@ -1397,6 +1431,20 @@ function AdminOrdersPage() {
                       type="button"
                     >
                       {busyOrderId === selectedOrder.id ? "발급 중..." : action.label}
+                    </button>
+                  );
+                }
+
+                if (action.action === "cj_reprint") {
+                  return (
+                    <button
+                      className={`${action.style} !w-auto !px-4 !py-2 text-sm`}
+                      disabled={busyOrderId === selectedOrder.id}
+                      key="cj_reprint"
+                      onClick={() => handleCjReprint(selectedOrder.id)}
+                      type="button"
+                    >
+                      {busyOrderId === selectedOrder.id ? "불러오는 중..." : action.label}
                     </button>
                   );
                 }

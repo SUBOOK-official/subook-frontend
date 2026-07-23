@@ -105,6 +105,7 @@ export function CjWaybillFormPrintModal({ open, data, onClose }) {
   const offsetY = Number(import.meta.env.VITE_CJ_PRINT_OFFSET_Y ?? 0.4);
   return (
     <div
+      className="cj-form-overlay"
       style={{
         position: "fixed",
         inset: 0,
@@ -121,9 +122,25 @@ export function CjWaybillFormPrintModal({ open, data, onClose }) {
       <style>{`
         @media print {
           @page { size: 96mm 120mm; margin: 0; }
+          /* 밀림 방지 핵심: 인쇄 페이지를 96x120 한 장으로 강제(문서 전체 높이 무시) */
+          html, body {
+            margin: 0 !important; padding: 0 !important;
+            width: 96mm !important; height: 120mm !important;
+            overflow: hidden !important; background: #fff !important;
+          }
           body * { visibility: hidden !important; }
+          .cj-form-overlay {
+            position: static !important; inset: auto !important;
+            padding: 0 !important; margin: 0 !important;
+            background: none !important; overflow: visible !important; display: block !important;
+          }
           .cj-form-sheet, .cj-form-sheet * { visibility: visible !important; }
-          .cj-form-sheet { position: absolute !important; left: 0; top: 0; margin: 0 !important; box-shadow: none !important; width: 96mm; height: 120mm; overflow: hidden; }
+          .cj-form-sheet {
+            position: fixed !important; left: 0 !important; top: 0 !important;
+            width: 96mm !important; height: 120mm !important;
+            margin: 0 !important; padding: 0 !important; box-shadow: none !important;
+            overflow: hidden !important;
+          }
           .cj-form-rot { position: absolute; top: 0; left: 0; width: 0; height: 0; overflow: visible; transform-origin: top left; transform: translateX(96mm) rotate(90deg); }
           .cj-form-noprint { display: none !important; }
         }
