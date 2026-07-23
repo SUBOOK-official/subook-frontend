@@ -7,23 +7,25 @@
   z-index: 40;
   width: 48px;
   height: 48px;
-  border-radius: 50%;
-  /* 카카오톡 브랜드 옐로 + 다크 아이콘 */
+  border-radius: 999px;
+  /* 카카오톡 브랜드 옐로 + 다크 아이콘 (공식 브랜드 컬러 — 로그인 버튼과 동일 예외) */
   background: #fee500;
   color: #3c1e1e;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
-  transition:
-    transform 0.15s ease,
-    box-shadow 0.15s ease;
+  box-shadow: var(--public-shadow-lg);
+  transition: filter 0.15s ease;
 }
 
-.kakao-chat-fab:hover,
+/* 디자인 언어 규칙: hover 리프트(translateY) 금지 → 밝기 변화로 피드백 */
+.kakao-chat-fab:hover {
+  filter: brightness(0.95);
+}
+
 .kakao-chat-fab:focus-visible {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.22);
+  outline: none;
+  box-shadow: var(--public-shadow-lg), var(--public-focus-ring);
 }
 
 .kakao-chat-fab svg {
