@@ -1,6 +1,7 @@
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense, useEffect, useRef } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate, useNavigationType } from "react-router-dom";
 import { usePublicAuth } from "./contexts/PublicAuthContext";
+import KakaoChatButton from "./components/KakaoChatButton";
 
 const PublicAuthCallbackPage = lazy(() => import("./pages/PublicAuthCallbackPage"));
 const PublicCartPage = lazy(() => import("./pages/PublicCartPage"));
@@ -67,14 +68,20 @@ function SignupCompletionGate() {
 function ScrollToTop() {
   const location = useLocation();
   const navigationType = useNavigationType();
+  const prevPathRef = useRef(location.pathname);
 
   useEffect(() => {
+    const prevPath = prevPathRef.current;
+    prevPathRef.current = location.pathname;
     // 뒤로/앞으로 가기(POP)는 브라우저의 위치 복원에 맡긴다 (이전에 보던 위치로 돌아가는 게 자연스러움).
     if (navigationType === "POP") return;
     // 홈 스토어 섹션으로 스크롤하려는 의도가 담긴 내비게이션은 그쪽(HomeStoreGrid) 로직이 처리하므로 건드리지 않음.
     if (location.state?.scrollToStorefront) return;
+    // pathname이 그대로면(=검색어/필터/페이지네이션처럼 query만 변경) 스크롤을 건드리지 않는다.
+    // 페이지 넘길 때 시야가 유지되고, 위로 튕기지 않게 함.
+    if (prevPath === location.pathname) return;
     window.scrollTo(0, 0);
-  }, [location.pathname, location.state, navigationType]);
+  }, [location.pathname, location.search, location.state, navigationType]);
 
   return null;
 }
@@ -112,6 +119,7 @@ function App() {
           <Route element={<PublicNotFoundPage />} path="*" />
         </Routes>
       </Suspense>
+      <KakaoChatButton />
     </>
   );
 }

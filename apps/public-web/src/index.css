@@ -783,6 +783,13 @@ img {
   gap: 24px 16px;
 }
 
+/* 페이지 변경 로딩 중: 기존 항목을 유지한 채 살짝 흐리게(높이 유지 → 푸터 튐 방지) */
+.public-home-store-grid__list.is-refreshing {
+  opacity: 0.55;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+}
+
 .public-home-store-grid__empty {
   display: flex;
   flex-direction: column;
@@ -9611,34 +9618,6 @@ img {
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
-}
-
-/* HomeStoreGrid 모바일 무한 스크롤 모드: 페이지네이션 노출 안함 */
-@media (max-width: 767px) {
-  .public-home-store-grid__pagination.is-mobile-infinite {
-    display: none;
-  }
-  .public-home-store-grid__loadmore {
-    display: flex;
-    justify-content: center;
-    margin-top: 16px;
-  }
-}
-
-.public-home-store-grid__loadmore-button {
-  padding: 12px 24px;
-  border: 1px solid var(--public-primary, #080F47);
-  border-radius: 999px;
-  background: #ffffff;
-  color: var(--public-primary, #080F47);
-  font-size: 14px;
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.public-home-store-grid__loadmore-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 /* ── 404 페이지 ────────────────────────────────────────────────── */

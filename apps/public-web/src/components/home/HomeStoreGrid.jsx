@@ -29,6 +29,8 @@ const HOME_SIDEBAR_FILTER_GROUPS = STORE_FILTER_GROUPS.filter((group) =>
 import { fetchStorefrontProducts } from "../../lib/storefront";
 
 const ITEMS_PER_PAGE = 28;
+// 모바일은 카드가 세로로 쌓여 한 페이지당 개수를 더 적게 잡는다.
+const MOBILE_ITEMS_PER_PAGE = 12;
 const SKELETON_COUNT = 8;
 const MOBILE_BREAKPOINT_PX = 767;
 
@@ -83,19 +85,18 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
   const [products, setProducts] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [selectedSubject, setSelectedSubject] = useState(initialQueryState.selectedSubject);
   const [selectedFilters, setSelectedFilters] = useState(initialQueryState.selectedFilters);
   const [sortOption, setSortOption] = useState(initialQueryState.sortOption);
   const [currentPage, setCurrentPage] = useState(initialQueryState.page);
   const [searchKeyword, setSearchKeyword] = useState(initialQueryState.searchKeyword);
   const [isSortMenuOpen, setIsSortMenuOpen] = useState(false);
-  // 모바일 무한 스크롤: 누적된 서버 페이지 수 (1-base). 조건이 바뀌면 1로 리셋.
-  const [mobilePage, setMobilePage] = useState(1);
   const requestSeqRef = useRef(0);
   const [isMobileViewport, setIsMobileViewport] = useState(() =>
     typeof window !== "undefined" ? window.innerWidth <= MOBILE_BREAKPOINT_PX : false,
   );
+  // 페이지당 개수 — 모바일은 더 적게. 페이지네이션은 웹/모바일 공통.
+  const pageSize = isMobileViewport ? MOBILE_ITEMS_PER_PAGE : ITEMS_PER_PAGE;
   // 모바일 필터 바텀시트 (codex UX 감사: 390px에서 사이드바가 258px 차지 → 트리거 + 시트로 줄임)
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
   useBodyScrollLock(isFilterSheetOpen);
@@ -120,32 +121,15 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
     [selectedSubject, selectedFilters, searchKeyword, sortOption],
   );
 
-  // 조건이 바뀌면 모바일 누적 페이지를 렌더 단계에서 즉시 리셋 —
-  // effect로 미루면 옛 페이지 번호로 한 번 잘못 fetch가 나간다.
-  const lastConditionKeyRef = useRef(conditionKey);
-  if (lastConditionKeyRef.current !== conditionKey) {
-    lastConditionKeyRef.current = conditionKey;
-    if (mobilePage !== 1) {
-      setMobilePage(1);
-    }
-  }
-
   // 검색어 유무에 따른 기본 정렬(관련도순 ↔ 인기순) 전환은 URL 파스/직렬화 레이어
   // (parseStorefrontQuery의 fallback + serialize의 impliedSort)가 단일 소스로 처리한다.
 
-  // 서버 질의 — 데스크톱: 현재 페이지 교체 / 모바일: 페이지 누적(append).
+  // 서버 질의 — 웹/모바일 공통 페이지네이션(현재 페이지 교체). 모바일은 pageSize만 작다.
   // 늦게 도착한 옛 응답이 새 응답을 덮지 않도록 요청 시퀀스로 가드.
-  const activePage = isMobileViewport ? mobilePage : currentPage;
   useEffect(() => {
     let cancelled = false;
     const seq = ++requestSeqRef.current;
-    const isAppend = isMobileViewport && activePage > 1;
-
-    if (isAppend) {
-      setIsLoadingMore(true);
-    } else {
-      setIsLoading(true);
-    }
+    setIsLoading(true);
 
     (async () => {
       try {
@@ -157,27 +141,22 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
           conditionGrades: selectedFilters.conditionGrades,
           search: searchKeyword,
           sort: sortOption,
-          limit: ITEMS_PER_PAGE,
-          offset: (Math.max(1, activePage) - 1) * ITEMS_PER_PAGE,
+          limit: pageSize,
+          offset: (Math.max(1, currentPage) - 1) * pageSize,
         });
         if (cancelled || seq !== requestSeqRef.current) return;
 
         const rows = result.products ?? result.books ?? [];
         setTotalCount(result.totalCount ?? rows.length);
-        setProducts((current) => {
-          if (!isAppend) return rows;
-          const seenIds = new Set(current.map((item) => item.id));
-          return [...current, ...rows.filter((item) => !seenIds.has(item.id))];
-        });
+        setProducts(rows);
       } catch {
-        if (!cancelled && seq === requestSeqRef.current && !isAppend) {
+        if (!cancelled && seq === requestSeqRef.current) {
           setProducts([]);
           setTotalCount(0);
         }
       } finally {
         if (!cancelled && seq === requestSeqRef.current) {
           setIsLoading(false);
-          setIsLoadingMore(false);
         }
       }
     })();
@@ -185,8 +164,8 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
     return () => {
       cancelled = true;
     };
-    // conditionKey가 subject/filters/search/sort를 모두 포괄한다.
-  }, [conditionKey, activePage, isMobileViewport]); // eslint-disable-line react-hooks/exhaustive-deps
+    // conditionKey가 subject/filters/search/sort를 모두 포괄한다. pageSize는 isMobileViewport 파생.
+  }, [conditionKey, currentPage, pageSize]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 뷰포트 추적 (페이지네이션 vs 무한 스크롤 분기)
   useEffect(() => {
@@ -281,20 +260,20 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
     };
   }, [isSortMenuOpen]);
 
-  const totalPages = Math.max(1, Math.ceil(totalCount / ITEMS_PER_PAGE));
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const safeCurrentPage = Math.min(currentPage, totalPages);
   const displayedProducts = products;
-  const hasMoreMobile = products.length < totalCount;
   const paginationItems = getPaginationItems(safeCurrentPage, totalPages);
   const selectedFilterCount = countSelectedStoreFilters(selectedFilters);
 
-  // URL에 stale page(예: 필터로 줄어든 뒤 page=15)가 남았으면 마지막 페이지로 스냅백.
+  // stale page(필터로 줄어든 뒤 page=15, 혹은 뷰포트 전환으로 pageSize가 바뀐 경우)를
+  // 마지막 페이지로 스냅백. 웹/모바일 공통.
   useEffect(() => {
-    if (isLoading || isMobileViewport) return;
+    if (isLoading) return;
     if (currentPage > totalPages) {
       setCurrentPage(totalPages);
     }
-  }, [isLoading, isMobileViewport, currentPage, totalPages]);
+  }, [isLoading, currentPage, totalPages]);
 
   // 필터/검색/정렬이 바뀌면 모바일에서 결과를 툴바(헤더 바로 아래)에 앵커링
   const didMountFilterResetRef = useRef(false);
@@ -309,33 +288,6 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
       scrollResultsUnderHeader();
     }
   }, [conditionKey]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // 모바일: IntersectionObserver로 무한 스크롤 — 다음 서버 페이지를 누적 로드
-  const loadMoreRef = useRef(null);
-  useEffect(() => {
-    if (!isMobileViewport) return undefined;
-    if (typeof IntersectionObserver === "undefined") return undefined;
-    const sentinel = loadMoreRef.current;
-    if (!sentinel) return undefined;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (!entry.isIntersecting) return;
-          if (!hasMoreMobile || isLoadingMore || isLoading) return;
-          setMobilePage((current) => current + 1);
-        });
-      },
-      { rootMargin: "200px 0px" },
-    );
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [isMobileViewport, hasMoreMobile, isLoadingMore, isLoading]);
-
-  const scrollToTop = () => {
-    if (sectionTopRef.current) {
-      sectionTopRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  };
 
   // 모바일: 필터/정렬을 적용하면 노출 카드 수가 리셋되며 목록이 짧아져 스크롤이
   // 위(신규 입고)로 튕긴다. 대신 sticky 헤더 바로 아래(=필터·정렬 툴바 위치)에
@@ -395,8 +347,8 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
 
   const handleChangePage = (nextPage) => {
     if (nextPage < 1 || nextPage > totalPages || nextPage === safeCurrentPage) return;
+    // 페이지 변경 시 스크롤 위치를 그대로 유지한다(상단으로 튕기지 않음).
     setCurrentPage(nextPage);
-    scrollToTop();
   };
 
   // 빈 상태 회복: 가장 많이 선택된 필터를 토글 해제하는 추천 칩.
@@ -671,8 +623,9 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
           </div>
         ) : null}
 
-        {/* 카드 그리드 */}
-        {isLoading ? (
+        {/* 카드 그리드 — 스켈레톤은 최초 로드(항목 0개)에서만. 페이지 변경 로딩 중에는
+            기존 항목을 그대로 유지해 높이가 줄었다 늘며 푸터가 튀는 현상을 막는다. */}
+        {isLoading && displayedProducts.length === 0 ? (
           <div className="public-home-store-grid__list" role="status" aria-live="polite">
             {Array.from({ length: SKELETON_COUNT }, (_, index) => (
               <ProductCardSkeleton key={`home-store-skeleton-${index}`} />
@@ -754,7 +707,9 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
             )}
           </div>
         ) : (
-          <div className="public-home-store-grid__list">
+          <div
+            className={`public-home-store-grid__list${isLoading ? " is-refreshing" : ""}`}
+          >
             {displayedProducts.map((product) => (
               <ProductCard
                 isFavorite={favoriteIds.includes(product.id)}
@@ -766,24 +721,9 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
           </div>
         )}
 
-        {/* 모바일: 무한 스크롤 sentinel + 명시적 "더보기" fallback */}
-        {!isLoading && isMobileViewport && hasMoreMobile ? (
-          <div className="public-home-store-grid__loadmore" ref={loadMoreRef}>
-            <button
-              className="public-home-store-grid__loadmore-button"
-              disabled={isLoadingMore}
-              onClick={() => setMobilePage((current) => current + 1)}
-              type="button"
-            >
-              {isLoadingMore
-                ? "불러오는 중..."
-                : `더 많은 교재 보기 (${products.length.toLocaleString("ko-KR")}/${totalCount.toLocaleString("ko-KR")})`}
-            </button>
-          </div>
-        ) : null}
-
-        {/* 페이지네이션 — 데스크탑 전용 (모바일은 무한 스크롤로 대체) */}
-        {!isLoading && !isMobileViewport && totalPages > 1 ? (
+        {/* 페이지네이션 — 웹/모바일 공통. 페이지 변경 로딩 중에도 유지(사라졌다 나타나며
+            레이아웃이 튀지 않게). 최초 로드(항목 0개)에서만 숨긴다. */}
+        {displayedProducts.length > 0 && totalPages > 1 ? (
           <nav className="public-home-store-grid__pagination" aria-label="페이지 탐색">
             <button
               aria-label="이전 페이지"
