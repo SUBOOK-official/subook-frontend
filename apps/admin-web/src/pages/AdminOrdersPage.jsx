@@ -458,29 +458,57 @@ function AdminOrdersPage() {
     return true;
   };
 
+  // CJ 운영 서버는 콜드 컨테이너 첫 연결에서 자주 fetch failed/timeout이 난다(방화벽 워밍업).
+  // 네트워크성 실패만 자동 재시도해 관통시킨다. 비즈니스 실패(주소없음 등)는 즉시 중단.
+  const requestCjDelivery = async (orderId, { reprint }) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      showToast("인증이 만료되었습니다. 다시 로그인해 주세요.", "error");
+      return null;
+    }
+    const MAX = 6;
+    const transientRe = /fetch failed|timeout|ECONN|EAI_AGAIN|socket|reset|network|Failed to fetch|Load failed/i;
+    const failLabel = reprint ? "송장 재출력에 실패했습니다." : "CJ 송장 발급에 실패했습니다.";
+    for (let attempt = 1; attempt <= MAX; attempt += 1) {
+      let resp = null;
+      let result = {};
+      let threw = false;
+      try {
+        resp = await fetch("/api/admin/cj-delivery", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify(reprint ? { orderId, reprint: true } : { orderId }),
+        });
+        result = await resp.json().catch(() => ({}));
+      } catch {
+        threw = true; // fetch 자체 실패(네트워크)
+      }
+      const row = result?.results?.[0];
+      if (!threw && resp?.ok && row?.success) {
+        return row;
+      }
+      const errMsg = String(row?.error || result?.error || (threw ? "fetch failed" : "요청 실패"));
+      const isTransient = threw || transientRe.test(errMsg);
+      if (attempt < MAX && isTransient) {
+        showToast(`CJ 서버 연결 재시도 중… (${attempt}/${MAX - 1})`, "info");
+        await new Promise((r) => setTimeout(r, 1200));
+        continue;
+      }
+      showToast(errMsg && !isTransient ? errMsg : `${failLabel} (CJ 서버 응답 지연 — 잠시 후 다시 시도해 주세요.)`, "error");
+      return null;
+    }
+    return null;
+  };
+
   // CJ 송장 출력: cj-delivery(채번+주소정제+예약접수) 호출 → 성공 시 배송중 전환 + 표준 라벨 모달.
   const handleCjDelivery = async (orderId) => {
     setBusyOrderId(orderId);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        showToast("인증이 만료되었습니다. 다시 로그인해 주세요.", "error");
-        return;
-      }
-      const resp = await fetch("/api/admin/cj-delivery", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ orderId }),
-      });
-      const result = await resp.json().catch(() => ({}));
-      const row = result?.results?.[0];
-      if (!resp.ok || !row?.success) {
-        showToast(row?.error || result?.error || "CJ 송장 발급에 실패했습니다.", "error");
-        return;
-      }
+      const row = await requestCjDelivery(orderId, { reprint: false });
+      if (!row) return;
 
       showToast(`운송장번호 ${row.trackingNumber} 발급 완료 — 배송중으로 전환되었습니다.`, "success");
 
@@ -507,25 +535,8 @@ function AdminOrdersPage() {
   const handleCjReprint = async (orderId) => {
     setBusyOrderId(orderId);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        showToast("인증이 만료되었습니다. 다시 로그인해 주세요.", "error");
-        return;
-      }
-      const resp = await fetch("/api/admin/cj-delivery", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ orderId, reprint: true }),
-      });
-      const result = await resp.json().catch(() => ({}));
-      const row = result?.results?.[0];
-      if (!resp.ok || !row?.success) {
-        showToast(row?.error || result?.error || "송장 재출력에 실패했습니다.", "error");
-        return;
-      }
+      const row = await requestCjDelivery(orderId, { reprint: true });
+      if (!row) return;
       setLabelData(row); // 라벨 모달 오픈 (상태 전환·알림톡 없음)
       setSelectedOrderId(null);
     } finally {
