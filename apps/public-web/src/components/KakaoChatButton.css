@@ -1,0 +1,40 @@
+/* 오른쪽 하단 고정 카카오톡 문의 버튼 */
+.kakao-chat-fab {
+  position: fixed;
+  right: 24px;
+  bottom: 88px;
+  /* 모달/시트(백드롭 z-index 50+)보다 아래에 두어 팝업이 뜨면 자연히 가려지게 함 */
+  z-index: 40;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  /* 카카오톡 브랜드 옐로 + 다크 아이콘 */
+  background: #fee500;
+  color: #3c1e1e;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.kakao-chat-fab:hover,
+.kakao-chat-fab:focus-visible {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.22);
+}
+
+.kakao-chat-fab svg {
+  display: block;
+}
+
+@media (max-width: 767px) {
+  .kakao-chat-fab {
+    right: 16px;
+    bottom: 80px;
+    width: 44px;
+    height: 44px;
+  }
+}
