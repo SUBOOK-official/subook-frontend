@@ -73,7 +73,7 @@ const footerMetaLines = [
         href: "https://www.ftc.go.kr/bizCommPop.do?wrkr_no=4219901928",
       },
     ],
-    ["통신판매업신고번호", "정식 등록 진행 중"],
+    ["통신판매업신고번호", "2026-광주서구-0566"],
   ],
 ];
 
