@@ -19,6 +19,17 @@
       "destination": "/api/sitemap-products"
     },
     {
+      "source": "/store/:id(\\d+)",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(yeti|naverbot|googlebot|google-inspectiontool|bingbot|kakaotalk-scrap|kakaostory-og-reader|facebookexternalhit|facebot|twitterbot|slackbot|telegrambot|whatsapp|linkedinbot|discordbot|applebot|petalbot|duckduckbot|baiduspider|yandexbot|daumoa).*"
+        }
+      ],
+      "destination": "/api/prerender-product?id=:id"
+    },
+    {
       "source": "/:path*",
       "destination": "/index.html"
     }
