@@ -10,3 +10,13 @@ export const PRICE_LOCKED_MESSAGE = "정산완료/폐기된 책의 가격은 변
 export function isBookPriceLocked(book) {
   return PRICE_LOCKED_BOOK_STATUSES.includes(book?.status);
 }
+
+// 등급도 같은 이유로 정산완료/폐기 후 변경 금지 (판매 시점 등급이 이력의 근거).
+// 2026-07-23: A+ 폐지 계획 보류(중고 수거 증가)로 재고탭에서 권별 등급 수정 지원.
+export const GRADE_LOCKED_MESSAGE = "정산완료/폐기된 책의 등급은 변경할 수 없습니다.";
+// 어드민에서 부여 가능한 등급 (DISCARD는 검수 판정 전용 — 여기서 선택 불가)
+export const EDITABLE_BOOK_GRADES = ["S", "A_PLUS", "A"];
+
+export function isBookGradeLocked(book) {
+  return PRICE_LOCKED_BOOK_STATUSES.includes(book?.status);
+}

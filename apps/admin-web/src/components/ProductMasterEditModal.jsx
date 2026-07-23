@@ -6,7 +6,13 @@ import { formatCurrency } from "@shared-domain/format";
 import { COVER_BUCKET, DETAIL_BUCKET, MAX_DETAIL_PHOTOS, uploadImageToBucket } from "../lib/adminImageUpload";
 import { CloseIcon } from "./icons";
 import { BOOK_TYPE_OPTIONS, BRAND_OPTIONS, SUBJECT_OPTIONS } from "../lib/productCategories";
-import { PRICE_LOCKED_MESSAGE, isBookPriceLocked } from "../lib/bookEditRules";
+import {
+  EDITABLE_BOOK_GRADES,
+  GRADE_LOCKED_MESSAGE,
+  PRICE_LOCKED_MESSAGE,
+  isBookGradeLocked,
+  isBookPriceLocked,
+} from "../lib/bookEditRules";
 import { bookConditionLabel, bookStatusLabel } from "@shared-domain/status";
 
 // 상품 마스터 수정 모달 (2026-07-06 운영 피드백: 제목/가격/사진 수정 기능).
@@ -137,6 +143,8 @@ function ProductMasterEditModal({ onClose, onSaved, product }) {
           priceInput: row.price != null ? String(row.price) : "",
           originalPrice: row.original_price,
           conditionGrade: row.condition_grade,
+          // 권별 등급 편집값 (2026-07-23 A+ 유지 정책) — 바뀐 책만 저장 시 전달
+          gradeInput: row.condition_grade ?? "",
           status: row.status,
           isPublic: row.is_public,
         })),
@@ -257,6 +265,14 @@ function ProductMasterEditModal({ onClose, onSaved, product }) {
       const editable = !["settled", "discarded"].includes(book.status);
       // 권별 옵션명 — 항상 현재 입력값을 보낸다 (빈 값 = 옵션 없음). 상태 무관 수정 가능.
       const entry = { id: book.id, option: book.optionInput ?? "" };
+      // 권별 등급 — 바뀐 책만 전달 (RPC가 정산완료/폐기·무효값을 재차 가드)
+      if (
+        book.gradeInput &&
+        EDITABLE_BOOK_GRADES.includes(book.gradeInput) &&
+        book.gradeInput !== (book.conditionGrade ?? "")
+      ) {
+        entry.condition_grade = book.gradeInput;
+      }
       if (detailDirty) {
         entry.inspection_image_urls = detailImages;
       }
@@ -300,6 +316,14 @@ function ProductMasterEditModal({ onClose, onSaved, product }) {
   const setBookOption = (bookId, value) => {
     setBooks((current) =>
       current.map((book) => (book.id === bookId ? { ...book, optionInput: value } : book)),
+    );
+    setTouched(true);
+  };
+
+  // 권별 등급 선택 (2026-07-23)
+  const setBookGrade = (bookId, value) => {
+    setBooks((current) =>
+      current.map((book) => (book.id === bookId ? { ...book, gradeInput: value } : book)),
     );
     setTouched(true);
   };
@@ -511,9 +535,25 @@ function ProductMasterEditModal({ onClose, onSaved, product }) {
                                 {book.serialNumber != null ? ` · No.${book.serialNumber}` : ""}
                               </span>
                             ) : null}
-                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-700">
-                              {bookConditionLabel[book.conditionGrade] ?? book.conditionGrade ?? "-"}
-                            </span>
+                            {/* 권별 등급 선택 (2026-07-23 A+ 유지 정책) — 정산완료/폐기는 잠금 */}
+                            <select
+                              className="input-base !w-auto !py-1 text-xs font-bold"
+                              disabled={isBookGradeLocked(book)}
+                              onChange={(event) => setBookGrade(book.id, event.target.value)}
+                              title={isBookGradeLocked(book) ? GRADE_LOCKED_MESSAGE : "이 책의 등급 (저장 시 반영)"}
+                              value={book.gradeInput ?? ""}
+                            >
+                              {!book.gradeInput || !EDITABLE_BOOK_GRADES.includes(book.gradeInput) ? (
+                                <option disabled value={book.gradeInput ?? ""}>
+                                  {bookConditionLabel[book.gradeInput] ?? book.gradeInput ?? "등급 미지정"}
+                                </option>
+                              ) : null}
+                              {EDITABLE_BOOK_GRADES.map((grade) => (
+                                <option key={grade} value={grade}>
+                                  {bookConditionLabel[grade] ?? grade}
+                                </option>
+                              ))}
+                            </select>
                             <span className="text-xs text-slate-500">
                               {bookStatusLabel[book.status] ?? book.status}
                               {book.isPublic ? " · 노출 중" : ""}
