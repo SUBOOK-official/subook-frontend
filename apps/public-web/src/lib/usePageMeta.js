@@ -1,8 +1,9 @@
 import { useEffect } from "react";
 
-const DEFAULT_TITLE = "수북 SUBOOK — 수능 교재 위탁판매 플랫폼";
+// index.html의 정적 메타와 반드시 동일하게 유지 (구 식스샵 SEO 설정 이관본)
+const DEFAULT_TITLE = "수북 | 수능을 위한 가장 똑똑한 선택";
 const DEFAULT_DESCRIPTION =
-  "수험생을 위한 안 쓰는 수능 교재 위탁판매. CJ 픽업, 검수, 안전결제까지 수북이 책임집니다.";
+  "당신의 수험이, 다음 사람의 시작이 됩니다. 전문 검수를 마친 새 수능 교재, 대치동 교재, 실전 모의고사를 저렴한 가격에 판매합니다.";
 
 /**
  * 페이지별 <title> + meta description + canonical/og + JSON-LD 동적 설정.

@@ -62,10 +62,8 @@ const HOME_HERO_SLIDES = [
 ];
 
 function PublicHomePage() {
-  usePageMeta({
-    description:
-      "수험생을 위한 안 쓴(미사용) 수능 교재 위탁판매. CJ 픽업, 검수, 안전결제까지 수북이 책임집니다. 시대인재·강남대성·이투스 등 인기 교재를 합리적인 가격에 만나보세요.",
-  });
+  // 홈은 기본 타이틀·설명(usePageMeta DEFAULT_*, 구 식스샵 SEO 카피)을 그대로 사용
+  usePageMeta({});
   const navigate = useNavigate();
   const { requireMember, memberGateDialog } = usePublicMemberGate();
   const { favoriteIds, toggleFavorite } = usePublicWishlist();
