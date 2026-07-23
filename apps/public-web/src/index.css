@@ -783,13 +783,6 @@ img {
   gap: 24px 16px;
 }
 
-/* 페이지 변경 로딩 중: 기존 항목을 유지한 채 살짝 흐리게(높이 유지 → 푸터 튐 방지) */
-.public-home-store-grid__list.is-refreshing {
-  opacity: 0.55;
-  transition: opacity 0.15s ease;
-  pointer-events: none;
-}
-
 .public-home-store-grid__empty {
   display: flex;
   flex-direction: column;

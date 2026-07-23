@@ -1,7 +1,6 @@
 import { lazy, Suspense, useEffect, useRef } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate, useNavigationType } from "react-router-dom";
 import { usePublicAuth } from "./contexts/PublicAuthContext";
-import KakaoChatButton from "./components/KakaoChatButton";
 
 const PublicAuthCallbackPage = lazy(() => import("./pages/PublicAuthCallbackPage"));
 const PublicCartPage = lazy(() => import("./pages/PublicCartPage"));
@@ -119,7 +118,6 @@ function App() {
           <Route element={<PublicNotFoundPage />} path="*" />
         </Routes>
       </Suspense>
-      <KakaoChatButton />
     </>
   );
 }

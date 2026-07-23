@@ -345,10 +345,17 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
     setCurrentPage(1);
   };
 
+  // 페이지 이동 시 목록 상단으로 복귀 (2026-07-24 사용자 결정: 위치 유지 방식 대신 기존 동작 유지)
+  const scrollToTop = () => {
+    if (sectionTopRef.current) {
+      sectionTopRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
   const handleChangePage = (nextPage) => {
     if (nextPage < 1 || nextPage > totalPages || nextPage === safeCurrentPage) return;
-    // 페이지 변경 시 스크롤 위치를 그대로 유지한다(상단으로 튕기지 않음).
     setCurrentPage(nextPage);
+    scrollToTop();
   };
 
   // 빈 상태 회복: 가장 많이 선택된 필터를 토글 해제하는 추천 칩.
@@ -623,9 +630,8 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
           </div>
         ) : null}
 
-        {/* 카드 그리드 — 스켈레톤은 최초 로드(항목 0개)에서만. 페이지 변경 로딩 중에는
-            기존 항목을 그대로 유지해 높이가 줄었다 늘며 푸터가 튀는 현상을 막는다. */}
-        {isLoading && displayedProducts.length === 0 ? (
+        {/* 카드 그리드 — 로딩 중에는 스켈레톤으로 교체 (페이지 변경 포함, 기존 방식) */}
+        {isLoading ? (
           <div className="public-home-store-grid__list" role="status" aria-live="polite">
             {Array.from({ length: SKELETON_COUNT }, (_, index) => (
               <ProductCardSkeleton key={`home-store-skeleton-${index}`} />
@@ -707,9 +713,7 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
             )}
           </div>
         ) : (
-          <div
-            className={`public-home-store-grid__list${isLoading ? " is-refreshing" : ""}`}
-          >
+          <div className="public-home-store-grid__list">
             {displayedProducts.map((product) => (
               <ProductCard
                 isFavorite={favoriteIds.includes(product.id)}
@@ -721,9 +725,8 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
           </div>
         )}
 
-        {/* 페이지네이션 — 웹/모바일 공통. 페이지 변경 로딩 중에도 유지(사라졌다 나타나며
-            레이아웃이 튀지 않게). 최초 로드(항목 0개)에서만 숨긴다. */}
-        {displayedProducts.length > 0 && totalPages > 1 ? (
+        {/* 페이지네이션 — 웹/모바일 공통. 로딩 중에는 숨김 (기존 방식) */}
+        {!isLoading && totalPages > 1 ? (
           <nav className="public-home-store-grid__pagination" aria-label="페이지 탐색">
             <button
               aria-label="이전 페이지"
