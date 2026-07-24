@@ -2727,6 +2727,16 @@ function PurchasesView({
                         >
                           {busyOrderId === order.id ? "처리 중..." : "취소"}
                         </button>
+                      ) : order.status === "preparing" ? (
+                        /* 입금 확인 후에는 실입금 환불이 필요해 직접 취소 불가 — 채널 문의로 접수 */
+                        <a
+                          className="public-mypage-purchase-card__btn"
+                          href={KAKAO_CHANNEL_URL}
+                          rel="noopener noreferrer"
+                          target="_blank"
+                        >
+                          취소 문의
+                        </a>
                       ) : null}
                       {order.canConfirm ? (
                         <button

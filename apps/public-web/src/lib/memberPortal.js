@@ -1243,8 +1243,9 @@ async function cancelMemberOrder({ user, orderId, reason = "", demoMode = false 
   const storedState = readStoredPortalState(user.id);
   const baseState = demoMode ? mergePortalDemoState(storedState, storedState.profile ?? DEMO_MEMBER_PROFILE) : storedState;
   const updatedOrders = (baseState.orders ?? []).map((order) =>
-    // 백엔드 cancel_member_order와 동일 범위 (pending/paid(레거시)/preparing)
-    (order.id === orderId && ["pending", "paid", "preparing"].includes(order.status))
+    // 백엔드 cancel_member_order와 동일 범위 (2026-07-24부터 pending 전용 —
+    // 입금 확인 후 취소는 고객센터 경유, admin 환불 흐름으로 처리)
+    (order.id === orderId && order.status === "pending")
       ? { ...order, status: "cancelled", cancelReason: trimmedReason || order.cancelReason }
       : order,
   );

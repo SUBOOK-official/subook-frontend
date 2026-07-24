@@ -859,8 +859,10 @@ export function mapOrderToDisplayOrder(order) {
       : null;
 
   const canConfirm = order.status === "delivered" && !order.confirmed_at;
-  // 사용자는 배송 전 단계(입금대기/결제완료/상품 준비 중)에서 주문 취소 가능
-  const canCancel = ["pending", "paid", "preparing"].includes(order.status);
+  // 주문 직접 취소는 입금 확인 전(입금대기)에만 가능 (2026-07-24 정책).
+  // 입금 확인(preparing 이후)부터는 실입금이 있어 환불 이체가 필요하므로
+  // 고객센터(카카오톡 채널) 경유 — 운영자가 admin 환불 흐름으로 처리한다.
+  const canCancel = order.status === "pending";
   // 전자상거래법 7일 청약철회: delivered(미확정) 상태에서만 셀프 환불 신청 가능.
   // confirmed 후는 셀러 정산 송금이 진행됐을 위험이 있어 차단 — 고객센터 협의로 redirect
   // (백엔드 request_member_refund도 동일 정책으로 confirmed 차단).
