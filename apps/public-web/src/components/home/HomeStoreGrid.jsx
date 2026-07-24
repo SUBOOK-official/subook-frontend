@@ -298,7 +298,10 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
     const headerHeight =
       parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--public-sticky-header-height")) || 0;
     const target = sectionTopRef.current.getBoundingClientRect().top + scroller.scrollTop - headerHeight;
-    scroller.scrollTo({ top: Math.max(0, target), behavior: "auto" });
+    // ⚠ "auto"는 즉시가 아니라 "CSS scroll-behavior를 따름"이다. html에 scroll-behavior:smooth가
+    // 걸려 있어 auto=smooth가 되고, 스켈레톤 전환으로 문서 높이가 줄면 iOS가 애니메이션을
+    // 중단시켜 제자리에 멈추는 버그가 있었다(2026-07-24). 반드시 "instant"로 강제할 것.
+    scroller.scrollTo({ top: Math.max(0, target), behavior: "instant" });
   };
 
   const handleSelectSubject = (subject) => {
