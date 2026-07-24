@@ -175,6 +175,10 @@ Invoke-RobocopyChecked -Source $frontendRoot -Destination $stagingFrontendRoot -
 New-Item -ItemType Directory -Path $stagingProjectLinkDir | Out-Null
 Copy-Item -LiteralPath $projectLinkPath -Destination $stagingProjectLinkPath
 Copy-Item -LiteralPath $deployConfigPath -Destination $stagingDeployConfigPath
+# ⚠ crons는 `-A vercel.deploy.json`(--local-config) 경로로는 등록되지 않는다
+#   (2026-07-24 실측: rewrites/headers는 적용되는데 배포 객체 crons가 항상 빈 배열).
+#   표준 이름 vercel.json을 스테이징 루트에 두고 기본 탐지로 배포해야 crons가 등록됨.
+Copy-Item -LiteralPath $deployConfigPath -Destination (Join-Path $stagingRoot "vercel.json")
 
 $adminWebApiPath = Join-Path $adminWebRoot "api"
 if (Test-Path -LiteralPath $adminWebApiPath -PathType Container) {
@@ -186,7 +190,8 @@ Assert-PathExists -Path (Join-Path $stagingFrontendRoot "packages/shared-domain/
 Assert-PathExists -Path (Join-Path $stagingFrontendRoot "packages/shared-supabase/src") -Description "staging shared-supabase" -Directory
 Assert-PathExists -Path (Join-Path $stagingFrontendRoot "apps/admin-web/src") -Description "staging admin web app" -Directory
 
-$deployArguments = @("vercel", "deploy", "-y", "-A", "vercel.deploy.json", "--logs")
+# -A 플래그 제거: 스테이징 루트의 vercel.json(위에서 복사)이 기본 설정으로 사용된다.
+$deployArguments = @("vercel", "deploy", "-y", "--logs")
 if ($Preview) {
   $deployArguments += "--target=preview"
 } else {
