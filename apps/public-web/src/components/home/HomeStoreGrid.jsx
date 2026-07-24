@@ -355,7 +355,13 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
   const handleChangePage = (nextPage) => {
     if (nextPage < 1 || nextPage > totalPages || nextPage === safeCurrentPage) return;
     setCurrentPage(nextPage);
-    scrollToTop();
+    // 모바일: smooth 스크롤은 스켈레톤 전환으로 문서 높이가 줄면 중간에 끊긴다.
+    // 필터 앵커링과 동일하게 즉시 스크롤로 스티키 헤더 바로 아래(배너 가려지는 위치)에 붙인다.
+    if (isMobileViewport) {
+      scrollResultsUnderHeader();
+    } else {
+      scrollToTop();
+    }
   };
 
   // 빈 상태 회복: 가장 많이 선택된 필터를 토글 해제하는 추천 칩.
