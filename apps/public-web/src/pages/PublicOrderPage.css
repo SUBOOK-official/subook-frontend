@@ -1,7 +1,7 @@
 /* ── Order Page ── */
 .order-page {
   min-height: 100vh;
-  background: var(--public-ds-bg);
+  background: #ffffff;
 }
 
 .order-content {
