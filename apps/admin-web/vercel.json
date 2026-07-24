@@ -29,6 +29,10 @@
     {
       "path": "/api/admin/notify-restock",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/admin/cj-delivery-tracking",
+      "schedule": "0 13 * * *"
     }
   ],
   "headers": [
