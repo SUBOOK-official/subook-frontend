@@ -605,6 +605,59 @@
   .order-content {
     padding-bottom: 40px;
   }
+
+  /* 모바일: 전반적으로 폰트를 한 단계 작게 */
+  .order-page__title {
+    font-size: 19px;
+    margin-bottom: 16px;
+  }
+
+  .order-section {
+    padding: 16px;
+  }
+
+  .order-section__title {
+    font-size: 15px;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+  }
+
+  .order-item__title {
+    font-size: 13px;
+  }
+
+  .order-item__price {
+    font-size: 14px;
+  }
+
+  .order-section__hint {
+    font-size: 12px;
+  }
+
+  .order-form__label {
+    font-size: 12px;
+  }
+
+  .order-form__input,
+  .order-refund-account__input {
+    font-size: 13px;
+  }
+
+  .order-sidebar__title {
+    font-size: 15px;
+  }
+
+  .order-sidebar__row {
+    font-size: 13px;
+  }
+
+  .order-sidebar__row--total {
+    font-size: 16px;
+  }
+
+  .order-sidebar__agreement-check {
+    font-size: 12.5px;
+  }
 }
 
 /* ── 쿠폰 적용 ─────────────────────────────────────────── */
