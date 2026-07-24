@@ -634,6 +634,26 @@ function PublicOrderPage() {
     setTimeout(() => setToast(null), 3000);
   }, []);
 
+  // 계좌번호 복사 ('-' 제거한 숫자만 → 은행 앱에 바로 붙여넣기 편하게)
+  const handleCopyAccount = async () => {
+    const plain = BANK_ACCOUNT.replace(/-/g, "");
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(plain);
+      } else {
+        const t = document.createElement("textarea");
+        t.value = plain;
+        document.body.appendChild(t);
+        t.select();
+        document.execCommand("copy");
+        t.remove();
+      }
+      showToast("계좌번호를 복사했어요.");
+    } catch {
+      showToast("복사에 실패했어요. 길게 눌러 복사해 주세요.", "error");
+    }
+  };
+
   useEffect(() => {
     if (authLoading) return;
     if (!isAuthenticated) {
@@ -1290,11 +1310,42 @@ function PublicOrderPage() {
 
                 {paymentMethod === "bank_transfer" && (
                   <div className="order-bank-info">
-                    <p className="order-bank-info__title">계좌이체로 결제하기</p>
                     {/* P0-2: 결제 직전 계좌 정보 사전 노출 — 입금자명은 주문번호 확정 후 자동 안내 */}
-                    <p className="order-bank-info__account">
-                      {BANK_NAME} {BANK_ACCOUNT}
-                    </p>
+                    <div className="order-bank-info__account-row">
+                      <p className="order-bank-info__account">
+                        {BANK_NAME} {BANK_ACCOUNT}
+                      </p>
+                      <button
+                        aria-label="계좌번호 복사"
+                        className="order-bank-info__copy"
+                        onClick={handleCopyAccount}
+                        type="button"
+                      >
+                        <svg
+                          aria-hidden="true"
+                          fill="none"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          width="18"
+                        >
+                          <rect
+                            height="13"
+                            rx="2"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            width="13"
+                            x="9"
+                            y="9"
+                          />
+                          <path
+                            d="M5 15V5a2 2 0 0 1 2-2h10"
+                            stroke="currentColor"
+                            strokeLinecap="round"
+                            strokeWidth="1.8"
+                          />
+                        </svg>
+                      </button>
+                    </div>
                     <p className="order-bank-info__holder">예금주: {BANK_HOLDER}</p>
                     <ul className="order-bank-info__bullets">
                       <li>
@@ -1316,7 +1367,9 @@ function PublicOrderPage() {
                 <div className="order-section">
                   <h2 className="order-section__title">환불 계좌 정보</h2>
                   <p className="order-section__hint">
-                    환불이 필요할 때 아래 계좌로 돌려드려요. 입금하시는 분 본인 명의 계좌로 입력해 주세요.
+                    환불이 필요할 때 아래 계좌로 돌려드려요.
+                    <br />
+                    입금하시는 분 본인 명의 계좌로 입력해 주세요.
                   </p>
                   <div className="order-refund-account">
                     <select
