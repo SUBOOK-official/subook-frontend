@@ -139,6 +139,78 @@ function focusNextFieldOnEnter(event) {
   }
 }
 
+// 은행 선택 커스텀 드롭다운 — 네이티브 select 대신 앱 스타일의 옵션 리스트.
+function BankSelect({ value, onChange, options, placeholder = "은행 선택" }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const handlePointerDown = (event) => {
+      if (rootRef.current && !rootRef.current.contains(event.target)) setOpen(false);
+    };
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div className="order-bank-select" ref={rootRef}>
+      <button
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        className={`order-bank-select__trigger${value ? "" : " is-placeholder"}`}
+        onClick={() => setOpen((prev) => !prev)}
+        type="button"
+      >
+        <span>{value || placeholder}</span>
+        <svg
+          aria-hidden="true"
+          className={`order-bank-select__caret${open ? " is-open" : ""}`}
+          fill="none"
+          height="14"
+          viewBox="0 0 24 24"
+          width="14"
+        >
+          <path
+            d="M6 9l6 6 6-6"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="2"
+          />
+        </svg>
+      </button>
+      {open ? (
+        <ul className="order-bank-select__list" role="listbox">
+          {options.map((bank) => (
+            <li key={bank}>
+              <button
+                aria-selected={bank === value}
+                className={`order-bank-select__option${bank === value ? " is-selected" : ""}`}
+                onClick={() => {
+                  onChange(bank);
+                  setOpen(false);
+                }}
+                role="option"
+                type="button"
+              >
+                {bank}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
 // ── 배송 요청사항 — 선택형 모달 (2026-07-12 UX 개편) ─────────────────────────
 const DELIVERY_REQUEST_PRESETS = [
   "문 앞에 놓아주세요",
@@ -1372,18 +1444,11 @@ function PublicOrderPage() {
                     입금하시는 분 본인 명의 계좌로 입력해 주세요.
                   </p>
                   <div className="order-refund-account">
-                    <select
-                      className="order-refund-account__input"
-                      onChange={(e) => setRefundAccount((prev) => ({ ...prev, bank: e.target.value }))}
+                    <BankSelect
+                      onChange={(bank) => setRefundAccount((prev) => ({ ...prev, bank }))}
+                      options={BANK_OPTIONS}
                       value={refundAccount.bank}
-                    >
-                      <option value="">은행 선택</option>
-                      {BANK_OPTIONS.map((bankName) => (
-                        <option key={bankName} value={bankName}>
-                          {bankName}
-                        </option>
-                      ))}
-                    </select>
+                    />
                     <input
                       className="order-refund-account__input"
                       enterKeyHint="next"
