@@ -113,6 +113,32 @@ const PAYMENT_METHODS = [
   { id: "naver_pay", label: "네이버페이", available: false },
 ];
 
+// 입력 필드에서 Enter(모바일 '다음') → 같은 컨테이너의 다음 입력칸으로 자동 이동+포커스.
+// readonly(주소 자동입력)·disabled·체크박스·라디오는 건너뛴다. 컨테이너 onKeyDown에 연결해 사용.
+function focusNextFieldOnEnter(event) {
+  if (event.key !== "Enter") return;
+  const target = event.target;
+  if (!target || target.tagName !== "INPUT") return;
+  if (["checkbox", "button", "submit", "radio"].includes(target.type)) return;
+  event.preventDefault();
+  const focusables = Array.from(
+    event.currentTarget.querySelectorAll("input, select"),
+  ).filter(
+    (el) =>
+      !el.disabled &&
+      !el.readOnly &&
+      el.type !== "checkbox" &&
+      el.type !== "radio" &&
+      el.offsetParent !== null,
+  );
+  const index = focusables.indexOf(target);
+  if (index >= 0 && index < focusables.length - 1) {
+    focusables[index + 1].focus();
+  } else {
+    target.blur();
+  }
+}
+
 // ── 배송 요청사항 — 선택형 모달 (2026-07-12 UX 개편) ─────────────────────────
 const DELIVERY_REQUEST_PRESETS = [
   "문 앞에 놓아주세요",
@@ -373,11 +399,15 @@ function OrderAddressBookModal({
             ))}
           </div>
         ) : (
-          <div className="order-modal__body order-modal__body--form">
+          <div
+            className="order-modal__body order-modal__body--form"
+            onKeyDown={focusNextFieldOnEnter}
+          >
             <label className="order-addrbook__field">
               <span className="order-addrbook__field-label">이름</span>
               <input
                 className={`order-addrbook__input${nameTouched && nameInvalid ? " is-error" : ""}`}
+                enterKeyHint="next"
                 onBlur={() => setNameTouched(true)}
                 onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
                 placeholder="수령인의 이름"
@@ -392,6 +422,7 @@ function OrderAddressBookModal({
               <span className="order-addrbook__field-label">휴대폰 번호</span>
               <input
                 className="order-addrbook__input"
+                enterKeyHint="next"
                 inputMode="numeric"
                 onChange={(event) =>
                   setForm((prev) => ({ ...prev, phone: event.target.value.replace(/\D/g, "").slice(0, 11) }))
@@ -430,6 +461,7 @@ function OrderAddressBookModal({
               <span className="order-addrbook__field-label">상세 주소</span>
               <input
                 className="order-addrbook__input"
+                enterKeyHint="done"
                 onChange={(event) => setForm((prev) => ({ ...prev, addressLine2: event.target.value }))}
                 placeholder="건물, 아파트, 동/호수 입력"
                 type="text"
@@ -1078,7 +1110,7 @@ function PublicOrderPage() {
           ) : null}
 
           <div className="order-layout">
-            <div className="order-main">
+            <div className="order-main" onKeyDown={focusNextFieldOnEnter}>
               {/* 주문 상품 */}
               <div className="order-section">
                 <h2 className="order-section__title">주문 상품 ({orderItems.length}개)</h2>
@@ -1301,6 +1333,7 @@ function PublicOrderPage() {
                     </select>
                     <input
                       className="order-refund-account__input"
+                      enterKeyHint="next"
                       inputMode="numeric"
                       onChange={(e) => setRefundAccount((prev) => ({ ...prev, number: e.target.value }))}
                       placeholder="계좌번호 (‘-’ 없이 숫자만)"
@@ -1309,6 +1342,7 @@ function PublicOrderPage() {
                     />
                     <input
                       className="order-refund-account__input"
+                      enterKeyHint="done"
                       onChange={(e) => setRefundAccount((prev) => ({ ...prev, holder: e.target.value }))}
                       placeholder="예금주"
                       type="text"

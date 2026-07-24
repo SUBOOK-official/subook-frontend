@@ -593,44 +593,17 @@
   color: #6b4a12;
 }
 
-/* ── Mobile bottom bar ── */
+/* ── Mobile ── */
+/* 모바일: 결제 요약·동의·버튼을 하단 고정 시트로 띄우면 뒤 폼이 가려진다.
+   일반 흐름(페이지 스크롤)으로 두어 폼 아래에 이어지도록 한다. */
 @media (max-width: 767px) {
   .order-sidebar {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    /* P2-10: 모든 sticky bar 동일 z-index */
-    z-index: var(--public-sticky-bottom-z, 50);
-    /* P1-4: 모바일 키보드 활성 시 bottom을 동적으로 끌어올리도록 transition */
-    transition: bottom 0.2s ease;
-  }
-
-  .order-sidebar__card {
-    border-radius: 16px 16px 0 0;
-    box-shadow: 0 -4px 16px rgba(20, 24, 28, 0.08);
-    /* iOS home-indicator(safe-area)에 결제 버튼이 가려져 탭 시 홈으로 빠지는 문제 방어 */
-    padding: 16px 20px calc(16px + env(safe-area-inset-bottom)) 20px;
-  }
-
-  .order-sidebar__title {
-    display: none;
-  }
-
-  .order-sidebar__divider {
-    display: none;
-  }
-
-  .order-sidebar__row {
-    margin-bottom: 6px;
-  }
-
-  .order-sidebar__agreement {
-    margin-top: 6px;
+    position: static;
+    width: auto;
   }
 
   .order-content {
-    padding-bottom: 220px;
+    padding-bottom: 40px;
   }
 }
 
