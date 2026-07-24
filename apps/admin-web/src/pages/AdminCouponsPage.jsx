@@ -4,7 +4,7 @@ import AdminPagination from "../components/AdminPagination";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import StatusBadge from "@shared-domain/StatusBadge";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
-import { formatCurrency, maskEmail, maskPhone } from "@shared-domain/format";
+import { formatCurrency } from "@shared-domain/format";
 import { CloseIcon } from "../components/icons";
 
 const ISSUANCE_TYPE_LABEL = {
@@ -823,8 +823,8 @@ function AdminCouponsPage() {
                           {member.display_name || member.name || member.email}
                         </div>
                         <div className="truncate text-xs text-slate-500">
-                          {maskEmail(member.email)}
-                          {member.phone ? ` · ${maskPhone(member.phone)}` : ""}
+                          {member.email}
+                          {member.phone ? ` · ${member.phone}` : ""}
                         </div>
                       </div>
                       <button

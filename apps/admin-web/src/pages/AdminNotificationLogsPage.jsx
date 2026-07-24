@@ -4,7 +4,7 @@ import AdminShell from "../components/AdminShell";
 import AdminPagination from "../components/AdminPagination";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
-import { maskName, maskPhone } from "@shared-domain/format";
+
 import { resendNotificationFromLog } from "../lib/adminNotification";
 
 // 알림톡/SMS 발송 로그 뷰어 (감사 P1)
@@ -299,9 +299,9 @@ function AdminNotificationLogsPage() {
                         ) : null}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-slate-600">
-                        {row.recipient_name ? maskName(row.recipient_name) : "-"}
+                        {row.recipient_name || "-"}
                         <span className="ml-1 font-mono text-xs text-slate-400">
-                          {maskPhone(row.recipient_phone)}
+                          {row.recipient_phone}
                         </span>
                       </td>
                       <td className="whitespace-nowrap px-4 py-3">
@@ -381,7 +381,7 @@ function AdminNotificationLogsPage() {
         description={
           resendTarget
             ? `${TYPE_LABELS[resendTarget.notification_type] ?? resendTarget.notification_type} 알림을 ` +
-              `${maskPhone(resendTarget.recipient_phone)}로 다시 발송합니다.\n\n` +
+              `${resendTarget.recipient_phone}로 다시 발송합니다.\n\n` +
               "・실제 알림톡/SMS가 즉시 발송됩니다.\n" +
               "・저장된 당시 내용(변수) 그대로 재발송되니 최신 상태와 다를 수 있으면 발송하지 마세요."
             : ""

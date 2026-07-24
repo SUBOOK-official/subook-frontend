@@ -8,7 +8,7 @@ import NotificationResultModal from "../components/NotificationResultModal";
 import StatusBadge from "@shared-domain/StatusBadge";
 import { notifySettlementDone } from "../lib/adminNotification";
 import { exportRowsToXlsx } from "../lib/excelFile";
-import { formatCurrency, formatDate, maskEmail, maskName, maskPhone } from "@shared-domain/format";
+import { formatCurrency, formatDate } from "@shared-domain/format";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 
 const PAGE_SIZE = 50;
@@ -42,23 +42,19 @@ function formatFeePercent(value) {
   return `${numericValue.toFixed(numericValue % 1 === 0 ? 0 : 1)}%`;
 }
 
-function maskAccountNumber(accountNumber, accountLast4) {
-  const digits = String(accountNumber ?? "").replace(/[^0-9]/g, "");
-  const last4 = accountLast4 || digits.slice(-4);
-
-  if (!last4) {
-    return "계좌 미등록";
+function displayAccountNumber(accountNumber, accountLast4) {
+  const value = String(accountNumber ?? "").trim();
+  if (value) {
+    return value;
   }
-
-  return `****-****-${last4}`;
+  const last4 = String(accountLast4 ?? "").trim();
+  return last4 ? `(끝자리 ${last4})` : "계좌 미등록";
 }
 
-// 목록 화면 PII 마스킹 — 전화 우선, 없으면 이메일, 둘 다 없으면 placeholder.
-// (평문 계좌 다운로드는 별도 2단계 confirm+audit 경로 유지)
-function maskedContact(phone, email) {
-  if (phone) return maskPhone(phone);
-  if (email) return maskEmail(email);
-  return "연락처 없음";
+// 목록 화면 연락처 — 전화 우선, 없으면 이메일. (2026-07-24 어드민 마스킹 전면 해제 —
+// 평문 계좌 엑셀 다운로드의 2단계 confirm+audit 경로는 그대로 유지)
+function contactLine(phone, email) {
+  return phone || email || "연락처 없음";
 }
 
 function buildExportRows(rows, { plain = false } = {}) {
@@ -706,9 +702,9 @@ function AdminSettlementsPage() {
                         <td className="px-4 py-3 font-bold text-slate-900">{row.account_holder}</td>
                         <td className="px-4 py-3 text-slate-700">{row.bank_name}</td>
                         <td className="px-4 py-3 font-mono text-xs text-slate-600">
-                          {maskAccountNumber(row.account_number)}
+                          {displayAccountNumber(row.account_number)}
                         </td>
-                        <td className="px-4 py-3 text-slate-600">{maskName(row.seller_name)}</td>
+                        <td className="px-4 py-3 text-slate-600">{row.seller_name}</td>
                         <td className="px-4 py-3 text-right font-semibold text-slate-700">
                           {row.settlement_count}건
                           {row.pending_count > 0 ? (
@@ -949,7 +945,7 @@ function AdminSettlementsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <p className="font-bold text-slate-900">{row.seller_name}</p>
-                      <p className="mt-1 text-xs text-slate-400">{maskedContact(row.seller_phone, row.seller_email)}</p>
+                      <p className="mt-1 text-xs text-slate-400">{contactLine(row.seller_phone, row.seller_email)}</p>
                     </td>
                     <td className="px-4 py-3">
                       <p className="font-mono text-xs font-bold text-slate-500">{row.order_number}</p>
@@ -975,10 +971,10 @@ function AdminSettlementsPage() {
                     <td className="px-4 py-3">
                       <p className="font-semibold text-slate-700">{row.bank_name || "계좌 미등록"}</p>
                       <p className="mt-1 font-mono text-xs text-slate-400">
-                        {maskAccountNumber(row.account_number, row.account_last4)}
+                        {displayAccountNumber(row.account_number, row.account_last4)}
                       </p>
                       {row.account_holder ? (
-                        <p className="mt-1 text-xs text-slate-400">{maskName(row.account_holder)}</p>
+                        <p className="mt-1 text-xs text-slate-400">{row.account_holder}</p>
                       ) : null}
                     </td>
                     <td className="px-4 py-3">

@@ -7,7 +7,7 @@ import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import NotificationResultModal from "../components/NotificationResultModal";
 import { notifyPickupAccepted } from "../lib/adminNotification";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
-import { formatDate, maskAddress, maskName, maskPhone } from "@shared-domain/format";
+import { formatDate } from "@shared-domain/format";
 import { pickupRequestStatusLabel, shipmentStatusLabel } from "@shared-domain/status";
 import StatusBadge from "@shared-domain/StatusBadge";
 
@@ -408,9 +408,9 @@ function InspectionWorkbenchSection() {
                   <tr className="hover:bg-slate-50" key={shipment.id}>
                     <td className="px-4 py-3 font-bold text-slate-500">{shipment.id}</td>
                     <td className="px-4 py-3 font-semibold text-slate-800">
-                      {maskName(shipment.seller_name)}
+                      {shipment.seller_name}
                     </td>
-                    <td className="px-4 py-3 text-slate-600">{maskPhone(shipment.seller_phone)}</td>
+                    <td className="px-4 py-3 text-slate-600">{shipment.seller_phone}</td>
                     <td className="px-4 py-3 text-slate-600">{formatDate(shipment.pickup_date)}</td>
                     <td className="px-4 py-3">
                       <StatusBadge status={shipment.status} type="shipment" />
@@ -1130,13 +1130,13 @@ function AdminPickupRequestsPage() {
                         </td>
                         <td className="min-w-[260px] px-4 py-4">
                           <p className="font-bold text-slate-900">
-                            {maskName(pickupRequest.pickup_recipient_name)}
+                            {pickupRequest.pickup_recipient_name}
                           </p>
                           <p className="mt-1 text-xs font-semibold text-slate-500">
-                            {maskPhone(pickupRequest.pickup_recipient_phone)}
+                            {pickupRequest.pickup_recipient_phone}
                           </p>
                           <p className="mt-2 max-w-sm text-xs font-medium leading-relaxed text-slate-500">
-                            {maskAddress(formatAddress(pickupRequest))}
+                            {formatAddress(pickupRequest)}
                           </p>
                         </td>
                         <td className="min-w-[220px] px-4 py-4">
@@ -1320,7 +1320,7 @@ function AdminPickupRequestsPage() {
         {statusChangeModal ? (
           <div className="p-6 space-y-4">
             <p className="text-sm text-slate-700">
-              <strong>{maskName(statusChangeModal.pickupRequest.pickup_recipient_name)}</strong>님의 수거
+              <strong>{statusChangeModal.pickupRequest.pickup_recipient_name}</strong>님의 수거
               요청 상태를{" "}
               <strong>
                 {pickupRequestStatusLabel[statusChangeModal.pickupRequest.status] ??

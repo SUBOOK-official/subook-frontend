@@ -5,7 +5,7 @@ import AdminShell from "../components/AdminShell";
 import AdminPageTabs from "../components/AdminPageTabs";
 import AdminPagination from "../components/AdminPagination";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
-import { formatCurrency, formatDate, maskEmail, maskPhone } from "@shared-domain/format";
+import { formatCurrency, formatDate } from "@shared-domain/format";
 import { pickupRequestStatusLabel, shipmentStatusLabel } from "@shared-domain/status";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 
@@ -100,8 +100,9 @@ function formatCount(value, suffix = "건") {
   return `${Number(value ?? 0).toLocaleString("ko-KR")}${suffix}`;
 }
 
-function maskAccount(last4) {
-  return last4 ? `****${last4}` : "계좌 미등록";
+function displayAccountLast4(last4) {
+  // 원문 계좌는 암호화 저장이라 회원 모달엔 끝 4자리만 온다 (전체 번호는 정산 탭에서 확인).
+  return last4 ? `끝자리 ${last4}` : "계좌 미등록";
 }
 
 function EmptyBlock({ children }) {
@@ -554,15 +555,15 @@ function AdminMembersPage() {
                     </td>
                     {/* 목록 화면 PII는 항상 마스킹. 풀스트링은 상세 모달에서만 노출. */}
                     <td className="px-4 py-3">
-                      <p className="font-semibold text-slate-700" title="상세 모달에서 원문 확인">
-                        {maskEmail(member.email)}
+                      <p className="font-semibold text-slate-700">
+                        {member.email}
                       </p>
                       <p className="mt-1 text-xs text-slate-400">
                         {member.email_verified_at ? "이메일 인증" : "이메일 미인증"}
                       </p>
                     </td>
-                    <td className="px-4 py-3 text-slate-600" title="상세 모달에서 원문 확인">
-                      {maskPhone(member.phone)}
+                    <td className="px-4 py-3 text-slate-600">
+                      {member.phone}
                     </td>
                     <td className="px-4 py-3 text-slate-500">{formatDate(member.joined_at)}</td>
                     <td className="px-4 py-3 text-right font-bold text-slate-900">
@@ -867,7 +868,7 @@ function AdminMembersPage() {
                               {account.is_default ? <span className="ml-2 rounded bg-slate-900 px-2 py-0.5 text-xs text-white">기본</span> : null}
                             </p>
                             <p className="mt-1 font-semibold text-slate-600">
-                              {account.account_holder} · {maskAccount(account.account_last4)}
+                              {account.account_holder} · {displayAccountLast4(account.account_last4)}
                             </p>
                             <p className="mt-1 text-xs text-slate-400">
                               {account.is_verified ? "검증 완료" : "검증 전"} · {formatDate(account.created_at)}
