@@ -10,6 +10,7 @@ import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
 import { BellIcon, CloseIcon } from "../components/icons";
 import { usePublicWishlist } from "../contexts/PublicWishlistContext";
+import { trackAddToCart, trackViewItem } from "../lib/analytics";
 import { FREE_SHIPPING_THRESHOLD, SHIPPING_FEE, addToCart } from "../lib/cart";
 import usePublicMemberGate from "../lib/publicMemberGate";
 import {
@@ -1012,6 +1013,7 @@ function PublicProductDetailPage() {
       let ok = 0;
       let fail = 0;
       let demo = false;
+      const succeededArgs = [];
       for (const args of list) {
         // 순차 호출: 단일재고 책마다 add_to_cart를 1번씩. (동시 호출해도 무방하나 순서 유지)
         const { data, error } = await addToCart(args);
@@ -1019,9 +1021,23 @@ function PublicProductDetailPage() {
           fail += 1;
         } else {
           ok += 1;
+          succeededArgs.push(args);
           if (data?.demo) demo = true;
         }
       }
+      // GA4 add_to_cart — 실제로 담긴 라인만 (productMeta는 buildCartArgsFromBooks가 채움)
+      trackAddToCart(
+        succeededArgs.map((args) => ({
+          productId: args.productId,
+          title: args.productMeta?.title,
+          brand: args.productMeta?.brand,
+          subject: args.productMeta?.subject,
+          optionLabel: args.productMeta?.optionLabel,
+          conditionGrade: args.productMeta?.conditionGrade,
+          price: args.productMeta?.price,
+          quantity: args.quantity ?? 1,
+        })),
+      );
       if (ok > 0 && fail === 0) {
         showCartToast(
           demo
@@ -1066,6 +1082,18 @@ function PublicProductDetailPage() {
             : [],
         );
         setSelectedImageIndex(0);
+        // GA4 view_item — 상세 로드 성공 시 1회 (대표가 기준)
+        if (detailResult.product?.title) {
+          trackViewItem({
+            productId:
+              detailResult.product.productId ?? detailResult.product.id ?? productId,
+            title: detailResult.product.title,
+            brand: detailResult.product.brand,
+            subject: detailResult.product.subject,
+            price: detailResult.product.price,
+            quantity: 1,
+          });
+        }
 
         if (!detailResult.product) {
           setError(

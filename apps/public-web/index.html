@@ -6,6 +6,18 @@
     <meta name="color-scheme" content="light only" />
     <meta name="theme-color" content="#080F47" />
 
+    <!-- Google tag (gtag.js) — GA4 수집. SPA 라우트 전환 page_view는 향상된 측정
+         (브라우저 방문 기록 이벤트)이 자동 처리, 전자상거래 이벤트는 src/lib/analytics.js -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-EMNCLZKPMS"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag() {
+        dataLayer.push(arguments);
+      }
+      gtag("js", new Date());
+      gtag("config", "G-EMNCLZKPMS");
+    </script>
+
     <title>수북 | 수능을 위한 가장 똑똑한 선택</title>
     <meta
       name="description"

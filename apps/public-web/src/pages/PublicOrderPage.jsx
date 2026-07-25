@@ -10,6 +10,7 @@ import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, CloseIcon, TicketIcon } f
 import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { supabase as publicSupabase } from "@shared-supabase/publicSupabaseClient";
+import { trackBeginCheckout, trackPurchase } from "../lib/analytics";
 import { FREE_SHIPPING_THRESHOLD, calculateShippingFee, createOrder } from "../lib/cart";
 import { getRemoteAreaInfo } from "../lib/remoteAreaShipping";
 import { loadMemberPortalSnapshot, saveMemberShippingAddress } from "../lib/memberPortal";
@@ -137,6 +138,18 @@ function focusNextFieldOnEnter(event) {
   } else {
     target.blur();
   }
+}
+
+// 주문 라인아이템 → GA4 items 입력 형태 (analytics.js toGaItem이 최종 변환)
+function toAnalyticsLine(item) {
+  return {
+    productId: item.productId,
+    title: item.title,
+    optionLabel: item.optionLabel,
+    conditionGrade: item.conditionGrade,
+    price: item.price,
+    quantity: item.quantity,
+  };
 }
 
 // 은행 선택 커스텀 드롭다운 — 네이티브 select 대신 앱 스타일의 옵션 리스트.
@@ -721,6 +734,16 @@ function PublicOrderPage() {
     }
   }, [authLoading, isAuthenticated, navigate, initialOrderItems]);
 
+  // GA4 begin_checkout — 주문서 진입 1회 (진입 스냅샷 기준, drift 재검증 전)
+  const beginCheckoutTrackedRef = useRef(false);
+  useEffect(() => {
+    if (beginCheckoutTrackedRef.current) return;
+    if (authLoading || !isAuthenticated) return;
+    if (!orderItems || orderItems.length === 0) return;
+    beginCheckoutTrackedRef.current = true;
+    trackBeginCheckout(orderItems.map(toAnalyticsLine));
+  }, [authLoading, isAuthenticated, orderItems]);
+
   // 가격 drift 검증: 진입 시 books 테이블에서 fresh 가격·status를 조회해 표시 금액을 동기화한다.
   // initialOrderItems가 바뀔 때만 한 번 fetch (재실행 방지).
   useEffect(() => {
@@ -1068,6 +1091,15 @@ function PublicOrderPage() {
       }
       return;
     }
+
+    // GA4 purchase — 주문 생성 시점(무통장 입금 확인 전). 금액은 서버 확정값 기준.
+    // ⚠ PG(토스) 경로는 결제 승인 성공 페이지에서 별도 연결 필요 (현재 프로덕션 OFF).
+    trackPurchase({
+      transactionId: data.order_number ?? String(data.order_id),
+      value: data.total_amount,
+      shipping: shippingFee,
+      items: orderItems.map(toAnalyticsLine),
+    });
 
     setIsSubmitting(false);
     navigate(`/order/complete/${data.order_id}`, {
