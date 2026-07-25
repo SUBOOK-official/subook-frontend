@@ -21,6 +21,9 @@ import {
 // products 테이블을 1차 단위로 표시하고, 행 클릭 시 그 product에 link된
 // books 인스턴스(셀러별/등급별)를 모달로 보여준다.
 
+// products.status는 재고(books) 파생값 — DB 가드 트리거가 직접 쓰기를 재고 기준으로
+// 수렴시킨다(2026-07-25). 여기서는 읽기 전용 뱃지로만 표시하고, 상품 올리기/내리기는
+// books.is_public 경로(admin_bulk_set_products_visibility·admin_set_book_visibility)를 쓴다.
 const STATUS_LABEL = {
   selling: "판매중",
   sold_out: "품절",
@@ -421,19 +424,34 @@ function AdminProductMastersPage() {
     return () => window.clearTimeout(timerId);
   }, [loadProducts]);
 
-  const handleStatusChange = async (product, nextStatus) => {
-    if (product.status === nextStatus) return;
+  // 단건 공개/숨김 — 일괄 액션과 동일하게 books.is_public 경로 (2026-07-25).
+  // products.status는 재고 파생값이라(가드 트리거가 쓰기를 재고 기준으로 수렴)
+  // 직접 쓰기가 무의미해짐 — 구 상태 드롭다운(admin_set_product_status)은
+  // 성공 토스트만 뜨는 no-op이어서 제거하고 이 버튼으로 대체.
+  const handleProductVisibility = async (product, nextPublic) => {
     setBusyId(product.id);
-    const { error } = await supabase.rpc("admin_set_product_status", {
-      p_product_id: product.id,
-      p_status: nextStatus,
+    const { data, error } = await supabase.rpc("admin_bulk_set_products_visibility", {
+      p_product_ids: [product.id],
+      p_is_public: nextPublic,
     });
     setBusyId(null);
     if (error) {
-      showToast(error.message || "상태 변경에 실패했습니다.", "error");
+      showToast(error.message || "노출 변경에 실패했습니다.", "error");
       return;
     }
-    showToast(`"${product.title}" 상태가 ${STATUS_LABEL[nextStatus]}(으)로 변경되었습니다.`, "success");
+    const updatedBooks = data?.updated_books ?? 0;
+    const skipped =
+      Array.isArray(data?.skipped_product_ids) && data.skipped_product_ids.length > 0;
+    if (nextPublic && skipped) {
+      showToast("노출 가능한 재고가 없습니다 (판매중·가격·검수 메타 조건 미충족).", "info");
+    } else if (updatedBooks === 0) {
+      showToast(`이미 ${nextPublic ? "공개" : "숨김"} 상태입니다.`, "info");
+    } else {
+      showToast(
+        `"${product.title}" 재고 ${updatedBooks}권을 ${nextPublic ? "공개" : "숨김"} 처리했습니다.`,
+        "success",
+      );
+    }
     await loadProducts();
   };
 
@@ -534,7 +552,7 @@ function AdminProductMastersPage() {
         </>
       }
       activeModule="products"
-      description="책 종류 단위 관리. 같은 메타데이터의 책은 자동으로 한 상품 아래로 묶입니다."
+      description="책 종류 단위 관리. 같은 메타데이터의 책은 자동으로 한 상품 아래로 묶이고, 상태(판매중·품절·숨김)는 재고에서 자동 계산됩니다. 상품을 내리려면 숨김(노출 해제)을 사용하세요."
       title="상품 재고"
     >
       <div className="space-y-6">
@@ -758,7 +776,9 @@ function AdminProductMastersPage() {
                   <th className="px-3 py-3 text-left">상품 이름</th>
                   <th className="w-32 px-3 py-3 text-right">판매가</th>
                   <th className="w-24 px-3 py-3 text-center">재고</th>
-                  <th className="w-24 px-3 py-3 text-center">상태</th>
+                  <th className="w-24 px-3 py-3 text-center" title="재고에서 자동 계산됩니다">
+                    상태
+                  </th>
                   <th className="w-44 px-3 py-3 text-right">액션</th>
                 </tr>
               </thead>
@@ -833,9 +853,10 @@ function AdminProductMastersPage() {
                     </td>
                     <td className="px-3 py-3 text-center">
                       <span
-                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-bold ${
+                        className={`inline-flex cursor-help items-center rounded-full px-2 py-0.5 text-xs font-bold ${
                           STATUS_BADGE[product.status] ?? "bg-slate-100 text-slate-600"
                         }`}
+                        title="재고에서 자동 계산 — 판매중: 노출 판매중 재고 있음 · 품절: 노출 재고 전량 판매됨 · 숨김: 노출 재고 없음"
                       >
                         {STATUS_LABEL[product.status] ?? product.status}
                       </span>
@@ -849,16 +870,27 @@ function AdminProductMastersPage() {
                         >
                           수정
                         </button>
-                        <select
-                          value={product.status}
-                          onChange={(e) => handleStatusChange(product, e.target.value)}
-                          disabled={busyId === product.id}
-                          className="rounded-md border border-slate-300 px-2 py-1 text-xs disabled:opacity-50"
-                        >
-                          <option value="selling">판매중</option>
-                          <option value="sold_out">품절</option>
-                          <option value="hidden">숨김</option>
-                        </select>
+                        {(product.public_count ?? 0) > 0 ? (
+                          <button
+                            className="whitespace-nowrap rounded-md border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:border-slate-500 hover:bg-slate-50 disabled:opacity-50"
+                            disabled={busyId === product.id}
+                            onClick={() => handleProductVisibility(product, false)}
+                            title="모든 재고의 노출을 해제해 스토어에서 내립니다"
+                            type="button"
+                          >
+                            {busyId === product.id ? "처리 중" : "숨김"}
+                          </button>
+                        ) : (
+                          <button
+                            className="whitespace-nowrap rounded-md border border-emerald-300 px-2.5 py-1 text-xs font-semibold text-emerald-700 hover:border-emerald-500 hover:bg-emerald-50 disabled:opacity-50"
+                            disabled={busyId === product.id}
+                            onClick={() => handleProductVisibility(product, true)}
+                            title="조건을 충족하는 재고를 스토어에 노출합니다"
+                            type="button"
+                          >
+                            {busyId === product.id ? "처리 중" : "공개"}
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
