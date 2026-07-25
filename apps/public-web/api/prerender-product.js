@@ -81,24 +81,67 @@ function aiSummaryToHtml(text) {
 
 const GRADE_LABELS = { S: "S(새책)", "A+": "A+", A_PLUS: "A+", A: "A" };
 
+// 서치콘솔 요건: offers.price는 품절(OutOfStock)이어도 필수. 그래서 books는 전 상태를
+// 받아와 판매 가능분(on_sale + is_public)으로 재고를 세고, 판매 가능분이 없으면
+// 전체 이력의 최저가를 마지막 판매가로 폴백한다 (SPA product.price 대표가와 동일 의미).
 function summarizeBooks(books) {
-  const prices = books
-    .map((book) => Number(book.price))
-    .filter((price) => Number.isFinite(price) && price > 0);
+  const toPositivePrices = (rows) =>
+    rows
+      .map((book) => Number(book.price))
+      .filter((price) => Number.isFinite(price) && price > 0);
+  const sellable = books.filter(
+    (book) => book.status === "on_sale" && book.is_public === true,
+  );
+  const sellablePrices = toPositivePrices(sellable);
+  const allPrices = toPositivePrices(books);
   const gradeCounts = new Map();
-  for (const book of books) {
+  for (const book of sellable) {
     const grade = GRADE_LABELS[book.condition_grade] || book.condition_grade;
     if (!grade) continue;
     gradeCounts.set(grade, (gradeCounts.get(grade) || 0) + 1);
   }
   return {
-    stockCount: books.length,
-    minPrice: prices.length ? Math.min(...prices) : null,
+    stockCount: sellable.length,
+    minPrice: sellablePrices.length ? Math.min(...sellablePrices) : null,
+    lastKnownPrice: allPrices.length ? Math.min(...allPrices) : null,
     gradeSummary: [...gradeCounts.entries()]
       .map(([grade, count]) => `${grade} ${count}권`)
       .join(" · "),
-    optionLabels: [...new Set(books.map((book) => book.option).filter(Boolean))],
+    optionLabels: [...new Set(sellable.map((book) => book.option).filter(Boolean))],
   };
+}
+
+// Product JSON-LD(offers)의 배송·반품 정책 마크업 — 판매자 목록 권장 필드.
+// 값은 운영 정책과 동일 유지: 배송비=cart.js SHIPPING_FEE(3,000원), 출고 1~2일(상세페이지
+// 안내 문구), 단순변심 반품 7일·반품 편도 배송비 구매자 부담(PublicPolicyPage 환불 정책).
+// ⚠ SPA(PublicProductDetailPage.jsx)의 JSONLD_* 상수와 복제 관계 — 함께 수정할 것.
+const JSONLD_SHIPPING_DETAILS = {
+  "@type": "OfferShippingDetails",
+  shippingRate: { "@type": "MonetaryAmount", value: 3000, currency: "KRW" },
+  shippingDestination: { "@type": "DefinedRegion", addressCountry: "KR" },
+  deliveryTime: {
+    "@type": "ShippingDeliveryTime",
+    handlingTime: { "@type": "QuantitativeValue", minValue: 1, maxValue: 2, unitCode: "DAY" },
+    transitTime: { "@type": "QuantitativeValue", minValue: 1, maxValue: 3, unitCode: "DAY" },
+  },
+};
+const JSONLD_RETURN_POLICY = {
+  "@type": "MerchantReturnPolicy",
+  applicableCountry: "KR",
+  returnPolicyCategory: "https://schema.org/MerchantReturnFiniteReturnWindow",
+  merchantReturnDays: 7,
+  returnMethod: "https://schema.org/ReturnByMail",
+  returnFees: "https://schema.org/ReturnShippingFees",
+  returnShippingFeesAmount: { "@type": "MonetaryAmount", value: 3000, currency: "KRW" },
+};
+
+// ai_summary(간단 마크다운)를 JSON-LD description용 플레인텍스트로 (**강조**·줄바꿈 제거)
+function aiSummaryToPlainText(text) {
+  if (!text) return "";
+  return String(text)
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function buildHtml({ product, stock }) {
@@ -112,27 +155,37 @@ function buildHtml({ product, stock }) {
     ? toRenderImageUrl(product.cover_image_url, 1200, 80)
     : `${SITE_ORIGIN}/og-image.png`;
   const isSoldOut = stock.stockCount === 0;
+  // 품절이어도 마지막 판매가를 표기 (offers.price 필수 요건 + SPA 옵션 표기와 동일 의미)
+  const displayPrice = stock.minPrice ?? stock.lastKnownPrice;
   const priceText =
-    stock.minPrice != null ? `${stock.minPrice.toLocaleString("ko-KR")}원` : null;
+    displayPrice != null ? `${displayPrice.toLocaleString("ko-KR")}원` : null;
 
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "Product",
-    name: product.title,
-    image: [coverUrl],
-    ...(product.brand ? { brand: { "@type": "Brand", name: product.brand } } : {}),
-    category: product.subject ?? undefined,
-    offers: {
-      "@type": "Offer",
-      priceCurrency: "KRW",
-      ...(stock.minPrice != null ? { price: stock.minPrice } : {}),
-      itemCondition: "https://schema.org/UsedCondition",
-      availability: isSoldOut
-        ? "https://schema.org/OutOfStock"
-        : "https://schema.org/InStock",
-      url: canonicalUrl,
-    },
-  };
+  // 양수 가격을 전혀 알 수 없는 상품(책 이력 자체가 없음)은 잘못된 offers를 내보내는
+  // 대신 JSON-LD를 통째로 생략한다.
+  const jsonLd =
+    displayPrice != null
+      ? {
+          "@context": "https://schema.org",
+          "@type": "Product",
+          name: product.title,
+          description: aiSummaryToPlainText(product.ai_summary) || description,
+          image: [coverUrl],
+          ...(product.brand ? { brand: { "@type": "Brand", name: product.brand } } : {}),
+          ...(product.subject ? { category: product.subject } : {}),
+          offers: {
+            "@type": "Offer",
+            priceCurrency: "KRW",
+            price: displayPrice,
+            itemCondition: "https://schema.org/UsedCondition",
+            availability: isSoldOut
+              ? "https://schema.org/OutOfStock"
+              : "https://schema.org/InStock",
+            url: canonicalUrl,
+            shippingDetails: JSONLD_SHIPPING_DETAILS,
+            hasMerchantReturnPolicy: JSONLD_RETURN_POLICY,
+          },
+        }
+      : null;
 
   const infoRows = [
     ["과목", product.subject],
@@ -169,7 +222,7 @@ function buildHtml({ product, stock }) {
     <meta name="twitter:title" content="${escapeHtml(pageTitle)}" />
     <meta name="twitter:description" content="${escapeHtml(description)}" />
     <meta name="twitter:image" content="${escapeHtml(coverUrl)}" />
-    <script type="application/ld+json">${JSON.stringify(jsonLd).replace(/</g, "\\u003c")}</script>
+    ${jsonLd ? `<script type="application/ld+json">${JSON.stringify(jsonLd).replace(/</g, "\\u003c")}</script>` : ""}
   </head>
   <body>
     <main>
@@ -179,7 +232,7 @@ function buildHtml({ product, stock }) {
         <img src="${escapeHtml(coverUrl)}" alt="${escapeHtml(product.title)} 표지" width="600" />
         <p>
           ${isSoldOut ? "현재 품절 — 재입고 알림을 신청할 수 있습니다." : `판매 중 · 재고 ${stock.stockCount}권`}
-          ${priceText ? ` · <strong>${escapeHtml(priceText)}</strong>${stock.stockCount > 1 ? "부터" : ""}` : ""}
+          ${priceText ? ` · ${isSoldOut ? "마지막 판매가 " : ""}<strong>${escapeHtml(priceText)}</strong>${!isSoldOut && stock.stockCount > 1 ? "부터" : ""}` : ""}
         </p>
         <table>
           <caption>상품 정보</caption>
@@ -240,8 +293,9 @@ export default async function handler(req, res) {
         `${url}/rest/v1/products?id=eq.${id}&status=neq.hidden&select=${productSelect}&limit=1`,
         key,
       ),
+      // 전 상태 조회 — 판매 가능분 판정은 summarizeBooks에서 (품절 시 마지막 판매가 폴백용)
       fetchJson(
-        `${url}/rest/v1/books?product_id=eq.${id}&status=eq.on_sale&is_public=eq.true&select=price,condition_grade,option`,
+        `${url}/rest/v1/books?product_id=eq.${id}&select=price,condition_grade,option,status,is_public`,
         key,
       ),
     ]);

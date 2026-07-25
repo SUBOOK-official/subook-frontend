@@ -38,6 +38,39 @@ import "./PublicProductDetailPage.css";
 
 const RELATED_RAIL_LIMIT = 12;
 const SCROLL_EDGE_THRESHOLD_PX = 4;
+
+// Product JSON-LD(offers)의 배송·반품 정책 마크업 — 서치콘솔 판매자 목록 권장 필드.
+// 값은 운영 정책과 반드시 동일 유지: 배송비=cart.js SHIPPING_FEE, 출고 1~2일(상세페이지 안내
+// 문구), 단순변심 반품 7일·반품 편도 배송비 구매자 부담(PublicPolicyPage 환불 정책).
+// ⚠ 봇 프리렌더(api/prerender-product.js)에 같은 값이 복제되어 있다 — 함께 수정할 것.
+const JSONLD_SHIPPING_DETAILS = {
+  "@type": "OfferShippingDetails",
+  shippingRate: { "@type": "MonetaryAmount", value: SHIPPING_FEE, currency: "KRW" },
+  shippingDestination: { "@type": "DefinedRegion", addressCountry: "KR" },
+  deliveryTime: {
+    "@type": "ShippingDeliveryTime",
+    handlingTime: { "@type": "QuantitativeValue", minValue: 1, maxValue: 2, unitCode: "DAY" },
+    transitTime: { "@type": "QuantitativeValue", minValue: 1, maxValue: 3, unitCode: "DAY" },
+  },
+};
+const JSONLD_RETURN_POLICY = {
+  "@type": "MerchantReturnPolicy",
+  applicableCountry: "KR",
+  returnPolicyCategory: "https://schema.org/MerchantReturnFiniteReturnWindow",
+  merchantReturnDays: 7,
+  returnMethod: "https://schema.org/ReturnByMail",
+  returnFees: "https://schema.org/ReturnShippingFees",
+  returnShippingFeesAmount: { "@type": "MonetaryAmount", value: SHIPPING_FEE, currency: "KRW" },
+};
+
+// ai_summary(간단 마크다운)를 JSON-LD description용 플레인텍스트로 (**강조**·줄바꿈 제거)
+function aiSummaryToPlainText(text) {
+  if (!text) return "";
+  return String(text)
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 // 고정 사이트 헤더 높이(PublicSiteHeader 기본값과 동일) — sticky 섹션 nav의 top 오프셋과
 // 앵커 스크롤 시 헤더에 가려지지 않도록 빼줄 여백 계산에 사용.
 const HEADER_OFFSET_PX = 72;
@@ -884,35 +917,43 @@ function PublicProductDetailPage() {
   // 상품명·과목 동적 title + description + canonical/og:image + Product JSON-LD
   // (카톡/SNS 공유 미리보기에 교재 표지·가격이 정확히 뜨고, 검색 리치스니펫 대응)
   const metaCoverImage = product?.coverImageUrl ?? product?.cover_image_url ?? null;
+  // product.price는 대표가(품절 상품도 옵션의 마지막 판매가로 폴백) — 서치콘솔 요건상
+  // offers.price는 품절이어도 필수라, 양수 가격이 아예 없으면 잘못된 offers를 내보내는
+  // 대신 JSON-LD 자체를 생략한다.
   const metaPrice = Number(product?.price);
+  const metaDescription = product?.title
+    ? `${product.title}${product.instructor_name ? ` (${product.instructor_name})` : ""} ${product.subject ?? ""} 위탁판매 — 검수 완료된 새 책 수준의 교재를 합리적인 가격에.`
+    : undefined;
   usePageMeta({
     title: product?.title
       ? `${product.title}${product.subject ? ` · ${product.subject}` : ""}`
       : undefined,
-    description: product?.title
-      ? `${product.title}${product.instructor_name ? ` (${product.instructor_name})` : ""} ${product.subject ?? ""} 위탁판매 — 검수 완료된 새 책 수준의 교재를 합리적인 가격에.`
-      : undefined,
+    description: metaDescription,
     canonicalPath: productId ? `/store/${productId}` : undefined,
     image: metaCoverImage ?? undefined,
-    jsonLd: product?.title
-      ? {
-          "@context": "https://schema.org",
-          "@type": "Product",
-          name: product.title,
-          ...(metaCoverImage ? { image: [metaCoverImage] } : {}),
-          ...(product.brand ? { brand: { "@type": "Brand", name: product.brand } } : {}),
-          category: product.subject ?? undefined,
-          offers: {
-            "@type": "Offer",
-            priceCurrency: "KRW",
-            ...(Number.isFinite(metaPrice) && metaPrice > 0 ? { price: metaPrice } : {}),
-            itemCondition: "https://schema.org/UsedCondition",
-            availability: product.isSoldOut
-              ? "https://schema.org/OutOfStock"
-              : "https://schema.org/InStock",
-          },
-        }
-      : undefined,
+    jsonLd:
+      product?.title && Number.isFinite(metaPrice) && metaPrice > 0
+        ? {
+            "@context": "https://schema.org",
+            "@type": "Product",
+            name: product.title,
+            description: aiSummaryToPlainText(aiSummary) || metaDescription,
+            ...(metaCoverImage ? { image: [metaCoverImage] } : {}),
+            ...(product.brand ? { brand: { "@type": "Brand", name: product.brand } } : {}),
+            ...(product.subject ? { category: product.subject } : {}),
+            offers: {
+              "@type": "Offer",
+              priceCurrency: "KRW",
+              price: metaPrice,
+              itemCondition: "https://schema.org/UsedCondition",
+              availability: product.isSoldOut
+                ? "https://schema.org/OutOfStock"
+                : "https://schema.org/InStock",
+              shippingDetails: JSONLD_SHIPPING_DETAILS,
+              hasMerchantReturnPolicy: JSONLD_RETURN_POLICY,
+            },
+          }
+        : undefined,
   });
   const [relatedProducts, setRelatedProducts] = useState([]);
   // 다중 옵션 선택: [{ key: 회차, quantity }]. 단일재고 모델이라 회차별 수량은 그 회차의
