@@ -681,25 +681,6 @@ function PublicOrderPage() {
   const [applicableCoupons, setApplicableCoupons] = useState([]);
   const [selectedCouponId, setSelectedCouponId] = useState(null);
   const [isCouponPickerOpen, setIsCouponPickerOpen] = useState(false);
-  // P1-4: 모바일 키보드 감지 — sticky bar bottom 보정
-  const [keyboardOffset, setKeyboardOffset] = useState(0);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !window.visualViewport) return undefined;
-    const vv = window.visualViewport;
-    const sync = () => {
-      // 키보드가 올라오면 visualViewport.height < window.innerHeight.
-      const diff = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
-      setKeyboardOffset(diff > 80 ? diff : 0);
-    };
-    sync();
-    vv.addEventListener("resize", sync);
-    vv.addEventListener("scroll", sync);
-    return () => {
-      vv.removeEventListener("resize", sync);
-      vv.removeEventListener("scroll", sync);
-    };
-  }, []);
 
   const showToast = useCallback((message, type = "info") => {
     setToast({ message, type });
@@ -1471,11 +1452,8 @@ function PublicOrderPage() {
               )}
             </div>
 
-            {/* 결제 요약 사이드바 — 모바일 키보드 활성 시 가려지지 않도록 bottom 동적 보정 */}
-            <div
-              className="order-sidebar"
-              style={keyboardOffset > 0 ? { bottom: keyboardOffset } : undefined}
-            >
+            {/* 결제 요약 사이드바 — 모바일에선 고정바 없이 일반 흐름(PR #12) */}
+            <div className="order-sidebar">
               <div className="order-sidebar__card">
                 <h2 className="order-sidebar__title">결제 금액</h2>
                 <div className="order-sidebar__row">
