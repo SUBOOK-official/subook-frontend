@@ -113,6 +113,104 @@ const PAYMENT_METHODS = [
   { id: "naver_pay", label: "네이버페이", available: false },
 ];
 
+// 입력 필드에서 Enter(모바일 '다음') → 같은 컨테이너의 다음 입력칸으로 자동 이동+포커스.
+// readonly(주소 자동입력)·disabled·체크박스·라디오는 건너뛴다. 컨테이너 onKeyDown에 연결해 사용.
+function focusNextFieldOnEnter(event) {
+  if (event.key !== "Enter") return;
+  const target = event.target;
+  if (!target || target.tagName !== "INPUT") return;
+  if (["checkbox", "button", "submit", "radio"].includes(target.type)) return;
+  event.preventDefault();
+  const focusables = Array.from(
+    event.currentTarget.querySelectorAll("input, select"),
+  ).filter(
+    (el) =>
+      !el.disabled &&
+      !el.readOnly &&
+      el.type !== "checkbox" &&
+      el.type !== "radio" &&
+      el.offsetParent !== null,
+  );
+  const index = focusables.indexOf(target);
+  if (index >= 0 && index < focusables.length - 1) {
+    focusables[index + 1].focus();
+  } else {
+    target.blur();
+  }
+}
+
+// 은행 선택 커스텀 드롭다운 — 네이티브 select 대신 앱 스타일의 옵션 리스트.
+function BankSelect({ value, onChange, options, placeholder = "은행 선택" }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const handlePointerDown = (event) => {
+      if (rootRef.current && !rootRef.current.contains(event.target)) setOpen(false);
+    };
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div className="order-bank-select" ref={rootRef}>
+      <button
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        className={`order-bank-select__trigger${value ? "" : " is-placeholder"}`}
+        onClick={() => setOpen((prev) => !prev)}
+        type="button"
+      >
+        <span>{value || placeholder}</span>
+        <svg
+          aria-hidden="true"
+          className={`order-bank-select__caret${open ? " is-open" : ""}`}
+          fill="none"
+          height="14"
+          viewBox="0 0 24 24"
+          width="14"
+        >
+          <path
+            d="M6 9l6 6 6-6"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="2"
+          />
+        </svg>
+      </button>
+      {open ? (
+        <ul className="order-bank-select__list" role="listbox">
+          {options.map((bank) => (
+            <li key={bank}>
+              <button
+                aria-selected={bank === value}
+                className={`order-bank-select__option${bank === value ? " is-selected" : ""}`}
+                onClick={() => {
+                  onChange(bank);
+                  setOpen(false);
+                }}
+                role="option"
+                type="button"
+              >
+                {bank}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
 // ── 배송 요청사항 — 선택형 모달 (2026-07-12 UX 개편) ─────────────────────────
 const DELIVERY_REQUEST_PRESETS = [
   "문 앞에 놓아주세요",
@@ -373,11 +471,15 @@ function OrderAddressBookModal({
             ))}
           </div>
         ) : (
-          <div className="order-modal__body order-modal__body--form">
+          <div
+            className="order-modal__body order-modal__body--form"
+            onKeyDown={focusNextFieldOnEnter}
+          >
             <label className="order-addrbook__field">
               <span className="order-addrbook__field-label">이름</span>
               <input
                 className={`order-addrbook__input${nameTouched && nameInvalid ? " is-error" : ""}`}
+                enterKeyHint="next"
                 onBlur={() => setNameTouched(true)}
                 onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
                 placeholder="수령인의 이름"
@@ -392,6 +494,7 @@ function OrderAddressBookModal({
               <span className="order-addrbook__field-label">휴대폰 번호</span>
               <input
                 className="order-addrbook__input"
+                enterKeyHint="next"
                 inputMode="numeric"
                 onChange={(event) =>
                   setForm((prev) => ({ ...prev, phone: event.target.value.replace(/\D/g, "").slice(0, 11) }))
@@ -430,6 +533,7 @@ function OrderAddressBookModal({
               <span className="order-addrbook__field-label">상세 주소</span>
               <input
                 className="order-addrbook__input"
+                enterKeyHint="done"
                 onChange={(event) => setForm((prev) => ({ ...prev, addressLine2: event.target.value }))}
                 placeholder="건물, 아파트, 동/호수 입력"
                 type="text"
@@ -601,6 +705,26 @@ function PublicOrderPage() {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
   }, []);
+
+  // 계좌번호 복사 ('-' 제거한 숫자만 → 은행 앱에 바로 붙여넣기 편하게)
+  const handleCopyAccount = async () => {
+    const plain = BANK_ACCOUNT.replace(/-/g, "");
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(plain);
+      } else {
+        const t = document.createElement("textarea");
+        t.value = plain;
+        document.body.appendChild(t);
+        t.select();
+        document.execCommand("copy");
+        t.remove();
+      }
+      showToast("계좌번호를 복사했어요.");
+    } catch {
+      showToast("복사에 실패했어요. 길게 눌러 복사해 주세요.", "error");
+    }
+  };
 
   useEffect(() => {
     if (authLoading) return;
@@ -1078,7 +1202,7 @@ function PublicOrderPage() {
           ) : null}
 
           <div className="order-layout">
-            <div className="order-main">
+            <div className="order-main" onKeyDown={focusNextFieldOnEnter}>
               {/* 주문 상품 */}
               <div className="order-section">
                 <h2 className="order-section__title">주문 상품 ({orderItems.length}개)</h2>
@@ -1258,11 +1382,42 @@ function PublicOrderPage() {
 
                 {paymentMethod === "bank_transfer" && (
                   <div className="order-bank-info">
-                    <p className="order-bank-info__title">계좌이체로 결제하기</p>
                     {/* P0-2: 결제 직전 계좌 정보 사전 노출 — 입금자명은 주문번호 확정 후 자동 안내 */}
-                    <p className="order-bank-info__account">
-                      {BANK_NAME} {BANK_ACCOUNT}
-                    </p>
+                    <div className="order-bank-info__account-row">
+                      <p className="order-bank-info__account">
+                        {BANK_NAME} {BANK_ACCOUNT}
+                      </p>
+                      <button
+                        aria-label="계좌번호 복사"
+                        className="order-bank-info__copy"
+                        onClick={handleCopyAccount}
+                        type="button"
+                      >
+                        <svg
+                          aria-hidden="true"
+                          fill="none"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          width="18"
+                        >
+                          <rect
+                            height="13"
+                            rx="2"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            width="13"
+                            x="9"
+                            y="9"
+                          />
+                          <path
+                            d="M5 15V5a2 2 0 0 1 2-2h10"
+                            stroke="currentColor"
+                            strokeLinecap="round"
+                            strokeWidth="1.8"
+                          />
+                        </svg>
+                      </button>
+                    </div>
                     <p className="order-bank-info__holder">예금주: {BANK_HOLDER}</p>
                     <ul className="order-bank-info__bullets">
                       <li>
@@ -1284,23 +1439,19 @@ function PublicOrderPage() {
                 <div className="order-section">
                   <h2 className="order-section__title">환불 계좌 정보</h2>
                   <p className="order-section__hint">
-                    환불이 필요할 때 아래 계좌로 돌려드려요. 입금하시는 분 본인 명의 계좌로 입력해 주세요.
+                    환불이 필요할 때 아래 계좌로 돌려드려요.
+                    <br />
+                    입금하시는 분 본인 명의 계좌로 입력해 주세요.
                   </p>
                   <div className="order-refund-account">
-                    <select
-                      className="order-refund-account__input"
-                      onChange={(e) => setRefundAccount((prev) => ({ ...prev, bank: e.target.value }))}
+                    <BankSelect
+                      onChange={(bank) => setRefundAccount((prev) => ({ ...prev, bank }))}
+                      options={BANK_OPTIONS}
                       value={refundAccount.bank}
-                    >
-                      <option value="">은행 선택</option>
-                      {BANK_OPTIONS.map((bankName) => (
-                        <option key={bankName} value={bankName}>
-                          {bankName}
-                        </option>
-                      ))}
-                    </select>
+                    />
                     <input
                       className="order-refund-account__input"
+                      enterKeyHint="next"
                       inputMode="numeric"
                       onChange={(e) => setRefundAccount((prev) => ({ ...prev, number: e.target.value }))}
                       placeholder="계좌번호 (‘-’ 없이 숫자만)"
@@ -1309,6 +1460,7 @@ function PublicOrderPage() {
                     />
                     <input
                       className="order-refund-account__input"
+                      enterKeyHint="done"
                       onChange={(e) => setRefundAccount((prev) => ({ ...prev, holder: e.target.value }))}
                       placeholder="예금주"
                       type="text"

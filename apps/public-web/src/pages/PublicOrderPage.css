@@ -1,7 +1,7 @@
 /* ── Order Page ── */
 .order-page {
   min-height: 100vh;
-  background: var(--public-ds-bg);
+  background: #ffffff;
 }
 
 .order-content {
@@ -284,6 +284,86 @@
   border-color: var(--public-ds-primary);
 }
 
+/* 은행 선택 커스텀 드롭다운 */
+.order-bank-select {
+  position: relative;
+}
+
+.order-bank-select__trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px solid #d4d4d6;
+  border-radius: 8px;
+  background: #fff;
+  font-size: 14px;
+  color: var(--public-ds-text);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.order-bank-select__trigger:hover,
+.order-bank-select__trigger[aria-expanded="true"] {
+  border-color: var(--public-ds-primary);
+}
+
+.order-bank-select__trigger.is-placeholder {
+  color: #9a9aa0;
+}
+
+.order-bank-select__caret {
+  flex-shrink: 0;
+  color: #9ca3af;
+  transition: transform 0.15s ease;
+}
+
+.order-bank-select__caret.is-open {
+  transform: rotate(180deg);
+}
+
+.order-bank-select__list {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  max-height: 240px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #d4d4d6;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(20, 24, 28, 0.12);
+}
+
+.order-bank-select__option {
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 14px;
+  color: var(--public-ds-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.order-bank-select__option:hover {
+  background: #f4f4f5;
+}
+
+.order-bank-select__option.is-selected {
+  background: #f0f4f8;
+  color: var(--public-ds-primary);
+  font-weight: 600;
+}
+
 .order-form__address-group {
   display: flex;
   flex-direction: column;
@@ -384,30 +464,53 @@
   border-radius: var(--public-ds-radius);
 }
 
-.order-bank-info__title {
-  font-size: 14px;
-  font-weight: 700;
-  color: #7d5514;
-  margin-bottom: 8px;
+.order-bank-info__account-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
 }
 
 .order-bank-info__account {
-  font-size: 17px;
+  /* 복사 버튼과 한 줄에 들어가도록 폰트를 줄이고 한 줄 유지 */
+  font-size: 15px;
   font-weight: 800;
   color: #6b4a12;
   letter-spacing: 0.01em;
-  margin: 0 0 4px;
+  margin: 0;
+  white-space: nowrap;
+}
+
+.order-bank-info__copy {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid #e7cf96;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #7d5514;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.order-bank-info__copy:hover {
+  background: #fdf6e3;
 }
 
 .order-bank-info__holder {
   font-size: 13px;
+  font-weight: 700;
   color: #7d5514;
   margin: 0 0 12px;
 }
 
 .order-bank-info__bullets {
   margin: 0;
-  padding-left: 18px;
+  padding-left: 0;
+  list-style: none;
   font-size: 12px;
   color: #96600f;
   line-height: 1.6;
@@ -593,44 +696,70 @@
   color: #6b4a12;
 }
 
-/* ── Mobile bottom bar ── */
+/* ── Mobile ── */
+/* 모바일: 결제 요약·동의·버튼을 하단 고정 시트로 띄우면 뒤 폼이 가려진다.
+   일반 흐름(페이지 스크롤)으로 두어 폼 아래에 이어지도록 한다. */
 @media (max-width: 767px) {
   .order-sidebar {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    /* P2-10: 모든 sticky bar 동일 z-index */
-    z-index: var(--public-sticky-bottom-z, 50);
-    /* P1-4: 모바일 키보드 활성 시 bottom을 동적으로 끌어올리도록 transition */
-    transition: bottom 0.2s ease;
-  }
-
-  .order-sidebar__card {
-    border-radius: 16px 16px 0 0;
-    box-shadow: 0 -4px 16px rgba(20, 24, 28, 0.08);
-    /* iOS home-indicator(safe-area)에 결제 버튼이 가려져 탭 시 홈으로 빠지는 문제 방어 */
-    padding: 16px 20px calc(16px + env(safe-area-inset-bottom)) 20px;
-  }
-
-  .order-sidebar__title {
-    display: none;
-  }
-
-  .order-sidebar__divider {
-    display: none;
-  }
-
-  .order-sidebar__row {
-    margin-bottom: 6px;
-  }
-
-  .order-sidebar__agreement {
-    margin-top: 6px;
+    position: static;
+    width: auto;
   }
 
   .order-content {
-    padding-bottom: 220px;
+    padding-bottom: 40px;
+  }
+
+  /* 모바일: 전반적으로 폰트를 한 단계 작게 */
+  .order-page__title {
+    font-size: 19px;
+    margin-bottom: 16px;
+  }
+
+  .order-section {
+    padding: 16px;
+  }
+
+  .order-section__title {
+    font-size: 15px;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+  }
+
+  .order-item__title {
+    font-size: 13px;
+  }
+
+  .order-item__price {
+    font-size: 14px;
+  }
+
+  .order-section__hint {
+    font-size: 12px;
+  }
+
+  .order-form__label {
+    font-size: 12px;
+  }
+
+  .order-form__input,
+  .order-refund-account__input {
+    font-size: 13px;
+  }
+
+  .order-sidebar__title {
+    font-size: 15px;
+  }
+
+  .order-sidebar__row {
+    font-size: 13px;
+  }
+
+  .order-sidebar__row--total {
+    font-size: 16px;
+  }
+
+  .order-sidebar__agreement-check {
+    font-size: 12.5px;
   }
 }
 
