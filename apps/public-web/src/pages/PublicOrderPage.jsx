@@ -22,6 +22,12 @@ import {
   BANK_NAME,
   PAYMENT_DEADLINE_HOURS,
 } from "../lib/paymentBankInfo";
+import {
+  NICEPAY_READY,
+  buildNicepayGoodsName,
+  loadNicepaySdk,
+  requestNicepayCardPay,
+} from "../lib/nicepay";
 import { BANK_OPTIONS } from "../lib/publicMypageUtils";
 import "./PublicOrderPage.css";
 
@@ -582,6 +588,11 @@ const TOSS_ENABLED = import.meta.env.VITE_TOSS_ENABLED === "true";
 const TOSS_CLIENT_KEY = import.meta.env.VITE_TOSS_CLIENT_KEY || "";
 const TOSS_READY = TOSS_ENABLED && Boolean(TOSS_CLIENT_KEY);
 
+// PG 제공사 선택 — 나이스페이(결제창)와 토스(결제위젯)는 배타적으로 운용.
+// 나이스페이 포스타트 선도입(2026-07) 기간엔 나이스페이 우선, 둘 다 꺼져 있으면 계좌이체만.
+const PG_PROVIDER = NICEPAY_READY ? "nicepay" : TOSS_READY ? "toss" : null;
+const PG_READY = PG_PROVIDER !== null;
+
 // 결제위젯 orderName(최대 100자): "첫 상품명 외 N건"
 function buildOrderName(items) {
   const first = items?.[0]?.title || "수북 교재";
@@ -669,7 +680,7 @@ function PublicOrderPage() {
   // 배송지 UX 개편 (2026-07-12): 기본 배송지 카드 + 주소록 모달 + 요청사항 선택 모달
   const [isAddressBookOpen, setIsAddressBookOpen] = useState(false);
   const [isMemoModalOpen, setIsMemoModalOpen] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState(TOSS_READY ? "card" : "bank_transfer");
+  const [paymentMethod, setPaymentMethod] = useState(PG_READY ? "card" : "bank_transfer");
   // 무통장입금 환불 대비 계좌 정보 (PG 안정화 전까지 수동 환불용). 관리자 주문 상세에서 확인.
   const [refundAccount, setRefundAccount] = useState({ bank: "", number: "", holder: "" });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -678,7 +689,7 @@ function PublicOrderPage() {
   const [agreementPayment, setAgreementPayment] = useState(false);
   const [agreementRefund, setAgreementRefund] = useState(false);
   // PG('card') vs 계좌이체. PG는 즉시결제라 '24시간 미입금 자동취소' 동의가 불필요하다.
-  const isPg = TOSS_READY && paymentMethod !== "bank_transfer";
+  const isPg = PG_READY && paymentMethod !== "bank_transfer";
   const requiredAgreementsOk = isPg
     ? agreementOrder && agreementRefund
     : agreementOrder && agreementPayment && agreementRefund;
@@ -868,7 +879,7 @@ function PublicOrderPage() {
   //   async init이 경쟁(double render)하고 "결제 모듈을 불러오지 못했어요" 오류가 났다.
   //   금액 동기화는 아래 sync effect가 전담. init은 user에만 의존 + 동기 가드로 재진입 차단.
   useEffect(() => {
-    if (!TOSS_READY || !user?.id || tossInitStartedRef.current) return;
+    if (PG_PROVIDER !== "toss" || !user?.id || tossInitStartedRef.current) return;
     tossInitStartedRef.current = true;
     setTossLoadError(false);
     (async () => {
@@ -906,6 +917,12 @@ function PublicOrderPage() {
       value: computePayableTotal(orderItems, applicableCoupons, selectedCouponId),
     });
   }, [tossWidgetReady, orderItems, applicableCoupons, selectedCouponId]);
+
+  // ── 나이스페이 SDK 사전 로드 — 제출 시점 지연을 줄인다 (실패해도 제출 시 재시도) ──
+  useEffect(() => {
+    if (PG_PROVIDER !== "nicepay") return;
+    loadNicepaySdk().catch(() => {});
+  }, []);
 
   const handleSelectAddress = (addr) => {
     setSelectedAddressId(addr.id);
@@ -967,8 +984,8 @@ function PublicOrderPage() {
   };
 
   const handlePaymentSelect = (methodId) => {
-    if (TOSS_READY) {
-      // PG 활성 시: 'card'(토스 결제위젯)와 'bank_transfer'(계좌이체) 둘 다 선택 가능
+    if (PG_READY) {
+      // PG 활성 시: 'card'(나이스페이 결제창/토스 결제위젯)와 'bank_transfer'(계좌이체) 둘 다 선택 가능
       setPaymentMethod(methodId);
       return;
     }
@@ -1063,7 +1080,42 @@ function PublicOrderPage() {
       });
     }
 
-    // PG: 주문(pending) 생성 후 토스 결제위젯 호출. 성공 시 토스가 successUrl로 리다이렉트.
+    // PG(나이스페이): 주문(pending) 생성 후 결제창 호출. 카드 인증이 끝나면 나이스페이가
+    // returnUrl(/api/payments/nicepay-return)로 POST → 승인 → 주문완료로 리다이렉트.
+    if (isPg && PG_PROVIDER === "nicepay") {
+      try {
+        await loadNicepaySdk();
+        requestNicepayCardPay({
+          orderNumber: data.order_number,
+          // 서버가 확정한 금액으로 결제창을 열어 청구금액 = 주문금액을 보장.
+          amount: data.total_amount,
+          goodsName: buildNicepayGoodsName(orderItems),
+          buyerName: shipping.recipientName.trim() || undefined,
+          buyerTel: shipping.recipientPhone.replace(/\D/g, "") || undefined,
+          buyerEmail: user?.email || undefined,
+          onError: (result) => {
+            showToast(
+              result?.errorMsg || "결제를 시작하지 못했어요. 잠시 후 다시 시도해 주세요.",
+              "error",
+            );
+          },
+        });
+      } catch (err) {
+        const msg =
+          err?.message && /[가-힣]/.test(err.message)
+            ? err.message
+            : "결제를 시작하지 못했어요. 잠시 후 다시 시도해 주세요.";
+        showToast(msg, "error");
+      } finally {
+        // PC 레이어 결제창은 사용자가 닫아도 콜백이 없다 — 버튼을 되살려 재시도를
+        // 허용한다(주문은 pending으로 남아 24시간 뒤 자동취소, 토스 취소 케이스와 동일).
+        setIsSubmitting(false);
+        inFlightRef.current = false;
+      }
+      return;
+    }
+
+    // PG(토스): 주문(pending) 생성 후 토스 결제위젯 호출. 성공 시 토스가 successUrl로 리다이렉트.
     if (isPg) {
       try {
         const widgets = tossWidgetsRef.current;
@@ -1340,7 +1392,7 @@ function PublicOrderPage() {
               {/* 결제 수단 */}
               <div className="order-section">
                 <h2 className="order-section__title">결제 수단</h2>
-                {TOSS_READY ? (
+                {PG_READY ? (
                   <>
                     <div className="order-payment-methods">
                       <button
@@ -1348,7 +1400,9 @@ function PublicOrderPage() {
                         onClick={() => handlePaymentSelect("card")}
                         type="button"
                       >
-                        <span className="order-payment-btn__label">간편결제 · 카드</span>
+                        <span className="order-payment-btn__label">
+                          {PG_PROVIDER === "nicepay" ? "신용/체크카드" : "간편결제 · 카드"}
+                        </span>
                       </button>
                       <button
                         className={`order-payment-btn${paymentMethod === "bank_transfer" ? " is-active" : ""}`}
@@ -1359,18 +1413,27 @@ function PublicOrderPage() {
                       </button>
                     </div>
 
+                    {/* 나이스페이는 별도 위젯 없이 결제하기 시점에 결제창이 열린다 */}
+                    {PG_PROVIDER === "nicepay" && paymentMethod !== "bank_transfer" ? (
+                      <p className="order-section__hint" style={{ marginTop: 12 }}>
+                        결제하기 버튼을 누르면 나이스페이먼츠 안전결제창에서 카드 결제가 진행됩니다.
+                      </p>
+                    ) : null}
+
                     {/* 토스 결제위젯 컨테이너는 항상 마운트(재선택 시 재init 방지), 계좌이체 선택 시 숨김 */}
-                    <div style={{ display: paymentMethod === "bank_transfer" ? "none" : undefined, marginTop: 16 }}>
-                      <div id="toss-payment-method" />
-                      <div id="toss-agreement" />
-                      {tossLoadError ? (
-                        <p role="alert" style={{ marginTop: 12, fontSize: 13, color: "#dc2626" }}>
-                          결제 모듈을 불러오지 못했어요. 새로고침 후 다시 시도하거나 계좌이체를 이용해 주세요.
-                        </p>
-                      ) : !tossWidgetReady ? (
-                        <p style={{ marginTop: 12, fontSize: 13, color: "#64748b" }}>결제 수단을 불러오는 중...</p>
-                      ) : null}
-                    </div>
+                    {PG_PROVIDER === "toss" ? (
+                      <div style={{ display: paymentMethod === "bank_transfer" ? "none" : undefined, marginTop: 16 }}>
+                        <div id="toss-payment-method" />
+                        <div id="toss-agreement" />
+                        {tossLoadError ? (
+                          <p role="alert" style={{ marginTop: 12, fontSize: 13, color: "#dc2626" }}>
+                            결제 모듈을 불러오지 못했어요. 새로고침 후 다시 시도하거나 계좌이체를 이용해 주세요.
+                          </p>
+                        ) : !tossWidgetReady ? (
+                          <p style={{ marginTop: 12, fontSize: 13, color: "#64748b" }}>결제 수단을 불러오는 중...</p>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </>
                 ) : (
                   <div className="order-payment-methods">
@@ -1636,7 +1699,11 @@ function PublicOrderPage() {
 
                 <button
                   className="order-sidebar__submit-btn"
-                  disabled={isSubmitting || !requiredAgreementsOk || (isPg && !tossWidgetReady)}
+                  disabled={
+                    isSubmitting ||
+                    !requiredAgreementsOk ||
+                    (isPg && PG_PROVIDER === "toss" && !tossWidgetReady)
+                  }
                   onClick={handleSubmit}
                   type="button"
                 >
