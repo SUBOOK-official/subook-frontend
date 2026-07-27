@@ -18,6 +18,21 @@
       gtag("config", "G-EMNCLZKPMS");
     </script>
 
+    <!-- Meta Pixel Code — 메타(페이스북/인스타그램) 광고 전환 추적. 픽셀 ID: 27962792746720705 -->
+    <script>
+      !function(f,b,e,v,n,t,s)
+      {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+      n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+      if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+      n.queue=[];t=b.createElement(e);t.async=!0;
+      t.src=v;s=b.getElementsByTagName(e)[0];
+      s.parentNode.insertBefore(t,s)}(window, document,'script',
+      'https://connect.facebook.net/en_US/fbevents.js');
+      fbq('init', '27962792746720705');
+      fbq('track', 'PageView');
+    </script>
+    <!-- End Meta Pixel Code — noscript 폴백은 head 안 <img> 금지(HTML 표준·Vite 파서)라 body 최상단에 위치 -->
+
     <title>수북 | 수능을 위한 가장 똑똑한 선택</title>
     <meta
       name="description"
@@ -100,6 +115,10 @@
     </script>
   </head>
   <body>
+    <!-- Meta Pixel noscript 폴백 (본체 스크립트는 head에 있음) -->
+    <noscript><img height="1" width="1" style="display:none"
+      src="https://www.facebook.com/tr?id=27962792746720705&ev=PageView&noscript=1"
+    /></noscript>
     <div id="root"></div>
     <!-- JS 미실행 크롤러(특히 네이버 Yeti) 폴백 — SPA 빈 화면 방지용 정적 브랜드 콘텐츠 -->
     <noscript>
