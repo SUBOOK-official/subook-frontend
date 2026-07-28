@@ -1160,6 +1160,7 @@ function PublicOrderPage() {
         totalAmount: data.total_amount,
         itemCount: orderItems.reduce((sum, i) => sum + (i.quantity ?? 1), 0),
         recipientName: shipping.recipientName,
+        paymentMethod, // 완료 페이지 카피·입금안내 분기 (무통장 vs 카드)
       },
       replace: true,
     });

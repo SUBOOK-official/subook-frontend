@@ -115,6 +115,7 @@ function PublicOrderCompletePage() {
     recipientName: initial.recipientName ?? null,
     status: initial.status ?? null,
     paymentStatus: initial.paymentStatus ?? null,
+    paymentMethod: initial.paymentMethod ?? null,
     createdAt: initial.createdAt ?? null,
   });
   const [isLoading, setIsLoading] = useState(true);
@@ -125,7 +126,9 @@ function PublicOrderCompletePage() {
     order.paymentStatus === "paid" ||
     (order.status && order.status !== "pending" && order.status !== "cancelled");
   const isCancelled = order.status === "cancelled";
-  const countdown = usePaymentCountdown(order.createdAt, !isPaid && !isCancelled);
+  // 카드(PG) 주문: 입금 안내·"입금 확인" 카피가 전부 무통장 전제라 분기한다.
+  const isCardOrder = order.paymentMethod === "card";
+  const countdown = usePaymentCountdown(order.createdAt, !isPaid && !isCancelled && !isCardOrder);
 
   useEffect(() => {
     if (authLoading) return;
@@ -145,7 +148,7 @@ function PublicOrderCompletePage() {
       const { data, error } = await supabase
         .from("orders")
         .select(
-          "id, order_number, total_amount, item_count, status, payment_status, created_at, shipping_recipient_name",
+          "id, order_number, total_amount, item_count, status, payment_status, payment_method, created_at, shipping_recipient_name",
         )
         .eq("id", orderId)
         .maybeSingle();
@@ -170,6 +173,7 @@ function PublicOrderCompletePage() {
         recipientName: data.shipping_recipient_name,
         status: data.status,
         paymentStatus: data.payment_status,
+        paymentMethod: data.payment_method,
         createdAt: data.created_at,
       });
       setIsLoading(false);
@@ -235,8 +239,12 @@ function PublicOrderCompletePage() {
                   {isCancelled
                     ? "취소된 주문입니다."
                     : isPaid
-                      ? "입금이 확인되었어요. 곧 발송 처리됩니다."
-                      : "입금 확인 후 순차적으로 발송됩니다"}
+                      ? isCardOrder
+                        ? "결제가 완료되었어요. 곧 발송 처리됩니다."
+                        : "입금이 확인되었어요. 곧 발송 처리됩니다."
+                      : isCardOrder
+                        ? "카드 결제가 완료되지 않은 주문이에요."
+                        : "입금 확인 후 순차적으로 발송됩니다"}
                 </p>
 
                 <div className="order-complete-card__details">
@@ -260,7 +268,17 @@ function PublicOrderCompletePage() {
                   )}
                 </div>
 
-                {!isPaid && !isCancelled ? (
+                {!isPaid && !isCancelled && isCardOrder ? (
+                  <div className="order-complete-card__bank-info">
+                    <p className="order-complete-card__bank-title">결제 미완료 안내</p>
+                    <p className="order-complete-card__bank-hint">
+                      결제창이 닫혔거나 결제에 실패했어요. 이 주문은 24시간 후 자동 취소되며,
+                      다시 구매하시려면 마이페이지에서 취소 후 새로 주문해 주세요.
+                    </p>
+                  </div>
+                ) : null}
+
+                {!isPaid && !isCancelled && !isCardOrder ? (
                   <div className="order-complete-card__bank-info">
                     <p className="order-complete-card__bank-title">입금 계좌 안내</p>
 
