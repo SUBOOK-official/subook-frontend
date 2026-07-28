@@ -2449,7 +2449,11 @@ function CouponsView() {
                 <li key={coupon.id} className="public-mypage-coupon-download-item">
                   <div>
                     <strong>{coupon.title}</strong>
-                    <p>{describeCouponDiscount(coupon)}{coupon.min_order_amount > 0 ? ` · 최소 ${formatCurrency(coupon.min_order_amount)}` : ""}</p>
+                    <p>
+                      {describeCouponDiscount(coupon)}
+                      {coupon.min_order_amount > 0 ? ` · 최소 ${formatCurrency(coupon.min_order_amount)}` : ""}
+                      {coupon.valid_days != null ? ` · 받은 날부터 ${coupon.valid_days}일` : ""}
+                    </p>
                   </div>
                   <button
                     type="button"

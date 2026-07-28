@@ -13,6 +13,8 @@ const ISSUANCE_TYPE_LABEL = {
   download: "다운로드",
 };
 
+// 기한 설정 유형 (구 식스샵 패리티):
+//  unlimited = 시작일로부터 무기한 / range = 시작일과 종료일 / relative = 지급일 기준 N일
 const initialForm = {
   id: null,
   title: "",
@@ -21,17 +23,22 @@ const initialForm = {
   discount_value: "",
   max_discount_amount: "",
   min_order_amount: "0",
+  validity_mode: "unlimited",
   valid_from: "",
   valid_until: "",
+  valid_days: "",
   usage_limit_per_user: "",
   total_quantity: "",
   budget_cap_amount: "",
   issuance_type: "admin_assigned",
   code: "",
+  issue_on_signup: false,
   is_active: true,
 };
 
 // 폼 → API payload (빈 문자열은 null로 전달)
+// 기한 필드 3종(valid_from/valid_until/valid_days)은 유형 전환 시 이전 값이 남지 않도록
+// 항상 키를 포함해 보낸다 (update RPC는 키가 있어야 null로 지운다).
 function buildPayload(form) {
   const payload = {
     title: form.title.trim(),
@@ -42,7 +49,9 @@ function buildPayload(form) {
     max_discount_amount: form.max_discount_amount ? Number(form.max_discount_amount) : null,
     min_order_amount: Number(form.min_order_amount || 0),
     valid_from: form.valid_from || null,
-    valid_until: form.valid_until || null,
+    valid_until: form.validity_mode === "range" ? form.valid_until || null : null,
+    valid_days:
+      form.validity_mode === "relative" && form.valid_days ? Number(form.valid_days) : null,
     usage_limit_per_user: form.usage_limit_per_user
       ? Number(form.usage_limit_per_user)
       : null,
@@ -50,6 +59,7 @@ function buildPayload(form) {
     budget_cap_amount: form.budget_cap_amount ? Number(form.budget_cap_amount) : null,
     issuance_type: form.issuance_type,
     code: form.issuance_type === "code" ? form.code.trim() || null : null,
+    issue_on_signup: Boolean(form.issue_on_signup),
     is_active: Boolean(form.is_active),
   };
   return payload;
@@ -64,13 +74,16 @@ function rowToForm(row) {
     discount_value: row.discount_value != null ? String(row.discount_value) : "",
     max_discount_amount: row.max_discount_amount != null ? String(row.max_discount_amount) : "",
     min_order_amount: row.min_order_amount != null ? String(row.min_order_amount) : "0",
+    validity_mode: row.valid_days != null ? "relative" : row.valid_until ? "range" : "unlimited",
     valid_from: row.valid_from ? row.valid_from.slice(0, 16) : "",
     valid_until: row.valid_until ? row.valid_until.slice(0, 16) : "",
+    valid_days: row.valid_days != null ? String(row.valid_days) : "",
     usage_limit_per_user: row.usage_limit_per_user != null ? String(row.usage_limit_per_user) : "",
     total_quantity: row.total_quantity != null ? String(row.total_quantity) : "",
     budget_cap_amount: row.budget_cap_amount != null ? String(row.budget_cap_amount) : "",
     issuance_type: row.issuance_type || "admin_assigned",
     code: row.code || "",
+    issue_on_signup: Boolean(row.issue_on_signup),
     is_active: Boolean(row.is_active),
   };
 }
@@ -87,6 +100,12 @@ function describeDiscount(coupon) {
 }
 
 function describeValidity(coupon) {
+  if (coupon.valid_days != null) {
+    const prefix = coupon.valid_from
+      ? `${coupon.valid_from.replace("T", " ").slice(0, 16)}부터 · `
+      : "";
+    return `${prefix}지급일부터 ${coupon.valid_days}일`;
+  }
   if (!coupon.valid_from && !coupon.valid_until) return "무기한";
   const fmt = (v) => (v ? v.replace("T", " ").slice(0, 16) : "");
   const from = fmt(coupon.valid_from) || "즉시";
@@ -680,25 +699,64 @@ function AdminCouponsPage() {
                 </label>
               ) : null}
 
+              {/* 사용 기간 — 구 식스샵의 '기한 설정 유형' 3종 */}
+              <label className="md:col-span-2">
+                <span className="text-xs font-bold text-slate-700">기한 설정 유형</span>
+                <select
+                  value={form.validity_mode}
+                  onChange={handleField("validity_mode")}
+                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                >
+                  <option value="unlimited">시작일로부터 무기한으로 설정</option>
+                  <option value="range">시작일과 종료일 설정</option>
+                  <option value="relative">지급일 기준 사용 기간 설정</option>
+                </select>
+              </label>
+
               <label>
-                <span className="text-xs font-bold text-slate-700">유효 시작 (선택)</span>
+                <span className="text-xs font-bold text-slate-700">
+                  {form.validity_mode === "relative" ? "발급 시작일 (선택)" : "시작일 (선택)"}
+                </span>
                 <input
                   type="datetime-local"
                   value={form.valid_from}
                   onChange={handleField("valid_from")}
                   className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
                 />
+                <p className="mt-1 text-xs text-slate-500">비워두면 즉시 발급/사용 가능</p>
               </label>
 
-              <label>
-                <span className="text-xs font-bold text-slate-700">유효 만료 (선택)</span>
-                <input
-                  type="datetime-local"
-                  value={form.valid_until}
-                  onChange={handleField("valid_until")}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
-                />
-              </label>
+              {form.validity_mode === "range" ? (
+                <label>
+                  <span className="text-xs font-bold text-slate-700">종료일 *</span>
+                  <input
+                    required
+                    type="datetime-local"
+                    value={form.valid_until}
+                    onChange={handleField("valid_until")}
+                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                  />
+                  <p className="mt-1 text-xs text-slate-500">이 시각 이후 발급·사용 불가</p>
+                </label>
+              ) : null}
+
+              {form.validity_mode === "relative" ? (
+                <label>
+                  <span className="text-xs font-bold text-slate-700">지급일로부터 사용 기간 (일) *</span>
+                  <input
+                    required
+                    type="number"
+                    min="1"
+                    value={form.valid_days}
+                    onChange={handleField("valid_days")}
+                    placeholder="예: 30 — 받은 날부터 30일간 사용 가능"
+                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                  />
+                  <p className="mt-1 text-xs text-slate-500">
+                    회원마다 쿠폰을 받은 시점 + N일이 만료일이 됩니다
+                  </p>
+                </label>
+              ) : null}
 
               <label>
                 <span className="text-xs font-bold text-slate-700">1인당 사용 한도 (선택)</span>
@@ -722,6 +780,24 @@ function AdminCouponsPage() {
                   placeholder="비워두면 무제한"
                   className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
                 />
+              </label>
+
+              {/* 쿠폰 자동 지급 조건 (구 식스샵 패리티 — 현재는 회원 가입 시 1종) */}
+              <label className="md:col-span-2 flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  checked={form.issue_on_signup}
+                  onChange={handleField("issue_on_signup")}
+                  className="mt-0.5"
+                />
+                <span className="text-sm text-slate-700">
+                  <span className="font-bold">회원 가입 시 자동 지급</span>
+                  <span className="mt-0.5 block text-xs text-slate-500">
+                    활성 상태인 동안 새로 가입하는 회원에게 1매씩 자동 발급됩니다 (운영진 계정 제외,
+                    전체 발급 한도 적용). 별도 본인인증 없이 지급되므로 반복 가입 어뷰징 가능성은
+                    감안해 주세요.
+                  </span>
+                </span>
               </label>
 
               <label className="md:col-span-2 flex items-center gap-2">
