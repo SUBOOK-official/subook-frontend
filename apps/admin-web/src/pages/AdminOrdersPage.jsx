@@ -2035,10 +2035,12 @@ function AdminOrdersPage() {
                             {event.at}
                             {event.branchName ? ` · ${event.branchName}` : ""}
                           </p>
-                          {event.workerName || event.workerTel ? (
+                          {event.workerName || event.workerTel || event.branchTel ? (
                             <p className="mt-0.5 text-xs text-slate-500">
                               담당 {event.workerName || "-"}
-                              {event.workerTel ? ` · ${event.workerTel}` : ""}
+                              {event.workerTel || event.branchTel
+                                ? ` · ${event.workerTel || event.branchTel}`
+                                : ""}
                             </p>
                           ) : null}
                         </div>
