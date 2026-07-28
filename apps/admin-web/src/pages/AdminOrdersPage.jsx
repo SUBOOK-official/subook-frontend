@@ -192,6 +192,11 @@ function AdminOrdersPage() {
   const [trackingModal, setTrackingModal] = useState(null);
   const [trackingCarrier, setTrackingCarrier] = useState("CJ대한통운");
   const [trackingInput, setTrackingInput] = useState("");
+  // CJ 실시간 배송조회 모달 — {invcNo, orderNumber}
+  const [deliveryTrace, setDeliveryTrace] = useState(null);
+  const [deliveryTraceData, setDeliveryTraceData] = useState(null);
+  const [deliveryTraceError, setDeliveryTraceError] = useState("");
+  const [isDeliveryTraceLoading, setIsDeliveryTraceLoading] = useState(false);
 
   // 입금확인 모달 (금액 검증)
   const [paymentModal, setPaymentModal] = useState(null);
@@ -729,6 +734,47 @@ function AdminOrdersPage() {
     setTrackingInput(order.tracking_number || "");
   };
 
+  // ── CJ 실시간 배송조회 모달 ────────────────────────────────
+  // 운송장 전체 스캔 이력을 /api/admin/cj-track-waybill(어드민 JWT 인증)로 조회.
+  const fetchDeliveryTrace = useCallback(async (invcNo) => {
+    setIsDeliveryTraceLoading(true);
+    setDeliveryTraceError("");
+    setDeliveryTraceData(null);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+      if (!accessToken) {
+        throw new Error("로그인 세션이 만료되었습니다. 새로고침 후 다시 시도해 주세요.");
+      }
+      const resp = await fetch(
+        `/api/admin/cj-track-waybill?invcNo=${encodeURIComponent(invcNo)}`,
+        { headers: { Authorization: `Bearer ${accessToken}` } },
+      );
+      const body = await resp.json().catch(() => null);
+      if (!resp.ok || !body?.success) {
+        throw new Error(body?.error || "배송 조회에 실패했습니다.");
+      }
+      setDeliveryTraceData(body);
+    } catch (err) {
+      setDeliveryTraceError(err?.message || "배송 조회에 실패했습니다.");
+    } finally {
+      setIsDeliveryTraceLoading(false);
+    }
+  }, []);
+
+  const openDeliveryTrace = (order) => {
+    const invcNo = String(order.tracking_number || "").trim();
+    if (!invcNo) return;
+    setDeliveryTrace({ invcNo, orderNumber: order.order_number });
+    void fetchDeliveryTrace(invcNo);
+  };
+
+  const closeDeliveryTrace = () => {
+    setDeliveryTrace(null);
+    setDeliveryTraceData(null);
+    setDeliveryTraceError("");
+  };
+
   const closeTrackingModal = () => {
     setTrackingModal(null);
     setTrackingInput("");
@@ -1153,9 +1199,20 @@ function AdminOrdersPage() {
                             송장입력
                           </button>
                         )}
-                        {order.status === "shipping" && order.tracking_number && (
-                          <span className="text-xs text-slate-500 font-mono whitespace-nowrap">
-                            {order.tracking_number}
+                        {order.tracking_number &&
+                          ["shipping", "delivered", "confirmed"].includes(order.status) && (
+                          <span className="flex items-center gap-1.5 whitespace-nowrap">
+                            <span className="text-xs text-slate-500 font-mono">
+                              {order.tracking_number}
+                            </span>
+                            <button
+                              className="text-xs font-semibold text-emerald-700 hover:underline"
+                              onClick={() => openDeliveryTrace(order)}
+                              title="CJ 실시간 배송 추적"
+                              type="button"
+                            >
+                              배송조회
+                            </button>
                           </span>
                         )}
                         <button
@@ -1321,8 +1378,17 @@ function AdminOrdersPage() {
           {selectedOrder.tracking_number && (
             <div>
               <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">배송 추적</h4>
-              <p className="text-sm">
-                {selectedOrder.tracking_carrier ?? "CJ대한통운"} · {selectedOrder.tracking_number}
+              <p className="text-sm flex items-center gap-2">
+                <span>
+                  {selectedOrder.tracking_carrier ?? "CJ대한통운"} · {selectedOrder.tracking_number}
+                </span>
+                <button
+                  className="text-xs font-semibold text-emerald-700 hover:underline"
+                  onClick={() => openDeliveryTrace(selectedOrder)}
+                  type="button"
+                >
+                  배송조회
+                </button>
               </p>
             </div>
           )}
@@ -1903,6 +1969,108 @@ function AdminOrdersPage() {
         onClose={() => setLabelData(null)}
         open={!!labelData}
       />
+
+      {/* CJ 실시간 배송조회 모달 */}
+      {deliveryTrace && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
+          onClick={closeDeliveryTrace}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="flex max-h-[85vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+              <div>
+                <h2 className="text-lg font-black text-slate-950">배송조회 — {deliveryTrace.orderNumber}</h2>
+                <p className="mt-0.5 text-xs font-medium text-slate-500">
+                  CJ대한통운 · <span className="font-mono">{deliveryTrace.invcNo}</span>
+                  {deliveryTraceData?.delivered ? (
+                    <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-700">
+                      배송완료
+                    </span>
+                  ) : null}
+                </p>
+              </div>
+              <button
+                className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                disabled={isDeliveryTraceLoading}
+                onClick={() => fetchDeliveryTrace(deliveryTrace.invcNo)}
+                type="button"
+              >
+                {isDeliveryTraceLoading ? "조회 중..." : "새로고침"}
+              </button>
+            </header>
+
+            <div className="flex-1 overflow-y-auto px-5 py-4">
+              {isDeliveryTraceLoading ? (
+                <p className="py-8 text-center text-sm text-slate-500">CJ 배송 정보를 조회하고 있어요...</p>
+              ) : deliveryTraceError ? (
+                <p className="py-8 text-center text-sm font-semibold text-rose-600" role="alert">
+                  {deliveryTraceError}
+                </p>
+              ) : deliveryTraceData?.noData ? (
+                <p className="py-8 text-center text-sm text-slate-500">{deliveryTraceData.message}</p>
+              ) : deliveryTraceData?.events?.length ? (
+                <ol className="space-y-0">
+                  {[...deliveryTraceData.events].reverse().map((event, index) => {
+                    const isLatest = index === 0;
+                    return (
+                      <li className="relative flex gap-3 pb-4 last:pb-0" key={`${event.at}-${event.statusCode}-${index}`}>
+                        <div className="flex flex-col items-center">
+                          <span
+                            className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${
+                              isLatest ? "bg-emerald-500 ring-4 ring-emerald-100" : "bg-slate-300"
+                            }`}
+                          />
+                          <span className="w-px flex-1 bg-slate-200" aria-hidden="true" />
+                        </div>
+                        <div className={isLatest ? "" : "opacity-80"}>
+                          <p className={`text-sm ${isLatest ? "font-black text-slate-950" : "font-semibold text-slate-700"}`}>
+                            {event.statusText || event.statusCode || "-"}
+                          </p>
+                          <p className="mt-0.5 text-xs text-slate-500">
+                            {event.at}
+                            {event.branchName ? ` · ${event.branchName}` : ""}
+                          </p>
+                          {event.workerName || event.workerTel ? (
+                            <p className="mt-0.5 text-xs text-slate-500">
+                              담당 {event.workerName || "-"}
+                              {event.workerTel ? ` · ${event.workerTel}` : ""}
+                            </p>
+                          ) : null}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ol>
+              ) : (
+                <p className="py-8 text-center text-sm text-slate-500">표시할 배송 이력이 없습니다.</p>
+              )}
+            </div>
+
+            <footer className="flex items-center justify-between border-t border-slate-200 px-5 py-3">
+              <a
+                className="text-xs font-semibold text-blue-600 hover:underline"
+                href={`https://www.cjlogistics.com/ko/tool/parcel/tracking?gnbInvcNo=${encodeURIComponent(deliveryTrace.invcNo)}`}
+                rel="noreferrer"
+                target="_blank"
+              >
+                CJ 조회 페이지에서 열기 ↗
+              </a>
+              <button
+                className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700"
+                onClick={closeDeliveryTrace}
+                type="button"
+              >
+                닫기
+              </button>
+            </footer>
+          </div>
+        </div>
+      )}
     </AdminShell>
   );
 }
