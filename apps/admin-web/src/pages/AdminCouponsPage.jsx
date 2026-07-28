@@ -399,6 +399,36 @@ function AdminCouponsPage() {
     await loadCoupons();
   };
 
+  // 쿠폰 삭제 — 사용 이력이 있으면 서버가 거부(감사 보존), 미사용 발급분은 회수 후 삭제
+  const handleDelete = (coupon) => {
+    setDestructiveModal({
+      title: "쿠폰 삭제",
+      description:
+        `'${coupon.title}' 쿠폰을 완전히 삭제합니다. 회원에게 발급됐지만 아직 사용되지 않은 ` +
+        `쿠폰도 함께 회수(삭제)됩니다. 사용 이력이 있는 쿠폰은 삭제할 수 없어요 (비활성화를 이용하세요).`,
+      confirmLabel: "삭제",
+      run: async () => {
+        setBusyId(coupon.id);
+        const { data, error } = await supabase.rpc("admin_delete_coupon", {
+          p_coupon_id: coupon.id,
+        });
+        setBusyId(null);
+        if (error) {
+          showToast(error.message || "삭제에 실패했습니다.", "error");
+          return;
+        }
+        const reclaimed = Number(data?.reclaimed_count ?? 0);
+        showToast(
+          reclaimed > 0
+            ? `쿠폰이 삭제되었습니다. (미사용 발급분 ${reclaimed}매 회수)`
+            : "쿠폰이 삭제되었습니다.",
+          "success",
+        );
+        await loadCoupons();
+      },
+    });
+  };
+
   const filteredSummary = useMemo(() => {
     const total = coupons.length;
     const active = coupons.filter((c) => c.is_active).length;
@@ -526,10 +556,18 @@ function AdminCouponsPage() {
                       <button
                         type="button"
                         disabled={busyId === coupon.id}
-                        className="text-xs font-bold text-rose-600 hover:text-rose-800 disabled:opacity-40"
+                        className="mr-2 text-xs font-bold text-amber-700 hover:text-amber-900 disabled:opacity-40"
                         onClick={() => handleToggleActive(coupon)}
                       >
                         {coupon.is_active ? "비활성화" : "활성화"}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busyId === coupon.id}
+                        className="text-xs font-bold text-rose-600 hover:text-rose-800 disabled:opacity-40"
+                        onClick={() => handleDelete(coupon)}
+                      >
+                        삭제
                       </button>
                     </td>
                   </tr>
@@ -783,21 +821,13 @@ function AdminCouponsPage() {
               </label>
 
               {/* 쿠폰 자동 지급 조건 (구 식스샵 패리티 — 현재는 회원 가입 시 1종) */}
-              <label className="md:col-span-2 flex items-start gap-2">
+              <label className="md:col-span-2 flex items-center gap-2">
                 <input
                   type="checkbox"
                   checked={form.issue_on_signup}
                   onChange={handleField("issue_on_signup")}
-                  className="mt-0.5"
                 />
-                <span className="text-sm text-slate-700">
-                  <span className="font-bold">회원 가입 시 자동 지급</span>
-                  <span className="mt-0.5 block text-xs text-slate-500">
-                    활성 상태인 동안 새로 가입하는 회원에게 1매씩 자동 발급됩니다 (운영진 계정 제외,
-                    전체 발급 한도 적용). 별도 본인인증 없이 지급되므로 반복 가입 어뷰징 가능성은
-                    감안해 주세요.
-                  </span>
-                </span>
+                <span className="text-sm font-bold text-slate-700">회원 가입 시 자동 지급</span>
               </label>
 
               <label className="md:col-span-2 flex items-center gap-2">

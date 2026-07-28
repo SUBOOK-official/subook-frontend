@@ -4,8 +4,10 @@ import { getSellerLookupOrigin } from "../lib/portalLinks";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
 import { useAdminBadgeCounts } from "../lib/useAdminBadgeCounts";
+import { adminGuides } from "../lib/adminGuides";
 import { adminNavigationGroups, resolveActiveAdminModule } from "./adminNavigation";
-import { MenuIcon } from "./icons";
+import AdminGuideModal from "./AdminGuideModal";
+import { HelpCircleIcon, MenuIcon } from "./icons";
 import brandLogoImage from "../assets/brand/logo-horizontal.png";
 
 function formatBadgeValue(value) {
@@ -71,12 +73,16 @@ function AdminShell({ title, activeModule, actions = null, summaryCards = [], ch
   const sellerPortalUrl = getSellerLookupOrigin();
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
   const drawerRef = useRef(null);
 
   const resolvedModuleKey = resolveActiveAdminModule({
     pathname: location.pathname,
     explicitModule: activeModule,
   });
+
+  // 탭별 사용 가이드 — 등록된 모듈에만 ? 버튼 노출
+  const guide = adminGuides[resolvedModuleKey] ?? null;
 
   const rawBadgeCounts = useAdminBadgeCounts();
   // 수거·검수 통합 메뉴: 신청 대기(pickups) + 검수 대기(inspection)를 한 배지로 합산
@@ -146,8 +152,19 @@ function AdminShell({ title, activeModule, actions = null, summaryCards = [], ch
                 >
                   <span aria-hidden="true"><MenuIcon size={20} /></span>
                 </button>
-                <div className="min-w-0">
+                <div className="flex min-w-0 items-center gap-2">
                   <h1 className="text-2xl font-black tracking-tight text-slate-950">{title}</h1>
+                  {guide ? (
+                    <button
+                      aria-label={`${title} 사용 가이드 열기`}
+                      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-400 transition hover:border-slate-400 hover:text-slate-900"
+                      onClick={() => setIsGuideOpen(true)}
+                      title="사용 가이드"
+                      type="button"
+                    >
+                      <HelpCircleIcon size={15} />
+                    </button>
+                  ) : null}
                 </div>
               </div>
 
@@ -242,6 +259,8 @@ function AdminShell({ title, activeModule, actions = null, summaryCards = [], ch
           </aside>
         </div>
       ) : null}
+
+      <AdminGuideModal guide={guide} onClose={() => setIsGuideOpen(false)} open={isGuideOpen} />
     </main>
   );
 }
