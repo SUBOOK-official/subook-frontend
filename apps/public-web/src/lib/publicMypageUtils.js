@@ -840,6 +840,18 @@ export function getPaymentMethodLabel(method) {
   return PAYMENT_METHOD_LABELS[method] ?? method;
 }
 
+// 미결제 카드(PG) 주문은 구매내역에서 숨긴다 (2026-07-28 정책).
+// 카드 주문의 pending/cancelled + 결제이력 없음 = 결제창 이탈/실패 시도일 뿐이라
+// 내역에 남기지 않는다 (fail 페이지 자동취소·30분 자동만료로 곧 cancelled가 됨).
+// 결제까지 갔던 카드 주문(payment_status='paid')은 취소·환불돼도 계속 노출.
+export function isHiddenUnpaidCardOrder(order) {
+  return (
+    order.paymentMethod === "card" &&
+    order.paymentStatus !== "paid" &&
+    (order.status === "pending" || order.status === "cancelled")
+  );
+}
+
 export function mapOrderToDisplayOrder(order) {
   const items = (order.items ?? []).map((item) => ({
     id: item.id,

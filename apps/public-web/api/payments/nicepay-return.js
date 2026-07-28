@@ -68,10 +68,12 @@ function redirectTo(res, location) {
   res.end();
 }
 
-function failRedirect(res, message, code) {
+function failRedirect(res, message, code, orderNumber) {
   const params = new URLSearchParams();
   if (message) params.set("message", message);
   if (code) params.set("code", String(code));
+  // orderNumber가 있으면 fail 페이지가 본인 pending 카드 주문을 자동 취소한다(재고 해제)
+  if (orderNumber) params.set("orderId", String(orderNumber));
   const qs = params.toString();
   return redirectTo(res, `/order/payment/fail${qs ? `?${qs}` : ""}`);
 }
@@ -113,6 +115,24 @@ async function cancelPayment({ apiBase, authHeader, tid, orderId, reason }) {
     },
   );
   return resp.json().catch(() => null);
+}
+
+// 미결제 pending 주문 즉시 취소 → 재고(books) 선점 해제 (트리거가 릴리스).
+// ⚠ 서명이 검증된 실패 분기에서만 호출할 것 — 인증실패(authResultCode≠0000) POST는
+//   서명이 없어 위조 가능하므로 여기서 취소하면 임의 주문 취소 공격이 가능해진다.
+//   (그 케이스는 fail 페이지가 본인 인증된 cancel_member_order로 처리 + 30분 자동만료 백스톱)
+async function cancelUnpaidOrder({ supabaseUrl, serviceKey, orderNumber }) {
+  const resp = await fetchWithTimeout(`${supabaseUrl}/rest/v1/rpc/cancel_unpaid_order`, {
+    method: "POST",
+    headers: {
+      apikey: serviceKey,
+      Authorization: `Bearer ${serviceKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ p_order_number: orderNumber }),
+  });
+  const body = await resp.json().catch(() => null);
+  return Boolean(resp.ok && body?.success);
 }
 
 // order_confirmed 알림 (구매자) — 토스 confirm.js의 fireOrderConfirmedNotification과 동일.
@@ -189,12 +209,15 @@ export default async function handler(req, res) {
   const signature = String(body.signature ?? "");
   const bodyClientId = String(body.clientId ?? "");
 
-  // 인증 실패/이탈 — 주문은 pending으로 남아 24시간 뒤 자동 취소된다.
+  // 인증 실패/이탈 — 이 POST는 서명이 없어 서버측 취소는 위험(위조 가능).
+  // orderId를 fail 페이지로 넘겨, 본인 세션에서 주문을 자동 취소하게 한다(재고 즉시 해제).
+  // fail 페이지 미방문/비로그인 케이스는 30분 자동만료(expire_unpaid_orders)가 백스톱.
   if (authResultCode !== "0000") {
     return failRedirect(
       res,
       authResultMsg || "카드 인증이 완료되지 않았습니다.",
       authResultCode || "AUTH_FAILED",
+      orderId,
     );
   }
   if (!tid || !orderId || !amountRaw || !authToken || !signature) {
@@ -234,9 +257,14 @@ export default async function handler(req, res) {
   } catch (err) {
     // 타임아웃/네트워크 오류 — 승인 결과 불확실 → 망취소로 원복 시도
     console.error("[nicepay-return] approve error", { orderId, tid, error: err?.message });
-    await netCancel({ apiBase, authHeader, orderId }).catch((e) =>
-      console.error("[nicepay-return] netcancel failed", { orderId, error: e?.message }),
-    );
+    const netCancelResult = await netCancel({ apiBase, authHeader, orderId }).catch((e) => {
+      console.error("[nicepay-return] netcancel failed", { orderId, error: e?.message });
+      return null;
+    });
+    if (netCancelResult?.resultCode === "0000") {
+      // 망취소로 결제가 확실히 원복됨 → 주문도 취소해 재고를 즉시 푼다
+      await cancelUnpaidOrder({ supabaseUrl, serviceKey, orderNumber: orderId }).catch(() => {});
+    }
     return failRedirect(
       res,
       "결제 승인 응답이 지연되었습니다. 잠시 후 마이페이지에서 주문 상태를 확인해 주세요.",
@@ -246,10 +274,13 @@ export default async function handler(req, res) {
 
   // 성공 판정: resultCode 0000 + status paid
   if (approve.resultCode !== "0000" || approve.status !== "paid") {
+    // 승인 실패 확정(서명 검증된 요청) → 주문 취소로 재고 즉시 해제
+    await cancelUnpaidOrder({ supabaseUrl, serviceKey, orderNumber: orderId }).catch(() => {});
     return failRedirect(
       res,
       approve.resultMsg || "결제 승인에 실패했습니다.",
       approve.resultCode || "APPROVE_FAILED",
+      orderId,
     );
   }
 
@@ -298,7 +329,11 @@ export default async function handler(req, res) {
       reason: "주문 확정 실패 자동취소",
     }).catch(() => null);
     const cancelled = cancelResult?.resultCode === "0000";
-    if (!cancelled) {
+    if (cancelled) {
+      // 결제가 전액취소됐으니 주문도 취소해 재고를 즉시 푼다.
+      // (⚠ 결제취소 실패 시엔 주문을 pending으로 남긴다 — 수동 환불 처리의 앵커)
+      await cancelUnpaidOrder({ supabaseUrl, serviceKey, orderNumber: orderId }).catch(() => {});
+    } else {
       console.error("[nicepay-return] CRITICAL: 승인 후 확정·취소 모두 실패 — 수동 환불 필요", {
         orderId,
         tid,

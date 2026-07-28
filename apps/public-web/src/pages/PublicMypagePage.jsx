@@ -2665,10 +2665,7 @@ function PurchasesView({
                   <article className="public-mypage-purchase-card" key={`${order.id}-${item.id}`}>
                     <div className="public-mypage-purchase-card__status-row">
                       <span className={`public-mypage-chip public-mypage-chip--${getOrderStatusTone(order.status)}`}>
-                        {/* 카드 주문의 pending은 '입금대기'가 아니라 결제창 이탈/실패 상태 */}
-                        {order.status === "pending" && order.paymentMethod === "card"
-                          ? "결제 미완료"
-                          : getOrderStatusLabel(order.status)}
+                        {getOrderStatusLabel(order.status)}
                       </span>
                       <button
                         aria-label="주문 상세보기"
@@ -2682,22 +2679,12 @@ function PurchasesView({
                     </div>
 
                     {/* 입금 대기 주문: 계좌·입금자명·금액 재확인 (주문완료 화면 놓쳐도 입금 가능)
-                        — 무통장 전용. 카드 주문의 pending은 결제창 이탈/실패라 입금 안내가 오히려 오해를 부른다. */}
+                        — 무통장 전용 방어 가드. 미결제 카드 주문은 isHiddenUnpaidCardOrder가
+                        목록에서 아예 제외하므로 여기 도달하지 않는 게 정상. */}
                     {order.status === "pending" &&
                     order.paymentStatus !== "paid" &&
                     order.paymentMethod !== "card" ? (
                       <OrderDepositInfo order={order} />
-                    ) : null}
-                    {order.status === "pending" &&
-                    order.paymentStatus !== "paid" &&
-                    order.paymentMethod === "card" ? (
-                      <div className="public-mypage-deposit" role="note" aria-label="결제 미완료 안내">
-                        <p className="public-mypage-deposit__title">카드 결제가 완료되지 않았어요</p>
-                        <p className="public-mypage-deposit__notice">
-                          결제창이 닫혔거나 결제에 실패한 주문이에요. 24시간이 지나면 자동 취소되며,
-                          다시 구매하시려면 이 주문을 취소한 뒤 새로 주문해 주세요.
-                        </p>
-                      </div>
                     ) : null}
 
                     <div className="public-mypage-purchase-card__body">

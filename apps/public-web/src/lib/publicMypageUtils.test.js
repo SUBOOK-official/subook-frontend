@@ -4,9 +4,42 @@ import {
   buildMemberDashboardSummarySnapshot,
   filterOrdersByStatus,
   filterShipmentsByStatus,
+  isHiddenUnpaidCardOrder,
   mapOrderToDisplayOrder,
   mapPickupRequestToShipment,
 } from "./publicMypageUtils.js";
+
+test("isHiddenUnpaidCardOrder hides card attempts that never paid, keeps everything else", () => {
+  // 결제창 이탈/실패 (pending·미결제 카드) → 숨김
+  assert.equal(
+    isHiddenUnpaidCardOrder({ paymentMethod: "card", paymentStatus: "pending", status: "pending" }),
+    true,
+  );
+  // 자동만료·자동취소된 미결제 카드 → 숨김 (expire는 payment_status='refunded'로 남긴다)
+  assert.equal(
+    isHiddenUnpaidCardOrder({ paymentMethod: "card", paymentStatus: "refunded", status: "cancelled" }),
+    true,
+  );
+  // 결제까지 갔던 카드 주문은 취소돼도 노출
+  assert.equal(
+    isHiddenUnpaidCardOrder({ paymentMethod: "card", paymentStatus: "paid", status: "cancelled" }),
+    false,
+  );
+  // 결제 완료된 카드 주문 노출
+  assert.equal(
+    isHiddenUnpaidCardOrder({ paymentMethod: "card", paymentStatus: "paid", status: "preparing" }),
+    false,
+  );
+  // 무통장 입금대기는 그대로 노출 (입금 안내가 필요)
+  assert.equal(
+    isHiddenUnpaidCardOrder({
+      paymentMethod: "bank_transfer",
+      paymentStatus: "pending",
+      status: "pending",
+    }),
+    false,
+  );
+});
 
 test("filterShipmentsByStatus groups shipment rows by seller progress buckets", () => {
   const shipments = [

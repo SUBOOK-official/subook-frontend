@@ -6,6 +6,7 @@ import {
 } from "./publicMypageDemo";
 import {
   buildMemberDashboardSummarySnapshot,
+  isHiddenUnpaidCardOrder,
   mapOrderToDisplayOrder,
   mapPickupRequestToShipment,
 } from "./publicMypageUtils";
@@ -1036,10 +1037,11 @@ async function loadMemberPortalSnapshot({ user, profile, demoMode = false }) {
     ? pickupShipments
     : recentShipmentsResult.recentShipments;
 
-  // 주문 → PurchasesTab용 order 형태로 변환
+  // 주문 → PurchasesTab용 order 형태로 변환.
+  // 미결제 카드 주문(결제창 이탈/실패)은 내역·카운트에서 완전히 제외한다.
   const orders =
     ordersResult.source !== "local"
-      ? ordersResult.orders.map(mapOrderToDisplayOrder)
+      ? ordersResult.orders.map(mapOrderToDisplayOrder).filter((o) => !isHiddenUnpaidCardOrder(o))
       : storedState.orders;
   const hasRemoteSettlements = settlementsResult.source === "supabase";
   const remoteSettlements = hasRemoteSettlements
