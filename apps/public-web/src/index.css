@@ -5239,6 +5239,24 @@ img {
   .public-member-gate__title {
     font-size: 20px;
   }
+
+  /* 회원 게이트는 모바일에서도 하단 시트가 아니라 중앙 팝업으로 유지 */
+  .public-sheet-backdrop--centered {
+    align-items: center;
+    padding: 20px;
+  }
+
+  .public-sheet-backdrop--centered .public-sheet {
+    width: 100%;
+    max-width: 360px;
+    max-height: 90vh;
+    border-radius: 16px;
+    padding: 24px 20px;
+  }
+
+  .public-sheet-backdrop--centered .public-sheet__drag-handle {
+    display: none;
+  }
 }
 
 .public-mypage-page {

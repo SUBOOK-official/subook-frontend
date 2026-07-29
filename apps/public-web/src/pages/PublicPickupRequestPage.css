@@ -17,7 +17,7 @@
 .pickup-back-btn {
   min-height: 44px;
   border: 0;
-  padding: 0;
+  padding: 0 0 0 8px;
   margin-bottom: 12px;
   background: transparent;
   color: var(--public-ds-accent);
@@ -81,7 +81,7 @@
   padding: 0;
   list-style: none;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -115,7 +115,8 @@
 .pickup-progress__label {
   color: var(--public-ds-text-secondary);
   font-size: 12px;
-  line-height: 1.5;
+  line-height: 1.35;
+  word-break: keep-all;
   transition: color 0.2s ease;
 }
 
@@ -130,12 +131,13 @@
 }
 
 .pickup-progress__item.is-done .pickup-progress__marker {
-  background: var(--public-ds-success);
+  /* 완료 단계는 초록 대신 회색으로 — '지나간/완료된' 느낌 */
+  background: #c7c8cd;
   color: #ffffff;
 }
 
 .pickup-progress__item.is-done .pickup-progress__label {
-  color: var(--public-ds-success);
+  color: var(--public-ds-text-muted, #9a9aa0);
   font-weight: 500;
 }
 
@@ -871,15 +873,259 @@
 
 .pickup-info-box__list {
   margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* 각 안내 항목을 '확인할 정보' 카드처럼 — 앞에 체크 아이콘을 붙여 스캔·인지가 쉽게 */
+.pickup-info-box__list li {
+  position: relative;
+  padding-left: 28px;
   font-size: 13px;
   color: var(--public-ds-text-secondary);
-  line-height: 1.8;
+  line-height: 1.6;
+}
+
+.pickup-info-box__list li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background:
+    var(--public-ds-accent)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12l4 4L19 7'/%3E%3C/svg%3E")
+    no-repeat center;
+  background-size: 11px 11px;
+}
+
+/* 핵심 키워드(굵은 글씨)는 본문색으로 또렷하게 강조 */
+.pickup-info-box__list li strong {
+  color: var(--public-ds-text);
+  font-weight: 700;
+}
+
+/* 수거 프로세스처럼 번호가 붙은 순서 목록은 체크 아이콘 없이 번호 그대로 */
+.pickup-info-box__list--steps li {
+  padding-left: 0;
+}
+
+.pickup-info-box__list--steps li::before {
+  display: none;
 }
 
 .pickup-info-box__tip {
   font-size: 13px;
   color: #0369a1;
-  margin: 8px 0 0;
+  margin: 0;
+}
+
+/* ─── 판매 안내(0단계) 가이드 ─── */
+.pickup-guide-section {
+  margin-bottom: 28px;
+}
+
+.pickup-guide-section__title {
+  margin: 0 0 12px;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--public-ds-text);
+}
+
+.pickup-guide-section__note {
+  margin: 12px 0 0;
+  font-size: 12px;
+  color: var(--public-ds-text-secondary);
+  line-height: 1.6;
+}
+
+/* 판매 과정 — 사진 + 텍스트 행 */
+.pickup-guide-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pickup-guide-step {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.pickup-guide-step__photo {
+  flex-shrink: 0;
+  width: 120px;
+  height: 80px;
+  border-radius: 10px;
+  background: #eef1f5;
+  border: 1px solid var(--public-ds-border, #e5e5e5);
+  overflow: hidden;
+}
+
+.pickup-guide-step__photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.pickup-guide-step__text {
+  flex: 1;
+  min-width: 0;
+  padding-top: 2px;
+}
+
+.pickup-guide-step__label {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--public-ds-text);
+}
+
+.pickup-guide-step__desc {
+  margin: 0;
+  font-size: 13px;
+  color: var(--public-ds-text-secondary);
+  line-height: 1.6;
+}
+
+/* 아이콘 + 설명 리스트 (판매 가능 / 박스 규정) */
+.pickup-guide-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.pickup-guide-list__item {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.pickup-guide-list__icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: #f0f9ff;
+  color: var(--public-ds-accent);
+}
+
+.pickup-guide-list__text {
+  flex: 1;
+  min-width: 0;
+}
+
+.pickup-guide-list__text strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--public-ds-text);
+  margin-bottom: 2px;
+}
+
+.pickup-guide-list__text span {
+  font-size: 13px;
+  color: var(--public-ds-text-secondary);
+  line-height: 1.6;
+}
+
+/* 판매 불가 예시 — 사진 3장 그리드 */
+.pickup-guide-photos {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.pickup-guide-photo {
+  margin: 0;
+}
+
+.pickup-guide-photo__img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 10px;
+  background: #eef1f5;
+  border: 1px solid var(--public-ds-border, #e5e5e5);
+  overflow: hidden;
+}
+
+.pickup-guide-photo__img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.pickup-guide-photo__caption {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--public-ds-text-secondary);
+  text-align: center;
+  line-height: 1.4;
+}
+
+/* 유의사항 — 확인 체크(전체 선택 + 항목별), 네이비 원형 체크 */
+.pickup-ack-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.pickup-ack {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 7px 0;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--public-ds-text-secondary);
+  line-height: 1.6;
+}
+
+.pickup-ack input {
+  appearance: none;
+  -webkit-appearance: none;
+  flex-shrink: 0;
+  margin: 1px 0 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1.5px solid #c7c8cd;
+  background: #ffffff;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.pickup-ack input:checked {
+  border-color: var(--public-ds-accent);
+  background:
+    var(--public-ds-accent)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12l4 4L19 7'/%3E%3C/svg%3E")
+    no-repeat center;
+  background-size: 12px 12px;
+}
+
+/* 전체 선택 — 강조 박스 */
+.pickup-ack--all {
+  align-items: center;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  border: 1px solid var(--public-ds-accent);
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--public-ds-text);
 }
 
 /* ─── 정책 박스 ─── */
@@ -1453,17 +1699,6 @@
     padding: 28px 32px;
   }
 
-  .pickup-card__top {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .pickup-progress {
-    width: 360px;
-    flex-shrink: 0;
-  }
-
   .pickup-overlay {
     align-items: center;
     padding: 24px;
@@ -1496,8 +1731,8 @@
   }
 
   .pickup-progress {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 4px;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 2px;
   }
 
   .pickup-progress__marker {
@@ -1509,7 +1744,7 @@
   /* P1: 모바일 신청서 progress 라벨은 11px이면 학부모 셀러 시인성 부족.
      현재 단계 라벨만 키워 노출, 나머지는 점만 보이게 처리 */
   .pickup-progress__label {
-    font-size: 10px;
+    font-size: 9px;
     color: transparent;
     transition: color 0.15s ease;
   }
@@ -1521,7 +1756,7 @@
 
   .pickup-progress__item.is-current .pickup-progress__label {
     color: var(--public-ds-text);
-    font-size: 12px;
+    font-size: 10px;
     font-weight: 700;
   }
 
@@ -1542,5 +1777,53 @@
 
   .pickup-success__title {
     font-size: 20px;
+  }
+
+  /* 판매 과정 — 모바일에서는 사진/텍스트를 세로로 쌓고 각각 중앙 정렬 */
+  .pickup-guide-step {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 10px;
+  }
+
+  .pickup-guide-step__photo {
+    width: 100%;
+    max-width: 240px;
+    height: auto;
+    aspect-ratio: 3 / 2;
+  }
+
+  .pickup-guide-step__text {
+    padding-top: 0;
+  }
+
+  .pickup-guide-step__label {
+    font-size: 13px;
+  }
+
+  .pickup-guide-step__desc {
+    font-size: 12px;
+  }
+
+  /* 안내 페이지 전반 폰트 축소 */
+  .pickup-guide-section__title {
+    font-size: 14px;
+  }
+
+  .pickup-guide-list__text strong {
+    font-size: 13px;
+  }
+
+  .pickup-guide-list__text span {
+    font-size: 12px;
+  }
+
+  .pickup-guide-photo__caption {
+    font-size: 11px;
+  }
+
+  .pickup-guide-section__note {
+    font-size: 11px;
   }
 }

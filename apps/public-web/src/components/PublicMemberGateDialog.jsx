@@ -2,12 +2,21 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useFocusTrap } from "@shared-domain/useFocusTrap";
 import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
+import PublicOAuthButtons from "./PublicOAuthButtons";
 import { LockIcon } from "./icons";
 
 function PublicMemberGateDialog({ onClose, onLogin, onSignup, open }) {
   const [offsetY, setOffsetY] = useState(0);
   const startYRef = useRef(null);
   const dialogRef = useRef(null);
+
+  // 소셜 로그인 후 원래 보던 페이지로 복귀.
+  const oauthRedirectTo =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/auth/callback?next=${encodeURIComponent(
+          `${window.location.pathname}${window.location.search}`,
+        )}`
+      : undefined;
 
   useFocusTrap(dialogRef, open);
   useBodyScrollLock(open);
@@ -75,7 +84,7 @@ function PublicMemberGateDialog({ onClose, onLogin, onSignup, open }) {
   };
 
   return createPortal(
-    <div className="public-sheet-backdrop" onClick={onClose}>
+    <div className="public-sheet-backdrop public-sheet-backdrop--centered" onClick={onClose}>
       <section
         aria-labelledby="public-member-gate-title"
         aria-modal="true"
@@ -109,6 +118,12 @@ function PublicMemberGateDialog({ onClose, onLogin, onSignup, open }) {
         </div>
 
         <div className="public-member-gate__actions">
+          <PublicOAuthButtons
+            contextLabel="로그인"
+            dividerPosition="none"
+            placement="top"
+            redirectTo={oauthRedirectTo}
+          />
           <button className="public-auth-button public-auth-button--primary" onClick={onLogin} type="button">
             로그인
           </button>
