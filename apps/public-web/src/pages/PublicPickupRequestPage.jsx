@@ -5,15 +5,26 @@ import PublicFooter from "../components/PublicFooter";
 import {
   AlertTriangleIcon,
   ArrowRightIcon,
+  BookIcon,
   BoxIcon,
   CheckCircleIcon,
   CheckIcon,
+  ClockIcon,
   CoinIcon,
   InfoIcon,
   MapPinIcon,
   SearchIcon,
+  SlidersIcon,
+  TruckIcon,
 } from "../components/icons";
 import boxIconPng from "../assets/icons/box.png";
+import processImg1 from "../assets/process1.png";
+import processImg2 from "../assets/process2.png";
+import processImg3 from "../assets/process3.png";
+import processImg4 from "../assets/process4.png";
+import bookImg1 from "../assets/book1.png";
+import bookImg2 from "../assets/book2.png";
+import bookImg3 from "../assets/book3.png";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { BANK_LIST, submitPickupRequest } from "../lib/pickupRequest";
 import { KAKAO_CHANNEL_URL } from "../lib/supportChannels";
@@ -23,7 +34,7 @@ import { usePageMeta } from "../lib/usePageMeta";
 import "./PublicPickupRequestPage.css";
 
 const PICKUP_REQUEST_PATH = "/pickup/new";
-const STEPS = ["수거 정보", "정산 정보", "확인"];
+const STEPS = ["안내", "수거 정보", "예상 권수", "박스 수", "정산 정보", "검수 안내", "확인"];
 
 // ─── 작성 중 신청서 임시 저장 ───
 const DRAFT_STORAGE_KEY = "subook.pickup.draft.v2";
@@ -139,52 +150,6 @@ function Toast({ message, tone, onClose }) {
 // 2026-05-19 정책: 신규 입고는 모두 "안 쓴(미사용) 교재"만 수령.
 // 2026-06-08 모델 변경: 사용자는 교재를 개별 등록하지 않고 예상 권수/박스 수만 보냄.
 // 책별 가격·등급은 검수 후 운영팀이 정해 마이페이지에서 안내.
-function PickupPolicyPreview() {
-  return (
-    <div
-      className="pickup-policy-preview"
-      role="region"
-      aria-label="신청 전 꼭 알아두세요"
-    >
-      <p className="pickup-policy-preview__title">신청 전 꼭 알아두세요.</p>
-      <div className="pickup-policy-preview__highlight">
-        <strong>안 쓴 새 책(미사용)</strong>,{" "}
-        <strong>수능 기준 3개년 이내</strong> 교재만 받습니다.
-        <span>
-          {" "}
-          비닐 개봉은 괜찮지만 필기·형광펜이 있거나 표지·내지가 손상된 책은
-          판매불가입니다.
-        </span>
-      </div>
-      <ul className="pickup-policy-preview__list">
-        <li>
-          <strong>교재 정보 불필요</strong> 어떤 책을 보내는지 일일이 적지
-          않아도 돼요. 검수 과정에서 수북이 대신 등록해 드려요.
-        </li>
-        <li>
-          <strong>무료 수거</strong> 별도의 수거 비용은 없어요.
-        </li>
-        <li>
-          <strong>상품화 비용</strong> 박스 1개당 상품화 비용 5,000원이 정산 시
-          차감돼요. 여러 박스보다 큰 박스 하나에 담는 게 유리해요.
-        </li>
-        <li>
-          <strong>가격 책정</strong> 교재별 판매가는 검수 완료 후 운영팀이
-          산정하며, 마이페이지를 통해 안내해 드려요.
-        </li>
-        <li>
-          <strong>정산</strong> 구매확정이 완료된 판매 건에 한해,{" "}
-          <strong>매월 1일</strong>등록하신 계좌로 정산 금액이 입금돼요.
-        </li>
-        <li>
-          <strong>검수 폐기·반송 없음</strong> 기준 미달 교재는 판매불가 → 자체
-          폐기(반송 없음)
-        </li>
-      </ul>
-    </div>
-  );
-}
-
 // ─── 공동현관 비밀번호 보기/숨기기 토글 ───
 function PickupPasswordField({ value, onChange }) {
   const [reveal, setReveal] = useState(false);
@@ -214,12 +179,239 @@ function PickupPasswordField({ value, onChange }) {
   );
 }
 
-// ─── Step 1: 수거 정보 (주소 + 예상 권수/박스 수) ───
-function StepAddress({
+// ─── Step 0: 판매 안내 (판매 과정 · 가능/불가 상품 · 박스 규정 · 유의사항) ───
+const PICKUP_INTRO_NOTES = [
+  "새 교재 + 현재 수능 기준 3개년 이내 교재만 접수해 주세요.",
+  "검수 기준 미달 교재는 판매불가 → 자체 폐기되며 반송되지 않습니다.",
+  "교재 상태·수요에 따라 판매가 어려운 교재는 판매되지 않을 수 있어요.",
+  "모든 교재의 판매 여부·판매가는 수북의 검수 기준에 따라 결정됩니다.",
+];
+
+function StepIntro({ onNext }) {
+  const [acked, setAcked] = useState(() => PICKUP_INTRO_NOTES.map(() => false));
+  const allAcked = acked.every(Boolean);
+  const toggleAck = (index) =>
+    setAcked((prev) => prev.map((v, i) => (i === index ? !v : v)));
+  const toggleAllAck = (checked) =>
+    setAcked(PICKUP_INTRO_NOTES.map(() => checked));
+
+  return (
+    <div className="pickup-step">
+      <div className="pickup-step__header">
+        <h2 className="pickup-step__title">교재 위탁판매, 이렇게 진행돼요</h2>
+      </div>
+
+      {/* 판매 과정 — 단계별 사진 + 설명 (사진은 추후 삽입) */}
+      <section className="pickup-guide-section">
+        <p className="pickup-guide-section__title">판매 과정</p>
+        <div className="pickup-guide-steps">
+          <div className="pickup-guide-step">
+            <div className="pickup-guide-step__photo">
+              <img src={processImg1} alt="" />
+            </div>
+            <div className="pickup-guide-step__text">
+              <p className="pickup-guide-step__label">STEP 1. 판매 신청</p>
+              <p className="pickup-guide-step__desc">
+                간편 신청 폼으로 교재를 신청하세요. 팔 교재 수와 수거 주소만
+                입력하면 돼요. 자세한 교재 정보는 검수 과정에서 수북이 대신
+                등록해드려요.
+              </p>
+            </div>
+          </div>
+          <div className="pickup-guide-step">
+            <div className="pickup-guide-step__photo">
+              <img src={processImg2} alt="" />
+            </div>
+            <div className="pickup-guide-step__text">
+              <p className="pickup-guide-step__label">STEP 2. 상품 검수 및 준비</p>
+              <p className="pickup-guide-step__desc">
+                수거된 교재는 수북 검수 센터에서 상태별로 검수·등급 산정 후
+                상품화 과정을 거쳐 스토어에 등록돼요.
+              </p>
+            </div>
+          </div>
+          <div className="pickup-guide-step">
+            <div className="pickup-guide-step__photo">
+              <img src={processImg3} alt="" />
+            </div>
+            <div className="pickup-guide-step__text">
+              <p className="pickup-guide-step__label">STEP 3. 상품 판매</p>
+              <p className="pickup-guide-step__desc">
+                판매가 시작되면 스토어에 교재가 노출되고 구매자에게 판매돼요.
+                판매 현황은 마이페이지에서 확인할 수 있어요.
+              </p>
+            </div>
+          </div>
+          <div className="pickup-guide-step">
+            <div className="pickup-guide-step__photo">
+              <img src={processImg4} alt="" />
+            </div>
+            <div className="pickup-guide-step__text">
+              <p className="pickup-guide-step__label">STEP 4. 정산</p>
+              <p className="pickup-guide-step__desc">
+                판매·구매확정된 건은 수수료를 제외한 금액을 매월 1일 등록하신
+                계좌로 정산해드려요.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 판매 가능 상품 — 아이콘 + 설명 */}
+      <section className="pickup-guide-section">
+        <p className="pickup-guide-section__title">판매 가능 상품</p>
+        <ul className="pickup-guide-list">
+          <li className="pickup-guide-list__item">
+            <span className="pickup-guide-list__icon">
+              <BookIcon size={18} />
+            </span>
+            <div className="pickup-guide-list__text">
+              <strong>수능·내신, 어떤 교재든 괜찮아요</strong>
+              <span>과목·출판사 상관없이 접수할 수 있어요.</span>
+            </div>
+          </li>
+          <li className="pickup-guide-list__item">
+            <span className="pickup-guide-list__icon">
+              <SlidersIcon size={18} />
+            </span>
+            <div className="pickup-guide-list__text">
+              <strong>상태에 맞게 판매돼요</strong>
+              <span>교재별로 검수 후 상태에 맞는 등급·가격으로 판매돼요.</span>
+            </div>
+          </li>
+          <li className="pickup-guide-list__item">
+            <span className="pickup-guide-list__icon">
+              <ClockIcon size={18} />
+            </span>
+            <div className="pickup-guide-list__text">
+              <strong>최근 3개년 이내 교재만 확인해주세요</strong>
+              <span>현재 수능 기준 3개년 이내 교재만 접수 가능해요.</span>
+            </div>
+          </li>
+        </ul>
+      </section>
+
+      {/* 판매 불가 상품 예시 — 사진 3장 (추후 삽입) */}
+      <section className="pickup-guide-section">
+        <p className="pickup-guide-section__title">판매 불가 상품 예시</p>
+        <div className="pickup-guide-photos">
+          <figure className="pickup-guide-photo">
+            <div className="pickup-guide-photo__img">
+              <img src={bookImg1} alt="" />
+            </div>
+            <figcaption className="pickup-guide-photo__caption">
+              필기·형광펜이 많은 교재
+            </figcaption>
+          </figure>
+          <figure className="pickup-guide-photo">
+            <div className="pickup-guide-photo__img">
+              <img src={bookImg2} alt="" />
+            </div>
+            <figcaption className="pickup-guide-photo__caption">
+              훼손·물에 젖은 교재
+            </figcaption>
+          </figure>
+          <figure className="pickup-guide-photo">
+            <div className="pickup-guide-photo__img">
+              <img src={bookImg3} alt="" />
+            </div>
+            <figcaption className="pickup-guide-photo__caption">
+              찢어지거나 표지 없는 교재
+            </figcaption>
+          </figure>
+        </div>
+        <p className="pickup-guide-section__note">
+          판매 가능 여부는 상품 검수 과정에서 최종적으로 판단됩니다.
+        </p>
+      </section>
+
+      {/* 박스 포장 및 발송 규정 — 아이콘 + 설명 */}
+      <section className="pickup-guide-section">
+        <p className="pickup-guide-section__title">박스 포장 및 발송 규정</p>
+        <ul className="pickup-guide-list">
+          <li className="pickup-guide-list__item">
+            <span className="pickup-guide-list__icon">
+              <BoxIcon size={18} />
+            </span>
+            <div className="pickup-guide-list__text">
+              <strong>딱 맞는 박스에 담아주세요</strong>
+              <span>
+                빈 공간 없이 딱 맞는 박스에 담아주세요. 여러 박스보다 가장 큰
+                박스 하나가 유리해요.
+              </span>
+            </div>
+          </li>
+          <li className="pickup-guide-list__item">
+            <span className="pickup-guide-list__icon">
+              <CoinIcon size={18} />
+            </span>
+            <div className="pickup-guide-list__text">
+              <strong>상품화 비용 5,000원</strong>
+              <span>정산 시 박스 당 상품화 비용 5,000원이 차감돼요.</span>
+            </div>
+          </li>
+          <li className="pickup-guide-list__item">
+            <span className="pickup-guide-list__icon">
+              <TruckIcon size={18} />
+            </span>
+            <div className="pickup-guide-list__text">
+              <strong>수거는 무료예요</strong>
+              <span>
+                별도의 수거 비용은 없어요. 흔들리지 않게 포장해 문 앞에 두시면
+                돼요.
+              </span>
+            </div>
+          </li>
+        </ul>
+      </section>
+
+      {/* 유의사항 — 확인 체크 (전체 선택 포함) */}
+      <section className="pickup-guide-section">
+        <p className="pickup-guide-section__title">유의사항</p>
+        <label className="pickup-ack pickup-ack--all">
+          <input
+            checked={allAcked}
+            onChange={(e) => toggleAllAck(e.target.checked)}
+            type="checkbox"
+          />
+          <span>전체 선택</span>
+        </label>
+        <div className="pickup-ack-list">
+          {PICKUP_INTRO_NOTES.map((note, index) => (
+            <label className="pickup-ack" key={note}>
+              <input
+                checked={acked[index]}
+                onChange={() => toggleAck(index)}
+                type="checkbox"
+              />
+              <span>{note}</span>
+            </label>
+          ))}
+        </div>
+      </section>
+
+      <div className="pickup-step-actions">
+        <div />
+        <button
+          className="pickup-btn pickup-btn--primary"
+          disabled={!allAcked}
+          onClick={onNext}
+          type="button"
+        >
+          다음 단계 <ArrowRightIcon size={13} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Step 1: 수거 정보 (신청자 정보 + 주소 + 희망수거일) ───
+function StepAddressForm({
   address,
   setAddress,
   savedAddresses,
   onNext,
+  onPrev,
   showToast,
 }) {
   const [selectedSavedId, setSelectedSavedId] = useState(null);
@@ -237,8 +429,6 @@ function StepAddress({
       return "주말은 수거가 어렵습니다. 다음 영업일로 변경해주세요.";
     return "";
   }, [address.desired_pickup_date]);
-  const expectedCountNumber = Number.parseInt(address.expected_book_count, 10);
-  const boxCountNumber = Number.parseInt(address.box_count, 10);
 
   useEffect(() => {
     if (savedAddresses.length > 0 && !selectedSavedId && !useNewAddress) {
@@ -250,31 +440,27 @@ function StepAddress({
 
   const selectSaved = (addr) => {
     setSelectedSavedId(addr.id);
-    // 저장된 주소에 상세 주소(동/호수)가 없으면 사용자가 채워야 하므로
-    // 새 주소 입력 폼을 열어 address_line2를 노출한다.
     const detail = addr.address_line2 || "";
     setUseNewAddress(!detail.trim());
-    // 새 주소 입력 도중 다른 저장 주소를 고르면 잔존 필드(공동현관 비밀번호/이메일 등)가
-    // 이전 입력값 그대로 전송될 수 있으므로 모두 빈 값으로 명시 reset.
-    setAddress({
+    // 주소만 교체하고, 다른 단계에서 입력한 수거일·권수·박스 수는 보존한다.
+    setAddress((prev) => ({
       recipient_name: addr.recipient_name,
       recipient_phone: addr.recipient_phone,
       postal_code: addr.postal_code,
       address_line1: addr.address_line1,
       address_line2: detail,
       memo: addr.delivery_memo || "",
-      email: "",
+      email: prev.email || "",
       entrance_password: "",
-      desired_pickup_date: "",
-      expected_book_count: "",
-      box_count: "",
-    });
+      desired_pickup_date: prev.desired_pickup_date || "",
+      expected_book_count: prev.expected_book_count || "",
+      box_count: prev.box_count || "",
+    }));
   };
 
   const startNewAddress = () => {
     setSelectedSavedId(null);
     setUseNewAddress(true);
-    // 새 주소 입력으로 전환할 때 프로필 기본값(수령인 이름/전화)은 보존하고 주소만 비운다.
     setAddress((prev) => ({
       recipient_name: prev.recipient_name || "",
       recipient_phone: prev.recipient_phone || "",
@@ -340,19 +526,13 @@ function StepAddress({
     isValidKoreanMobile(address.recipient_phone) &&
     address.postal_code.trim() &&
     address.address_line1.trim() &&
-    address.address_line2.trim() &&
-    Number.isFinite(expectedCountNumber) &&
-    expectedCountNumber > 0 &&
-    Number.isFinite(boxCountNumber) &&
-    boxCountNumber > 0;
+    address.address_line2.trim();
 
   return (
     <div className="pickup-step">
       <div className="pickup-step__header">
         <h2 className="pickup-step__title">수거 정보를 입력해주세요</h2>
       </div>
-
-      <PickupPolicyPreview />
 
       {/* 저장된 주소 선택 */}
       {savedAddresses.length > 0 && (
@@ -517,44 +697,133 @@ function StepAddress({
         )}
       </div>
 
-      {/* 예상권수 / 박스개수 (필수) */}
-      <div className="pickup-form-row">
-        <div className="pickup-form-field">
-          <label className="pickup-field-label">예상 권수 *</label>
-          <input
-            className="pickup-input"
-            inputMode="numeric"
-            min="1"
-            onChange={(e) => {
-              const digits = e.target.value.replace(/\D/g, "").slice(0, 4);
-              setAddress((p) => ({ ...p, expected_book_count: digits }));
-            }}
-            placeholder="예: 25"
-            type="text"
-            value={address.expected_book_count}
-          />
-          <span className="pickup-field-hint">
-            실제 정산 권수는 검수 후 확정돼요.
-          </span>
-        </div>
-        <div className="pickup-form-field">
-          <label className="pickup-field-label">박스 개수 *</label>
-          <input
-            className="pickup-input"
-            inputMode="numeric"
-            min="1"
-            onChange={(e) => {
-              const digits = e.target.value.replace(/\D/g, "").slice(0, 3);
-              setAddress((p) => ({ ...p, box_count: digits }));
-            }}
-            placeholder="예: 2"
-            type="text"
-            value={address.box_count}
-          />
-          <span className="pickup-field-hint">
-            정산 시 박스당 <strong>5,000원</strong>의 비용이 차감돼요.
-          </span>
-        </div>
+      {!isValid && (
+        <p className="pickup-step__invalid-hint">
+          {!address.recipient_name.trim() ||
+          !address.recipient_phone.trim() ||
+          !isValidKoreanMobile(address.recipient_phone)
+            ? "수령인 이름과 휴대폰 번호를 정확히 입력해주세요."
+            : !address.postal_code.trim() || !address.address_line1.trim()
+              ? "주소 검색으로 도로명/지번 주소를 선택해주세요."
+              : "상세 주소(동/호수)를 입력해주세요."}
+        </p>
+      )}
+
+      <div className="pickup-step-actions">
+        <button
+          className="pickup-btn pickup-btn--secondary"
+          onClick={onPrev}
+          type="button"
+        >
+          이전
+        </button>
+        <button
+          className="pickup-btn pickup-btn--primary"
+          disabled={!isValid}
+          onClick={onNext}
+          type="button"
+        >
+          다음 단계 <ArrowRightIcon size={13} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Step 2: 예상 권수 ───
+function StepExpectedCount({ address, setAddress, onNext, onPrev }) {
+  const expectedCountNumber = Number.parseInt(address.expected_book_count, 10);
+  const isValid =
+    Number.isFinite(expectedCountNumber) && expectedCountNumber > 0;
+
+  return (
+    <div className="pickup-step">
+      <div className="pickup-step__header">
+        <h2 className="pickup-step__title">예상 권수를 알려주세요</h2>
+      </div>
+
+      <div className="pickup-form-field">
+        <label className="pickup-field-label">예상 권수 *</label>
+        <input
+          className="pickup-input"
+          inputMode="numeric"
+          min="1"
+          onChange={(e) => {
+            const digits = e.target.value.replace(/\D/g, "").slice(0, 4);
+            setAddress((p) => ({ ...p, expected_book_count: digits }));
+          }}
+          placeholder="예: 25"
+          type="text"
+          value={address.expected_book_count}
+        />
+        <span className="pickup-field-hint">
+          실제 판매 권수는 검수 후 확정돼요.
+        </span>
+      </div>
+
+      <div className="pickup-info-box">
+        <ul className="pickup-info-box__list">
+          <li>
+            <strong>교재 정보 불필요</strong> 어떤 책을 보내는지 일일이 적지
+            않아도 돼요. 검수 과정에서 수북이 대신 등록해 드려요.
+          </li>
+          <li>
+            <strong>가격 책정</strong> 교재별 판매가는 검수 완료 후 운영팀이
+            산정하며, 마이페이지를 통해 안내해 드려요.
+          </li>
+        </ul>
+      </div>
+
+      <div className="pickup-step-actions">
+        <button
+          className="pickup-btn pickup-btn--secondary"
+          onClick={onPrev}
+          type="button"
+        >
+          이전
+        </button>
+        <button
+          className="pickup-btn pickup-btn--primary"
+          disabled={!isValid}
+          onClick={onNext}
+          type="button"
+        >
+          다음 단계 <ArrowRightIcon size={13} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Step 3: 박스 개수 + 포장 안내 ───
+function StepBoxCount({ address, setAddress, onNext, onPrev }) {
+  const boxCountNumber = Number.parseInt(address.box_count, 10);
+  const isValid = Number.isFinite(boxCountNumber) && boxCountNumber > 0;
+
+  return (
+    <div className="pickup-step">
+      <div className="pickup-step__header">
+        <h2 className="pickup-step__title">박스는 몇 개인가요?</h2>
+      </div>
+
+      <div className="pickup-form-field">
+        <label className="pickup-field-label">박스 개수 *</label>
+        <input
+          className="pickup-input"
+          inputMode="numeric"
+          min="1"
+          onChange={(e) => {
+            const digits = e.target.value.replace(/\D/g, "").slice(0, 3);
+            setAddress((p) => ({ ...p, box_count: digits }));
+          }}
+          placeholder="예: 2"
+          type="text"
+          value={address.box_count}
+        />
+        <span className="pickup-field-hint">
+          정산 시 박스 당 <strong>상품화 비용 5,000원</strong>이 차감돼요. 여러
+          박스보다 큰 박스 하나에 담는 게 유리해요.
+        </span>
       </div>
 
       {/* 포장 안내 */}
@@ -575,29 +844,14 @@ function StepAddress({
         </ul>
       </div>
 
-      {!isValid && (
-        <p className="pickup-step__invalid-hint">
-          {!address.recipient_name.trim() ||
-          !address.recipient_phone.trim() ||
-          !isValidKoreanMobile(address.recipient_phone)
-            ? "수령인 이름과 휴대폰 번호를 정확히 입력해주세요."
-            : !address.postal_code.trim() || !address.address_line1.trim()
-              ? "주소 검색으로 도로명/지번 주소를 선택해주세요."
-              : !address.address_line2.trim()
-                ? "상세 주소(동/호수)를 입력해주세요."
-                : !(
-                      Number.isFinite(expectedCountNumber) &&
-                      expectedCountNumber > 0
-                    )
-                  ? "예상 권수를 입력해주세요."
-                  : !(Number.isFinite(boxCountNumber) && boxCountNumber > 0)
-                    ? "박스 개수를 입력해주세요."
-                    : "필수 입력값을 모두 채워주세요."}
-        </p>
-      )}
-
       <div className="pickup-step-actions">
-        <div />
+        <button
+          className="pickup-btn pickup-btn--secondary"
+          onClick={onPrev}
+          type="button"
+        >
+          이전
+        </button>
         <button
           className="pickup-btn pickup-btn--primary"
           disabled={!isValid}
@@ -956,7 +1210,7 @@ function StepSettlement({
           onClick={onPrev}
           type="button"
         >
-          ← 이전
+          이전
         </button>
         <button
           className="pickup-btn pickup-btn--primary"
@@ -972,6 +1226,51 @@ function StepSettlement({
 }
 
 // ─── Step 3: 확인 및 제출 ───
+// ─── Step 5: 검수 폐기·반송 없음 안내 ───
+function StepDisposalNotice({ onNext, onPrev }) {
+  return (
+    <div className="pickup-step">
+      <div className="pickup-step__header">
+        <h2 className="pickup-step__title">검수 탈락 교재 처리 안내</h2>
+      </div>
+
+      <div className="pickup-info-box">
+        <ul className="pickup-info-box__list">
+          <li>
+            <strong>검수 폐기·반송 없음</strong> 기준 미달 교재는 판매불가 →
+            자체 폐기(반송 없음)
+          </li>
+          <li>
+            실제 판매로 등록되는 교재 수량은 검수가 완료된 후 마이페이지에서 직접
+            확인하실 수 있어요.
+          </li>
+          <li>
+            반드시 <strong>새 교재 + 현재 수능 기준 3개년 이내</strong>의 교재만
+            접수해 주세요.
+          </li>
+        </ul>
+      </div>
+
+      <div className="pickup-step-actions">
+        <button
+          className="pickup-btn pickup-btn--secondary"
+          onClick={onPrev}
+          type="button"
+        >
+          이전
+        </button>
+        <button
+          className="pickup-btn pickup-btn--primary"
+          onClick={onNext}
+          type="button"
+        >
+          다음 단계 <ArrowRightIcon size={13} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function StepConfirm({
   address,
   account,
@@ -998,7 +1297,7 @@ function StepConfirm({
           <span className="pickup-confirm-section__title">수거 수량</span>
           <button
             className="pickup-link-button"
-            onClick={() => goToStep(0)}
+            onClick={() => goToStep(2)}
             type="button"
           >
             수정 <ArrowRightIcon size={13} />
@@ -1025,7 +1324,7 @@ function StepConfirm({
           <span className="pickup-confirm-section__title">수거 주소</span>
           <button
             className="pickup-link-button"
-            onClick={() => goToStep(0)}
+            onClick={() => goToStep(1)}
             type="button"
           >
             수정 <ArrowRightIcon size={13} />
@@ -1057,7 +1356,7 @@ function StepConfirm({
           <span className="pickup-confirm-section__title">정산 계좌</span>
           <button
             className="pickup-link-button"
-            onClick={() => goToStep(1)}
+            onClick={() => goToStep(4)}
             type="button"
           >
             수정 <ArrowRightIcon size={13} />
@@ -1152,7 +1451,7 @@ function StepConfirm({
           onClick={onPrev}
           type="button"
         >
-          ← 이전
+          이전
         </button>
         <button
           className="pickup-btn pickup-btn--primary"
@@ -1415,7 +1714,7 @@ function PublicPickupRequestPage() {
       setPolicyAgreed((prev) => ({ ...prev, ...draftPrompt.policyAgreed }));
     }
     if (Number.isFinite(draftPrompt.step))
-      setCurrentStep(Math.min(2, Math.max(0, draftPrompt.step)));
+      setCurrentStep(Math.min(6, Math.max(0, draftPrompt.step)));
     setDraftPrompt(null);
     draftDecidedRef.current = true;
     draftReadyRef.current = true;
@@ -1427,6 +1726,17 @@ function PublicPickupRequestPage() {
     draftDecidedRef.current = true;
     draftReadyRef.current = true;
   };
+
+  // 안내(0단계) 다음으로 넘어가면 = 이어쓰기 대신 새로 작성하는 것으로 보고
+  // '작성중이던 신청서가 있어요' 배너를 닫는다(옛 draft는 버리고 새 입력을 저장 시작).
+  useEffect(() => {
+    if (currentStep > 0 && draftPrompt) {
+      clearDraft();
+      setDraftPrompt(null);
+      draftDecidedRef.current = true;
+      draftReadyRef.current = true;
+    }
+  }, [currentStep, draftPrompt]);
 
   const handleCancel = () => {
     if (
@@ -1582,33 +1892,59 @@ function PublicPickupRequestPage() {
               ) : (
                 <>
                   {currentStep === 0 && (
-                    <StepAddress
+                    <StepIntro onNext={() => goToStep(1)} />
+                  )}
+                  {currentStep === 1 && (
+                    <StepAddressForm
                       address={address}
-                      onNext={() => goToStep(1)}
+                      onNext={() => goToStep(2)}
+                      onPrev={() => goToStep(0)}
                       savedAddresses={savedAddresses}
                       setAddress={setAddress}
                       showToast={showToast}
                     />
                   )}
-                  {currentStep === 1 && (
+                  {currentStep === 2 && (
+                    <StepExpectedCount
+                      address={address}
+                      onNext={() => goToStep(3)}
+                      onPrev={() => goToStep(1)}
+                      setAddress={setAddress}
+                    />
+                  )}
+                  {currentStep === 3 && (
+                    <StepBoxCount
+                      address={address}
+                      onNext={() => goToStep(4)}
+                      onPrev={() => goToStep(2)}
+                      setAddress={setAddress}
+                    />
+                  )}
+                  {currentStep === 4 && (
                     <StepSettlement
                       account={account}
                       memberProfileName={memberProfileName}
-                      onNext={() => goToStep(2)}
-                      onPrev={() => goToStep(0)}
+                      onNext={() => goToStep(5)}
+                      onPrev={() => goToStep(3)}
                       policyAgreed={policyAgreed}
                       savedAccounts={savedAccounts}
                       setAccount={setAccount}
                       setPolicyAgreed={setPolicyAgreed}
                     />
                   )}
-                  {currentStep === 2 && (
+                  {currentStep === 5 && (
+                    <StepDisposalNotice
+                      onNext={() => goToStep(6)}
+                      onPrev={() => goToStep(4)}
+                    />
+                  )}
+                  {currentStep === 6 && (
                     <StepConfirm
                       account={account}
                       address={address}
                       goToStep={goToStep}
                       isSubmitting={isSubmitting}
-                      onPrev={() => goToStep(1)}
+                      onPrev={() => goToStep(5)}
                       onSubmit={handleSubmit}
                     />
                   )}
