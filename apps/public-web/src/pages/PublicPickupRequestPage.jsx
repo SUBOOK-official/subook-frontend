@@ -18,13 +18,13 @@ import {
   TruckIcon,
 } from "../components/icons";
 import boxIconPng from "../assets/icons/box.png";
-import processImg1 from "../assets/process1.png";
-import processImg2 from "../assets/process2.png";
-import processImg3 from "../assets/process3.png";
-import processImg4 from "../assets/process4.png";
-import bookImg1 from "../assets/book1.png";
-import bookImg2 from "../assets/book2.png";
-import bookImg3 from "../assets/book3.png";
+import processImg1 from "../assets/process1.jpg";
+import processImg2 from "../assets/process2.jpg";
+import processImg3 from "../assets/process3.jpg";
+import processImg4 from "../assets/process4.jpg";
+import bookImg1 from "../assets/book1.jpg";
+import bookImg2 from "../assets/book2.jpg";
+import bookImg3 from "../assets/book3.jpg";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { BANK_LIST, submitPickupRequest } from "../lib/pickupRequest";
 import { KAKAO_CHANNEL_URL } from "../lib/supportChannels";
