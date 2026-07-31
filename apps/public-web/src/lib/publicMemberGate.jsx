@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import PublicMemberGateDialog from "../components/PublicMemberGateDialog";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
+import { trackLoginGateShown } from "./analytics";
 import { createMemberGateRedirectState } from "./publicMemberGateUtils";
 import { setPendingMemberAction } from "./pendingMemberAction";
 
@@ -28,6 +29,8 @@ function usePublicMemberGate() {
       setActionType(nextActionType);
       setRedirectTarget(nextRedirectTarget);
       setIsOpen(true);
+      // GA4 login_gate_shown — 로그인 관문이 구매 흐름을 얼마나 끊는지 계측
+      trackLoginGateShown(nextActionType);
       // 로그인 후 이어서 실행할 행동(담기/바로구매/찜)을 저장. 호출부가 파라미터까지 담아 넘긴다.
       if (pendingAction) {
         setPendingMemberAction(pendingAction);

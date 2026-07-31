@@ -10,7 +10,7 @@ import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
 import { BellIcon, CloseIcon } from "../components/icons";
 import { usePublicWishlist } from "../contexts/PublicWishlistContext";
-import { trackAddToCart, trackViewItem } from "../lib/analytics";
+import { trackAddToCart, trackBuyClick, trackViewItem } from "../lib/analytics";
 import { FREE_SHIPPING_THRESHOLD, SHIPPING_FEE, addToCart } from "../lib/cart";
 import usePublicMemberGate from "../lib/publicMemberGate";
 import {
@@ -1431,6 +1431,12 @@ function PublicProductDetailPage() {
 
   const handleAddToCart = async () => {
     if (!canPurchase || !hasSelection) return;
+    // GA4 buy_click — 로그인 관문 "앞"에서 발화 (비로그인 구매 의도까지 계측)
+    trackBuyClick("add_to_cart", {
+      productId: product?.productId ?? product?.id,
+      itemCount: selectionCount,
+      value: selectionSubtotal,
+    });
     const cartArgsList = buildCartArgsFromBooks(product, allocatedBooks);
     if (cartArgsList.length === 0) {
       // 안전망: 할당 실패는 비정상 상태 → explicit error 후 새로고침 유도.
@@ -1450,6 +1456,12 @@ function PublicProductDetailPage() {
 
   const handleBuyNow = async () => {
     if (!canPurchase || !hasSelection) return;
+    // GA4 buy_click — 로그인 관문 "앞"에서 발화 (비로그인 구매 의도까지 계측)
+    trackBuyClick("buy_now", {
+      productId: product?.productId ?? product?.id,
+      itemCount: selectionCount,
+      value: selectionSubtotal,
+    });
     const orderItems = buildOrderItemsFromBooks(product, allocatedBooks);
     if (orderItems.length === 0) {
       setOptionLoadError(true);

@@ -1,8 +1,14 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/publicSupabaseClient";
+import { trackLogin } from "../lib/analytics";
 import { getPublicAccountAccessState } from "../lib/publicAuthAccess";
 
 const PublicAuthContext = createContext(null);
+
+// GA4 login 이벤트 중복 방지 — 세션 복원(INITIAL_SESSION)·토큰 갱신·탭 포커스 재발화를
+// "직전에 본 사용자 id와 같은가"로 걸러 실제 로그인만 1회 계측한다. 모듈 스코프라
+// Provider 리마운트(StrictMode 이중 실행 포함)에도 안전.
+let lastSeenAuthUserId = null;
 
 function PublicAuthProvider({ children }) {
   const [state, setState] = useState({
@@ -19,6 +25,8 @@ function PublicAuthProvider({ children }) {
     let isMounted = true;
 
     const applySession = async (nextSession) => {
+      // 로그인/복원 어느 경로든 최종 사용자 id를 기록 (login 이벤트 중복 가드의 기준값)
+      lastSeenAuthUserId = nextSession?.user?.id ?? null;
       if (!isMounted) {
         return;
       }
@@ -77,7 +85,12 @@ function PublicAuthProvider({ children }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      // GA4 login — 실제 로그인(SIGNED_IN + 사용자 전환)만. 복원·재발화는 가드로 스킵.
+      const nextUserId = nextSession?.user?.id ?? null;
+      if (event === "SIGNED_IN" && nextUserId && nextUserId !== lastSeenAuthUserId) {
+        trackLogin(nextSession.user.app_metadata?.provider ?? "email");
+      }
       void applySession(nextSession);
     });
 

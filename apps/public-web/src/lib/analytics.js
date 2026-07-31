@@ -81,4 +81,37 @@ function trackPurchase({ transactionId, value, shipping, items }) {
   });
 }
 
-export { trackAddToCart, trackBeginCheckout, trackPurchase, trackViewItem };
+// ── 구매 여정 중간 계측 (2026-08-01 첫 주간 분석 후속) ─────────────────────
+// view_item(2,620세션) → begin_checkout(39세션) 사이가 블랙박스라 추가한 3종.
+// 파라미터는 표준 보고서에 자동 노출되지 않지만 BigQuery event_params로는 그대로 쌓인다.
+
+// 구매 의도 클릭 — 담기/바로구매 버튼. 로그인 관문 "앞"이라 비로그인도 잡힌다.
+function trackBuyClick(buyType, { productId, itemCount, value } = {}) {
+  gtagEvent("buy_click", {
+    buy_type: buyType,
+    ...(productId != null ? { item_id: String(productId) } : {}),
+    ...(Number.isFinite(Number(itemCount)) ? { item_count: Number(itemCount) } : {}),
+    currency: CURRENCY,
+    value: Number(value) || 0,
+  });
+}
+
+// 로그인 관문 노출 — 비로그인이 회원 전용 액션(담기/바로구매/찜 등)을 시도
+function trackLoginGateShown(reason) {
+  gtagEvent("login_gate_shown", { gate_reason: reason || "unknown" });
+}
+
+// 로그인 완료 — GA4 권장 이벤트명 `login` (method=email/google/kakao)
+function trackLogin(method) {
+  gtagEvent("login", { method: method || "unknown" });
+}
+
+export {
+  trackAddToCart,
+  trackBeginCheckout,
+  trackBuyClick,
+  trackLogin,
+  trackLoginGateShown,
+  trackPurchase,
+  trackViewItem,
+};
