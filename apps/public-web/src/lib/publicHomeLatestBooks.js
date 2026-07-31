@@ -5,7 +5,8 @@ import {
   normalizeHomeLatestBooks,
 } from "./publicHomeLatestBooksUtils";
 
-const HOME_LATEST_BOOKS_CACHE_KEY = "subook.public.home.latest-books.v1";
+// v2: isPublic 강제 false 버그로 빈 배열이 캐시된 이력이 있어 키를 올려 즉시 무효화
+const HOME_LATEST_BOOKS_CACHE_KEY = "subook.public.home.latest-books.v2";
 const HOME_LATEST_BOOK_LIMIT = 8;
 
 function hasWindowStorage() {

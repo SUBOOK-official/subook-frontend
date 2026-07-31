@@ -38,6 +38,18 @@ test("normalizeHomeBestBooks keeps only public, non-hidden products and caps the
   ]);
 });
 
+// 회귀 방지: list_public_store_products RPC는 is_public 컬럼을 반환하지 않아
+// isPublic이 null(미상)로 정규화된다. null을 false 취급하면 전 상품이 탈락한다.
+test("normalizeHomeBestBooks keeps products whose isPublic is unknown (null)", () => {
+  const normalized = normalizeHomeBestBooks([
+    { id: "tri-null", isPublic: null, salesCount: 3, viewCount: 1, favoriteCount: 1, createdAt: "2026-04-01T09:00:00+09:00" },
+    { id: "tri-true", isPublic: true, salesCount: 2, viewCount: 1, favoriteCount: 1, createdAt: "2026-04-02T09:00:00+09:00" },
+    { id: "tri-false", isPublic: false, salesCount: 9, viewCount: 9, favoriteCount: 9, createdAt: "2026-04-03T09:00:00+09:00" },
+  ]);
+
+  assert.deepEqual(normalized.map((product) => product.id), ["tri-null", "tri-true"]);
+});
+
 test("isHomeBestBooksCacheStale expires entries after one hour", () => {
   const now = 10_000_000;
   const freshTimestamp = now - HOME_BEST_BOOKS_CACHE_TTL_MS + 1;

@@ -441,7 +441,9 @@ function normalizeStorefrontOptionRow(row = {}, productRow = {}) {
     inspectedAt,
     status,
     statusLabel: getProductStatusLabel(status),
-    isPublic: Boolean(isPublic),
+    // true/false/null 3-state 유지 — RPC가 is_public을 반환하지 않으면 null(미상)이며,
+    // false로 강제하면 홈 캐러셀(isPublic === false 제외 필터)이 전 상품을 탈락시킨다.
+    isPublic,
     availableCount,
     stockCount: availableCount,
     isSoldOut,
@@ -570,7 +572,9 @@ function normalizeStorefrontProductRow(row = {}) {
     inspectedAt,
     status,
     statusLabel: getProductStatusLabel(status),
-    isPublic: Boolean(isPublic),
+    // true/false/null 3-state 유지 — RPC가 is_public을 반환하지 않으면 null(미상)이며,
+    // false로 강제하면 홈 캐러셀(isPublic === false 제외 필터)이 전 상품을 탈락시킨다.
+    isPublic,
     availableCount,
     stockCount: availableCount,
     availableOptionCount,
