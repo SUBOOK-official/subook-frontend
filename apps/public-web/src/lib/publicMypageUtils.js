@@ -861,6 +861,9 @@ export function mapOrderToDisplayOrder(order) {
     quantity: item.quantity ?? 1,
     price: item.total_price ?? item.unit_price ?? 0,
     coverImageUrl: item.cover_image_url ?? null,
+    // 품목별 부분환불 (2026-08-01): 값이 있으면 이 품목만 환불된 상태 (주문 status는 유지)
+    refundedAt: item.refunded_at ?? null,
+    refundAmount: item.refund_amount ?? null,
   }));
 
   const autoConfirmAt = order.auto_confirm_at ? new Date(order.auto_confirm_at) : null;
@@ -910,6 +913,8 @@ export function mapOrderToDisplayOrder(order) {
     canReturn,
     refundRequestedAt,
     refundRequestReason: order.refund_request_reason ?? null,
+    // 환불 누계 (부분환불이면 status 유지 + 이 값만 증가 — 상세보기 시트의 환불 금액 행)
+    refundedAmount: order.refunded_amount ?? 0,
     items,
   };
 }

@@ -82,6 +82,54 @@ test("mapOrderToDisplayOrder exposes payment detail fields for the order detail 
   assert.equal(order.totalAmount, 24000);
 });
 
+test("mapOrderToDisplayOrder exposes per-item refund state for partially refunded orders", () => {
+  // 품목별 부분환불(2026-08-01): 주문 status는 유지되고 품목 refunded_at + 주문 refunded_amount만 채워진다.
+  const order = mapOrderToDisplayOrder({
+    id: "order-partial",
+    order_number: "SB-20260801-0001",
+    status: "preparing",
+    payment_method: "card",
+    payment_status: "paid",
+    created_at: "2026-08-01T10:00:00+09:00",
+    subtotal: 40800,
+    shipping_fee: 3000,
+    total_amount: 43800,
+    refunded_amount: 20400,
+    items: [
+      {
+        id: 11,
+        title: "환불된 교재",
+        total_price: 20400,
+        refunded_at: "2026-08-01T12:00:00+09:00",
+        refund_amount: 20400,
+      },
+      { id: 12, title: "유지되는 교재", total_price: 20400, refunded_at: null, refund_amount: null },
+    ],
+  });
+
+  assert.equal(order.refundedAmount, 20400);
+  assert.equal(order.items[0].refundedAt, "2026-08-01T12:00:00+09:00");
+  assert.equal(order.items[0].refundAmount, 20400);
+  assert.equal(order.items[1].refundedAt, null);
+  assert.equal(order.items[1].refundAmount, null);
+  // 주문 자체는 부분환불이어도 기존 상태를 유지한다 (전 품목 환불 시에만 refunded).
+  assert.equal(order.status, "preparing");
+});
+
+test("mapOrderToDisplayOrder defaults refundedAmount to 0 for orders created before the column existed", () => {
+  const order = mapOrderToDisplayOrder({
+    id: "order-legacy",
+    order_number: "SB-20260701-0001",
+    status: "confirmed",
+    created_at: "2026-07-01T10:00:00+09:00",
+    total_amount: 10000,
+    items: [{ id: 21, title: "교재", total_price: 10000 }],
+  });
+
+  assert.equal(order.refundedAmount, 0);
+  assert.equal(order.items[0].refundedAt, null);
+});
+
 test("mapOrderToDisplayOrder leaves paidAt empty for legacy orders without any payment timestamp", () => {
   const order = mapOrderToDisplayOrder({
     id: "order-2",

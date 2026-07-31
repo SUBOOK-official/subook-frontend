@@ -2545,6 +2545,8 @@ function OrderDetailSheet({ order, onClose }) {
   const couponDiscount = Number(order.couponDiscountAmount) || 0;
   const shippingFee = Number(order.shippingFee) || 0;
   const totalAmount = Number(order.totalAmount) || 0;
+  // 환불 누계 (품목별 부분환불 포함) — 0이면 환불 행 자체를 숨긴다
+  const refundedAmount = Number(order.refundedAmount) || 0;
   // 총 상품금액: subtotal 컬럼 우선, 없으면 합산금액에서 역산(결제금액 + 쿠폰할인 − 배송비).
   const productTotal =
     Number(order.subtotal) || Math.max(0, totalAmount + couponDiscount - shippingFee);
@@ -2596,6 +2598,22 @@ function OrderDetailSheet({ order, onClose }) {
           <dt>결제금액</dt>
           <dd>{formatCurrency(totalAmount)}</dd>
         </div>
+
+        {/* 환불 내역 (2026-08-01 품목별 부분환불) — 부분환불이면 환불 후 금액도 함께 */}
+        {refundedAmount > 0 ? (
+          <>
+            <div className="public-mypage-order-detail__row">
+              <dt>환불 금액</dt>
+              <dd>−{formatCurrency(refundedAmount)}</dd>
+            </div>
+            {order.status !== "refunded" ? (
+              <div className="public-mypage-order-detail__row public-mypage-order-detail__row--total">
+                <dt>환불 후 결제금액</dt>
+                <dd>{formatCurrency(Math.max(0, totalAmount - refundedAmount))}</dd>
+              </div>
+            ) : null}
+          </>
+        ) : null}
       </dl>
     </ResponsiveSheet>
   );
@@ -2668,8 +2686,13 @@ function PurchasesView({
                 order.items.map((item) => (
                   <article className="public-mypage-purchase-card" key={`${order.id}-${item.id}`}>
                     <div className="public-mypage-purchase-card__status-row">
-                      <span className={`public-mypage-chip public-mypage-chip--${getOrderStatusTone(order.status)}`}>
-                        {getOrderStatusLabel(order.status)}
+                      {/* 품목별 부분환불: 이 품목만 환불됐으면 주문 상태 대신 '환불' 칩 (2026-08-01) */}
+                      <span
+                        className={`public-mypage-chip public-mypage-chip--${getOrderStatusTone(
+                          item.refundedAt ? "refunded" : order.status,
+                        )}`}
+                      >
+                        {getOrderStatusLabel(item.refundedAt ? "refunded" : order.status)}
                       </span>
                       <button
                         aria-label="주문 상세보기"
@@ -2726,7 +2749,8 @@ function PurchasesView({
                       >
                         배송 조회
                       </button>
-                      {order.canCancel ? (
+                      {/* 이미 환불된 품목 카드에는 주문 단위 액션(취소·구매확정·환불신청)을 숨긴다 */}
+                      {item.refundedAt ? null : order.canCancel ? (
                         <button
                           className="public-mypage-purchase-card__btn public-mypage-purchase-card__btn--danger"
                           disabled={busyOrderId === order.id}
@@ -2746,7 +2770,7 @@ function PurchasesView({
                           취소 문의
                         </a>
                       ) : null}
-                      {order.canConfirm ? (
+                      {!item.refundedAt && order.canConfirm ? (
                         <button
                           className="public-mypage-purchase-card__btn public-mypage-purchase-card__btn--primary"
                           disabled={busyOrderId === order.id}
@@ -2756,7 +2780,7 @@ function PurchasesView({
                           {busyOrderId === order.id ? "처리 중..." : "구매확정"}
                         </button>
                       ) : null}
-                      {order.canRequestRefund ? (
+                      {!item.refundedAt && order.canRequestRefund ? (
                         <button
                           className="public-mypage-purchase-card__btn"
                           disabled={busyOrderId === order.id}
