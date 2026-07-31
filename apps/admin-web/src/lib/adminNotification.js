@@ -174,9 +174,10 @@ export async function notifyDeliveryDone({ order }) {
   });
 }
 
-// 환불 완료 알림 (구매자) — admin_refund_order 호출 직후 발송.
+// 환불 완료 알림 (구매자) — 환불 처리(전액/부분) 직후 발송.
 // 이전에는 환불 후 어떤 알림도 안 가서 사용자가 "왜 환불 안 됐냐" 문의가 폭주했음.
-export async function notifyRefundCompleted({ order, reason }) {
+// amount: 이번에 실제 환불된 금액 (부분환불이면 부분 금액). 미전달 시 주문 총액 폴백.
+export async function notifyRefundCompleted({ order, reason, amount }) {
   return callSendNotification({
     notificationType: "refund_completed",
     recipientPhone: order.shipping_recipient_phone || order.buyer_phone,
@@ -186,7 +187,7 @@ export async function notifyRefundCompleted({ order, reason }) {
     refId: order.id,
     templateVariables: {
       orderNumber: order.order_number,
-      totalAmount: Number(order.total_amount ?? 0).toLocaleString("ko-KR"),
+      totalAmount: Number(amount ?? order.total_amount ?? 0).toLocaleString("ko-KR"),
       reason: reason || "환불 처리",
     },
   });
