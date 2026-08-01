@@ -275,8 +275,8 @@ function StepIntro({ onNext }) {
               <SlidersIcon size={18} />
             </span>
             <div className="pickup-guide-list__text">
-              <strong>상태에 맞게 판매돼요</strong>
-              <span>교재별로 검수 후 상태에 맞는 등급·가격으로 판매돼요.</span>
+              <strong>새 책만 판매 가능해요</strong>
+              <span>반드시 교재에 필기가 있는지 확인해주세요.</span>
             </div>
           </li>
           <li className="pickup-guide-list__item">
@@ -300,7 +300,7 @@ function StepIntro({ onNext }) {
               <img src={bookImg1} alt="" />
             </div>
             <figcaption className="pickup-guide-photo__caption">
-              필기·형광펜이 많은 교재
+              필기나 형광펜 자국이 있는 교재
             </figcaption>
           </figure>
           <figure className="pickup-guide-photo">
@@ -308,7 +308,7 @@ function StepIntro({ onNext }) {
               <img src={bookImg2} alt="" />
             </div>
             <figcaption className="pickup-guide-photo__caption">
-              훼손·물에 젖은 교재
+              찢어지거나 얼룩이 있는 교재
             </figcaption>
           </figure>
           <figure className="pickup-guide-photo">
@@ -316,7 +316,7 @@ function StepIntro({ onNext }) {
               <img src={bookImg3} alt="" />
             </div>
             <figcaption className="pickup-guide-photo__caption">
-              찢어지거나 표지 없는 교재
+              답지를 분실한 교재
             </figcaption>
           </figure>
         </div>
