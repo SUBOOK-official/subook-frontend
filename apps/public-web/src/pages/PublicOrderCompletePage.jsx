@@ -229,11 +229,11 @@ function PublicOrderCompletePage() {
               createdAt: data.order.created_at,
             });
             // 게스트 카드 결제 완료: purchase 계측(GA4+Meta). 조회 RPC가 items를 함께
-            // 반환하므로 추가 조회 없이 발화한다. RPC items에는 product_id가 없어
-            // 카탈로그 매칭용 content_ids는 생략된다(analytics가 알아서 뺀다).
+            // 반환하므로 추가 조회 없이 발화한다 (product_id 포함 — 카탈로그 매칭).
             fireCardPurchaseOnce(
               data.order,
               (data.items ?? []).map((item) => ({
+                productId: item.product_id,
                 title: item.title,
                 optionLabel: item.option_label,
                 conditionGrade: item.condition_grade,
