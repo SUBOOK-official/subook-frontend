@@ -12,11 +12,16 @@
 |------|------|
 | `src/lib/nicepay.js` | JS SDK 로더 + `AUTHNICE.requestPay` 래퍼 (`NICEPAY_READY` 플래그) |
 | `src/pages/PublicOrderPage.jsx` | `PG_PROVIDER`(nicepay > toss 우선) 분기, 카드 선택 UI, 제출 시 결제창 호출 |
-| `api/payments/nicepay-return.js` | returnUrl POST 수신 → signature 검증 → 승인 API → `confirm_pg_payment` RPC → `/order/complete/:id` 303 |
+| `api/payments/nicepay-return.js` | returnUrl POST 수신 → signature 검증 → `finalize_pg_checkout_session` RPC(주문 생성) → 승인 API → `confirm_pg_payment` RPC → `/order/complete/:id` 303 |
 
-결제 흐름: `create_order`(pending) → 결제창 인증 → returnUrl POST → 서버 승인 →
+결제 흐름(2026-08-03 '선주문 생성' 폐지): `create_pg_checkout_session`(결제 세션 —
+주문·재고 선점 없음) → 결제창 인증 → returnUrl POST → `finalize_pg_checkout_session`으로
+**그때 주문 생성**(재고·쿠폰·금액 재검증, 실패 시 승인 미진행=청구 없음) → 서버 승인 →
 pending→preparing + books=reserved (RPC는 토스와 공용, `p_provider='nicepay'`,
 `payment_key` 컬럼에 나이스페이 **TID** 저장 — 취소 API `/v1/payments/{tid}/cancel`에 필요).
+
+결제창을 그냥 닫고 이탈하면 세션만 남는다(24h 뒤 자동 청소) — 과거처럼 '입금대기'
+주문이 마이페이지에 남거나 책이 30분간 품절로 잠기거나 장바구니가 비워지지 않는다.
 
 승인 후 RPC 확정이 실패하면(재고 충돌 등) **전액 자동취소**를 시도한다(토스 confirm.js와
 다른 점 — 고객 돈이 묶이지 않게 하는 방어). 취소도 실패하면 Vercel 로그에 CRITICAL이

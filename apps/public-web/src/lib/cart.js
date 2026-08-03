@@ -305,6 +305,47 @@ async function createOrder({
   return { data, error: null };
 }
 
+// PG(카드) 결제 세션 생성 — 주문을 만들지 않고 create_order와 동일한 검증·금액 확정만 한다.
+// 주문은 카드 인증 성공 후 서버(nicepay-return)가 finalize RPC로 생성한다.
+// (2026-08-03: 결제창 이탈 시 입금대기 주문·재고 선점·카트 비움이 남던 문제 제거 —
+//  이탈해도 아무 흔적이 없고 장바구니도 그대로 유지된다.)
+// 반환 data는 create_order와 같은 필드 구성(order_number/total_amount 등, order_id는 null).
+async function createPgCheckoutSession({
+  bookIds,
+  quantities,
+  shippingRecipientName,
+  shippingRecipientPhone,
+  shippingPostalCode,
+  shippingAddressLine1,
+  shippingAddressLine2,
+  shippingMemo,
+  paymentMethod = "card",
+  memberCouponId = null,
+}) {
+  if (!isSupabaseConfigured || !supabase) {
+    return { data: null, error: new Error("서비스에 연결할 수 없습니다.") };
+  }
+
+  const { data, error } = await supabase.rpc("create_pg_checkout_session", {
+    p_book_ids: bookIds,
+    p_quantities: quantities,
+    p_shipping_recipient_name: shippingRecipientName,
+    p_shipping_recipient_phone: shippingRecipientPhone,
+    p_shipping_postal_code: shippingPostalCode,
+    p_shipping_address_line1: shippingAddressLine1,
+    p_shipping_address_line2: shippingAddressLine2 || null,
+    p_shipping_memo: shippingMemo || null,
+    p_payment_method: paymentMethod,
+    p_member_coupon_id: memberCouponId,
+    // PG 결제는 원결제수단으로 자동 환불되므로 환불계좌를 받지 않는다.
+    p_refund_bank: null,
+    p_refund_account_number: null,
+    p_refund_account_holder: null,
+  });
+
+  return { data: data ?? null, error: error ?? null };
+}
+
 export {
   FREE_SHIPPING_THRESHOLD,
   LOCAL_CART_ID_PREFIX,
@@ -312,6 +353,7 @@ export {
   addToCart,
   calculateShippingFee,
   createOrder,
+  createPgCheckoutSession,
   deleteCartItem,
   deleteCartItems,
   getCartItems,

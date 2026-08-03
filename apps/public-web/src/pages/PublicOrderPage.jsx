@@ -11,7 +11,12 @@ import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { supabase as publicSupabase } from "@shared-supabase/publicSupabaseClient";
 import { trackBeginCheckout, trackPurchase } from "../lib/analytics";
-import { FREE_SHIPPING_THRESHOLD, calculateShippingFee, createOrder } from "../lib/cart";
+import {
+  FREE_SHIPPING_THRESHOLD,
+  calculateShippingFee,
+  createOrder,
+  createPgCheckoutSession,
+} from "../lib/cart";
 import { getRemoteAreaInfo } from "../lib/remoteAreaShipping";
 import { loadMemberPortalSnapshot, saveMemberShippingAddress } from "../lib/memberPortal";
 import { usePageMeta } from "../lib/usePageMeta";
@@ -1035,7 +1040,12 @@ function PublicOrderPage() {
     const bookIds = orderItems.map((i) => i.bookId);
     const quantities = orderItems.map((i) => i.quantity);
 
-    const { data, error } = await createOrder({
+    // 카드(나이스페이)는 주문을 먼저 만들지 않는다 — 결제 세션(재고 미선점)만 만들어
+    // 결제창을 열고, 주문은 카드 인증 성공 후 서버(nicepay-return)가 생성한다.
+    // 결제창에서 이탈해도 입금대기 주문·재고 선점이 남지 않고 장바구니도 유지된다.
+    // (2026-08-03 — 이탈 시 책이 30분간 품절로 잠기던 문제의 근본 수리)
+    const isNicepayCard = isPg && PG_PROVIDER === "nicepay";
+    const orderArgs = {
       bookIds,
       quantities,
       shippingRecipientName: shipping.recipientName.trim(),
@@ -1046,13 +1056,19 @@ function PublicOrderPage() {
       shippingMemo: shipping.memo.trim() || null,
       paymentMethod,
       memberCouponId: selectedCouponId,
-      // 무통장입금일 때만 환불 계좌 전달 (PG 결제는 원결제수단으로 자동 환불).
-      refundBank: paymentMethod === "bank_transfer" ? refundAccount.bank.trim() || null : null,
-      refundAccountNumber:
-        paymentMethod === "bank_transfer" ? refundAccount.number.replace(/[^0-9]/g, "") || null : null,
-      refundAccountHolder:
-        paymentMethod === "bank_transfer" ? refundAccount.holder.trim() || null : null,
-    });
+    };
+
+    const { data, error } = isNicepayCard
+      ? await createPgCheckoutSession(orderArgs)
+      : await createOrder({
+          ...orderArgs,
+          // 무통장입금일 때만 환불 계좌 전달 (PG 결제는 원결제수단으로 자동 환불).
+          refundBank: paymentMethod === "bank_transfer" ? refundAccount.bank.trim() || null : null,
+          refundAccountNumber:
+            paymentMethod === "bank_transfer" ? refundAccount.number.replace(/[^0-9]/g, "") || null : null,
+          refundAccountHolder:
+            paymentMethod === "bank_transfer" ? refundAccount.holder.trim() || null : null,
+        });
 
     if (error) {
       setIsSubmitting(false);
@@ -1080,9 +1096,10 @@ function PublicOrderPage() {
       });
     }
 
-    // PG(나이스페이): 주문(pending) 생성 후 결제창 호출. 카드 인증이 끝나면 나이스페이가
-    // returnUrl(/api/payments/nicepay-return)로 POST → 승인 → 주문완료로 리다이렉트.
-    if (isPg && PG_PROVIDER === "nicepay") {
+    // PG(나이스페이): 결제 세션 번호(order_number)와 서버 확정 금액으로 결제창 호출.
+    // 카드 인증이 끝나면 나이스페이가 returnUrl(/api/payments/nicepay-return)로 POST →
+    // 서버가 주문 생성(finalize) → 승인 → 주문완료로 리다이렉트.
+    if (isNicepayCard) {
       try {
         await loadNicepaySdk();
         requestNicepayCardPay({
@@ -1108,7 +1125,8 @@ function PublicOrderPage() {
         showToast(msg, "error");
       } finally {
         // PC 레이어 결제창은 사용자가 닫아도 콜백이 없다 — 버튼을 되살려 재시도를
-        // 허용한다(주문은 pending으로 남아 24시간 뒤 자동취소, 토스 취소 케이스와 동일).
+        // 허용한다. 주문은 아직 만들어지지 않았으므로(세션만 존재) 이탈해도
+        // 입금대기·재고 선점이 남지 않고 장바구니도 그대로다.
         setIsSubmitting(false);
         inFlightRef.current = false;
       }

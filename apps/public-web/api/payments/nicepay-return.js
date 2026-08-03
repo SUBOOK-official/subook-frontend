@@ -1,14 +1,22 @@
 // 나이스페이먼츠 결제창(Server 승인 모델) returnUrl 수신 서버리스
 // (public-web · subook.kr/api/payments/nicepay-return)
 //
-// 흐름: 주문 페이지 AUTHNICE.requestPay(결제창) → 카드 인증 완료 → 나이스페이가 이
-//   엔드포인트로 인증 결과를 **POST**(form-urlencoded) →
+// 흐름(2026-08-03 개편 — 카드 '선주문 생성' 폐지): 주문 페이지는 주문 대신
+//   결제 세션(create_pg_checkout_session — 재고 미선점)만 만들고 AUTHNICE.requestPay(결제창)
+//   → 카드 인증 완료 → 나이스페이가 이 엔드포인트로 인증 결과를 **POST**(form-urlencoded) →
 //   (1) signature(sha256) 위변조 검증
-//   (2) 나이스페이 승인 API POST /v1/payments/{tid} 호출 (Basic clientKey:secretKey)
-//   (3) confirm_pg_payment RPC(service_role)로 pending→preparing + books=reserved 전이
-//   (4) order_confirmed 알림톡 발사 (best-effort)
-//   (5) 브라우저를 /order/complete/:id 로 303 리다이렉트
+//   (2) finalize_pg_checkout_session RPC(service_role) — **이때 비로소 주문 생성**
+//       (재고·쿠폰·금액 전부 재검증. 실패하면 승인을 안 하므로 청구 없음)
+//   (3) 나이스페이 승인 API POST /v1/payments/{tid} 호출 (Basic clientKey:secretKey)
+//   (4) confirm_pg_payment RPC(service_role)로 pending→preparing + books=reserved 전이
+//   (5) order_confirmed 알림톡 발사 (best-effort)
+//   (6) 브라우저를 /order/complete/:id 로 303 리다이렉트
 //   실패 시 /order/payment/fail?message=&code= 으로 리다이렉트.
+//
+// 결제창을 그냥 닫고 이탈하면 세션만 남는다 — 주문·입금대기·재고 선점·카트 비움이
+//   전혀 없다(과거엔 pending 주문이 30분간 책을 품절로 만들던 문제의 근본 수리).
+// 구플로우 호환: 배포 직전 구코드로 열린 결제창(주문 선생성)은 세션이 없으므로,
+//   기존 주문이 존재하면 예전 방식(승인→confirm)으로 그대로 이어간다.
 //
 // 토스(confirm.js)와의 차이: 토스는 successUrl(GET)로 복귀한 SPA가 승인을 요청하지만,
 //   나이스페이는 returnUrl로 서버에 직접 POST가 온다(PC 레이어/모바일 리다이렉트 동일).
@@ -117,6 +125,59 @@ async function cancelPayment({ apiBase, authHeader, tid, orderId, reason }) {
   return resp.json().catch(() => null);
 }
 
+// 결제 세션 → 주문 실체화 (카드 인증 성공·서명 검증 후에만 호출).
+// 성공 시 pending 주문이 생성되고(재고 선점 시작), 실패 시 주문이 없으므로
+// 호출자는 승인 API를 호출하지 않는다(= 청구 없음).
+async function finalizeCheckoutSession({ supabaseUrl, serviceKey, orderNumber, amount }) {
+  const resp = await fetchWithTimeout(`${supabaseUrl}/rest/v1/rpc/finalize_pg_checkout_session`, {
+    method: "POST",
+    headers: {
+      apikey: serviceKey,
+      Authorization: `Bearer ${serviceKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ p_order_number: orderNumber, p_amount: amount }),
+  });
+  const body = await resp.json().catch(() => null);
+  if (!resp.ok) {
+    // RPC exception (재고 선점 충돌·쿠폰 사용 불가·금액 불일치 등) — message에 원인
+    return { ok: false, reason: "rpc_error", message: body?.message || `finalize http ${resp.status}` };
+  }
+  const result = Array.isArray(body) ? body[0] : body;
+  if (!result?.success) {
+    return { ok: false, reason: result?.reason || "unknown", message: null };
+  }
+  return { ok: true, ...result };
+}
+
+// 구플로우 호환 — 세션이 없을 때, 배포 전 구코드가 선생성한 pending 주문이 있는지 확인
+async function findExistingOrder({ supabaseUrl, serviceKey, orderNumber }) {
+  const resp = await fetchWithTimeout(
+    `${supabaseUrl}/rest/v1/orders?order_number=eq.${encodeURIComponent(orderNumber)}` +
+      `&select=id,status,payment_status`,
+    { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } },
+  );
+  if (!resp.ok) return null;
+  const rows = await resp.json().catch(() => null);
+  return Array.isArray(rows) ? (rows[0] ?? null) : null;
+}
+
+// finalize 실패 사유 → 사용자 친화 문구 (승인 미진행 = 청구 없음이 핵심 안내)
+function toFriendlyFinalizeMessage(finalize) {
+  const raw = (finalize?.message || "").toLowerCase();
+  if (raw.includes("not available") || raw.includes("already reserved")) {
+    return "결제 진행 중에 다른 분이 먼저 구매한 교재가 있어 결제를 진행하지 않았어요. 카드 청구는 발생하지 않았습니다.";
+  }
+  if (finalize?.reason === "amount_mismatch" || raw.includes("금액")) {
+    return "주문 금액이 변경되어 결제를 진행하지 않았어요. 장바구니에서 다시 시도해 주세요.";
+  }
+  if (finalize?.reason === "session_expired") {
+    return "결제 세션이 만료되었어요. 장바구니에서 다시 시도해 주세요.";
+  }
+  if (finalize?.message && /[가-힣]/.test(finalize.message)) return finalize.message;
+  return "주문 처리에 실패해 결제를 진행하지 않았어요. 잠시 후 다시 시도해 주세요.";
+}
+
 // 미결제 pending 주문 즉시 취소 → 재고(books) 선점 해제 (트리거가 릴리스).
 // ⚠ 서명이 검증된 실패 분기에서만 호출할 것 — 인증실패(authResultCode≠0000) POST는
 //   서명이 없어 위조 가능하므로 여기서 취소하면 임의 주문 취소 공격이 가능해진다.
@@ -209,9 +270,9 @@ export default async function handler(req, res) {
   const signature = String(body.signature ?? "");
   const bodyClientId = String(body.clientId ?? "");
 
-  // 인증 실패/이탈 — 이 POST는 서명이 없어 서버측 취소는 위험(위조 가능).
-  // orderId를 fail 페이지로 넘겨, 본인 세션에서 주문을 자동 취소하게 한다(재고 즉시 해제).
-  // fail 페이지 미방문/비로그인 케이스는 30분 자동만료(expire_unpaid_orders)가 백스톱.
+  // 인증 실패/이탈 — 신플로우에선 아직 주문이 없으므로 정리할 것도 없다(세션만 잔류).
+  // orderId는 구플로우(선생성 주문) 호환용으로만 fail 페이지에 넘긴다 — 본인 인증된
+  // cancel_member_order로 정리(신플로우 세션 번호는 주문 조회에 안 걸려 자연 무시).
   if (authResultCode !== "0000") {
     return failRedirect(
       res,
@@ -239,7 +300,54 @@ export default async function handler(req, res) {
     return failRedirect(res, "결제 정보 검증에 실패했습니다.", "SIGNATURE_MISMATCH");
   }
 
-  // ── 2) 승인 API — POST /v1/payments/{tid} ────────────────────────────────────
+  // ── 2) 결제 세션 → 주문 실체화 ───────────────────────────────────────────────
+  // 카드 주문은 결제창 오픈 시점에 만들어지지 않는다(2026-08-03 — 이탈 시 입금대기
+  // 주문·재고 선점이 남던 문제 제거). 인증이 성공한 지금 주문을 생성하고, 주문 생성이
+  // 성공한 경우에만 승인 API를 호출한다. 실패하면 승인 자체를 안 하므로 청구가 없다.
+  const finalize = await finalizeCheckoutSession({
+    supabaseUrl,
+    serviceKey,
+    orderNumber: orderId,
+    amount: amountNum,
+  }).catch((err) => ({ ok: false, reason: "network", message: err?.message }));
+
+  if (finalize.ok && finalize.already_completed && finalize.payment_status === "paid") {
+    // 중복 POST(새로고침 등) — 이미 결제 확정까지 끝난 주문 → 완료 페이지로
+    return redirectTo(res, `/order/complete/${finalize.order_id}`);
+  }
+  if (!finalize.ok) {
+    if (finalize.reason === "session_not_found") {
+      // 배포 전 구플로우(선생성 주문)로 열린 결제창 — 주문이 이미 있으면 기존 방식으로 진행
+      const existing = await findExistingOrder({ supabaseUrl, serviceKey, orderNumber: orderId }).catch(
+        () => null,
+      );
+      if (!existing) {
+        console.error("[nicepay-return] checkout session not found", { orderId, tid });
+        return failRedirect(
+          res,
+          "결제 세션을 찾을 수 없어 결제를 진행하지 않았어요. 장바구니에서 다시 시도해 주세요.",
+          "SESSION_NOT_FOUND",
+        );
+      }
+      // existing 주문으로 아래 승인 → confirm_pg_payment 진행 (구플로우와 동일)
+    } else {
+      // 재고 선점 충돌·쿠폰 사용 불가·금액 불일치 등 — 승인 미진행 = 청구 없음.
+      // 주문이 만들어지지 않았으므로(전체 롤백) 정리할 것도 없다.
+      console.error("[nicepay-return] finalize failed — approval skipped", {
+        orderId,
+        tid,
+        reason: finalize.reason,
+        message: finalize.message,
+      });
+      return failRedirect(
+        res,
+        toFriendlyFinalizeMessage(finalize),
+        finalize.reason === "rpc_error" ? "ORDER_CREATE_FAILED" : String(finalize.reason || "").toUpperCase(),
+      );
+    }
+  }
+
+  // ── 3) 승인 API — POST /v1/payments/{tid} ────────────────────────────────────
   const authHeader = "Basic " + Buffer.from(`${clientKey}:${secretKey}`).toString("base64");
   let approve;
   try {
@@ -289,7 +397,7 @@ export default async function handler(req, res) {
     ? Number(approve.amount)
     : amountNum;
 
-  // ── 3) DB 결제 확정 전이 — pending→preparing (confirm_pg_payment RPC, service_role) ──
+  // ── 4) DB 결제 확정 전이 — pending→preparing (confirm_pg_payment RPC, service_role) ──
   let confirm;
   try {
     const rpcResp = await fetchWithTimeout(`${supabaseUrl}/rest/v1/rpc/confirm_pg_payment`, {
@@ -349,14 +457,14 @@ export default async function handler(req, res) {
     );
   }
 
-  // ── 4) order_confirmed 알림 (best-effort) ───────────────────────────────────
+  // ── 5) order_confirmed 알림 (best-effort) ───────────────────────────────────
   await fireOrderConfirmedNotification({
     supabaseUrl,
     serviceKey,
     orderNumber: confirm?.order_number ?? orderId,
   }).catch((err) => console.error("[nicepay-return] notification error", err?.message));
 
-  // ── 5) 주문완료 페이지로 복귀 (state 없이 진입해도 RPC로 재조회하는 페이지) ───
+  // ── 6) 주문완료 페이지로 복귀 (state 없이 진입해도 RPC로 재조회하는 페이지) ───
   const destination = confirm?.order_id ? `/order/complete/${confirm.order_id}` : "/mypage";
   return redirectTo(res, destination);
 }

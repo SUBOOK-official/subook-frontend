@@ -10,8 +10,12 @@ import "./PublicOrderCompletePage.css";
 
 // PG 결제 실패 복귀 지점 (나이스페이 failRedirect / 토스 failUrl — ?code=&message=&orderId=).
 //
-// 카드 주문의 pending은 결제창 이탈/실패 상태라 재고(books)를 계속 선점하면 안 된다.
-// orderId(주문번호)가 넘어오면 본인 소유의 미결제 카드 주문을 즉시 자동 취소한다
+// 2026-08-03 '선주문 생성' 폐지 후: 나이스페이 카드 이탈/실패는 주문이 아예 만들어지지
+// 않으므로(결제 세션만 잔류) 여기서 정리할 것도 없다 — orderId는 세션 번호라 아래
+// orders 조회에 안 걸려 자연 스킵된다.
+//
+// 아래 자동 취소 로직은 구플로우(선생성 주문)·토스 경로 호환용으로 유지: orderId(주문번호)가
+// 실제 미결제 카드 주문이면 본인 소유 확인 후 즉시 자동 취소한다
 // (cancel_member_order RPC — 소유·pending 검증은 서버가 하므로 위조 URL로는 남의 주문
 // 취소 불가). 비로그인/미방문 케이스는 30분 자동만료(expire_unpaid_orders)가 백스톱.
 function PublicPaymentFailPage() {

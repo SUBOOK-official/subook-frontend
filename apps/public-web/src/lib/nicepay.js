@@ -1,13 +1,15 @@
 // 나이스페이먼츠 결제창(Server 승인 모델) 연동 헬퍼 — public-web 전용.
 //
-// 흐름: createOrder(pending 주문 생성) → AUTHNICE.requestPay(결제창 오픈) → 카드 인증
+// 흐름(2026-08-03 개편): createPgCheckoutSession(결제 세션 생성 — 주문·재고 선점 없음)
+//   → AUTHNICE.requestPay(결제창 오픈, orderId=세션 번호) → 카드 인증
 //   → 나이스페이가 returnUrl(/api/payments/nicepay-return)로 인증 결과를 POST
-//   → 서버리스가 승인 API 호출 + confirm_pg_payment RPC → /order/complete/:id 리다이렉트.
+//   → 서버리스가 finalize RPC로 **그때 주문 생성** → 승인 API + confirm_pg_payment RPC
+//   → /order/complete/:id 리다이렉트.
 //
 // 공식 문서: https://github.com/nicepayments/nicepay-manual (api/payment-window-server.md)
 // - PC는 레이어 결제창, 모바일은 페이지 리다이렉트 — 어느 쪽이든 returnUrl POST로 수렴.
-// - 결제창을 사용자가 그냥 닫으면 아무 콜백도 오지 않는다(주문은 pending으로 남아
-//   24시간 뒤 자동 취소 — 토스 결제 취소 케이스와 동일 정책).
+// - 결제창을 사용자가 그냥 닫으면 아무 콜백도 오지 않는다 — 남는 건 결제 세션뿐이라
+//   주문·입금대기·재고 선점이 생기지 않고 장바구니도 유지된다(24시간 뒤 세션 자동 청소).
 // - fnError는 결제창 호출 자체가 실패했을 때만 불린다(result.errorMsg).
 
 const NICEPAY_JS_URL = "https://pay.nicepay.co.kr/v1/js/";
