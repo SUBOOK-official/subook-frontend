@@ -19,15 +19,37 @@
       "destination": "/api/sitemap-products"
     },
     {
+      "source": "/store/subject/:subject",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(yeti|naverbot|googlebot|google-inspectiontool|bingbot|kakaotalk-scrap|kakaostory-og-reader|facebookexternalhit|facebot|twitterbot|slackbot|telegrambot|whatsapp|linkedinbot|discordbot|applebot|petalbot|duckduckbot|baiduspider|yandexbot|daumoa|gptbot|oai-searchbot|chatgpt-user|claudebot|claude-user|claude-searchbot|perplexitybot|perplexity-user|meta-externalagent|meta-externalfetcher|meta-webindexer|amazonbot|ccbot|bytespider|mistralai-user).*"
+        }
+      ],
+      "destination": "/api/prerender-subject?subject=:subject"
+    },
+    {
       "source": "/store/:id(\\d+)",
       "has": [
         {
           "type": "header",
           "key": "user-agent",
-          "value": "(?i).*(yeti|naverbot|googlebot|google-inspectiontool|bingbot|kakaotalk-scrap|kakaostory-og-reader|facebookexternalhit|facebot|twitterbot|slackbot|telegrambot|whatsapp|linkedinbot|discordbot|applebot|petalbot|duckduckbot|baiduspider|yandexbot|daumoa).*"
+          "value": "(?i).*(yeti|naverbot|googlebot|google-inspectiontool|bingbot|kakaotalk-scrap|kakaostory-og-reader|facebookexternalhit|facebot|twitterbot|slackbot|telegrambot|whatsapp|linkedinbot|discordbot|applebot|petalbot|duckduckbot|baiduspider|yandexbot|daumoa|gptbot|oai-searchbot|chatgpt-user|claudebot|claude-user|claude-searchbot|perplexitybot|perplexity-user|meta-externalagent|meta-externalfetcher|meta-webindexer|amazonbot|ccbot|bytespider|mistralai-user).*"
         }
       ],
       "destination": "/api/prerender-product?id=:id"
+    },
+    {
+      "source": "/faq",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(yeti|naverbot|googlebot|google-inspectiontool|bingbot|kakaotalk-scrap|kakaostory-og-reader|facebookexternalhit|facebot|twitterbot|slackbot|telegrambot|whatsapp|linkedinbot|discordbot|applebot|petalbot|duckduckbot|baiduspider|yandexbot|daumoa|gptbot|oai-searchbot|chatgpt-user|claudebot|claude-user|claude-searchbot|perplexitybot|perplexity-user|meta-externalagent|meta-externalfetcher|meta-webindexer|amazonbot|ccbot|bytespider|mistralai-user).*"
+        }
+      ],
+      "destination": "/api/prerender-faq"
     },
     {
       "source": "/:path*",

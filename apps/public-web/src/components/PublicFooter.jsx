@@ -51,6 +51,13 @@ const footerTopLinks = [
   { label: "1:1문의 (카카오톡)", href: KAKAO_CHANNEL_URL, external: true },
 ];
 
+// 과목별 랜딩(/store/subject/:subject) 내부링크 — 검색엔진·AI 크롤러의 진입 경로이자
+// 과목 바로가기. "기타"는 랜딩 대상에서 제외 (STORE_SUBJECTS와 동기 유지).
+const footerSubjectLinks = ["국어", "수학", "영어", "과학", "사회", "한국사"].map((subject) => ({
+  label: `${subject} 교재`,
+  to: `/store/subject/${encodeURIComponent(subject)}`,
+}));
+
 const footerMetaLines = [
   [
     ["상호", "수북(SUBOOK)"],
@@ -155,6 +162,14 @@ function PublicFooter() {
                 </button>
               );
             })}
+          </div>
+
+          <div className="public-footer__links">
+            {footerSubjectLinks.map((link) => (
+              <Link className="public-footer__text-button" key={link.label} to={link.to}>
+                {link.label}
+              </Link>
+            ))}
           </div>
 
           <div className="public-footer__meta">

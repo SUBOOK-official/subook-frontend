@@ -1,0 +1,32 @@
+# 수북 (SUBOOK)
+
+> 수능·내신 교재 위탁판매 플랫폼. 안 쓴(미사용) 수능 교재를 무료 방문 수거로 위탁받아 전문 검수 후 판매하고, 판매 대금은 매월 1일 판매자 계좌로 정산한다. 구매자는 검수를 통과한 새 책 수준의 교재를 정가보다 저렴하게 구매할 수 있다.
+
+- 사이트: https://subook.kr
+- 운영: 수북(SUBOOK) · 문의 subook2025@gmail.com · 인스타그램 https://instagram.com/subook.official
+
+## 서비스 개요
+
+- 구매: 검수 완료된 미사용 수능 교재(개념서·기출문제집·모의고사·N제·주간지 등)를 S(새 책)·A+(사용감 적음) 등급으로 판매. 주문 확인 후 영업일 1~2일 내 발송, 배송비 3,000원.
+- 판매(위탁): 수거 신청 → 무료 방문 수거 → 전문 검수 → 상품 등록·판매 → 구매 확정 후 매월 1일 계좌 정산. 박스 1개당 상품화 비용 5,000원이 정산 시 차감된다.
+- 반품: 상품 수령 후 7일 이내 신청 가능, 단순 변심 반품은 왕복 배송비 구매자 부담.
+- 취급 범위: 수능 기준 3개년 이내의 새 교재. 복제본·스캔본·PDF는 취급하지 않는다.
+
+## 주요 페이지
+
+- [스토어 (전체 교재)](https://subook.kr/)
+- [수능 국어 교재](https://subook.kr/store/subject/국어)
+- [수능 수학 교재](https://subook.kr/store/subject/수학)
+- [수능 영어 교재](https://subook.kr/store/subject/영어)
+- [수능 과학 교재](https://subook.kr/store/subject/과학)
+- [수능 사회 교재](https://subook.kr/store/subject/사회)
+- [수능 한국사 교재](https://subook.kr/store/subject/한국사)
+- [교재 판매 (수거 신청)](https://subook.kr/pickup/new)
+- [자주 묻는 질문](https://subook.kr/faq)
+- [공지사항](https://subook.kr/notices)
+- [이용약관](https://subook.kr/terms) · [개인정보처리방침](https://subook.kr/privacy) · [환불정책](https://subook.kr/refund)
+
+## 크롤링 안내
+
+- 사이트맵: https://subook.kr/sitemap.xml
+- 상품 상세(/store/{id}), 과목별 목록(/store/subject/{과목}), 자주 묻는 질문(/faq)은 검색·AI 크롤러에 서버 렌더링된 HTML(schema.org JSON-LD 포함)로 제공된다.

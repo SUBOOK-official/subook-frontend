@@ -167,15 +167,30 @@ function PublicFaqPage() {
     canonicalPath: "/faq",
     // FAQPage 리치스니펫 — 정적 fallback(FAQ_ITEMS) 기준. answer가 배열(문단)인
     // 항목만 사용해 DB 리치텍스트(HTML)가 JSON-LD에 섞이지 않게 한다.
-    jsonLd: {
-      "@context": "https://schema.org",
-      "@type": "FAQPage",
-      mainEntity: FAQ_ITEMS.filter((item) => Array.isArray(item.answer)).map((item) => ({
-        "@type": "Question",
-        name: item.question,
-        acceptedAnswer: { "@type": "Answer", text: item.answer.join(" ") },
-      })),
-    },
+    jsonLd: [
+      {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        mainEntity: FAQ_ITEMS.filter((item) => Array.isArray(item.answer)).map((item) => ({
+          "@type": "Question",
+          name: item.question,
+          acceptedAnswer: { "@type": "Answer", text: item.answer.join(" ") },
+        })),
+      },
+      {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          {
+            "@type": "ListItem",
+            position: 1,
+            name: "홈",
+            item: `${typeof window !== "undefined" ? window.location.origin : "https://subook.kr"}/`,
+          },
+          { "@type": "ListItem", position: 2, name: "자주 묻는 질문" },
+        ],
+      },
+    ],
   });
   // DB에서 받은 FAQ. 비어있으면 기존 하드코딩 FAQ_ITEMS fallback.
   const [dbFaqs, setDbFaqs] = useState(null); // null=로딩, []=DB비어있음

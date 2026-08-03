@@ -81,6 +81,50 @@ function aiSummaryToHtml(text) {
 
 const GRADE_LABELS = { S: "S(새책)", "A+": "A+", A_PLUS: "A+", A: "A" };
 
+// ⚠ publicStoreNavigation.js STORE_SUBJECTS에서 "전체"를 뺀 목록과 동기 유지
+//   (과목 랜딩 /store/subject/:subject 링크·빵부스러기 대상 판정용)
+const SUBJECT_PAGE_SUBJECTS = ["국어", "수학", "영어", "과학", "사회", "한국사", "기타"];
+
+// 관련 교재(비슷한 교재) — SPA 상세와 동일 소스(get_public_store_product_detail RPC의
+// related_books)를 사용해 봇/사람 간 내용 일치 유지. 부가 정보라 실패 시 빈 배열.
+async function fetchRelatedBooks({ url, key, productId }) {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    try {
+      const response = await fetch(`${url}/rest/v1/rpc/get_public_store_product_detail`, {
+        method: "POST",
+        headers: {
+          apikey: key,
+          Authorization: `Bearer ${key}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ p_product_id: Number(productId) }),
+        signal: controller.signal,
+      });
+      if (!response.ok) return [];
+      const rows = await response.json();
+      const related = Array.isArray(rows) ? rows[0]?.related_books : null;
+      if (!Array.isArray(related)) return [];
+      const seen = new Set();
+      const items = [];
+      for (const row of related) {
+        const relatedId = row?.product_id ?? row?.id;
+        const title = String(row?.title ?? "").trim();
+        if (relatedId == null || !title || seen.has(String(relatedId))) continue;
+        seen.add(String(relatedId));
+        items.push({ productId: String(relatedId), title });
+        if (items.length >= 4) break;
+      }
+      return items;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  } catch {
+    return [];
+  }
+}
+
 // 서치콘솔 요건: offers.price는 품절(OutOfStock)이어도 필수. 그래서 books는 전 상태를
 // 받아와 판매 가능분(on_sale + is_public)으로 재고를 세고, 판매 가능분이 없으면
 // 전체 이력의 최저가를 마지막 판매가로 폴백한다 (SPA product.price 대표가와 동일 의미).
@@ -144,7 +188,7 @@ function aiSummaryToPlainText(text) {
     .trim();
 }
 
-function buildHtml({ product, stock }) {
+function buildHtml({ product, stock, relatedBooks }) {
   // SPA(usePageMeta 호출부)와 동일한 타이틀·설명 패턴
   const pageTitle = `${product.title}${product.subject ? ` · ${product.subject}` : ""} | 수북 SUBOOK`;
   const description = `${product.title}${
@@ -160,9 +204,39 @@ function buildHtml({ product, stock }) {
   const priceText =
     displayPrice != null ? `${displayPrice.toLocaleString("ko-KR")}원` : null;
 
+  // 과목 랜딩 페이지가 있는 과목이면 빵부스러기 2단계를 링크로 연결
+  const hasSubjectPage = product.subject && SUBJECT_PAGE_SUBJECTS.includes(product.subject);
+  const subjectPageUrl = hasSubjectPage
+    ? `${SITE_ORIGIN}/store/subject/${encodeURIComponent(product.subject)}`
+    : null;
+
+  // 빵부스러기 — SPA(PublicProductDetailPage usePageMeta jsonLd)와 동일 구조 유지
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "홈", item: `${SITE_ORIGIN}/` },
+      ...(hasSubjectPage
+        ? [
+            {
+              "@type": "ListItem",
+              position: 2,
+              name: `수능 ${product.subject} 교재`,
+              item: subjectPageUrl,
+            },
+          ]
+        : []),
+      {
+        "@type": "ListItem",
+        position: hasSubjectPage ? 3 : 2,
+        name: product.title,
+      },
+    ],
+  };
+
   // 양수 가격을 전혀 알 수 없는 상품(책 이력 자체가 없음)은 잘못된 offers를 내보내는
-  // 대신 JSON-LD를 통째로 생략한다.
-  const jsonLd =
+  // 대신 Product JSON-LD만 생략한다 (빵부스러기는 유지).
+  const productJsonLd =
     displayPrice != null
       ? {
           "@context": "https://schema.org",
@@ -186,6 +260,8 @@ function buildHtml({ product, stock }) {
           },
         }
       : null;
+
+  const jsonLd = [...(productJsonLd ? [productJsonLd] : []), breadcrumbJsonLd];
 
   const infoRows = [
     ["과목", product.subject],
@@ -222,7 +298,7 @@ function buildHtml({ product, stock }) {
     <meta name="twitter:title" content="${escapeHtml(pageTitle)}" />
     <meta name="twitter:description" content="${escapeHtml(description)}" />
     <meta name="twitter:image" content="${escapeHtml(coverUrl)}" />
-    ${jsonLd ? `<script type="application/ld+json">${JSON.stringify(jsonLd).replace(/</g, "\\u003c")}</script>` : ""}
+    <script type="application/ld+json">${JSON.stringify(jsonLd).replace(/</g, "\\u003c")}</script>
   </head>
   <body>
     <main>
@@ -247,9 +323,22 @@ function buildHtml({ product, stock }) {
           모든 교재는 전문 검수를 거친 새 책 수준의 상품입니다.
           <a href="${canonicalUrl}">상품 페이지에서 구매하기</a>
         </p>
+        ${
+          Array.isArray(relatedBooks) && relatedBooks.length > 0
+            ? `<section><h2>비슷한 교재</h2><ul>
+        ${relatedBooks
+          .map(
+            (item) =>
+              `<li><a href="${SITE_ORIGIN}/store/${item.productId}">${escapeHtml(item.title)}</a></li>`,
+          )
+          .join("\n        ")}
+        </ul></section>`
+            : ""
+        }
       </article>
       <nav>
-        <a href="${SITE_ORIGIN}/">홈</a> · <a href="${SITE_ORIGIN}/pickup/new">교재 판매(수거 신청)</a> ·
+        <a href="${SITE_ORIGIN}/">홈</a> ·
+        ${subjectPageUrl ? `<a href="${subjectPageUrl}">수능 ${escapeHtml(product.subject)} 교재</a> · ` : ""}<a href="${SITE_ORIGIN}/pickup/new">교재 판매(수거 신청)</a> ·
         <a href="${SITE_ORIGIN}/faq">자주 묻는 질문</a>
       </nav>
     </main>
@@ -288,7 +377,7 @@ export default async function handler(req, res) {
   try {
     const productSelect =
       "id,title,option,subject,brand,book_type,published_year,instructor_name,cover_image_url,status,ai_summary";
-    const [productRows, bookRows] = await Promise.all([
+    const [productRows, bookRows, relatedBooks] = await Promise.all([
       fetchJson(
         `${url}/rest/v1/products?id=eq.${id}&status=neq.hidden&select=${productSelect}&limit=1`,
         key,
@@ -298,6 +387,8 @@ export default async function handler(req, res) {
         `${url}/rest/v1/books?product_id=eq.${id}&select=price,condition_grade,option,status,is_public`,
         key,
       ),
+      // 비슷한 교재 링크 — 실패해도 페이지는 나가야 하므로 내부에서 [] 폴백
+      fetchRelatedBooks({ url, key, productId: id }),
     ]);
 
     const product = Array.isArray(productRows) ? productRows[0] : null;
@@ -307,7 +398,7 @@ export default async function handler(req, res) {
     }
 
     const stock = summarizeBooks(Array.isArray(bookRows) ? bookRows : []);
-    sendHtml(res, 200, buildHtml({ product, stock }));
+    sendHtml(res, 200, buildHtml({ product, stock, relatedBooks }));
   } catch {
     // 실패 시 503 — 크롤러가 나중에 재시도 (빈 페이지를 색인시키지 않는다)
     res.status(503).json({ error: "prerender unavailable", code: 503 });

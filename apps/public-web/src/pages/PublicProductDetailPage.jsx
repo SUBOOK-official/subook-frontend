@@ -25,6 +25,7 @@ import {
   readPendingMemberAction,
 } from "../lib/pendingMemberAction";
 import { usePageMeta } from "../lib/usePageMeta";
+import { STORE_DEFAULT_SUBJECT, STORE_SUBJECTS } from "../lib/publicStoreNavigation";
 import {
   getDetailImageUrl,
   getThumbnailImageUrl,
@@ -953,6 +954,61 @@ function PublicProductDetailPage() {
   const metaDescription = product?.title
     ? `${product.title}${product.instructor_name ? ` (${product.instructor_name})` : ""} ${product.subject ?? ""} 위탁판매 — 검수 완료된 새 책 수준의 교재를 합리적인 가격에.`
     : undefined;
+  // 빵부스러기 — 과목 랜딩(/store/subject/:subject)이 있는 과목이면 2단계를 링크로 연결.
+  // ⚠ 봇 프리렌더(api/prerender-product.js)의 breadcrumbJsonLd와 구조 동일 유지.
+  const metaSubjectHasLanding = Boolean(
+    product?.subject &&
+      product.subject !== STORE_DEFAULT_SUBJECT &&
+      STORE_SUBJECTS.includes(product.subject),
+  );
+  const metaOrigin = typeof window !== "undefined" ? window.location.origin : "https://subook.kr";
+  const metaBreadcrumbJsonLd = product?.title
+    ? {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          { "@type": "ListItem", position: 1, name: "홈", item: `${metaOrigin}/` },
+          ...(metaSubjectHasLanding
+            ? [
+                {
+                  "@type": "ListItem",
+                  position: 2,
+                  name: `수능 ${product.subject} 교재`,
+                  item: `${metaOrigin}/store/subject/${encodeURIComponent(product.subject)}`,
+                },
+              ]
+            : []),
+          {
+            "@type": "ListItem",
+            position: metaSubjectHasLanding ? 3 : 2,
+            name: product.title,
+          },
+        ],
+      }
+    : null;
+  const metaProductJsonLd =
+    product?.title && Number.isFinite(metaPrice) && metaPrice > 0
+      ? {
+          "@context": "https://schema.org",
+          "@type": "Product",
+          name: product.title,
+          description: aiSummaryToPlainText(aiSummary) || metaDescription,
+          ...(metaCoverImage ? { image: [metaCoverImage] } : {}),
+          ...(product.brand ? { brand: { "@type": "Brand", name: product.brand } } : {}),
+          ...(product.subject ? { category: product.subject } : {}),
+          offers: {
+            "@type": "Offer",
+            priceCurrency: "KRW",
+            price: metaPrice,
+            itemCondition: "https://schema.org/UsedCondition",
+            availability: product.isSoldOut
+              ? "https://schema.org/OutOfStock"
+              : "https://schema.org/InStock",
+            shippingDetails: JSONLD_SHIPPING_DETAILS,
+            hasMerchantReturnPolicy: JSONLD_RETURN_POLICY,
+          },
+        }
+      : null;
   usePageMeta({
     title: product?.title
       ? `${product.title}${product.subject ? ` · ${product.subject}` : ""}`
@@ -960,29 +1016,12 @@ function PublicProductDetailPage() {
     description: metaDescription,
     canonicalPath: productId ? `/store/${productId}` : undefined,
     image: metaCoverImage ?? undefined,
-    jsonLd:
-      product?.title && Number.isFinite(metaPrice) && metaPrice > 0
-        ? {
-            "@context": "https://schema.org",
-            "@type": "Product",
-            name: product.title,
-            description: aiSummaryToPlainText(aiSummary) || metaDescription,
-            ...(metaCoverImage ? { image: [metaCoverImage] } : {}),
-            ...(product.brand ? { brand: { "@type": "Brand", name: product.brand } } : {}),
-            ...(product.subject ? { category: product.subject } : {}),
-            offers: {
-              "@type": "Offer",
-              priceCurrency: "KRW",
-              price: metaPrice,
-              itemCondition: "https://schema.org/UsedCondition",
-              availability: product.isSoldOut
-                ? "https://schema.org/OutOfStock"
-                : "https://schema.org/InStock",
-              shippingDetails: JSONLD_SHIPPING_DETAILS,
-              hasMerchantReturnPolicy: JSONLD_RETURN_POLICY,
-            },
-          }
-        : undefined,
+    jsonLd: product?.title
+      ? [
+          ...(metaProductJsonLd ? [metaProductJsonLd] : []),
+          ...(metaBreadcrumbJsonLd ? [metaBreadcrumbJsonLd] : []),
+        ]
+      : undefined,
   });
   const [relatedProducts, setRelatedProducts] = useState([]);
   // 다중 옵션 선택: [{ key: 회차, quantity }]. 단일재고 모델이라 회차별 수량은 그 회차의

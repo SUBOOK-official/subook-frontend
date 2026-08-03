@@ -1,0 +1,146 @@
+/* ================================================================
+   PublicSubjectPage – 과목별 교재 랜딩 페이지 (/store/subject/:subject)
+   ================================================================ */
+
+.public-subject-page {
+  background: #ffffff;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.public-subject-page > .public-subject-main {
+  flex: 1 0 auto;
+}
+
+/* ── 빵부스러기 경로 (FAQ 페이지와 동일 패턴) ─────────────────── */
+.public-subject-route {
+  padding: 16px 0 8px;
+}
+
+.public-subject-route__crumbs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--public-ds-text-muted, #6e6e73);
+}
+
+.public-subject-route__crumb-link {
+  color: var(--public-ds-text-secondary, #55565b);
+  text-decoration: none;
+}
+
+.public-subject-route__crumb-link:hover {
+  color: var(--public-primary, #080F47);
+}
+
+.public-subject-route__crumbs .is-muted {
+  color: var(--public-ds-text, #232323);
+  font-weight: 600;
+}
+
+/* ── 페이지 헤드 ────────────────────────────────────────────── */
+.public-subject-main {
+  padding-bottom: 64px;
+}
+
+.public-subject-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 8px 0 4px;
+}
+
+.public-subject-head__title {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  color: var(--public-ds-text, #232323);
+}
+
+.public-subject-head__count {
+  font-size: 14px;
+  color: var(--public-ds-text-muted, #6e6e73);
+}
+
+/* ── 과목 이동 내부링크 ─────────────────────────────────────── */
+.public-subject-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  padding: 8px 0 20px;
+  border-bottom: 1px solid var(--public-border, #e5e5e5);
+  margin-bottom: 24px;
+  font-size: 14px;
+}
+
+.public-subject-nav__link {
+  color: var(--public-ds-text-secondary, #55565b);
+  text-decoration: none;
+}
+
+.public-subject-nav__link:hover {
+  color: var(--public-primary, #080F47);
+}
+
+.public-subject-nav__link.is-active {
+  color: var(--public-primary, #080F47);
+  font-weight: 700;
+}
+
+/* ── 더 보기 / 빈 상태 ─────────────────────────────────────── */
+.public-subject-more {
+  display: flex;
+  justify-content: center;
+  padding-top: 28px;
+}
+
+.public-subject-more__button {
+  min-width: 200px;
+  padding: 12px 24px;
+  border: 1px solid var(--public-border, #e5e5e5);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--public-ds-text, #232323);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.public-subject-more__button:hover:not(:disabled) {
+  border-color: var(--public-primary, #080F47);
+  color: var(--public-primary, #080F47);
+}
+
+.public-subject-more__button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.public-subject-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 64px 0;
+  color: var(--public-ds-text, #232323);
+}
+
+.public-subject-empty__link {
+  font-size: 14px;
+  color: var(--public-primary, #080F47);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.public-subject-empty__link:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 767px) {
+  .public-subject-head__title {
+    font-size: 21px;
+  }
+}

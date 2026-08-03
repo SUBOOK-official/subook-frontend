@@ -12,6 +12,36 @@
     <priority>0.9</priority>
   </url>
   <url>
+    <loc>https://subook.kr/store/subject/%EA%B5%AD%EC%96%B4</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://subook.kr/store/subject/%EC%88%98%ED%95%99</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://subook.kr/store/subject/%EC%98%81%EC%96%B4</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://subook.kr/store/subject/%EA%B3%BC%ED%95%99</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://subook.kr/store/subject/%EC%82%AC%ED%9A%8C</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://subook.kr/store/subject/%ED%95%9C%EA%B5%AD%EC%82%AC</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
     <loc>https://subook.kr/faq</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
