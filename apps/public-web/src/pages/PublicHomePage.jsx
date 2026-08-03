@@ -12,6 +12,7 @@ import FortuneCookie from "../components/FortuneCookie";
 import PublicPopupBanner from "../components/PublicPopupBanner";
 import usePublicMemberGate from "../lib/publicMemberGate";
 import { usePublicWishlist } from "../contexts/PublicWishlistContext";
+import { trackPickupCtaClick } from "../lib/analytics";
 import { usePageMeta } from "../lib/usePageMeta";
 
 const PICKUP_REQUEST_PATH = "/pickup/new";
@@ -79,7 +80,9 @@ function PublicHomePage() {
     navigate("/cart");
   };
 
-  const handlePickupRequest = () => {
+  const handlePickupRequest = (ctaSource) => {
+    // GA4 pickup_cta_click — 로그인 관문 "앞"이라 비로그인 판매 의도까지 잡힌다.
+    trackPickupCtaClick(ctaSource);
     if (!requireMember("pickupRequest", PICKUP_REQUEST_PATH)) {
       return;
     }
@@ -89,7 +92,7 @@ function PublicHomePage() {
 
   const handleHeroAction = (slide) => {
     if (slide.actionType === "pickup") {
-      handlePickupRequest();
+      handlePickupRequest("hero_banner");
       return;
     }
 
@@ -138,7 +141,7 @@ function PublicHomePage() {
         onToggleFavorite={handleToggleFavorite}
       />
       <HomeStoreGrid favoriteIds={favoriteIds} onToggleFavorite={handleToggleFavorite} />
-      <PickupCTA onRequestPickup={handlePickupRequest} />
+      <PickupCTA onRequestPickup={() => handlePickupRequest("home_bottom_cta")} />
 
       <PublicFooter />
       {memberGateDialog}

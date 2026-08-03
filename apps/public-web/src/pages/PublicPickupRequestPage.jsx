@@ -27,6 +27,7 @@ import bookImg2 from "../assets/book2.jpg";
 import bookImg3 from "../assets/book3.jpg";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { BANK_LIST, submitPickupRequest } from "../lib/pickupRequest";
+import { trackGenerateLead, trackPickupRequestStart } from "../lib/analytics";
 import { KAKAO_CHANNEL_URL } from "../lib/supportChannels";
 import { loadMemberPortalSnapshot } from "../lib/memberPortal";
 import { isValidKoreanMobile } from "../lib/publicAuthFormUtils";
@@ -1755,6 +1756,14 @@ function PublicPickupRequestPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  // GA4 pickup_request_start — 양식이 실제로 노출된 방문당 1회 (generate_lead와의 격차 = 작성 이탈)
+  const pickupStartTrackedRef = useRef(false);
+  useEffect(() => {
+    if (pickupStartTrackedRef.current || isLoading || !isAuthenticated) return;
+    pickupStartTrackedRef.current = true;
+    trackPickupRequestStart();
+  }, [isLoading, isAuthenticated]);
+
   const handleSubmit = async () => {
     setIsSubmitting(true);
     const allAgreed =
@@ -1771,6 +1780,12 @@ function PublicPickupRequestPage() {
       showToast("요청에 실패했습니다. 다시 시도해주세요.", "error");
       return;
     }
+
+    // GA4 generate_lead — 수거 신청 성공 = 셀러 리드 확보 (Meta Lead 동시 발화)
+    trackGenerateLead({
+      boxCount: Number.parseInt(address.box_count, 10),
+      expectedBookCount: Number.parseInt(address.expected_book_count, 10),
+    });
 
     // 신청 성공 시 draft cleanup
     clearDraft();

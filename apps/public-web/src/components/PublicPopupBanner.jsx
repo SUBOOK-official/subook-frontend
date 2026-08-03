@@ -1,10 +1,18 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
+import { trackSelectPromotion, trackViewPromotion } from "../lib/analytics";
 import popupBannerImg from "../assets/popup-banner.png";
 import "./PublicPopupBanner.css";
 
 const STORAGE_KEY = "subook.public.popup-banner.dismissed.v1";
+
+// GA4 프로모션 파라미터 — 배너 교체 시 promotion_id도 함께 갱신할 것.
+const POPUP_PROMOTION = {
+  promotionId: "popup_first_purchase_coupon",
+  promotionName: "첫구매 3,000원 할인 쿠폰",
+  creativeSlot: "home_popup",
+};
 
 // 홈페이지 첫 진입 시 노출되는 팝업 배너.
 // 세션 동안 X로 닫으면 다시 뜨지 않음.
@@ -12,6 +20,8 @@ function PublicPopupBanner() {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   const { isAuthenticated } = usePublicAuth();
+  // view_promotion 마운트당 1회 (StrictMode 이중 effect 방어)
+  const viewTrackedRef = useRef(false);
 
   useEffect(() => {
     let dismissed = false;
@@ -22,6 +32,10 @@ function PublicPopupBanner() {
     }
     if (!dismissed) {
       setOpen(true);
+      if (!viewTrackedRef.current) {
+        viewTrackedRef.current = true;
+        trackViewPromotion(POPUP_PROMOTION);
+      }
     }
   }, []);
 
@@ -40,6 +54,7 @@ function PublicPopupBanner() {
 
   // 배너 클릭: 회원이면 마이페이지 쿠폰함, 비회원이면 회원가입 페이지로 이동.
   const handleBannerClick = () => {
+    trackSelectPromotion(POPUP_PROMOTION);
     dismiss();
     navigate(isAuthenticated ? "/mypage#coupons" : "/signup");
   };

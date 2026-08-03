@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { formatCurrency } from "@shared-domain/format";
 import ContentContainer from "../components/ContentContainer";
@@ -9,6 +9,7 @@ import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { usePublicWishlist } from "../contexts/PublicWishlistContext";
+import { trackAddToCart, trackRemoveFromCart, trackViewCart } from "../lib/analytics";
 import { usePageMeta } from "../lib/usePageMeta";
 import { getAddableBooks, groupCartItems, normalizeCartGrade } from "../lib/cartItemGroups";
 import { fetchStorefrontProductDetail } from "../lib/storefront";
@@ -48,6 +49,20 @@ function persistCartSelection(ids) {
   } catch {
     // ignore
   }
+}
+
+// cart_item 한 건 → GA4 items 라인 (analytics.js toGaItem 입력 형태)
+function cartItemToAnalyticsLine(item) {
+  return {
+    productId: item.product_id,
+    title: item.title,
+    brand: item.brand,
+    subject: item.subject,
+    optionLabel: item.option_label,
+    conditionGrade: item.condition_grade,
+    price: item.price,
+    quantity: 1,
+  };
 }
 
 // productMeta — 삭제 되돌리기/되살리기 시 add_to_cart에 넘길 메타. cart_item 한 건에서 추출.
@@ -214,10 +229,18 @@ function PublicCartPage() {
     return new Map(entries);
   }, []);
 
+  // GA4 view_cart — 페이지 방문당 1회 (되돌리기 등으로 loadCart가 재실행돼도 재발화 금지)
+  const viewCartTrackedRef = useRef(false);
+
   const loadCart = useCallback(async () => {
     setIsLoading(true);
     const { items: cartItems, error } = await getCartItems();
     setItems(cartItems);
+
+    if (!error && !viewCartTrackedRef.current && cartItems.length > 0) {
+      viewCartTrackedRef.current = true;
+      trackViewCart(cartItems.map(cartItemToAnalyticsLine));
+    }
 
     // P1-3: 주문 페이지 뒤로가기 시 selection 복원. 살아 있는 구매가능 item만 추려 복원.
     const availableIdsArr = cartItems
@@ -339,6 +362,7 @@ function PublicCartPage() {
       showToast("수량을 줄이지 못했어요. 잠시 후 다시 시도해 주세요.", "error");
       return;
     }
+    trackRemoveFromCart([cartItemToAnalyticsLine(target)]);
     setItems((prev) => prev.filter((item) => item.id !== target.id));
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -400,6 +424,7 @@ function PublicCartPage() {
       is_sold_out: false,
       created_at: rep?.created_at ?? null,
     };
+    trackAddToCart([cartItemToAnalyticsLine(newItem)]);
     setItems((prev) => [...prev, newItem]);
     if (wasSelected) {
       setSelectedIds((prev) => new Set(prev).add(newId));
@@ -416,6 +441,7 @@ function PublicCartPage() {
       showToast("삭제에 실패했습니다.", "error");
       return;
     }
+    trackRemoveFromCart(snapshot.map(cartItemToAnalyticsLine));
     setItems((prev) => prev.filter((item) => !ids.includes(item.id)));
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -427,6 +453,7 @@ function PublicCartPage() {
       actionLabel: "되돌리기",
       onAction: async () => {
         let failed = 0;
+        const restored = [];
         for (const item of snapshot) {
           // book_id로 정확히 같은 권 복구 (product_id만 넘기면 bookId 누락→데모 카트로 샘).
           const { error: restoreError } = await addToCart({
@@ -436,7 +463,9 @@ function PublicCartPage() {
             productMeta: cartItemToProductMeta(item),
           });
           if (restoreError) failed += 1;
+          else restored.push(item);
         }
+        trackAddToCart(restored.map(cartItemToAnalyticsLine));
         await loadCart();
         if (selectedSnapshot.length > 0) {
           setSelectedIds((prev) => {
@@ -463,12 +492,14 @@ function PublicCartPage() {
       showToast("삭제에 실패했습니다.", "error");
       return;
     }
+    trackRemoveFromCart(snapshot.map(cartItemToAnalyticsLine));
     setItems((prev) => prev.filter((item) => !selectedIds.has(item.id)));
     setSelectedIds(new Set());
     showToast(`${ids.length}개 상품이 삭제되었습니다.`, "info", {
       actionLabel: "되돌리기",
       onAction: async () => {
         let failed = 0;
+        const restored = [];
         for (const item of snapshot) {
           const { error: restoreError } = await addToCart({
             bookId: item.book_id,
@@ -477,7 +508,9 @@ function PublicCartPage() {
             productMeta: cartItemToProductMeta(item),
           });
           if (restoreError) failed += 1;
+          else restored.push(item);
         }
+        trackAddToCart(restored.map(cartItemToAnalyticsLine));
         setSelectedIds(new Set(snapshot.map((item) => item.id)));
         await loadCart();
         showToast(

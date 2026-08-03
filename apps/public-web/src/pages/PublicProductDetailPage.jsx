@@ -10,7 +10,14 @@ import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
 import { BellIcon, CloseIcon } from "../components/icons";
 import { usePublicWishlist } from "../contexts/PublicWishlistContext";
-import { trackAddToCart, trackBuyClick, trackViewItem } from "../lib/analytics";
+import {
+  trackAddToCart,
+  trackBuyClick,
+  trackImageZoom,
+  trackRestockSubscribe,
+  trackViewItem,
+  trackViewItemList,
+} from "../lib/analytics";
 import { FREE_SHIPPING_THRESHOLD, SHIPPING_FEE, addToCart } from "../lib/cart";
 import usePublicMemberGate from "../lib/publicMemberGate";
 import {
@@ -772,11 +779,31 @@ function ProductImageLightbox({
   );
 }
 
+const RELATED_RAIL_LIST_NAME = "비슷한 교재 추천";
+
 function RelatedProductsRail({ products, favoriteIds, onToggleFavorite }) {
   const railRef = useRef(null);
   const [canScrollPrev, setCanScrollPrev] = useState(false);
   const [canScrollNext, setCanScrollNext] = useState(false);
   const [hasOverflow, setHasOverflow] = useState(false);
+  // GA4 view_item_list — 추천 목록이 채워진 첫 시점 1회 (상품 이동 시 리마운트되어 재발화)
+  const viewListTrackedRef = useRef(false);
+
+  useEffect(() => {
+    if (viewListTrackedRef.current || products.length === 0) return;
+    viewListTrackedRef.current = true;
+    trackViewItemList(
+      RELATED_RAIL_LIST_NAME,
+      products.map((item) => ({
+        productId: item.id,
+        title: item.title,
+        brand: item.brand,
+        subject: item.subject,
+        price: item.price,
+        quantity: 1,
+      })),
+    );
+  }, [products]);
 
   useEffect(() => {
     const rail = railRef.current;
@@ -868,6 +895,7 @@ function RelatedProductsRail({ products, favoriteIds, onToggleFavorite }) {
               role="listitem"
             >
               <ProductCard
+                analyticsListName={RELATED_RAIL_LIST_NAME}
                 isFavorite={favoriteIds.includes(String(relatedProduct.id))}
                 onToggleFavorite={onToggleFavorite}
                 product={relatedProduct}
@@ -1338,6 +1366,7 @@ function PublicProductDetailPage() {
         if (error) {
           showCartToast(error.message || "구독 취소에 실패했어요.", "error");
         } else {
+          trackRestockSubscribe(product.id, false);
           setIsSubscribedRestock(false);
           showCartToast("재입고 알림을 해제했어요.");
         }
@@ -1348,6 +1377,7 @@ function PublicProductDetailPage() {
         if (error) {
           showCartToast(error.message || "구독에 실패했어요.", "error");
         } else {
+          trackRestockSubscribe(product.id, true);
           setIsSubscribedRestock(true);
           showCartToast("재입고되면 알림을 보내드릴게요.");
         }
@@ -1611,14 +1641,15 @@ function PublicProductDetailPage() {
                   aria-label="이미지 크게 보기"
                   className="public-detail-hero__main-image public-detail-hero__main-image--button"
                   disabled={!selectedImageUrl}
-                  onClick={() =>
-                    selectedImageUrl &&
+                  onClick={() => {
+                    if (!selectedImageUrl) return;
+                    trackImageZoom(product.id);
                     setLightboxState({
                       images: galleryImages,
                       initialIndex: selectedImageIndex,
                       captionPrefix: product.title,
-                    })
-                  }
+                    });
+                  }}
                   type="button"
                 >
                   {selectedImageUrl ? (

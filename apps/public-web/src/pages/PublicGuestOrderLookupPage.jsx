@@ -5,6 +5,7 @@ import ContentContainer from "../components/ContentContainer";
 import PublicFooter from "../components/PublicFooter";
 import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
+import { trackGuestOrderLookup } from "../lib/analytics";
 import { usePageMeta } from "../lib/usePageMeta";
 import { fetchGuestOrder } from "../lib/guestOrder";
 import {
@@ -84,10 +85,12 @@ function PublicGuestOrderLookupPage() {
       return;
     }
     if (!data?.found) {
+      trackGuestOrderLookup(false);
       setErrorMessage("일치하는 주문이 없습니다. 주문번호와 휴대폰 번호를 확인해 주세요.");
       return;
     }
 
+    trackGuestOrderLookup(true);
     setResult(data);
   };
 

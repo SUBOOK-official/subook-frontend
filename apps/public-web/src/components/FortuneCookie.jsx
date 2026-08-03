@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useFocusTrap } from "@shared-domain/useFocusTrap";
+import { trackFortuneCookieDraw } from "../lib/analytics";
 import { FORTUNE_COOKIE_MESSAGES } from "../lib/fortuneCookieMessages";
 import "./FortuneCookie.css";
 
@@ -74,6 +75,7 @@ function FortuneCookie() {
 
   const draw = () => {
     const list = FORTUNE_COOKIE_MESSAGES;
+    trackFortuneCookieDraw();
     setFortune(list[Math.floor(Math.random() * list.length)] ?? "");
     writeLocal(LAST_KEY, todayStr()); // 하루 1회 — 뽑는 순간 오늘 날짜 기록
     setPhase("open");

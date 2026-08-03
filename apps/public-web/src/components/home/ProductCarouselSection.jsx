@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { isNewHomeArrivalBadgeVisible } from "../../lib/publicHomeLatestBooksUtils";
+import { trackViewItemList } from "../../lib/analytics";
 import ContentContainer from "../ContentContainer";
 import ProductCard, { ProductCardSkeleton } from "../ProductCard";
 import { ChevronLeftIcon, ChevronRightIcon } from "../icons";
@@ -57,9 +58,10 @@ function ProductCarouselSkeletonCard({ badgeType, index }) {
   );
 }
 
-function ProductCarouselCard({ badgeType, isFavorite, onToggleFavorite, product, rank }) {
+function ProductCarouselCard({ analyticsListName, badgeType, isFavorite, onToggleFavorite, product, rank }) {
   return (
     <ProductCard
+      analyticsListName={analyticsListName}
       badge={getCarouselBadge(badgeType, rank, product)}
       className="public-home-best-books__card"
       isFavorite={isFavorite}
@@ -88,6 +90,24 @@ function ProductCarouselSection({
   const [canScrollNext, setCanScrollNext] = useState(false);
   const [hasOverflow, setHasOverflow] = useState(false);
   const railRef = useRef(null);
+  // GA4 view_item_list — 목록 데이터가 채워진 첫 시점 1회 (title이 목록명).
+  const viewListTrackedRef = useRef(false);
+
+  useEffect(() => {
+    if (viewListTrackedRef.current || products.length === 0) return;
+    viewListTrackedRef.current = true;
+    trackViewItemList(
+      title,
+      products.map((product) => ({
+        productId: product.id,
+        title: product.title,
+        brand: product.brand,
+        subject: product.subject,
+        price: product.price,
+        quantity: 1,
+      })),
+    );
+  }, [products, title]);
 
   useEffect(() => {
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
@@ -219,6 +239,7 @@ function ProductCarouselSection({
                 ))
               : products.map((product, index) => (
                   <ProductCarouselCard
+                    analyticsListName={title}
                     badgeType={badgeType}
                     isFavorite={favoriteIds.includes(product.id)}
                     key={product.id}

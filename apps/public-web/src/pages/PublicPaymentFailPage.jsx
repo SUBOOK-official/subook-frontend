@@ -5,6 +5,7 @@ import ContentContainer from "../components/ContentContainer";
 import PublicFooter from "../components/PublicFooter";
 import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
+import { trackPaymentFail } from "../lib/analytics";
 import { usePageMeta } from "../lib/usePageMeta";
 import "./PublicOrderCompletePage.css";
 
@@ -28,6 +29,14 @@ function PublicPaymentFailPage() {
   // StrictMode 이중 실행으로 취소가 두 번 호출되는 것 방지 (RPC 자체는 pending 아니면 거부)
   const calledRef = useRef(false);
   const [autoCancelled, setAutoCancelled] = useState(false);
+
+  // GA4 payment_fail — 실패 복귀 1회 (실패 코드 분포 관찰용). orderNumber 없어도 발화.
+  const failTrackedRef = useRef(false);
+  useEffect(() => {
+    if (failTrackedRef.current) return;
+    failTrackedRef.current = true;
+    trackPaymentFail({ code, message });
+  }, [code, message]);
 
   useEffect(() => {
     if (calledRef.current || !orderNumber || !supabase) return;

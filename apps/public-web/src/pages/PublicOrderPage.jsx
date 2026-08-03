@@ -10,7 +10,15 @@ import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, CloseIcon, TicketIcon } f
 import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { supabase as publicSupabase } from "@shared-supabase/publicSupabaseClient";
-import { trackBeginCheckout, trackPurchase } from "../lib/analytics";
+import {
+  trackAddPaymentInfo,
+  trackAddShippingInfo,
+  trackBeginCheckout,
+  trackCheckoutError,
+  trackCouponApply,
+  trackCouponRemove,
+  trackPurchase,
+} from "../lib/analytics";
 import {
   FREE_SHIPPING_THRESHOLD,
   calculateShippingFee,
@@ -1041,10 +1049,34 @@ function PublicOrderPage() {
 
     const validationError = validate();
     if (validationError) {
+      // GA4 checkout_error — 제출 시도가 검증에서 막힌 지점 (미입력 필드·동의 누락 분포)
+      trackCheckoutError("validation", validationError);
       showToast(validationError, "error");
       inFlightRef.current = false;
       return;
     }
+
+    // GA4 add_shipping_info + add_payment_info — 검증 통과 = 배송지·결제수단이 확정 제출된
+    // 시점. purchase와의 격차가 결제창 이탈·승인 실패·입금 포기 구간이 된다.
+    const analyticsLines = orderItems.map(toAnalyticsLine);
+    trackAddShippingInfo({
+      lines: analyticsLines,
+      shippingTier: remoteAreaInfo
+        ? "도서산간"
+        : shippingFee === 0
+          ? "무료배송"
+          : "일반",
+    });
+    trackAddPaymentInfo({
+      lines: analyticsLines,
+      paymentType:
+        isPg && PG_PROVIDER === "nicepay"
+          ? "card_nicepay"
+          : isPg
+            ? "card_toss"
+            : "bank_transfer",
+      coupon: selectedCoupon?.title,
+    });
 
     setIsSubmitting(true);
     const bookIds = orderItems.map((i) => i.bookId);
@@ -1094,6 +1126,8 @@ function PublicOrderPage() {
           });
 
     if (error) {
+      // GA4 checkout_error — 주문/세션 RPC 실패 (재고 선점 경합·쿠폰 무효 등 서버 거절 분포)
+      trackCheckoutError(isNicepayCard ? "checkout_session" : "create_order", error.message);
       setIsSubmitting(false);
       showToast(toFriendlyOrderError(error), "error");
       inFlightRef.current = false;
@@ -1142,6 +1176,7 @@ function PublicOrderPage() {
           buyerTel: shipping.recipientPhone.replace(/\D/g, "") || undefined,
           buyerEmail: user?.email || undefined,
           onError: (result) => {
+            trackCheckoutError("pg_open", result?.errorMsg);
             showToast(
               result?.errorMsg || "결제를 시작하지 못했어요. 잠시 후 다시 시도해 주세요.",
               "error",
@@ -1149,6 +1184,7 @@ function PublicOrderPage() {
           },
         });
       } catch (err) {
+        trackCheckoutError("pg_open", err?.message);
         const msg =
           err?.message && /[가-힣]/.test(err.message)
             ? err.message
@@ -1182,6 +1218,7 @@ function PublicOrderPage() {
         // 리다이렉트되므로 이후 코드는 실행되지 않는다.
       } catch (err) {
         // 사용자가 결제창을 닫았거나 실패. 주문(pending)은 24시간 후 자동 취소된다.
+        trackCheckoutError("pg_widget", err?.message);
         setIsSubmitting(false);
         inFlightRef.current = false;
         const msg =
@@ -1200,6 +1237,7 @@ function PublicOrderPage() {
       value: data.total_amount,
       shipping: shippingFee,
       items: orderItems.map(toAnalyticsLine),
+      coupon: selectedCoupon?.title,
     });
 
     // 게스트 무통장: 새로고침·재방문 시 완료 페이지가 RLS 대신 조회 RPC로 복원하도록 보관
@@ -1649,7 +1687,10 @@ function PublicOrderPage() {
                       <button
                         type="button"
                         className="order-sidebar__coupon-clear"
-                        onClick={() => setSelectedCouponId(null)}
+                        onClick={() => {
+                          trackCouponRemove();
+                          setSelectedCouponId(null);
+                        }}
                       >
                         해제
                       </button>
@@ -1839,6 +1880,11 @@ function PublicOrderPage() {
                           type="button"
                           className={`order-coupon-modal__item${isSelected ? " is-selected" : ""}`}
                           onClick={() => {
+                            trackCouponApply({
+                              couponId: c.id,
+                              couponTitle: c.title,
+                              discountType: c.discount_type,
+                            });
                             setSelectedCouponId(c.id);
                             setIsCouponPickerOpen(false);
                           }}
@@ -1886,6 +1932,7 @@ function PublicOrderPage() {
                     type="button"
                     className="order-coupon-modal__clear"
                     onClick={() => {
+                      trackCouponRemove();
                       setSelectedCouponId(null);
                       setIsCouponPickerOpen(false);
                     }}

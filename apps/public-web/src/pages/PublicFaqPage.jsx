@@ -5,6 +5,7 @@ import ContentContainer from "../components/ContentContainer";
 import PublicFooter from "../components/PublicFooter";
 import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
+import { trackFaqOpen } from "../lib/analytics";
 import { usePageMeta } from "../lib/usePageMeta";
 import { ChevronRightIcon, ChevronUpIcon } from "../components/icons";
 import { looksLikeRichHtml, sanitizeRichHtml } from "@shared-domain/richText";
@@ -267,7 +268,13 @@ function PublicFaqPage() {
                   aria-expanded={isOpen}
                   className={`public-faq-item__head ${isOpen ? "is-open" : ""}`}
                   id={`faq-trigger-${item.id}`}
-                  onClick={() => handleToggle(item.id)}
+                  onClick={() => {
+                    // GA4 faq_open — 접힘 → 펼침 전환만 (어떤 질문이 많이 읽히는지)
+                    if (!isOpen) {
+                      trackFaqOpen({ faqId: item.id, question: item.question, category: item.category });
+                    }
+                    handleToggle(item.id);
+                  }}
                   type="button"
                 >
                   <span className="public-faq-item__category">{item.category}</span>

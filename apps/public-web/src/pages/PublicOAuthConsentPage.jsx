@@ -5,6 +5,7 @@ import PublicAgreementDialog from "../components/PublicAgreementDialog";
 import brandLogoImage from "../assets/brand/logo-horizontal.png";
 import { CheckIcon } from "../components/icons";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
+import { trackSignUp } from "../lib/analytics";
 import { usePageMeta } from "../lib/usePageMeta";
 import {
   formatPhoneNumber,
@@ -264,6 +265,10 @@ function PublicOAuthConsentPage() {
         setIsSubmitting(false);
         return;
       }
+
+      // GA4 sign_up — 가입 마무리(약관 동의) 완료 시점. OAuth(google/kakao)와
+      // OTP만 마치고 떠났던 이메일 가입자 모두 여기서 확정된다.
+      trackSignUp(user?.app_metadata?.provider ?? "email");
 
       await refreshProfile();
       navigate(next, { replace: true });

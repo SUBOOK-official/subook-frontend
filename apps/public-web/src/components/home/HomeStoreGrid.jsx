@@ -22,6 +22,13 @@ import {
 } from "../../lib/publicStoreNavigation";
 import usePublicMemberGate from "../../lib/publicMemberGate";
 import { subscribeRestockKeyword } from "../../lib/publicRestock";
+import {
+  trackRestockKeywordSubscribe,
+  trackSearch,
+  trackStoreFilter,
+  trackStoreSort,
+  trackViewItemList,
+} from "../../lib/analytics";
 
 const HOME_SIDEBAR_FILTER_GROUPS = STORE_FILTER_GROUPS.filter((group) =>
   HOME_SIDEBAR_FILTER_GROUP_KEYS.includes(group.key),
@@ -100,6 +107,9 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
   // 모바일 필터 바텀시트 (codex UX 감사: 390px에서 사이드바가 258px 차지 → 트리거 + 시트로 줄임)
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
   useBodyScrollLock(isFilterSheetOpen);
+  // GA4 search 중복 방지 — 같은 검색어로 페이지만 넘길 때 재발화하지 않도록 마지막
+  // 계측 키워드를 기억한다. 검색 해제 시 리셋해 재검색은 다시 잡는다.
+  const lastTrackedSearchRef = useRef("");
   useEffect(() => {
     if (!isFilterSheetOpen) return undefined;
     const handler = (e) => {
@@ -147,8 +157,31 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
         if (cancelled || seq !== requestSeqRef.current) return;
 
         const rows = result.products ?? result.books ?? [];
-        setTotalCount(result.totalCount ?? rows.length);
+        const resolvedTotal = result.totalCount ?? rows.length;
+        setTotalCount(resolvedTotal);
         setProducts(rows);
+
+        // GA4 view_item_list — 결과 세트가 화면에 실제로 노출되는 시점마다 (조건·페이지 단위)
+        trackViewItemList(
+          "스토어 그리드",
+          rows.map((product) => ({
+            productId: product.id,
+            title: product.title,
+            brand: product.brand,
+            subject: product.subject,
+            price: product.price,
+            quantity: 1,
+          })),
+        );
+
+        // GA4 search — 새 검색어의 첫 결과 도착 시 1회 (결과 수 포함, 0건이면 no_results 추가)
+        const keyword = searchKeyword.trim();
+        if (keyword && keyword !== lastTrackedSearchRef.current) {
+          lastTrackedSearchRef.current = keyword;
+          trackSearch(keyword, resolvedTotal);
+        } else if (!keyword) {
+          lastTrackedSearchRef.current = "";
+        }
       } catch {
         if (!cancelled && seq === requestSeqRef.current) {
           setProducts([]);
@@ -306,11 +339,14 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
 
   const handleSelectSubject = (subject) => {
     if (subject === selectedSubject) return;
+    trackStoreFilter("subject", subject, "select");
     setSelectedSubject(subject);
     setCurrentPage(1);
   };
 
   const handleToggleFilter = (groupKey, optionValue) => {
+    const wasSelected = (selectedFilters[groupKey] ?? []).includes(optionValue);
+    trackStoreFilter(groupKey, optionValue, wasSelected ? "remove" : "add");
     setSelectedFilters((current) => toggleStoreFilterSelection(current, groupKey, optionValue));
     setCurrentPage(1);
   };
@@ -344,6 +380,7 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
   const handleSelectSort = (nextValue) => {
     setIsSortMenuOpen(false);
     if (nextValue === sortOption) return;
+    trackStoreSort(nextValue);
     setSortOption(nextValue);
     setCurrentPage(1);
   };
@@ -440,6 +477,7 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
       setRestockSubmitState({ busy: false, done: false, error: result.error || "등록에 실패했어요." });
       return;
     }
+    trackRestockKeywordSubscribe(keyword);
     setRestockSubmitState({ busy: false, done: true, error: "" });
   };
 
@@ -725,6 +763,7 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
           <div className="public-home-store-grid__list">
             {displayedProducts.map((product) => (
               <ProductCard
+                analyticsListName="스토어 그리드"
                 isFavorite={favoriteIds.includes(product.id)}
                 key={product.id}
                 onToggleFavorite={onToggleFavorite}

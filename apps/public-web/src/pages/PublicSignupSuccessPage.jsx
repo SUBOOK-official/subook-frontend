@@ -4,6 +4,7 @@ import { isSupabaseConfigured, supabase } from "@shared-supabase/publicSupabaseC
 import PublicToastMessage from "../components/PublicToastMessage";
 import { CheckCircleIcon, ClockIcon } from "../components/icons";
 import { clearSignupSuccessState, loadSignupSuccessState, saveSignupSuccessState } from "../lib/publicSignupSuccessState";
+import { trackEmailVerified } from "../lib/analytics";
 
 const RESEND_COOLDOWN_SECONDS = 60;
 
@@ -124,6 +125,9 @@ function PublicSignupSuccessPage() {
       setIsVerifying(false);
       return;
     }
+
+    // GA4 email_verify_complete — OTP 인증 성공 (가입 활성화 지표)
+    trackEmailVerified();
 
     const nextState = buildVerifiedSuccessState(successState);
     saveSignupSuccessState(nextState);

@@ -21,6 +21,7 @@ import {
   normalizeEmail,
 } from "../lib/publicAuthFormUtils";
 import { saveSignupSuccessState } from "../lib/publicSignupSuccessState";
+import { trackSignUp } from "../lib/analytics";
 
 const RESEND_COOLDOWN_SECONDS = 60;
 
@@ -606,6 +607,9 @@ function PublicSignupPage() {
     } catch {
       /* 트리거가 이미 처리하므로 실패해도 무시 */
     }
+
+    // GA4 sign_up — 이메일 가입 확정 시점 (OAuth 가입은 동의 페이지 완료 시 발화)
+    trackSignUp("email");
 
     saveSignupSuccessState({
       email: normalizedEmail,

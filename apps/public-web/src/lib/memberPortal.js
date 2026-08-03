@@ -1,5 +1,11 @@
 import { isSupabaseConfigured, supabase } from "@shared-supabase/publicSupabaseClient";
 import {
+  trackMemberWithdraw,
+  trackOrderCancel,
+  trackPurchaseConfirm,
+  trackRefundRequest,
+} from "./analytics";
+import {
   DEMO_MEMBER_PROFILE,
   confirmPortalOrder,
   mergePortalDemoState,
@@ -1126,6 +1132,7 @@ async function confirmMemberPurchase({ user, orderId, demoMode = false }) {
     }
 
     if (!error) {
+      trackPurchaseConfirm(orderId);
       return { error: null, source: "supabase" };
     }
   }
@@ -1200,6 +1207,7 @@ async function requestMemberRefund({ user, orderId, reason, demoMode = false }) 
     return { error, source: "fallback" };
   }
 
+  trackRefundRequest(orderId);
   return { error: null, source: "supabase" };
 }
 
@@ -1237,6 +1245,7 @@ async function cancelMemberOrder({ user, orderId, reason = "", demoMode = false 
     }
 
     if (!error) {
+      trackOrderCancel(orderId);
       return { error: null, source: "supabase" };
     }
   }
@@ -1297,6 +1306,7 @@ async function requestMemberWithdrawal({
     return { error, source: "fallback" };
   }
 
+  trackMemberWithdraw(reasonCategory);
   clearStoredPortalState(user.id);
   return { error: null, source: "supabase" };
 }

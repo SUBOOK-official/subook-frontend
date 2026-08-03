@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { formatCurrency } from "@shared-domain/format";
+import { trackSelectItem } from "../lib/analytics";
 import {
   getProductCardPlaceholderEyebrow,
   getProductCardPrice,
@@ -70,6 +71,9 @@ function ProductCardFavoriteButton({ filled = false, onToggle }) {
 }
 
 function ProductCard({
+  // GA4 select_item의 item_list_name — 이 카드가 어느 목록에 놓였는지 (예: "BEST 교재").
+  // 미지정 목록은 목록명 없이 select_item만 발화한다.
+  analyticsListName = null,
   badge = null,
   className = "",
   detailPath,
@@ -145,7 +149,21 @@ function ProductCard({
 
   return (
     <article className={cardClassName}>
-      <Link aria-label={`${title} 상세 보기`} className="public-product-card__overlay-link" to={resolvedDetailPath} />
+      <Link
+        aria-label={`${title} 상세 보기`}
+        className="public-product-card__overlay-link"
+        onClick={() =>
+          trackSelectItem(analyticsListName, {
+            productId: product.id,
+            title,
+            brand: product.brand,
+            subject: product.subject,
+            price,
+            quantity: 1,
+          })
+        }
+        to={resolvedDetailPath}
+      />
 
       <div className="public-product-card__media" ref={mediaRef}>
         <ProductCardBadge badge={badge} />

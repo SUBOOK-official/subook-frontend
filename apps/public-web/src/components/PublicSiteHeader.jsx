@@ -20,6 +20,7 @@ import {
   removeRecentSearchTerm,
 } from "../lib/publicStoreSearch";
 import { SEARCH_DEBOUNCE_MS } from "../lib/publicStoreNavigation";
+import { trackSelectItem } from "../lib/analytics";
 import { BellIcon, CartIcon, ClockIcon, MenuIcon, CloseIcon } from "./icons";
 
 // 자동완성 = 서버 검색 RPC(search_storefront_products, FTS+초성+오타 매칭).
@@ -468,6 +469,12 @@ function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
     setIsSuggestionsOpen(false);
     if (item.kind === "book" && item.productId) {
       // 교재 자동완성 클릭은 상세 페이지로 직접 점프.
+      // GA4 select_item — 자동완성발 상세 진입 비중 비교용.
+      trackSelectItem("검색 자동완성", {
+        productId: item.productId,
+        title: item.label,
+        quantity: 1,
+      });
       const trimmed = item.label.trim();
       const nextRecent = addRecentSearchTerm(recentSearches, trimmed);
       setRecentSearches(nextRecent);

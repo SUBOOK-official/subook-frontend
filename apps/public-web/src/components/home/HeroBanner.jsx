@@ -1,5 +1,15 @@
 import { useEffect, useRef, useState } from "react";
+import { trackSelectPromotion, trackViewPromotion } from "../../lib/analytics";
 import ContentContainer from "../ContentContainer";
+
+// GA4 프로모션 파라미터 — 슬라이드 id 그대로 promotion_id, 노출 위치는 hero_N.
+function toPromotionParams(slide, slideIndex) {
+  return {
+    promotionId: slide.id,
+    promotionName: slide.eyebrow ?? slide.imageAlt ?? slide.id,
+    creativeSlot: `hero_${slideIndex + 1}`,
+  };
+}
 
 // WCAG 2.2.2: 자동 회전은 사용자가 한 슬라이드를 읽을 충분한 시간이 필요.
 // 첫 인상 슬라이드로 3초는 짧아 텍스트를 읽기 전에 사라지는 사례가 있어 5초로 늘림.
@@ -90,6 +100,15 @@ function HeroBanner({ onSlideAction, slides = [] }) {
   const hasLoop = slideCount > 1;
   const leadingCloneCount = hasLoop ? 1 : 0;
   const activeIndex = getWrappedIndex(trackState.virtualIndex, slideCount);
+
+  // GA4 view_promotion — 활성 슬라이드가 바뀔 때, 슬라이드별 마운트당 1회만.
+  const viewedPromotionIdsRef = useRef(new Set());
+  useEffect(() => {
+    const slide = slides[activeIndex];
+    if (!slide || viewedPromotionIdsRef.current.has(slide.id)) return;
+    viewedPromotionIdsRef.current.add(slide.id);
+    trackViewPromotion(toPromotionParams(slide, activeIndex));
+  }, [activeIndex, slides]);
 
   useEffect(() => {
     setTrackState((state) => {
@@ -374,6 +393,12 @@ function HeroBanner({ onSlideAction, slides = [] }) {
     event.stopPropagation();
   };
 
+  // CTA 클릭 — select_promotion 발화 후 페이지 액션 위임.
+  const handleSlideCta = (slide, slideIndex) => {
+    trackSelectPromotion(toPromotionParams(slide, slideIndex));
+    onSlideAction?.(slide);
+  };
+
   const handleTrackTransitionEnd = (event) => {
     if (event.target !== event.currentTarget || event.propertyName !== "transform") {
       return;
@@ -449,7 +474,7 @@ function HeroBanner({ onSlideAction, slides = [] }) {
                   <button
                     aria-hidden={isActive ? undefined : "true"}
                     className="public-home-hero-banner__image-button"
-                    onClick={() => onSlideAction?.(slide)}
+                    onClick={() => handleSlideCta(slide, slideIndex)}
                     tabIndex={isActive ? 0 : -1}
                     type="button"
                   >
@@ -470,7 +495,7 @@ function HeroBanner({ onSlideAction, slides = [] }) {
                       <button
                         aria-hidden={isActive ? undefined : "true"}
                         className="public-home-hero-banner__cta"
-                        onClick={() => onSlideAction?.(slide)}
+                        onClick={() => handleSlideCta(slide, slideIndex)}
                         tabIndex={isActive ? 0 : -1}
                         type="button"
                       >

@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { usePublicAuth } from "./PublicAuthContext";
+import { trackAddToWishlist, trackRemoveFromWishlist } from "../lib/analytics";
 import {
   loadWishlistProductIds,
   mergeWishlistProductIds,
@@ -138,6 +139,13 @@ function PublicWishlistProvider({ children }) {
     }
 
     setFavoriteIds(result.productIds);
+
+    // GA4 찜 계측 — 모든 표면(카드·상세·로그인 복귀 재실행)이 이 함수를 거치므로 여기서 1회.
+    if (!wasFavorite) {
+      trackAddToWishlist(normalizedProductId);
+    } else {
+      trackRemoveFromWishlist(normalizedProductId);
+    }
 
     return {
       isFavorite: !wasFavorite,
