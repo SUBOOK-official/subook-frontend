@@ -13,11 +13,15 @@ function usePublicMemberGate() {
   const [isOpen, setIsOpen] = useState(false);
   const [actionType, setActionType] = useState("");
   const [redirectTarget, setRedirectTarget] = useState(null);
+  // 비회원 주문 진입 (2026-08-03): 바로구매 게이트에서만 "비회원으로 주문하기"를 노출한다.
+  // 담기/찜은 서버 카트·회원 데이터가 필요해 게스트 진행 경로가 없다.
+  const [guestOrderItems, setGuestOrderItems] = useState(null);
 
   const closeMemberGate = useCallback(() => {
     setIsOpen(false);
     setActionType("");
     setRedirectTarget(null);
+    setGuestOrderItems(null);
   }, []);
 
   const requireMember = useCallback(
@@ -35,6 +39,11 @@ function usePublicMemberGate() {
       if (pendingAction) {
         setPendingMemberAction(pendingAction);
       }
+      setGuestOrderItems(
+        nextActionType === "buyNow" && Array.isArray(pendingAction?.orderItems)
+          ? pendingAction.orderItems
+          : null,
+      );
       return false;
     },
     [isAuthenticated],
@@ -60,6 +69,14 @@ function usePublicMemberGate() {
     navigate("/signup", { state: redirectState });
   }, [closeMemberGate, navigate, redirectState]);
 
+  // 비회원으로 주문하기 — 게이트에 담긴 바로구매 아이템으로 주문 페이지 게스트 모드 진입
+  const handleGuestCheckout = useCallback(() => {
+    const items = guestOrderItems;
+    closeMemberGate();
+    if (!items || items.length === 0) return;
+    navigate("/order", { state: { items, guestMode: true } });
+  }, [closeMemberGate, guestOrderItems, navigate]);
+
   return {
     closeMemberGate,
     isAuthenticated,
@@ -67,6 +84,7 @@ function usePublicMemberGate() {
     memberGateDialog: (
       <PublicMemberGateDialog
         onClose={closeMemberGate}
+        onGuestCheckout={guestOrderItems && guestOrderItems.length > 0 ? handleGuestCheckout : null}
         onLogin={handleLogin}
         onSignup={handleSignup}
         open={isOpen}

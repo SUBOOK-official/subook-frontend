@@ -1223,8 +1223,18 @@ function AdminOrdersPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="text-sm font-semibold">{order.buyer_name || "—"}</div>
-                      <div className="text-xs text-slate-400">{order.buyer_email || ""}</div>
+                      <div className="text-sm font-semibold flex items-center gap-1.5">
+                        {/* 비회원 주문: profiles가 없어 수령인 이름으로 표시 (2026-08-03) */}
+                        {order.is_guest ? order.shipping_recipient_name || "—" : order.buyer_name || "—"}
+                        {order.is_guest && (
+                          <span className="inline-flex items-center rounded-full bg-slate-200 px-1.5 py-0.5 text-[10px] font-bold text-slate-600">
+                            비회원
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-slate-400">
+                        {order.is_guest ? order.shipping_recipient_phone || "" : order.buyer_email || ""}
+                      </div>
                     </td>
                     <td className="px-4 py-3 max-w-[200px]">
                       <div className="text-sm truncate">
@@ -1334,14 +1344,25 @@ function AdminOrdersPage() {
                 주문 {selectedOrder.order_number}
               </h3>
               <p className="text-sm text-slate-500 mt-1">
-                {formatDate(selectedOrder.created_at)} · {selectedOrder.buyer_name} ({selectedOrder.buyer_email})
-                {" "}
-                <Link
-                  className="font-bold text-brand underline underline-offset-2"
-                  to={`/admin/members?q=${encodeURIComponent(selectedOrder.buyer_email || selectedOrder.buyer_name || "")}`}
-                >
-                  회원 조회
-                </Link>
+                {selectedOrder.is_guest ? (
+                  <>
+                    {formatDate(selectedOrder.created_at)} · {selectedOrder.shipping_recipient_name}{" "}
+                    <span className="inline-flex items-center rounded-full bg-slate-200 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 align-middle">
+                      비회원
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    {formatDate(selectedOrder.created_at)} · {selectedOrder.buyer_name} ({selectedOrder.buyer_email})
+                    {" "}
+                    <Link
+                      className="font-bold text-brand underline underline-offset-2"
+                      to={`/admin/members?q=${encodeURIComponent(selectedOrder.buyer_email || selectedOrder.buyer_name || "")}`}
+                    >
+                      회원 조회
+                    </Link>
+                  </>
+                )}
               </p>
             </div>
             <StatusBadge status={selectedOrder.status} type="order" />

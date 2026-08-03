@@ -141,7 +141,8 @@ function buildSalesRow(order, item) {
   row["결제1 - 결제 수단"] = PAYMENT_METHOD_LABEL[order.payment_method] ?? order.payment_method ?? "";
   row["결제1 - 결제 금액"] = isPaid ? order.total_amount ?? "" : "";
   row["결제1 - 결제 일시"] = formatKstDateTime(paidAtIso);
-  row["회원 여부"] = "회원";
+  // 비회원 주문(user_id null) 지원 (2026-08-03) — gsheet 트리거(notify_gsheet_order_paid)와 동일 기준
+  row["회원 여부"] = order.user_id ? "회원" : "비회원";
   row["주문자명"] = order.buyer_name ?? order.shipping_recipient_name ?? "";
   row["주문자 이메일"] = order.buyer_email ?? "";
   row["주문자 핸드폰 번호"] = order.buyer_phone ?? order.shipping_recipient_phone ?? "";

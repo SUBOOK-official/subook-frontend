@@ -17,6 +17,11 @@ import {
   createOrder,
   createPgCheckoutSession,
 } from "../lib/cart";
+import {
+  createGuestOrder,
+  createGuestPgCheckoutSession,
+  stashGuestOrderRef,
+} from "../lib/guestOrder";
 import { getRemoteAreaInfo } from "../lib/remoteAreaShipping";
 import { loadMemberPortalSnapshot, saveMemberShippingAddress } from "../lib/memberPortal";
 import { usePageMeta } from "../lib/usePageMeta";
@@ -666,6 +671,11 @@ function PublicOrderPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const initialOrderItems = location.state?.items;
+  // 비회원(게스트) 주문 모드 (2026-08-03) — 로그인 게이트의 "비회원으로 주문하기"로만
+  // 진입한다(state 플래그). 플래그 없이 비로그인으로 들어오면 기존대로 로그인으로 보낸다.
+  // 로그인 상태면 플래그가 있어도 회원 주문으로 진행한다.
+  const isGuestMode = Boolean(location.state?.guestMode);
+  const isGuestCheckout = isGuestMode && !isAuthenticated;
   // 진입 시점의 cart snapshot을 보관하고, 서버에서 fresh 가격/판매상태를 받아 덮어쓴다.
   // create_order RPC는 어차피 서버 가격으로 결제하므로, 표시 금액과 실제 결제 금액의
   // mismatch를 막기 위해 진입 직후 한 번 재검증.
@@ -738,32 +748,32 @@ function PublicOrderPage() {
 
   useEffect(() => {
     if (authLoading) return;
-    if (!isAuthenticated) {
+    if (!isAuthenticated && !isGuestMode) {
       navigate("/login", { state: { from: { pathname: "/order" } } });
       return;
     }
     // 진입 자체가 빈손일 때만 카트로 돌려보낸다. drift/품절로 전 품목이 빠진
     // 경우는 본문에서 사유를 보여주고 사용자가 직접 돌아가게 한다(사유 없이 튕기지 않도록).
     if (!initialOrderItems || initialOrderItems.length === 0) {
-      navigate("/cart");
+      navigate(isGuestMode && !isAuthenticated ? "/" : "/cart");
       return;
     }
-  }, [authLoading, isAuthenticated, navigate, initialOrderItems]);
+  }, [authLoading, isAuthenticated, isGuestMode, navigate, initialOrderItems]);
 
   // GA4 begin_checkout — 주문서 진입 1회 (진입 스냅샷 기준, drift 재검증 전)
   const beginCheckoutTrackedRef = useRef(false);
   useEffect(() => {
     if (beginCheckoutTrackedRef.current) return;
-    if (authLoading || !isAuthenticated) return;
+    if (authLoading || (!isAuthenticated && !isGuestMode)) return;
     if (!orderItems || orderItems.length === 0) return;
     beginCheckoutTrackedRef.current = true;
     trackBeginCheckout(orderItems.map(toAnalyticsLine));
-  }, [authLoading, isAuthenticated, orderItems]);
+  }, [authLoading, isAuthenticated, isGuestMode, orderItems]);
 
   // 가격 drift 검증: 진입 시 books 테이블에서 fresh 가격·status를 조회해 표시 금액을 동기화한다.
   // initialOrderItems가 바뀔 때만 한 번 fetch (재실행 방지).
   useEffect(() => {
-    if (!isAuthenticated || !initialOrderItems || initialOrderItems.length === 0) return;
+    if ((!isAuthenticated && !isGuestMode) || !initialOrderItems || initialOrderItems.length === 0) return;
     let cancelled = false;
     (async () => {
       const bookIds = initialOrderItems
@@ -822,7 +832,7 @@ function PublicOrderPage() {
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated, initialOrderItems]);
+  }, [isAuthenticated, isGuestMode, initialOrderItems]);
 
   useEffect(() => {
     if (!user) return;
@@ -1058,17 +1068,30 @@ function PublicOrderPage() {
       memberCouponId: selectedCouponId,
     };
 
+    // 비회원은 전용 anon RPC로 — 쿠폰 없음 + 약관 동의를 서버에 명시 전달(동의 시각 기록).
+    // requiredAgreementsOk는 validate()를 통과한 시점이라 항상 true지만, 서버 계약을
+    // 명시하기 위해 값 그대로 넘긴다.
     const { data, error } = isNicepayCard
-      ? await createPgCheckoutSession(orderArgs)
-      : await createOrder({
-          ...orderArgs,
-          // 무통장입금일 때만 환불 계좌 전달 (PG 결제는 원결제수단으로 자동 환불).
-          refundBank: paymentMethod === "bank_transfer" ? refundAccount.bank.trim() || null : null,
-          refundAccountNumber:
-            paymentMethod === "bank_transfer" ? refundAccount.number.replace(/[^0-9]/g, "") || null : null,
-          refundAccountHolder:
-            paymentMethod === "bank_transfer" ? refundAccount.holder.trim() || null : null,
-        });
+      ? isGuestCheckout
+        ? await createGuestPgCheckoutSession({ ...orderArgs, agreeTerms: requiredAgreementsOk })
+        : await createPgCheckoutSession(orderArgs)
+      : isGuestCheckout
+        ? await createGuestOrder({
+            ...orderArgs,
+            refundBank: refundAccount.bank.trim() || null,
+            refundAccountNumber: refundAccount.number.replace(/[^0-9]/g, "") || null,
+            refundAccountHolder: refundAccount.holder.trim() || null,
+            agreeTerms: requiredAgreementsOk,
+          })
+        : await createOrder({
+            ...orderArgs,
+            // 무통장입금일 때만 환불 계좌 전달 (PG 결제는 원결제수단으로 자동 환불).
+            refundBank: paymentMethod === "bank_transfer" ? refundAccount.bank.trim() || null : null,
+            refundAccountNumber:
+              paymentMethod === "bank_transfer" ? refundAccount.number.replace(/[^0-9]/g, "") || null : null,
+            refundAccountHolder:
+              paymentMethod === "bank_transfer" ? refundAccount.holder.trim() || null : null,
+          });
 
     if (error) {
       setIsSubmitting(false);
@@ -1078,8 +1101,8 @@ function PublicOrderPage() {
     }
 
     // 주소록이 비어 있으면 이번 배송지를 기본 배송지로 자동 등록 (2026-07-12 정책).
-    // best-effort — 실패해도 주문 흐름에는 영향 없음.
-    if (savedAddresses.length === 0) {
+    // best-effort — 실패해도 주문 흐름에는 영향 없음. 게스트는 주소록이 없다.
+    if (!isGuestCheckout && savedAddresses.length === 0) {
       void saveMemberShippingAddress({
         user,
         values: {
@@ -1100,6 +1123,14 @@ function PublicOrderPage() {
     // 카드 인증이 끝나면 나이스페이가 returnUrl(/api/payments/nicepay-return)로 POST →
     // 서버가 주문 생성(finalize) → 승인 → 주문완료로 리다이렉트.
     if (isNicepayCard) {
+      // 게스트: 결제창 복귀(서버 303) 후 완료 페이지가 세션 없이도 주문을 보여줄 수 있게
+      // 주문번호+휴대폰을 sessionStorage에 보관 (조회 RPC의 2요소 키와 동일).
+      if (isGuestCheckout) {
+        stashGuestOrderRef({
+          orderNumber: data.order_number,
+          phone: shipping.recipientPhone.trim(),
+        });
+      }
       try {
         await loadNicepaySdk();
         requestNicepayCardPay({
@@ -1162,14 +1193,22 @@ function PublicOrderPage() {
       return;
     }
 
-    // GA4 purchase — 주문 생성 시점(무통장 입금 확인 전). 금액은 서버 확정값 기준.
-    // ⚠ PG(토스) 경로는 결제 승인 성공 페이지에서 별도 연결 필요 (현재 프로덕션 OFF).
+    // purchase 계측(GA4+Meta) — 무통장: 주문 생성 시점(입금 확인 전), 금액은 서버 확정값.
+    // 카드(PG) 경로는 여기 도달하지 않고 주문완료 페이지(OrderCompletePage)에서 발화한다.
     trackPurchase({
       transactionId: data.order_number ?? String(data.order_id),
       value: data.total_amount,
       shipping: shippingFee,
       items: orderItems.map(toAnalyticsLine),
     });
+
+    // 게스트 무통장: 새로고침·재방문 시 완료 페이지가 RLS 대신 조회 RPC로 복원하도록 보관
+    if (isGuestCheckout) {
+      stashGuestOrderRef({
+        orderNumber: data.order_number,
+        phone: shipping.recipientPhone.trim(),
+      });
+    }
 
     setIsSubmitting(false);
     navigate(`/order/complete/${data.order_id}`, {
@@ -1179,6 +1218,8 @@ function PublicOrderPage() {
         itemCount: orderItems.reduce((sum, i) => sum + (i.quantity ?? 1), 0),
         recipientName: shipping.recipientName,
         paymentMethod, // 완료 페이지 카피·입금안내 분기 (무통장 vs 카드)
+        createdAt: new Date().toISOString(), // 게스트 입금 카운트다운용 (회원은 RPC 재조회가 덮어씀)
+        guest: isGuestCheckout, // 완료 페이지 CTA 분기 (마이페이지 vs 비회원 주문조회)
       },
       replace: true,
     });
@@ -1331,7 +1372,7 @@ function PublicOrderPage() {
                   </div>
                 ) : (
                   <div className="order-form">
-                    {savedAddresses.length === 0 && (
+                    {savedAddresses.length === 0 && !isGuestCheckout && (
                       <p className="order-section__hint">
                         입력하신 주소는 기본 배송지로 자동 저장돼요.
                       </p>

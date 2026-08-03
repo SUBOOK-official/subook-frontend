@@ -5,7 +5,7 @@ import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
 import PublicOAuthButtons from "./PublicOAuthButtons";
 import { LockIcon } from "./icons";
 
-function PublicMemberGateDialog({ onClose, onLogin, onSignup, open }) {
+function PublicMemberGateDialog({ onClose, onGuestCheckout, onLogin, onSignup, open }) {
   const [offsetY, setOffsetY] = useState(0);
   const startYRef = useRef(null);
   const dialogRef = useRef(null);
@@ -130,6 +130,12 @@ function PublicMemberGateDialog({ onClose, onLogin, onSignup, open }) {
           <button className="public-auth-button public-auth-button--secondary" onClick={onSignup} type="button">
             회원가입
           </button>
+          {/* 바로구매 게이트 전용 — 비회원 주문 진입 (쿠폰·적립은 회원 전용이라 안내 문구로 구분) */}
+          {onGuestCheckout ? (
+            <button className="public-member-gate__guest" onClick={onGuestCheckout} type="button">
+              비회원으로 주문하기
+            </button>
+          ) : null}
         </div>
 
         <button className="public-member-gate__dismiss" onClick={onClose} type="button">

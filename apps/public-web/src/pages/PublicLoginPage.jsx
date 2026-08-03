@@ -556,6 +556,13 @@ function PublicLoginPage() {
               <Link className="public-auth-link-row__link" to="/signup">
                 회원가입
               </Link>
+              <span
+                aria-hidden="true"
+                className="public-auth-link-row__separator"
+              />
+              <Link className="public-auth-link-row__link" to="/order/lookup">
+                비회원 주문 조회
+              </Link>
             </div>
           </div>
         </section>

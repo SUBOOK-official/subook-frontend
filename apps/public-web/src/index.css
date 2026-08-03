@@ -5148,6 +5148,25 @@ img {
   gap: 10px;
 }
 
+/* 비회원 주문 진입 (바로구매 게이트 전용) — 로그인/회원가입보다 한 단계 낮은 위계 */
+.public-member-gate__guest {
+  min-height: 44px;
+  border: 1px solid var(--public-ds-border);
+  border-radius: var(--public-radius-md);
+  background: #fff;
+  color: var(--public-ds-text-secondary);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+  cursor: pointer;
+}
+
+.public-member-gate__guest:hover,
+.public-member-gate__guest:focus-visible {
+  border-color: var(--public-ds-primary);
+  color: var(--public-ds-primary);
+}
+
 .public-member-gate__dismiss {
   min-height: 44px;
   border: 0;

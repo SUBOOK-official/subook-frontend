@@ -7,7 +7,9 @@ import PublicFooter from "../components/PublicFooter";
 import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
+import { trackPurchase } from "../lib/analytics";
 import { usePageMeta } from "../lib/usePageMeta";
+import { fetchGuestOrder, readGuestOrderRef } from "../lib/guestOrder";
 import {
   BANK_ACCOUNT,
   BANK_HOLDER,
@@ -16,6 +18,77 @@ import {
   buildDepositorName,
 } from "../lib/paymentBankInfo";
 import "./PublicOrderCompletePage.css";
+
+// ── 카드(PG) 주문 purchase 계측 (GA4 + Meta) ────────────────────────────────
+// 나이스페이는 카드 인증 후 서버(returnUrl)가 주문 생성→승인까지 마치고 이 페이지로
+// 303 리다이렉트하므로, 브라우저에서 purchase를 쏠 수 있는 첫 지점이 여기다
+// (무통장은 회원·게스트 모두 주문 생성 시점에 OrderPage에서 발화).
+// 새로고침·재방문 이중 집계는 localStorage 가드로, StrictMode 이중 실행·중복 호출은
+// in-flight Set으로 막는다. 발화 전 실패(items 조회 실패 등)는 가드를 남기지 않아
+// 다음 방문에서 재시도된다.
+const PURCHASE_TRACKED_KEY_PREFIX = "subook:purchase-tracked:";
+const purchaseTrackingInFlight = new Set();
+
+function hasTrackedPurchase(key) {
+  try {
+    return window.localStorage.getItem(PURCHASE_TRACKED_KEY_PREFIX + key) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function markTrackedPurchase(key) {
+  try {
+    window.localStorage.setItem(PURCHASE_TRACKED_KEY_PREFIX + key, "1");
+  } catch {
+    // localStorage 불가 환경(시크릿 모드 등)이면 세션 내 Set 가드만으로 동작
+  }
+}
+
+// 공통 발화부 — 카드 결제 완료 주문만, 주문번호 기준 1회. itemLines는 analytics 라인
+// ({ productId?, title, optionLabel?, conditionGrade?, price, quantity }) 배열.
+function fireCardPurchaseOnce(orderRow, itemLines) {
+  if (!orderRow) return;
+  if (orderRow.payment_method !== "card" || orderRow.payment_status !== "paid") return;
+  const key = String(orderRow.order_number ?? "");
+  if (!key || purchaseTrackingInFlight.has(key) || hasTrackedPurchase(key)) return;
+  if (!Array.isArray(itemLines) || itemLines.length === 0) return;
+  purchaseTrackingInFlight.add(key);
+  trackPurchase({
+    transactionId: key,
+    value: orderRow.total_amount,
+    shipping: orderRow.shipping_fee,
+    items: itemLines,
+  });
+  markTrackedPurchase(key);
+}
+
+// 회원 카드 주문: RLS로 order_items를 조회해 발화.
+// (게스트 카드 주문은 조회 RPC가 items를 함께 반환하므로 별도 조회 없이 발화)
+async function trackMemberCardPurchase(orderId, orderRow) {
+  if (!orderId || !supabase || !orderRow) return;
+  if (orderRow.payment_method !== "card" || orderRow.payment_status !== "paid") return;
+  const key = String(orderRow.order_number ?? "");
+  if (!key || purchaseTrackingInFlight.has(key) || hasTrackedPurchase(key)) return;
+
+  const { data: items, error } = await supabase
+    .from("order_items")
+    .select("product_id, title, option_label, condition_grade, quantity, unit_price")
+    .eq("order_id", orderId);
+  if (error) return;
+
+  fireCardPurchaseOnce(
+    orderRow,
+    (items ?? []).map((item) => ({
+      productId: item.product_id,
+      title: item.title,
+      optionLabel: item.option_label,
+      conditionGrade: item.condition_grade,
+      price: item.unit_price,
+      quantity: item.quantity,
+    })),
+  );
+}
 
 // "MM/DD HH:mm" 한국 시각 포맷
 function formatDeadline(createdAtIso) {
@@ -108,6 +181,10 @@ function PublicOrderCompletePage() {
 
   // location.state는 fallback. 새로고침 시 사라지므로 RPC로 재조회.
   const initial = location.state ?? {};
+  // 비회원 주문 참조 (2026-08-03): 주문 페이지가 sessionStorage에 보관한 주문번호+휴대폰.
+  // 카드 결제는 서버 303 리다이렉트로 돌아와 state가 없으므로 이 참조가 유일한 복원 수단이다.
+  const [guestRef] = useState(() => readGuestOrderRef());
+  const isGuestView = Boolean(initial.guest) || (!initial.orderNumber && Boolean(guestRef));
   const [order, setOrder] = useState({
     orderNumber: initial.orderNumber ?? null,
     totalAmount: initial.totalAmount ?? null,
@@ -133,6 +210,45 @@ function PublicOrderCompletePage() {
   useEffect(() => {
     if (authLoading) return;
     if (!hasSession) {
+      // 비회원 주문: sessionStorage 참조(주문번호+휴대폰)로 조회 RPC 복원.
+      // 카드 결제 복귀(서버 303, state 없음)와 무통장 완료 후 새로고침 둘 다 이 경로다.
+      if (guestRef?.orderNumber && guestRef?.phone) {
+        let cancelled = false;
+        (async () => {
+          const { data } = await fetchGuestOrder(guestRef.orderNumber, guestRef.phone);
+          if (cancelled) return;
+          if (data?.found && data.order) {
+            setOrder({
+              orderNumber: data.order.order_number,
+              totalAmount: data.order.total_amount,
+              itemCount: data.order.item_count,
+              recipientName: data.order.shipping_recipient_name,
+              status: data.order.status,
+              paymentStatus: data.order.payment_status,
+              paymentMethod: data.order.payment_method,
+              createdAt: data.order.created_at,
+            });
+            // 게스트 카드 결제 완료: purchase 계측(GA4+Meta). 조회 RPC가 items를 함께
+            // 반환하므로 추가 조회 없이 발화한다. RPC items에는 product_id가 없어
+            // 카탈로그 매칭용 content_ids는 생략된다(analytics가 알아서 뺀다).
+            fireCardPurchaseOnce(
+              data.order,
+              (data.items ?? []).map((item) => ({
+                title: item.title,
+                optionLabel: item.option_label,
+                conditionGrade: item.condition_grade,
+                price: item.unit_price,
+                quantity: item.quantity,
+              })),
+            );
+          }
+          // 조회 실패(카드 인증 실패로 주문 미생성 등)는 state fallback 그대로 표시
+          setIsLoading(false);
+        })();
+        return () => {
+          cancelled = true;
+        };
+      }
       // 비로그인 진입 시 fallback state라도 있으면 그대로 표시
       setIsLoading(false);
       return;
@@ -148,7 +264,7 @@ function PublicOrderCompletePage() {
       const { data, error } = await supabase
         .from("orders")
         .select(
-          "id, order_number, total_amount, item_count, status, payment_status, payment_method, created_at, shipping_recipient_name",
+          "id, order_number, total_amount, shipping_fee, item_count, status, payment_status, payment_method, created_at, shipping_recipient_name",
         )
         .eq("id", orderId)
         .maybeSingle();
@@ -177,24 +293,29 @@ function PublicOrderCompletePage() {
         createdAt: data.created_at,
       });
       setIsLoading(false);
+
+      // 회원 카드 결제 완료: purchase 계측(GA4+Meta) — 카드+결제완료가 아니면 내부에서
+      // no-op. 무통장은 주문 생성 시점에 OrderPage에서 이미 발화됐다.
+      trackMemberCardPurchase(orderId, data);
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [authLoading, hasSession, orderId]);
+  }, [authLoading, hasSession, orderId, guestRef]);
 
   // 비로그인 + 주문 정보도 못 가져온 케이스: 결제 직후 세션이 만료된 사용자가
   // 입금 안내(계좌번호/입금자명)를 못 보면 입금만 보내고 매칭 실패 → 24시간 자동 취소
-  // 위험이 있다. 로그인 화면으로 보내되 anwendung notice로 다음 동선을 명시한다.
-  if (!authLoading && !hasSession && !order.orderNumber) {
+  // 위험이 있다. 로그인 화면으로 보내되 notice로 다음 동선을 명시한다.
+  // 비회원 참조(guestRef)가 있으면 위 effect가 조회 RPC로 복원 중이므로 보내지 않는다.
+  if (!authLoading && !hasSession && !order.orderNumber && !guestRef) {
     return (
       <Navigate
         replace
         state={{
           from: { pathname: `/order/complete/${orderId ?? ""}` },
           notice:
-            "주문 정보를 확인하려면 로그인이 필요합니다. 로그인 후 마이페이지 > 주문내역에서 입금 계좌와 주문번호를 확인할 수 있습니다.",
+            "주문 정보를 확인하려면 로그인이 필요합니다. 회원 주문은 마이페이지 > 주문내역에서, 비회원 주문은 하단의 비회원 주문 조회에서 확인할 수 있습니다.",
         }}
         to="/login"
       />
@@ -251,7 +372,10 @@ function PublicOrderCompletePage() {
                   {orderNumber && (
                     <div className="order-complete-card__row">
                       <span>주문번호</span>
-                      <span className="order-complete-card__value">{orderNumber}</span>
+                      <span className="order-complete-card__value order-complete-card__value--with-copy">
+                        {orderNumber}
+                        {isGuestView ? <CopyButton ariaLabel="주문번호 복사" value={orderNumber} /> : null}
+                      </span>
                     </div>
                   )}
                   {itemCount != null && (
@@ -344,10 +468,26 @@ function PublicOrderCompletePage() {
                   </div>
                 ) : null}
 
+                {/* 비회원: 주문번호가 유일한 조회 열쇠 */}
+                {isGuestView && orderNumber ? (
+                  <p className="order-complete-card__guest-hint">
+                    <strong>주문번호</strong>는 비회원 주문 조회에 필요합니다. 꼭 보관해 주세요.
+                  </p>
+                ) : null}
+
                 <div className="order-complete-card__actions">
-                  <Link className="order-complete-card__btn order-complete-card__btn--primary" to="/mypage">
-                    주문 내역 확인
-                  </Link>
+                  {isGuestView ? (
+                    <Link
+                      className="order-complete-card__btn order-complete-card__btn--primary"
+                      to="/order/lookup"
+                    >
+                      비회원 주문 조회
+                    </Link>
+                  ) : (
+                    <Link className="order-complete-card__btn order-complete-card__btn--primary" to="/mypage">
+                      주문 내역 확인
+                    </Link>
+                  )}
                   <Link className="order-complete-card__btn order-complete-card__btn--secondary" to="/">
                     쇼핑 계속하기
                   </Link>

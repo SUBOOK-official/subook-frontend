@@ -1,0 +1,321 @@
+/* 비회원 주문 조회 — 디자인 토큰만 사용 (2026-07 디자인 언어) */
+
+.guest-lookup-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: var(--public-ds-bg);
+}
+
+.guest-lookup-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 560px;
+  padding-top: 40px;
+  padding-bottom: 64px;
+}
+
+.guest-lookup-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.guest-lookup-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--public-ds-text-primary);
+}
+
+.guest-lookup-subtitle {
+  font-size: 14px;
+  color: var(--public-ds-text-muted);
+  line-height: 1.5;
+}
+
+.guest-lookup-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: var(--public-ds-card);
+  border: 1px solid var(--public-ds-border);
+  border-radius: var(--public-radius-lg);
+  box-shadow: var(--public-ds-shadow);
+  padding: 20px;
+}
+
+.guest-lookup-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.guest-lookup-field__label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--public-ds-text-secondary);
+}
+
+.guest-lookup-field__input {
+  height: 46px;
+  padding: 0 14px;
+  border: 1px solid var(--public-ds-border);
+  border-radius: var(--public-radius-md);
+  font-size: 15px;
+  color: var(--public-ds-text-primary);
+  background: #fff;
+}
+
+.guest-lookup-field__input:focus {
+  outline: none;
+  border-color: var(--public-ds-primary);
+}
+
+.guest-lookup-error {
+  font-size: 13px;
+  color: var(--public-ds-danger);
+  line-height: 1.5;
+}
+
+.guest-lookup-submit {
+  height: 48px;
+  border: none;
+  border-radius: var(--public-radius-md);
+  background: var(--public-ds-primary);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.guest-lookup-submit:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.guest-lookup-result {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: var(--public-ds-card);
+  border: 1px solid var(--public-ds-border);
+  border-radius: var(--public-radius-lg);
+  box-shadow: var(--public-ds-shadow);
+  padding: 20px;
+}
+
+.guest-lookup-result__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.guest-lookup-result__number {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--public-ds-text-primary);
+  word-break: break-all;
+}
+
+.guest-lookup-result__date {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--public-ds-text-muted);
+}
+
+.guest-lookup-items {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--public-ds-divider);
+  padding-top: 16px;
+}
+
+.guest-lookup-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.guest-lookup-item__cover {
+  width: 48px;
+  height: 62px;
+  object-fit: cover;
+  border-radius: var(--public-radius-sm);
+  border: 1px solid var(--public-ds-divider);
+  flex-shrink: 0;
+  background: var(--public-card);
+}
+
+.guest-lookup-item__cover--empty {
+  display: block;
+}
+
+.guest-lookup-item__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.guest-lookup-item__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--public-ds-text-primary);
+  line-height: 1.4;
+}
+
+.guest-lookup-item__meta {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--public-ds-text-muted);
+}
+
+.guest-lookup-item__refunded {
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--public-ds-danger);
+}
+
+.guest-lookup-item__price {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--public-ds-text-primary);
+  flex-shrink: 0;
+}
+
+.guest-lookup-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  border-top: 1px solid var(--public-ds-divider);
+  padding-top: 16px;
+}
+
+.guest-lookup-summary__row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--public-ds-text-secondary);
+}
+
+.guest-lookup-summary__row dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.guest-lookup-summary__row--refund dd {
+  color: var(--public-ds-danger);
+}
+
+.guest-lookup-summary__row--total {
+  font-size: 15px;
+  color: var(--public-ds-text-primary);
+  font-weight: 700;
+  padding-top: 4px;
+}
+
+.guest-lookup-bank {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--public-ds-secondary);
+  border-radius: var(--public-radius-md);
+  padding: 14px 16px;
+}
+
+.guest-lookup-bank__title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--public-ds-text-primary);
+}
+
+.guest-lookup-bank__account {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--public-ds-text-primary);
+}
+
+.guest-lookup-bank__row {
+  font-size: 13px;
+  color: var(--public-ds-text-secondary);
+}
+
+.guest-lookup-bank__row strong {
+  color: var(--public-ds-text-primary);
+}
+
+.guest-lookup-bank__notice {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--public-ds-warning);
+  line-height: 1.5;
+}
+
+.guest-lookup-shipping {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-top: 1px solid var(--public-ds-divider);
+  padding-top: 16px;
+}
+
+.guest-lookup-shipping__title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--public-ds-text-primary);
+  margin-bottom: 2px;
+}
+
+.guest-lookup-shipping__line {
+  font-size: 13px;
+  color: var(--public-ds-text-secondary);
+  line-height: 1.5;
+}
+
+.guest-lookup-help {
+  font-size: 12px;
+  color: var(--public-ds-text-muted);
+  line-height: 1.6;
+}
+
+.guest-lookup-help a {
+  color: var(--public-ds-primary);
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.guest-lookup-footer-links {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--public-ds-text-muted);
+}
+
+.guest-lookup-footer-links a {
+  color: var(--public-ds-text-secondary);
+  text-decoration: none;
+}
+
+.guest-lookup-footer-links a:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 640px) {
+  .guest-lookup-content {
+    padding-top: 24px;
+  }
+
+  .guest-lookup-form,
+  .guest-lookup-result {
+    padding: 16px;
+  }
+}

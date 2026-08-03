@@ -43,6 +43,7 @@ const footerTopLinks = [
   { label: "교재 판매하기", to: "/pickup/new" },
   { label: "공지사항", to: "/notices" },
   { label: "자주 묻는 질문", to: "/faq" },
+  { label: "비회원 주문 조회", to: "/order/lookup" },
   { label: "이용약관", to: "/terms" },
   { label: "개인정보처리방침", to: "/privacy", bold: true },
   { label: "환불정책", to: "/refund" },

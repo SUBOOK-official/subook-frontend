@@ -81,6 +81,29 @@
   color: var(--public-ds-text);
 }
 
+/* 비회원: 주문번호 옆 복사 버튼 */
+.order-complete-card__value--with-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 비회원: 주문번호 보관 안내 */
+.order-complete-card__guest-hint {
+  margin-top: 12px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--public-ds-text-secondary);
+  background: var(--public-ds-secondary);
+  border-radius: var(--public-radius-md);
+  padding: 10px 14px;
+  text-align: left;
+}
+
+.order-complete-card__guest-hint strong {
+  color: var(--public-ds-primary);
+}
+
 /* ── Bank Info ── */
 .order-complete-card__bank-info {
   background: #fffbeb;
