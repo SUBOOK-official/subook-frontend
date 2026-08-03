@@ -66,6 +66,8 @@ function formatDateTime(value) {
 //   · PG(카드 등): 토스 승인 서버리스(confirm_pg_payment)가 자동으로 pending→preparing 전이
 // paid 항목은 폐지 이전에 생성된 레거시 주문의 후속 처리용으로만 남겨둔다.
 // action: "refund"는 admin_refund_order RPC를 호출 (status 변경이 아닌 별도 흐름).
+// '주문취소'(상태변경)는 미결제(pending) 전용 — 결제된 주문은 환불처리로 단일화 (2026-08-03).
+//   PG 실취소 없이 상태만 바꾸던 함정 제거. DB단 가드(admin_update_order_status)도 동일 정책.
 const NEXT_STATUS_ACTIONS = {
   pending: [
     // 입금확인은 무통장 주문에만 노출 — PG 주문은 결제 성공 시 자동 전이되므로 수동 확인 없음.
@@ -75,7 +77,6 @@ const NEXT_STATUS_ACTIONS = {
   // 레거시(폐지 전 paid에 남은 주문 전용) — 신규 주문은 이 상태를 거치지 않는다.
   paid: [
     { status: "preparing", label: "상품 준비 중", style: "btn-primary" },
-    { status: "cancelled", label: "주문취소", style: "btn-danger" },
     { action: "refund", label: "환불처리", style: "btn-danger" },
   ],
   preparing: [
@@ -83,7 +84,6 @@ const NEXT_STATUS_ACTIONS = {
     { action: "cj_delivery", label: "CJ 송장 출력", style: "btn-primary" },
     // 수동 송장입력(다른 택배/직접 발번 대비 fallback).
     { status: "shipping", label: "송장 직접입력", style: "btn-secondary", requiresTracking: true },
-    { status: "cancelled", label: "주문취소", style: "btn-danger" },
     { action: "refund", label: "환불처리", style: "btn-danger" },
   ],
   shipping: [
