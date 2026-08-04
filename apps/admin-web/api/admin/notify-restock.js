@@ -2,8 +2,9 @@ import { createClient } from "@supabase/supabase-js";
 
 /**
  * 재입고 알림 발송 Cron
- * 매일 1회 실행 — restock_notifications 중 product에 on_sale + is_public인 책이 있는
- * 구독을 모아서 카카오 알림톡 발송 + notified_at 마킹.
+ * 15분마다 실행(2026-08-04 Pro 전환으로 일 1회→15분 상향) — restock_notifications 중
+ * product에 on_sale + is_public인 책이 있는 구독을 모아서 카카오 알림톡 발송 +
+ * notified_at 마킹. 미발송분만 조회하는 구조라 실행 주기와 무관하게 중복 발송 없음.
  */
 
 async function callSendNotification({ baseUrl, cronSecret, payload }) {

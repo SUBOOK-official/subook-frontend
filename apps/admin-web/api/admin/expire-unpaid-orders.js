@@ -5,9 +5,10 @@ import { createClient } from "@supabase/supabase-js";
  * pending 상태로 24h 지난 주문을 cancelled로 전이 + 쿠폰 복구하는 expire_unpaid_orders() RPC 호출.
  *
  * ⚠️ 실제 집행 주기: 이 함수의 핵심 스케줄은 DB의 pg_cron이 15분마다 직접
- *    `select expire_unpaid_orders()`를 호출하는 것(migration 2026051801). 무료(Hobby)
- *    플랜이라 Vercel cron은 하루 1회(vercel.json `0 18 * * *`)로만 보조 호출한다.
- *    (Hobby cron 최소 간격 = 하루 1회 제약 때문.) 두 경로 모두 동일 RPC라 멱등.
+ *    `select expire_unpaid_orders()`를 호출하는 것(migration 20260731175117).
+ *    Vercel cron은 하루 1회(vercel.json `0 18 * * *`) 백스톱 — 2026-08-04 Pro 전환으로
+ *    주기 제약은 없어졌지만 pg_cron이 주력이라 의도적으로 일 1회 유지.
+ *    두 경로 모두 동일 RPC라 멱등.
  */
 export default async function handler(req, res) {
   // fail-close: CRON_SECRET 미설정이면 항상 차단
