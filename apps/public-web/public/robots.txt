@@ -7,3 +7,6 @@ Disallow: /mypage
 Disallow: /order
 
 Sitemap: https://subook.kr/sitemap.xml
+
+# Daum 웹마스터도구 소유확인 토큰 — 삭제 시 인증 풀림 (2026-08-04 발급, 24개월 유효)
+#DaumWebMasterTool:99c6c1ad33a3f9908305801e3a97d02ab129792865e0f897f2656f434d0e44ed:lz95XezL/vZ7uH8/mt6pWg==
