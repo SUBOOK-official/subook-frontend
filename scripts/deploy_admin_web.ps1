@@ -77,6 +77,7 @@ $frontendRoot = Split-Path -Parent $scriptRoot
 $adminWebRoot = Join-Path $frontendRoot "apps/admin-web"
 $projectLinkPath = Join-Path $adminWebRoot ".vercel/project.json"
 $deployConfigPath = Join-Path $adminWebRoot "vercel.deploy.json"
+$rootPackagePath = Join-Path $adminWebRoot "vercel.root-package.json"
 $sharedDomainPath = Join-Path $frontendRoot "packages/shared-domain/src"
 $sharedSupabasePath = Join-Path $frontendRoot "packages/shared-supabase/src"
 $npmCommand = Get-Command "npm.cmd" -ErrorAction SilentlyContinue
@@ -86,6 +87,7 @@ Assert-PathExists -Path $frontendRoot -Description "frontend root" -Directory
 Assert-PathExists -Path $adminWebRoot -Description "admin web app" -Directory
 Assert-PathExists -Path $projectLinkPath -Description "admin web Vercel link file"
 Assert-PathExists -Path $deployConfigPath -Description "admin web Vercel deploy config"
+Assert-PathExists -Path $rootPackagePath -Description "admin web deploy-root package.json"
 Assert-PathExists -Path $sharedDomainPath -Description "shared-domain package" -Directory
 Assert-PathExists -Path $sharedSupabasePath -Description "shared-supabase package" -Directory
 
@@ -179,6 +181,11 @@ Copy-Item -LiteralPath $deployConfigPath -Destination $stagingDeployConfigPath
 #   (2026-07-24 실측: rewrites/headers는 적용되는데 배포 객체 crons가 항상 빈 배열).
 #   표준 이름 vercel.json을 스테이징 루트에 두고 기본 탐지로 배포해야 crons가 등록됨.
 Copy-Item -LiteralPath $deployConfigPath -Destination (Join-Path $stagingRoot "vercel.json")
+# ⚠ api/ 함수의 npm 의존성(@supabase/supabase-js)은 스테이징 루트 package.json이 있어야
+#   Vercel 빌더가 함수 번들에 포함시킨다. 없으면 배포는 성공하지만 모든 함수가 런타임에서
+#   "Cannot find module" → FUNCTION_INVOCATION_FAILED (2026-08-04 전면 장애 원인 — 빌더
+#   CLI 58.x부터 루트 install 없이는 함수 의존성이 누락됨).
+Copy-Item -LiteralPath $rootPackagePath -Destination (Join-Path $stagingRoot "package.json")
 
 $adminWebApiPath = Join-Path $adminWebRoot "api"
 if (Test-Path -LiteralPath $adminWebApiPath -PathType Container) {

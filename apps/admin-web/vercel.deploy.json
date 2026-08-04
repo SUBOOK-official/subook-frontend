@@ -1,5 +1,5 @@
 {
-  "installCommand": "cd frontend && npm install",
+  "installCommand": "npm install && cd frontend && npm install",
   "buildCommand": "cd frontend && npm run build:admin",
   "outputDirectory": "frontend/apps/admin-web/dist",
   "rewrites": [
@@ -23,7 +23,7 @@
   "crons": [
     {
       "path": "/api/admin/auto-confirm-orders",
-      "schedule": "0 1 * * *"
+      "schedule": "0 * * * *"
     },
     {
       "path": "/api/admin/expire-coupons",
@@ -35,11 +35,11 @@
     },
     {
       "path": "/api/admin/notify-restock",
-      "schedule": "0 0 * * *"
+      "schedule": "*/15 * * * *"
     },
     {
       "path": "/api/admin/cj-delivery-tracking",
-      "schedule": "0 13 * * *"
+      "schedule": "0 * * * *"
     }
   ],
   "headers": [

@@ -1,0 +1,8 @@
+{
+  "name": "subook-admin-deploy-root",
+  "private": true,
+  "description": "배포 스테이징 루트에 package.json으로 복사되는 파일 (deploy_admin_web.ps1). api/ 서버리스 함수가 import하는 런타임 의존성만 선언한다. Vercel 빌더가 이 package.json 기준으로 함수 번들에 node_modules를 포함시킨다 — 없으면 FUNCTION_INVOCATION_FAILED (2026-08-04 장애).",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.8"
+  }
+}
