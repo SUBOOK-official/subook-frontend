@@ -7,6 +7,21 @@
       "source": "/products/:path*",
       "destination": "/",
       "permanent": true
+    },
+    {
+      "source": "/posts/:path*",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/boards/:path*",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/question/:path*",
+      "destination": "/",
+      "permanent": true
     }
   ],
   "rewrites": [
