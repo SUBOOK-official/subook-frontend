@@ -15,6 +15,7 @@ import {
   isHiddenUnpaidCardOrder,
   mapOrderToDisplayOrder,
   mapPickupRequestToShipment,
+  mapRecentShipmentRowToDisplay,
 } from "./publicMypageUtils";
 
 const MEMBER_PORTAL_STORAGE_PREFIX = "subook.public.member-portal.v2";
@@ -524,6 +525,10 @@ function mapSettlementRow(row) {
     scheduledAt: row.scheduled_at ?? row.scheduled_date ?? null,
     completedAt: row.completed_at ?? null,
     buyerNickname: row.buyer_nickname ?? null,
+    // 구 수북 수동정산은 입금 계좌를 저장하지 않음 — 계좌 줄 표시 여부 판단용
+    hasAccountInfo: Boolean(
+      row.bank_name || row.account_last4 || row.account_number_last4 || row.account_number,
+    ),
   };
 }
 
@@ -1033,15 +1038,17 @@ async function loadMemberPortalSnapshot({ user, profile, demoMode = false }) {
       ? sortDefaultFirst(settlementAccountsResult.rows)
       : sortDefaultFirst(storedState.settlementAccounts);
 
-  // 수거 요청 → SalesTab용 shipment 형태로 변환
+  // 수거 요청 → SalesTab용 shipment 형태로 변환.
+  // 2026-08-05: get_my_pickup_requests가 구 수북 시절 수거건(수거신청 미연결 shipment)도
+  // 검수 books 포함으로 반환하므로 이 목록이 판매 이력의 단일 소스다.
   const pickupShipments =
     pickupRequestsResult.source !== "local"
       ? pickupRequestsResult.pickupRequests.map(mapPickupRequestToShipment)
       : [];
-  // 기존 shipments(레거시)와 병합, pickup이 있으면 우선 사용
+  // 비상 fallback(RPC 미반영·스키마 캐시 지연 시)만 집계 행을 표시용으로 변환해 사용
   const shipments = pickupShipments.length > 0
     ? pickupShipments
-    : recentShipmentsResult.recentShipments;
+    : recentShipmentsResult.recentShipments.map(mapRecentShipmentRowToDisplay);
 
   // 주문 → PurchasesTab용 order 형태로 변환.
   // 미결제 카드 주문(결제창 이탈/실패)은 내역·카운트에서 완전히 제외한다.

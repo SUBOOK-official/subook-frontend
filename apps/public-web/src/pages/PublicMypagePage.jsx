@@ -1995,9 +1995,11 @@ function SettlementCard({ settlement, status }) {
         {` = ${isCompleted ? "실수령" : "예상 실수령"} ${formatCurrency(settlement.amount)}`}
       </p>
       {isCompleted ? (
-        <p>
-          입금: {settlement.bankLabel} {settlement.maskedAccount}
-        </p>
+        settlement.hasAccountInfo ? (
+          <p>
+            입금: {settlement.bankLabel} {settlement.maskedAccount}
+          </p>
+        ) : null
       ) : (
         <span className={`public-mypage-chip public-mypage-chip--${settlement.tone ?? "warning"}`}>
           {settlement.statusLabel}
@@ -2191,7 +2193,8 @@ function SalesTab({
                 <div className="public-mypage-flow-card__header">
                   <div>
                     <p className="public-mypage-flow-card__meta">
-                      수거 #{formatShipmentReference(shipment.reference)}{" "}
+                      {/* 구 수북 수거건은 PU 요청번호가 없어 shipment 번호(#N)로 표기 */}
+                      수거 {shipment.referenceLabel ?? `#${formatShipmentReference(shipment.reference)}`}{" "}
                       <span>{formatCompactDate(shipment.createdAt)} 신청</span>
                     </p>
                     <h3 className="public-mypage-flow-card__title">
@@ -2272,11 +2275,11 @@ function SalesTab({
                     ) : null}
 
                     <div className="public-mypage-book-list">
-                      {shipment.items.map((item) => (
+                      {(shipment.items ?? []).map((item) => (
                         <RejectableBookRow
                           item={item}
                           key={item.id}
-                          requestNumber={shipment.reference}
+                          requestNumber={shipment.reference ?? shipment.referenceLabel}
                         />
                       ))}
                     </div>

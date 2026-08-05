@@ -810,10 +810,16 @@ export function mapPickupRequestToShipment(pr) {
     inspected: `교재 ${itemCount}권 · 검수완료`,
     cancelled: `교재 ${itemCount}권 · 취소`,
   };
+  // 2026-08-05: 구 수북 시절 수거건(수거신청 레코드 없음)은 PU 요청번호가 없어
+  // shipment 번호(#N)로 표기한다. RPC가 source='legacy_shipment'로 구분해 내려줌.
+  const isLegacyShipment = pr.source === "legacy_shipment";
 
   return {
     id: pr.id,
     reference: pr.request_number,
+    referenceLabel: isLegacyShipment
+      ? `#${pr.legacy_shipment_id ?? String(pr.id).replace("legacy-", "")}`
+      : null,
     createdAt: pr.created_at,
     status: mappedStatus,
     summaryLabel: summaryByStatus[pr.status] ?? `교재 ${itemCount}권`,
@@ -822,6 +828,27 @@ export function mapPickupRequestToShipment(pr) {
     trackingNumber: pr.tracking_number ?? null,
     trackingCompany: pr.tracking_carrier ?? "CJ대한통운",
     items,
+  };
+}
+
+// get_member_recent_shipments 집계 행(비상 fallback 전용) → SalesTab shipment 형태.
+// 책 목록이 없는 요약 행이므로 compact 카드로만 표시한다.
+export function mapRecentShipmentRowToDisplay(row) {
+  const statusMap = { scheduled: "scheduled", inspected: "listed" };
+  const bookCount = toNumber(row?.book_count);
+
+  return {
+    id: `recent-${row?.id}`,
+    reference: null,
+    referenceLabel: `#${row?.id}`,
+    createdAt: row?.created_at ?? null,
+    status: statusMap[row?.status] ?? "requested",
+    summaryLabel: `교재 ${bookCount}권`,
+    bookCount,
+    compact: true,
+    trackingNumber: null,
+    trackingCompany: null,
+    items: [],
   };
 }
 

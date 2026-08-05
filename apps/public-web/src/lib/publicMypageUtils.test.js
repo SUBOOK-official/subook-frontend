@@ -7,6 +7,7 @@ import {
   isHiddenUnpaidCardOrder,
   mapOrderToDisplayOrder,
   mapPickupRequestToShipment,
+  mapRecentShipmentRowToDisplay,
 } from "./publicMypageUtils.js";
 
 test("isHiddenUnpaidCardOrder hides card attempts that never paid, keeps everything else", () => {
@@ -414,4 +415,84 @@ test("mapPickupRequestToShipment keeps legacy pickup_items shape working", () =>
   assert.equal(legacyItem.isRejected, false);
   // 책 상태가 없으면 신청 단계 라벨로 fallback
   assert.equal(legacyItem.statusLabel, "신청완료");
+});
+
+// 2026-08-05: 구 수북 시절 수거건(수거신청 레코드 없는 shipment) 노출 경로
+test("mapPickupRequestToShipment renders legacy shipments with shipment-number label and books", () => {
+  const shipment = mapPickupRequestToShipment({
+    id: "legacy-23",
+    source: "legacy_shipment",
+    legacy_shipment_id: 23,
+    request_number: null,
+    status: "inspected",
+    item_count: 2,
+    created_at: "2026-02-20T05:00:00Z",
+    items: [
+      {
+        id: 501,
+        title: "키센스 영어",
+        option: null,
+        grade: "A",
+        price: 9200,
+        original_price: 14000,
+        status: "settled",
+        rejection_reason: null,
+        rejection_photo_urls: [],
+        inspector_note: null,
+        inspected_at: "2026-02-22T02:00:00Z",
+      },
+      {
+        id: 502,
+        title: "FEED100 국어",
+        option: null,
+        grade: "S",
+        price: 10000,
+        original_price: 16000,
+        status: "on_sale",
+        rejection_reason: null,
+        rejection_photo_urls: [],
+        inspector_note: null,
+        inspected_at: "2026-02-22T02:00:00Z",
+      },
+    ],
+  });
+
+  // 신청 id와 충돌하지 않는 문자열 id 유지
+  assert.equal(shipment.id, "legacy-23");
+  // PU 요청번호가 없으니 shipment 번호로 표기
+  assert.equal(shipment.reference, null);
+  assert.equal(shipment.referenceLabel, "#23");
+  // inspected → 판매중(listed) 진행 상태
+  assert.equal(shipment.status, "listed");
+  assert.equal(shipment.summaryLabel, "교재 2권 · 검수완료");
+  assert.equal(shipment.items.length, 2);
+  assert.equal(shipment.items[0].statusLabel, "정산완료");
+  assert.equal(shipment.items[1].statusLabel, "판매중");
+});
+
+test("mapPickupRequestToShipment keeps referenceLabel null for normal pickup requests", () => {
+  const shipment = mapPickupRequestToShipment(inspectedPickupRow);
+  assert.equal(shipment.referenceLabel, null);
+  assert.equal(shipment.reference, "PU-2026-0077");
+});
+
+test("mapRecentShipmentRowToDisplay converts aggregate fallback rows into safe compact cards", () => {
+  const shipment = mapRecentShipmentRowToDisplay({
+    id: 23,
+    pickup_date: "2026-02-21",
+    status: "inspected",
+    created_at: "2026-02-20T05:00:00Z",
+    book_count: 15,
+    on_sale_book_count: 11,
+    settled_book_count: 4,
+  });
+
+  assert.equal(shipment.id, "recent-23");
+  assert.equal(shipment.referenceLabel, "#23");
+  assert.equal(shipment.status, "listed");
+  assert.equal(shipment.bookCount, 15);
+  assert.equal(shipment.summaryLabel, "교재 15권");
+  // 책 목록이 없는 요약 행 — SalesTab이 items.map으로 죽지 않도록 항상 배열
+  assert.deepEqual(shipment.items, []);
+  assert.equal(shipment.compact, true);
 });
