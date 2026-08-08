@@ -184,7 +184,12 @@ function PickupDetailModal({ request, onClose }) {
                   <PickupDetailRow
                     key={waybill.box_seq}
                     label={`운송장 (박스 ${waybill.box_seq})`}
-                    value={waybill.tracking_number}
+                    value={
+                      // tracking_status = cj-tracking.js 추적 조회가 박스별로 병합한 최신 CJ 상태
+                      waybill.tracking_status
+                        ? `${waybill.tracking_number} · ${waybill.tracking_status}`
+                        : waybill.tracking_number
+                    }
                     mono
                   />
                 ))
@@ -899,7 +904,8 @@ function AdminPickupRequestsPage() {
   };
 
   const handleTrackingLookup = async (pickupRequest) => {
-    if (!pickupRequest.tracking_number) {
+    // 멀티박스: 대표 운송장(box1)이 아직 없어도 box_waybills에 접수분이 있으면 조회 가능
+    if (getBoxWaybillProgress(pickupRequest).registered === 0) {
       setError("조회할 운송장 번호가 없습니다.");
       setNotice("");
       return;
@@ -1238,7 +1244,7 @@ function AdminPickupRequestsPage() {
                               </button>
                             ) : null}
 
-                            {pickupRequest.tracking_number ? (
+                            {boxProgress.registered > 0 ? (
                               <button
                                 className="btn-secondary !w-auto !px-3 !py-2 text-xs"
                                 disabled={trackingLookupId === pickupRequest.id}
@@ -1408,6 +1414,9 @@ function AdminPickupRequestsPage() {
                 <h2 className="text-xl font-black text-slate-950">배송 추적</h2>
                 <p className="mt-1 text-sm font-semibold text-slate-500">
                   운송장 {trackingModal.tracking?.waybillNo}
+                  {trackingModal.tracking?.boxes?.length > 1
+                    ? ` 외 ${trackingModal.tracking.boxes.length - 1}건 (박스별)`
+                    : ""}
                 </p>
               </div>
               <button
@@ -1430,7 +1439,56 @@ function AdminPickupRequestsPage() {
               ) : null}
             </div>
 
-            {trackingModal.tracking?.events?.length > 0 ? (
+            {trackingModal.tracking?.boxes?.length > 1 ? (
+              // 멀티박스: 박스별 섹션으로 상태·이력 표시 (2026-08-08 박스별 채번 개편)
+              <div className="mt-4 max-h-96 space-y-3 overflow-y-auto pr-1">
+                {trackingModal.tracking.boxes.map((box) => (
+                  <section className="rounded-xl border border-slate-200" key={box.boxSeq}>
+                    <header className="flex flex-wrap items-center justify-between gap-2 rounded-t-xl border-b border-slate-100 bg-slate-50 px-4 py-2.5">
+                      <p className="text-sm font-black text-slate-900">
+                        박스 {box.boxSeq}
+                        <span className="ml-2 text-xs font-bold text-slate-600">
+                          {box.failed ? "조회 실패" : box.statusText || "상태 미확인"}
+                        </span>
+                        {box.statusCode ? (
+                          <span className="ml-2 text-xs font-semibold text-slate-400">
+                            코드 {box.statusCode}
+                          </span>
+                        ) : null}
+                      </p>
+                      <p className="font-mono text-xs font-semibold text-slate-500">
+                        {box.waybillNo}
+                      </p>
+                    </header>
+                    <div className="px-4 py-3">
+                      {box.events?.length > 0 ? (
+                        <div className="space-y-2">
+                          {box.events.map((event, index) => (
+                            <div
+                              className="rounded-xl border border-slate-200 px-4 py-3 text-sm"
+                              key={`${event.occurredAt || "event"}-${index}`}
+                            >
+                              <p className="font-bold text-slate-900">
+                                {event.statusText || event.statusCode || "처리 상태"}
+                              </p>
+                              <p className="mt-1 text-xs font-semibold text-slate-500">
+                                {[event.location, formatDateTime(event.occurredAt)]
+                                  .filter(Boolean)
+                                  .join(" · ")}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs font-semibold text-slate-400">
+                          상세 이력이 없습니다.
+                        </p>
+                      )}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            ) : trackingModal.tracking?.events?.length > 0 ? (
               <div className="mt-4 max-h-80 space-y-2 overflow-y-auto pr-1">
                 {trackingModal.tracking.events.map((event, index) => (
                   <div
