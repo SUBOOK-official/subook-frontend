@@ -186,9 +186,13 @@ function PickupDetailModal({ request, onClose }) {
                     label={`운송장 (박스 ${waybill.box_seq})`}
                     value={
                       // tracking_status = cj-tracking.js 추적 조회가 박스별로 병합한 최신 CJ 상태
-                      waybill.tracking_status
-                        ? `${waybill.tracking_number} · ${waybill.tracking_status}`
-                        : waybill.tracking_number
+                      [
+                        waybill.tracking_number,
+                        waybill.tracking_status,
+                        waybill.cancelled_at ? "CJ 취소됨" : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")
                     }
                     mono
                   />
@@ -208,9 +212,15 @@ function PickupDetailModal({ request, onClose }) {
 
 // 박스별 운송장 접수 현황. 멀티박스 도입(2026-08) 전 접수분은 box_waybills가 비어
 // 있으므로 tracking_number 존재 시 1건 접수로 계산한다.
+// CJ 취소된 박스(cancelled_at)는 접수분으로 치지 않는다 — 취소 후 재접수 대상.
 function getBoxWaybillProgress(pickupRequest) {
   const waybills = Array.isArray(pickupRequest.box_waybills) ? pickupRequest.box_waybills : [];
-  const registered = waybills.length > 0 ? waybills.length : pickupRequest.tracking_number ? 1 : 0;
+  const registered =
+    waybills.length > 0
+      ? waybills.filter((waybill) => !waybill?.cancelled_at).length
+      : pickupRequest.tracking_number
+        ? 1
+        : 0;
   const totalBoxes = Math.max(1, Number(pickupRequest.box_count) || 1);
   return { registered, totalBoxes, missing: Math.max(0, totalBoxes - registered) };
 }
@@ -229,6 +239,35 @@ function canRegisterCjPickup(pickupRequest) {
 //  화면에서 영영 취소할 수 없는 버그가 있었다 — 2026-07-06 수거 사이클 검토에서 수정)
 function canCancelPickup(pickupRequest) {
   return ["pending", "pickup_scheduled"].includes(pickupRequest.status);
+}
+
+// 취소된 요청에 아직 살아있는(CJ 취소 안 된) CJ 예약 박스 수.
+// CnclBook 연동 전에 DB만 취소된 건(조영훈 PU-2607-0002 등)의 CJ 예약 정리 버튼 노출 조건.
+// 이 요청 번호로 접수된 박스만 센다 — 다른 요청 번호로 커버된 백필 박스는 그 요청 몫.
+function getPendingCjCancelBoxes(pickupRequest) {
+  const raw = Array.isArray(pickupRequest.box_waybills) ? pickupRequest.box_waybills : [];
+  const entries =
+    raw.length > 0
+      ? raw
+      : pickupRequest.tracking_number
+        ? [
+            {
+              box_seq: 1,
+              tracking_number: pickupRequest.tracking_number,
+              cust_use_no: pickupRequest.request_number,
+            },
+          ]
+        : [];
+
+  return entries.filter((entry) => {
+    if (!entry || entry.cancelled_at) return false;
+    if (!String(entry.tracking_number || "").trim()) return false;
+    const custUseNo = String(entry.cust_use_no || "").trim() || pickupRequest.request_number;
+    return (
+      custUseNo === pickupRequest.request_number ||
+      custUseNo.startsWith(`${pickupRequest.request_number}-B`)
+    );
+  }).length;
 }
 
 // 체크박스 선택 허용 = CJ 접수 대상 ∪ 취소 대상
@@ -556,6 +595,9 @@ function AdminPickupRequestsPage() {
   // 알림톡/RPC 부분 실패를 전체 노출 — 이전엔 setError에 3건만 보여 4건 이후가 사라지는 P0 사고
   const [cjFailureModal, setCjFailureModal] = useState(null);
   const [notificationResult, setNotificationResult] = useState(null);
+  // 수거 취소(CJ CnclBook) 실패 모달 — { successCount, failures, dbFallbackIds, reason }
+  // dbFallbackIds가 있으면 "DB만 취소" 폴백 버튼 노출 (CJ측 예약 부재가 확인된 경우 전용)
+  const [cancelFailureModal, setCancelFailureModal] = useState(null);
 
   const totalPages = useMemo(
     () => Math.max(1, Math.ceil(totalCount / PAGE_SIZE)),
@@ -856,7 +898,102 @@ function AdminPickupRequestsPage() {
     }
   };
 
-  // 일괄 수거 취소 (admin_bulk_cancel_pickup_requests RPC)
+  // 수거 취소 실행 — 서버리스(action=cancel)가 CJ 접수분의 CnclBook까지 함께 처리한다.
+  // CJ가 취소를 거부한 건은 DB도 그대로 두고 실패 모달로 사유를 노출한다.
+  const performCancelPickups = async (targetIds, reason, { cleanup = false } = {}) => {
+    setError("");
+    setNotice("");
+    setRegisteringIds(targetIds);
+
+    try {
+      const payload = await callAdminApi("/api/admin/cj-pickup", {
+        method: "POST",
+        body: JSON.stringify({
+          action: "cancel",
+          pickupRequestIds: targetIds,
+          reason: reason || null,
+        }),
+      });
+
+      const results = Array.isArray(payload.results) ? payload.results : [];
+      const failedResults = results.filter((result) => !result.success);
+      // 다른 요청 번호로 접수돼 여기서 취소 못 한 박스 안내(부분수거 복구 백필 케이스)
+      const warningNotes = results
+        .filter((result) => Array.isArray(result.skippedNotes) && result.skippedNotes.length > 0)
+        .flatMap((result) =>
+          result.skippedNotes.map((note) => `${result.requestNumber || result.pickupRequestId}: ${note}`),
+        );
+
+      const parts = [];
+      if (payload.cancelledCount > 0) parts.push(`수거 요청 ${payload.cancelledCount}건 취소 완료`);
+      if (payload.cleanedCount > 0) parts.push(`취소 요청의 CJ 예약 정리 ${payload.cleanedCount}건`);
+      if (payload.cancelledBoxCount > 0) parts.push(`CJ 예약 ${payload.cancelledBoxCount}박스 취소`);
+      if (failedResults.length > 0) parts.push(`${failedResults.length}건 실패`);
+
+      const noticeLines = [parts.join(" · ") || "취소할 대상이 없습니다."];
+      if (warningNotes.length > 0) {
+        noticeLines.push(...warningNotes.map((note) => `⚠ ${note}`));
+      }
+      setNotice(noticeLines.join("\n"));
+
+      if (failedResults.length > 0) {
+        setCancelFailureModal({
+          successCount: results.length - failedResults.length,
+          failures: failedResults.map((result) => ({
+            id: result.pickupRequestId,
+            label: result.requestNumber || `#${result.pickupRequestId}`,
+            error: result.error || "알 수 없는 오류",
+          })),
+          // 이미 취소된 요청의 CJ 정리(cleanup) 실패에는 DB 폴백이 무의미 — 활성 요청만 대상.
+          dbFallbackIds: cleanup
+            ? []
+            : failedResults
+                .filter(
+                  (result) =>
+                    result.requestStatus && ["pending", "pickup_scheduled"].includes(result.requestStatus),
+                )
+                .map((result) => result.pickupRequestId),
+          reason: reason || null,
+        });
+      }
+
+      setSelectedIds([]);
+      await loadPickupRequests();
+    } catch (apiError) {
+      setError(apiError instanceof Error ? apiError.message : "수거 취소에 실패했습니다.");
+    } finally {
+      setRegisteringIds([]);
+    }
+  };
+
+  // CJ 취소 실패 모달의 폴백 — CJ측 예약이 이미 없는 것으로 확인된 경우에만 DB 상태만 취소.
+  // (기존 admin_bulk_cancel_pickup_requests RPC 그대로 — CJ 연동 이전의 원래 동작)
+  const performDbOnlyCancel = async () => {
+    const modal = cancelFailureModal;
+    if (!modal || !Array.isArray(modal.dbFallbackIds) || modal.dbFallbackIds.length === 0) return;
+    if (!isSupabaseConfigured || !supabase) return;
+
+    setError("");
+    setRegisteringIds(modal.dbFallbackIds);
+    try {
+      const { data, error: rpcError } = await supabase.rpc("admin_bulk_cancel_pickup_requests", {
+        p_ids: modal.dbFallbackIds,
+        p_reason: modal.reason || null,
+      });
+      if (rpcError) throw rpcError;
+      setNotice(
+        `DB 상태만 취소 ${data?.cancelled_count ?? 0}건 완료 — CJ측 예약은 취소되지 않았을 수 있으니 CJ에서 확인하세요.`,
+      );
+      setCancelFailureModal(null);
+      await loadPickupRequests();
+    } catch (apiError) {
+      setError(apiError instanceof Error ? apiError.message : "DB 취소에 실패했습니다.");
+    } finally {
+      setRegisteringIds([]);
+    }
+  };
+
+  // 일괄 수거 취소 — CJ 접수분은 CnclBook 취소까지 함께 (2026-08-08 개편)
   const handleBulkCancelPickups = (targetIds) => {
     if (!Array.isArray(targetIds) || targetIds.length === 0) return;
     if (!isSupabaseConfigured || !supabase) return;
@@ -865,10 +1002,10 @@ function AdminPickupRequestsPage() {
       title: `수거 일괄 취소 — ${targetIds.length}건`,
       description:
         `선택한 ${targetIds.length}건의 수거 요청을 일괄 취소합니다.\n\n` +
-        `(아직 수거 전 — 접수 대기·수거접수 상태만 취소됩니다.\n` +
-        `이미 수거가 시작/완료된 건은 취소되지 않아요.)\n\n` +
-        `이미 CJ에 접수된 건(운송장 발급)은 CJ 측 예약이 자동 취소되지 않습니다.\n` +
-        `CJ 연동 운영 시에는 CJ 시스템에서 별도 취소가 필요합니다.\n\n` +
+        `・CJ에 접수된 건(운송장 발급)은 CJ측 수거 예약도 함께 취소합니다.\n` +
+        `・기사님이 이미 스캔했거나 운송장이 출력된 박스는 CJ가 취소를 거부합니다 —\n` +
+        `  해당 건은 취소되지 않고 거부 사유가 표시됩니다.\n` +
+        `・아직 수거 전(접수 대기·수거접수) 상태만 취소됩니다.\n\n` +
         `이 작업은 되돌릴 수 없습니다.`,
       confirmPhrase: "취소",
       reasonRequired: true,
@@ -876,29 +1013,28 @@ function AdminPickupRequestsPage() {
       reasonPlaceholder: "예) 셀러 변심 / 중복 요청 / 운영 판단",
       confirmLabel: `${targetIds.length}건 취소`,
       run: async (reason) => {
-        setError(null);
-        setRegisteringIds(targetIds);
-        try {
-          const { data, error: rpcError } = await supabase.rpc(
-            "admin_bulk_cancel_pickup_requests",
-            { p_ids: targetIds, p_reason: reason || null },
-          );
-          if (rpcError) throw rpcError;
-          const cancelledCount = data?.cancelled_count ?? 0;
-          if (cancelledCount < targetIds.length) {
-            setNotice(
-              `선택 ${targetIds.length}건 중 ${cancelledCount}건 취소 완료. ` +
-                `나머지는 이미 수거가 진행/완료되어 취소되지 않았습니다.`,
-            );
-          } else {
-            setNotice(`수거 요청 ${cancelledCount}건 취소 완료.`);
-          }
-          await loadPickupRequests();
-        } catch (apiError) {
-          setError(apiError instanceof Error ? apiError.message : "일괄 취소에 실패했습니다.");
-        } finally {
-          setRegisteringIds([]);
-        }
+        await performCancelPickups(targetIds, reason);
+      },
+    });
+  };
+
+  // 취소된 요청에 남은 CJ 예약 정리 — CnclBook 연동 전 DB만 취소된 건의 자기수리 경로.
+  const handleCancelledRowCjCleanup = (pickupRequest) => {
+    const pendingBoxes = getPendingCjCancelBoxes(pickupRequest);
+    if (pendingBoxes === 0) return;
+
+    setDestructiveModal({
+      title: `CJ 예약 취소 — ${pickupRequest.request_number}`,
+      description:
+        `이미 취소된 수거 요청이지만 CJ측 수거 예약 ${pendingBoxes}박스가 남아 있습니다.\n` +
+        `CJ CnclBook으로 해당 예약을 취소합니다.\n\n` +
+        `기사님이 이미 스캔했거나 운송장이 출력된 박스는 CJ가 취소를 거부하며,\n` +
+        `거부 사유가 표시됩니다.`,
+      confirmPhrase: "취소",
+      reasonRequired: false,
+      confirmLabel: `CJ 예약 ${pendingBoxes}박스 취소`,
+      run: async () => {
+        await performCancelPickups([pickupRequest.id], null, { cleanup: true });
       },
     });
   };
@@ -943,7 +1079,7 @@ function AdminPickupRequestsPage() {
       ) : null}
 
       {error ? <p className="notice-error whitespace-pre-line">{error}</p> : null}
-      {notice ? <p className="notice-success">{notice}</p> : null}
+      {notice ? <p className="notice-success whitespace-pre-line">{notice}</p> : null}
 
       <AdminPageTabs
         activeKey={activeTab}
@@ -1196,7 +1332,10 @@ function AdminPickupRequestsPage() {
                                   }`}
                                 >
                                   송장 {boxProgress.registered}/{boxProgress.totalBoxes}박스
-                                  {boxProgress.missing > 0 ? " · 미접수 있음" : ""}
+                                  {/* 취소된 요청은 미접수가 당연하므로 재접수 유도 문구를 숨긴다 */}
+                                  {boxProgress.missing > 0 && pickupRequest.status !== "cancelled"
+                                    ? " · 미접수 있음"
+                                    : ""}
                                 </p>
                               ) : null}
                               {trackingUrl ? (
@@ -1289,6 +1428,19 @@ function AdminPickupRequestsPage() {
                                   </option>
                                 ))}
                               </select>
+                            ) : null}
+
+                            {/* 취소됐지만 CJ 예약이 남은 건 — CnclBook 연동 전 DB만 취소된 잔존분 정리 */}
+                            {pickupRequest.status === "cancelled" &&
+                            getPendingCjCancelBoxes(pickupRequest) > 0 ? (
+                              <button
+                                className="!w-auto rounded-lg bg-rose-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-rose-700 disabled:opacity-60"
+                                disabled={registeringIds.length > 0}
+                                onClick={() => handleCancelledRowCjCleanup(pickupRequest)}
+                                type="button"
+                              >
+                                {isRegistering ? "취소 중..." : "CJ 예약 취소"}
+                              </button>
                             ) : null}
                           </div>
                         </td>
@@ -1534,6 +1686,26 @@ function AdminPickupRequestsPage() {
         open={Boolean(notificationResult)}
         successCount={notificationResult?.successCount ?? 0}
         title="알림톡 발송 결과 (수거접수)"
+      />
+
+      {/* 수거 취소(CJ CnclBook) 실패 — 거부 사유 원문 + (활성 요청 한정) DB만 취소 폴백 */}
+      <NotificationResultModal
+        busy={registeringIds.length > 0}
+        failureHeading={
+          cancelFailureModal?.dbFallbackIds?.length > 0
+            ? "아래 건은 CJ 예약 취소가 거부되어 수거 요청이 취소되지 않았습니다. 기사 스캔·운송장 출력 후에는 CJ 취소가 불가하며 이미 수거가 진행 중일 수 있습니다. CJ측 예약이 이미 없는 것으로 확인된 경우에만 'DB만 취소'를 사용하세요."
+            : "아래 건의 CJ 예약 취소가 실패했습니다. 거부 사유를 확인해 주세요."
+        }
+        failures={cancelFailureModal?.failures ?? []}
+        onClose={() => setCancelFailureModal(null)}
+        onRetry={
+          cancelFailureModal?.dbFallbackIds?.length > 0 ? () => void performDbOnlyCancel() : null
+        }
+        open={Boolean(cancelFailureModal)}
+        retryLabel="CJ 취소 없이 DB만 취소"
+        successCount={cancelFailureModal?.successCount ?? 0}
+        successMessage="선택한 수거 요청이 모두 취소되었습니다."
+        title="수거 취소 결과"
       />
 
       <DestructiveConfirmModal

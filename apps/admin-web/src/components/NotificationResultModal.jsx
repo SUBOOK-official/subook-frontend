@@ -9,6 +9,8 @@ import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
  * - `failures` 배열의 각 항목은 `{ id, label, error, retry }`를 가진다.
  *   - `retry`는 옵션이며, 함수면 "재전송" 버튼이 표시된다.
  * - 성공 건수와 실패 건수를 분리해서 노출하고, 실패 건만 따로 확인·재전송할 수 있다.
+ * - `retryLabel`로 onRetry 버튼 라벨을 바꿀 수 있다(재전송이 아닌 대체 액션 용도 —
+ *   예: 수거 취소 실패 모달의 "DB만 취소"). 미지정 시 기존 재전송 카피 그대로.
  */
 function NotificationResultModal({
   open,
@@ -21,6 +23,7 @@ function NotificationResultModal({
   successMessage = "모든 대상자에게 알림톡이 정상 발송되었습니다.",
   onClose,
   onRetry,
+  retryLabel = "",
   busy = false,
 }) {
   const dialogRef = useRef(null);
@@ -102,7 +105,11 @@ function NotificationResultModal({
               onClick={onRetry}
               type="button"
             >
-              {busy ? "재전송 중..." : `실패 ${failures.length}건 재전송`}
+              {busy
+                ? retryLabel
+                  ? "처리 중..."
+                  : "재전송 중..."
+                : retryLabel || `실패 ${failures.length}건 재전송`}
             </button>
           ) : null}
           <button
