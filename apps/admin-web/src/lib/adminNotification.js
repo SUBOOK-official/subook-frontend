@@ -40,6 +40,14 @@ export async function resendNotificationFromLog(log) {
 
 // 수거접수 완료 알림 (판매자)
 export async function notifyPickupAccepted({ pickupRequest }) {
+  // 멀티박스: 운송장이 여러 장이면 대표번호 + "외 N건" (알림톡 템플릿 변수는 문자열 1개)
+  const boxWaybills = Array.isArray(pickupRequest.box_waybills) ? pickupRequest.box_waybills : [];
+  const baseTrackingNumber = pickupRequest.tracking_number || "배정 예정";
+  const trackingNumber =
+    boxWaybills.length > 1 && pickupRequest.tracking_number
+      ? `${baseTrackingNumber} 외 ${boxWaybills.length - 1}건`
+      : baseTrackingNumber;
+
   return callSendNotification({
     notificationType: "pickup_accepted",
     recipientPhone: pickupRequest.pickup_recipient_phone,
@@ -50,7 +58,7 @@ export async function notifyPickupAccepted({ pickupRequest }) {
     templateVariables: {
       requestNumber: pickupRequest.request_number,
       itemCount: pickupRequest.item_count,
-      trackingNumber: pickupRequest.tracking_number || "배정 예정",
+      trackingNumber,
     },
   });
 }

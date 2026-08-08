@@ -105,6 +105,7 @@ function PickupDetailModal({ request, onClose }) {
   if (!request) return null;
   const items = Array.isArray(request.items) ? request.items : [];
   const fullAddress = formatAddress(request);
+  const boxWaybills = Array.isArray(request.box_waybills) ? request.box_waybills : [];
 
   return (
     <AdminDialog
@@ -178,7 +179,18 @@ function PickupDetailModal({ request, onClose }) {
           <section>
             <h3 className="mb-2 text-xs font-black uppercase tracking-wider text-slate-500">배송</h3>
             <dl className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-              <PickupDetailRow label="운송장" value={request.tracking_number} mono />
+              {boxWaybills.length > 1 ? (
+                boxWaybills.map((waybill) => (
+                  <PickupDetailRow
+                    key={waybill.box_seq}
+                    label={`운송장 (박스 ${waybill.box_seq})`}
+                    value={waybill.tracking_number}
+                    mono
+                  />
+                ))
+              ) : (
+                <PickupDetailRow label="운송장" value={request.tracking_number} mono />
+              )}
               <PickupDetailRow label="택배사" value={request.tracking_carrier || "CJ대한통운"} />
               <PickupDetailRow label="CJ 상태" value={request.cj_tracking_status} />
             </dl>
@@ -189,9 +201,20 @@ function PickupDetailModal({ request, onClose }) {
   );
 }
 
+// 박스별 운송장 접수 현황. 멀티박스 도입(2026-08) 전 접수분은 box_waybills가 비어
+// 있으므로 tracking_number 존재 시 1건 접수로 계산한다.
+function getBoxWaybillProgress(pickupRequest) {
+  const waybills = Array.isArray(pickupRequest.box_waybills) ? pickupRequest.box_waybills : [];
+  const registered = waybills.length > 0 ? waybills.length : pickupRequest.tracking_number ? 1 : 0;
+  const totalBoxes = Math.max(1, Number(pickupRequest.box_count) || 1);
+  return { registered, totalBoxes, missing: Math.max(0, totalBoxes - registered) };
+}
+
 function canRegisterCjPickup(pickupRequest) {
+  // 미접수 박스가 남아 있으면(부분 접수 포함) 재접수 대상 — 서버가 남은 박스만 접수한다.
+  const { missing } = getBoxWaybillProgress(pickupRequest);
   return (
-    !pickupRequest.tracking_number &&
+    (!pickupRequest.tracking_number || missing > 0) &&
     !["cancelled", "completed", "inspecting", "inspected"].includes(pickupRequest.status)
   );
 }
@@ -1109,6 +1132,7 @@ function AdminPickupRequestsPage() {
                     const isSelected = selectedIds.includes(pickupRequest.id);
                     const isRegistering = registeringIds.includes(pickupRequest.id);
                     const trackingUrl = buildCjTrackingUrl(pickupRequest.tracking_number);
+                    const boxProgress = getBoxWaybillProgress(pickupRequest);
 
                     return (
                       <tr className="align-top transition hover:bg-slate-50" key={pickupRequest.id}>
@@ -1159,6 +1183,16 @@ function AdminPickupRequestsPage() {
                               <p className="mt-1 text-xs font-semibold text-slate-500">
                                 {pickupRequest.tracking_carrier || "CJ대한통운"}
                               </p>
+                              {boxProgress.totalBoxes > 1 ? (
+                                <p
+                                  className={`mt-1 text-xs font-bold ${
+                                    boxProgress.missing > 0 ? "text-amber-700" : "text-slate-500"
+                                  }`}
+                                >
+                                  송장 {boxProgress.registered}/{boxProgress.totalBoxes}박스
+                                  {boxProgress.missing > 0 ? " · 미접수 있음" : ""}
+                                </p>
+                              ) : null}
                               {trackingUrl ? (
                                 <a
                                   className="mt-1 inline-flex text-xs font-bold text-brand hover:underline"
