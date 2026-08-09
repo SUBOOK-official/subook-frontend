@@ -155,7 +155,7 @@ async function submitPickupRequest({
   return { data, error: null };
 }
 
-// ─── 연락처 휴대폰 인증(OTP) — 장난/시험 수거신청 방어 (2026-08-10) ───
+// ─── 연락처 휴대폰 인증(OTP) — 허위/시험 수거신청 방어 (2026-08-10) ───
 // 발송은 서버리스 /api/auth/send-phone-otp(솔라피 알림톡 우선·레이트리밋),
 // 검증은 verify_phone_otp RPC → member_profiles.verified_phone 기록.
 // submit_pickup_request가 연락처 번호와 verified_phone을 대조해 서버에서도 강제한다.

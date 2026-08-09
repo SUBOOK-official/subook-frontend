@@ -1312,7 +1312,7 @@ function AdminPickupRequestsPage() {
                           <p className="mt-2 max-w-sm text-xs font-medium leading-relaxed text-slate-500">
                             {formatAddress(pickupRequest)}
                           </p>
-                          {/* 접수 전 신뢰 신호 — 장난/시험 신청 선별용 (대기 상태에서만) */}
+                          {/* 접수 전 신뢰 신호 — 허위/시험 신청 선별용 (대기 상태에서만) */}
                           {pickupRequest.status === "pending" ? (
                             <div className="mt-2 flex flex-wrap gap-1">
                               {pickupRequest.phone_verified ? (

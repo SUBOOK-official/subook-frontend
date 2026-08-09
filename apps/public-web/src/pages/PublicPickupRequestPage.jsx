@@ -413,7 +413,7 @@ function StepIntro({ onNext }) {
 }
 
 // ─── Step 1: 수거 정보 (신청자 정보 + 주소 + 희망수거일) ───
-// ─── 연락처 휴대폰 인증 — 장난/시험 수거신청 방지 ───
+// ─── 연락처 휴대폰 인증 — 허위/시험 수거신청 방지 ───
 // 이미 인증한 번호(verified_phone)와 일치하면 인증 UI 없이 통과.
 // 발송은 알림톡(미수신 시 문자), 검증 성공 시 RPC가 돌려준 실제 인증 번호를 반영한다.
 function PhoneVerifySection({ phone, isVerified, onVerified, showToast }) {
@@ -495,7 +495,7 @@ function PhoneVerifySection({ phone, isVerified, onVerified, showToast }) {
           </div>
           <span className="pickup-field-hint">
             {canSend
-              ? "장난 신청 방지를 위해 연락처 번호 인증이 필요해요. 카카오 알림톡(미수신 시 문자)으로 인증번호를 보내드려요."
+              ? "허위 신청 방지를 위해 연락처 번호 인증이 필요해요. 카카오 알림톡(미수신 시 문자)으로 인증번호를 보내드려요."
               : "휴대폰 번호를 먼저 입력해주세요."}
           </span>
         </>
