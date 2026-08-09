@@ -144,6 +144,14 @@ export async function requestStudioGeneration(accessToken, payload) {
   return responseBody;
 }
 
+// 실제 콘텐츠 형식과 파일 확장자를 맞춘다. (모델은 image/jpeg를 돌려주는 경우가 많은데
+// 예전엔 전부 .png로 저장돼 확장자와 내용이 어긋났다 — 2026-08-10 수정)
+const STUDIO_EXTENSION_BY_MIME = {
+  "image/webp": "webp",
+  "image/jpeg": "jpg",
+  "image/png": "png",
+};
+
 // 생성 결과(base64)를 업로드 가능한 File로 변환
 export function studioResultToFile(generated, originalName) {
   const binary = window.atob(generated.imageBase64);
@@ -151,7 +159,7 @@ export function studioResultToFile(generated, originalName) {
   for (let i = 0; i < binary.length; i += 1) {
     bytes[i] = binary.charCodeAt(i);
   }
-  const extension = generated.mimeType === "image/webp" ? "webp" : "png";
+  const extension = STUDIO_EXTENSION_BY_MIME[generated.mimeType] || "png";
   const cleanName = String(originalName || "book").replace(/\.[^/.]+$/, "");
   return new File([bytes], `${cleanName}_studio.${extension}`, { type: generated.mimeType });
 }

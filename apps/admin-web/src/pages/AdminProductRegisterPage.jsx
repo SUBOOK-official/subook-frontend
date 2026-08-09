@@ -144,6 +144,11 @@ async function uploadImageToBucket(bucket, file) {
   return data?.publicUrl ?? null;
 }
 
+// AI 변환을 거친 표지는 파일명에 _studio가 붙는다(studioResultToFile).
+function isStudioCover(url) {
+  return /_studio\.[a-z0-9]+(\?|$)/i.test(String(url || ""));
+}
+
 function optionSummary(optionStr) {
   const items = String(optionStr || "")
     .split(",")
@@ -676,10 +681,11 @@ function AdminProductRegisterPage() {
   const setItemBusy = (kind, uid, field, busy) =>
     kind === "new" ? patchRow(uid, { [field]: busy }) : patchAddition(uid, { [field]: busy });
 
-  const uploadCover = async (kind, uid, file) => {
+  const uploadCover = async (kind, uid, file, { forceStudio = false } = {}) => {
     // 항목별 토글 — 신규/기존이 섞인 배치에서 어떤 표지는 AI 변환, 어떤 표지는 원본 그대로.
+    // forceStudio: 이미 올라간 표지에 나중에 AI 변환을 적용하는 경로(토글과 무관하게 변환).
     const list = kind === "new" ? newRows : existingAdditions;
-    const autoStudio = list.find((x) => x.uid === uid)?.coverAutoStudio === true;
+    const autoStudio = forceStudio || list.find((x) => x.uid === uid)?.coverAutoStudio === true;
     setItemBusy(kind, uid, "coverBusy", true);
     try {
       let uploadFile = file;
@@ -749,6 +755,27 @@ function AdminProductRegisterPage() {
     if (hadNoCover && current === 0 && urls.length > 0 && incoming.length > 0) {
       showToast("상세 1번 사진을 표지로도 등록합니다 (AI 변환 토글 적용)", "info");
       await uploadCover(kind, uid, incoming[0]);
+    }
+  };
+
+  // 이미 등록된 표지를 나중에 AI 변환 — 표지를 먼저 올린 뒤 'AI 자동 변환'을 켰을 때
+  // 아무 일도 일어나지 않던 구멍을 메운다(토글은 '업로드 순간'에만 적용되기 때문).
+  // 2026-08-10: 운영자가 "AI 표지변환을 눌러도 사진이 안 올라간다"고 본 경로.
+  const applyStudioToCover = async (kind, uid) => {
+    const list = kind === "new" ? newRows : existingAdditions;
+    const currentUrl = list.find((x) => x.uid === uid)?.coverUrl;
+    if (!currentUrl) return;
+    setItemBusy(kind, uid, "coverBusy", true);
+    try {
+      const res = await fetch(currentUrl);
+      if (!res.ok) throw new Error("표지 사진을 불러오지 못했습니다.");
+      const blob = await res.blob();
+      const name = decodeURIComponent((currentUrl.split("/").pop() || "cover.jpg").split("?")[0]);
+      const file = new File([blob], name, { type: blob.type || "image/jpeg" });
+      await uploadCover(kind, uid, file, { forceStudio: true });
+    } catch (err) {
+      showToast(err?.message || "AI 변환에 실패했습니다.", "error");
+      setItemBusy(kind, uid, "coverBusy", false);
     }
   };
 
@@ -1538,17 +1565,33 @@ function AdminProductRegisterPage() {
                         </label>
                       </div>
                       {t.coverUrl ? (
-                        <div className="relative h-32 w-32 overflow-hidden rounded-lg border border-slate-200">
-                          {/* eslint-disable-next-line jsx-a11y/img-redundant-alt */}
-                          <img src={t.coverUrl} alt="" className="h-full w-full object-cover" />
-                          <button
-                            type="button"
-                            onClick={() => clearCover(t.kind, t.uid)}
-                            className="absolute right-1 top-1 rounded-full bg-slate-900/70 px-1.5 text-xs font-bold text-white"
-                          >
-                            <CloseIcon size={12} />
-                          </button>
-                        </div>
+                        <>
+                          <div className="relative h-32 w-32 overflow-hidden rounded-lg border border-slate-200">
+                            {/* eslint-disable-next-line jsx-a11y/img-redundant-alt */}
+                            <img src={t.coverUrl} alt="" className="h-full w-full object-cover" />
+                            <button
+                              type="button"
+                              onClick={() => clearCover(t.kind, t.uid)}
+                              className="absolute right-1 top-1 rounded-full bg-slate-900/70 px-1.5 text-xs font-bold text-white"
+                            >
+                              <CloseIcon size={12} />
+                            </button>
+                          </div>
+                          {/* 표지를 먼저 올린 뒤에도 AI 변환을 적용할 수 있는 경로.
+                              (토글은 업로드 순간에만 적용돼, 이미 올린 표지엔 무반응이었다) */}
+                          {isStudioCover(t.coverUrl) ? (
+                            <p className="mt-2 text-[11px] font-bold text-emerald-600">AI 변환 완료</p>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={t.coverBusy}
+                              onClick={() => applyStudioToCover(t.kind, t.uid)}
+                              className="mt-2 block text-[11px] font-bold text-indigo-600 underline hover:text-indigo-800 disabled:opacity-50"
+                            >
+                              {t.coverBusy ? "AI 변환 중..." : "이 표지를 AI 변환"}
+                            </button>
+                          )}
+                        </>
                       ) : (
                         <>
                           <DropBox
