@@ -376,8 +376,15 @@ function AdminManualSettlementsPage() {
 
     const created = (data?.record_created ?? 0) + (data?.record_updated ?? 0);
     const priceMsg = data?.price_updated_count ? ` 가격 ${data.price_updated_count}건 갱신.` : "";
+    // 회원 주문 책이 섞였을 때 서버가 자동 처리한 내역을 운영자에게 그대로 알린다.
+    const autoCancelMsg = data?.auto_settlement_cancelled
+      ? ` 자동 정산 ${data.auto_settlement_cancelled}건 자동 취소(이중 지급 방지).`
+      : "";
+    const autoSettledMsg = data?.skipped_auto_settled_count
+      ? ` 이미 자동 정산 완료된 ${data.skipped_auto_settled_count}권 제외.`
+      : "";
     showToast(
-      `${data?.settled_count ?? 0}권 정산완료 처리 · 정산기록 ${created}건.${priceMsg}`,
+      `${data?.settled_count ?? 0}권 정산완료 처리 · 정산기록 ${created}건.${priceMsg}${autoCancelMsg}${autoSettledMsg}`,
       "success",
     );
     setFiles([]);

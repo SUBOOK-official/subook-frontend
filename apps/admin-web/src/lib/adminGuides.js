@@ -202,6 +202,9 @@ export const adminGuides = {
         ],
         image: imgManualSettlements,
         imageCaption: "수동 정산 — 식스샵 구주문 지급 처리·추적",
+        tips: [
+          "회원 주문으로 팔린 책은 여기가 아니라 '자동 정산' 탭에서 처리해요. 엑셀에 섞여 들어오면 그 책의 대기 중 자동 정산은 자동 취소돼요(이중 지급 방지).",
+        ],
       },
     ],
   },
