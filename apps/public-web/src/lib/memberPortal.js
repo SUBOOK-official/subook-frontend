@@ -1273,6 +1273,33 @@ async function cancelMemberOrder({ user, orderId, reason = "", demoMode = false 
   return { error: null, source: "local" };
 }
 
+// 수거 신청 취소 — CJ 접수 전(pending)만 서버에서 허용. 접수 후에는 RPC가 안내 문구로 거부.
+async function cancelMemberPickupRequest({ user, requestId, demoMode = false }) {
+  if (!user) {
+    return {
+      error: new Error("로그인된 회원 정보를 찾지 못했습니다."),
+      source: "fallback",
+    };
+  }
+
+  if (!isSupabaseConfigured || !supabase || demoMode || typeof requestId !== "number") {
+    return {
+      error: new Error("미리보기 모드에서는 수거 신청을 취소할 수 없습니다."),
+      source: "local",
+    };
+  }
+
+  const { error } = await supabase.rpc("cancel_my_pickup_request", {
+    p_request_id: requestId,
+  });
+
+  if (error) {
+    return { error, source: "fallback" };
+  }
+
+  return { error: null, source: "supabase" };
+}
+
 async function requestMemberWithdrawal({
   user,
   demoMode = false,
@@ -1474,6 +1501,7 @@ export {
   deleteMemberSettlementAccount,
   deleteMemberShippingAddress,
   cancelMemberOrder,
+  cancelMemberPickupRequest,
   loadMemberPortalSnapshot,
   requestMemberRefund,
   requestMemberWithdrawal,

@@ -38,6 +38,7 @@ import { usePageMeta } from "../lib/usePageMeta";
 import { DEMO_MEMBER_PROFILE, DEMO_MEMBER_USER } from "../lib/publicMypageDemo";
 import {
   cancelMemberOrder,
+  cancelMemberPickupRequest,
   checkMemberNicknameAvailability,
   confirmMemberPurchase,
   requestMemberRefund,
@@ -945,6 +946,20 @@ function PublicMypagePage() {
     });
   };
 
+  const requestCancelPickup = (shipment) => {
+    setConfirmReason("");
+    setConfirmReasonCategory("");
+    setConfirmState({
+      open: true,
+      type: "cancel_pickup",
+      itemId: shipment.pickupRequestId,
+      title: "수거 신청을 취소하시겠습니까?",
+      body: `수거 ${shipment.reference ?? ""} 신청이 취소되며, 필요하면 새로 신청해야 합니다.`,
+      confirmLabel: "신청 취소",
+      confirmTone: "danger",
+    });
+  };
+
   const handleConfirmAction = async () => {
     if ((!confirmState.itemId && confirmState.type !== "withdrawal") || !effectiveUser) {
       closeConfirmDialog();
@@ -1085,6 +1100,32 @@ function PublicMypagePage() {
         });
       }
 
+      closeConfirmDialog();
+      return;
+    }
+
+    if (confirmState.type === "cancel_pickup") {
+      setIsConfirmBusy(true);
+      const result = await cancelMemberPickupRequest({
+        user: effectiveUser,
+        requestId: confirmState.itemId,
+        demoMode: isDemoPreview,
+      });
+      setIsConfirmBusy(false);
+
+      if (result.error) {
+        setToastState({
+          message: result.error.message || "수거 신청 취소에 실패했습니다.",
+          tone: "error",
+        });
+        closeConfirmDialog();
+        return;
+      }
+
+      await syncPortalState({
+        message: "수거 신청이 취소되었습니다.",
+        tone: "success",
+      });
       closeConfirmDialog();
       return;
     }
@@ -1465,6 +1506,7 @@ function PublicMypagePage() {
       return (
         <SalesTab
           expandedShipmentId={expandedShipmentId}
+          onCancelPickup={requestCancelPickup}
           onRequestPickup={handlePickupRequest}
           onToggleShipment={setExpandedShipmentId}
           onTrackParcel={handleTrackParcel}
@@ -2039,6 +2081,7 @@ const SALES_ITEMS_PER_PAGE = 30;
 
 function SalesTab({
   expandedShipmentId,
+  onCancelPickup,
   onRequestPickup,
   onToggleShipment,
   onTrackParcel,
@@ -2234,6 +2277,17 @@ function SalesTab({
                       {shipment.trackingNumber ? (
                         <button className="public-mypage-inline-link" onClick={() => onTrackParcel(shipment.trackingNumber)} type="button">
                           배송추적 <ArrowRightIcon size={13} />
+                        </button>
+                      ) : null}
+
+                      {/* CJ 접수 전(pending)에만 노출 — 접수 후 취소는 운영 문의 경유 */}
+                      {shipment.canCancel && onCancelPickup ? (
+                        <button
+                          className="public-mypage-inline-link"
+                          onClick={() => onCancelPickup(shipment)}
+                          type="button"
+                        >
+                          신청 취소
                         </button>
                       ) : null}
                     </div>
