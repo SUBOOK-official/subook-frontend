@@ -83,6 +83,7 @@ function usePublicMemberGate() {
     requireMember,
     memberGateDialog: (
       <PublicMemberGateDialog
+        gateReason={actionType}
         onClose={closeMemberGate}
         onGuestCheckout={guestOrderItems && guestOrderItems.length > 0 ? handleGuestCheckout : null}
         onLogin={handleLogin}

@@ -682,6 +682,7 @@ function PublicCartPage() {
         )}
       </div>
       <PublicMemberGateDialog
+        gateReason="cartPage"
         onClose={handleMemberGateClose}
         onLogin={handleMemberGateLogin}
         onSignup={handleMemberGateSignup}

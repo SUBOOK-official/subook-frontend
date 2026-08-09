@@ -385,6 +385,15 @@ function trackLoginGateShown(reason) {
   gtagEvent("login_gate_shown", { gate_reason: reason || "unknown" });
 }
 
+// 관문에서 고른 선택지 — kakao/google/email/guest/dismiss (2026-08-09 관문 개편 효과 측정).
+// login_gate_shown 대비 각 선택 비율로 위계 개편 전후를 비교한다.
+function trackLoginGateCta(cta, reason) {
+  gtagEvent("login_gate_cta", {
+    cta_option: cta || "unknown",
+    gate_reason: reason || "unknown",
+  });
+}
+
 // ── 재입고 알림 ─────────────────────────────────────────────────────────────
 
 // 품절 상품 단위 구독/해제 (상세 페이지) — 수요 시그널.
@@ -473,6 +482,7 @@ export {
   trackGuestOrderLookup,
   trackImageZoom,
   trackLogin,
+  trackLoginGateCta,
   trackLoginGateShown,
   trackMemberWithdraw,
   trackOrderCancel,

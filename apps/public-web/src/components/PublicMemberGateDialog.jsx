@@ -3,9 +3,14 @@ import { createPortal } from "react-dom";
 import { useFocusTrap } from "@shared-domain/useFocusTrap";
 import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
 import PublicOAuthButtons from "./PublicOAuthButtons";
+import { trackLoginGateCta } from "../lib/analytics";
 import { LockIcon } from "./icons";
 
-function PublicMemberGateDialog({ onClose, onGuestCheckout, onLogin, onSignup, open }) {
+// 2026-08-09 위계 개편 (GA 실측: 관문 통과율 49%, 로그인의 64%가 카카오):
+// 카카오 히어로 → 비회원 주문(바로구매 게이트) 승격 → Google 슬림 → 이메일 텍스트 링크.
+// 기존 로그인/회원가입 2버튼은 이메일 링크 하나로 축소 (가입은 /login의 회원가입 링크로 도달,
+// 호출부가 넘기는 onSignup prop은 받되 사용하지 않음).
+function PublicMemberGateDialog({ gateReason = "", onClose, onGuestCheckout, onLogin, open }) {
   const [offsetY, setOffsetY] = useState(0);
   const startYRef = useRef(null);
   const dialogRef = useRef(null);
@@ -28,6 +33,7 @@ function PublicMemberGateDialog({ onClose, onGuestCheckout, onLogin, onSignup, o
 
     const handleKeyDown = (event) => {
       if (event.key === "Escape") {
+        trackLoginGateCta("dismiss", gateReason);
         onClose();
       }
     };
@@ -39,11 +45,28 @@ function PublicMemberGateDialog({ onClose, onGuestCheckout, onLogin, onSignup, o
       setOffsetY(0);
       startYRef.current = null;
     };
-  }, [onClose, open]);
+  }, [gateReason, onClose, open]);
 
   if (!open) {
     return null;
   }
+
+  // 사용자 주도 닫기(나중에/배경/ESC)만 dismiss로 계측 — 로그인·게스트 진행 후
+  // 프로그램적 닫힘은 훅의 closeMemberGate 경로라 여길 지나지 않는다.
+  const handleDismiss = () => {
+    trackLoginGateCta("dismiss", gateReason);
+    onClose();
+  };
+
+  const handleEmailLogin = () => {
+    trackLoginGateCta("email", gateReason);
+    onLogin();
+  };
+
+  const handleGuestCheckout = () => {
+    trackLoginGateCta("guest", gateReason);
+    onGuestCheckout();
+  };
 
   const isMobileViewport = typeof window !== "undefined" && window.innerWidth < 768;
 
@@ -75,7 +98,7 @@ function PublicMemberGateDialog({ onClose, onGuestCheckout, onLogin, onSignup, o
     // 작은 화면(예: iPhone SE)에서도 동작이 자연스럽다.
     const closeThreshold = window.innerHeight * 0.25;
     if (offsetY > closeThreshold) {
-      onClose();
+      handleDismiss();
       return;
     }
 
@@ -84,7 +107,7 @@ function PublicMemberGateDialog({ onClose, onGuestCheckout, onLogin, onSignup, o
   };
 
   return createPortal(
-    <div className="public-sheet-backdrop public-sheet-backdrop--centered" onClick={onClose}>
+    <div className="public-sheet-backdrop public-sheet-backdrop--centered" onClick={handleDismiss}>
       <section
         aria-labelledby="public-member-gate-title"
         aria-modal="true"
@@ -118,27 +141,35 @@ function PublicMemberGateDialog({ onClose, onGuestCheckout, onLogin, onSignup, o
         </div>
 
         <div className="public-member-gate__actions">
+          {/* 카카오 히어로 (로그인의 64%) — 크기 위계는 index.css 게이트 스코프 규칙 */}
           <PublicOAuthButtons
-            contextLabel="로그인"
+            contextLabel="카카오 로그인"
             dividerPosition="none"
+            onProviderClick={(provider) => trackLoginGateCta(provider, gateReason)}
             placement="top"
+            providers={["kakao"]}
             redirectTo={oauthRedirectTo}
           />
-          <button className="public-auth-button public-auth-button--primary" onClick={onLogin} type="button">
-            로그인
-          </button>
-          <button className="public-auth-button public-auth-button--secondary" onClick={onSignup} type="button">
-            회원가입
-          </button>
-          {/* 바로구매 게이트 전용 — 비회원 주문 진입 (쿠폰·적립은 회원 전용이라 안내 문구로 구분) */}
+          {/* 바로구매 게이트 전용 — 비회원 주문. 구매 의도가 관문에서 죽지 않게 공동 1순위 위계 */}
           {onGuestCheckout ? (
-            <button className="public-member-gate__guest" onClick={onGuestCheckout} type="button">
+            <button className="public-member-gate__guest" onClick={handleGuestCheckout} type="button">
               비회원으로 주문하기
             </button>
           ) : null}
+          <PublicOAuthButtons
+            contextLabel="Google 로그인"
+            dividerPosition="none"
+            onProviderClick={(provider) => trackLoginGateCta(provider, gateReason)}
+            placement="top"
+            providers={["google"]}
+            redirectTo={oauthRedirectTo}
+          />
+          <button className="public-member-gate__email-link" onClick={handleEmailLogin} type="button">
+            이메일로 로그인 · 회원가입
+          </button>
         </div>
 
-        <button className="public-member-gate__dismiss" onClick={onClose} type="button">
+        <button className="public-member-gate__dismiss" onClick={handleDismiss} type="button">
           나중에 할게요
         </button>
       </section>

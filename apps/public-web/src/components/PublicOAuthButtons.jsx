@@ -98,12 +98,17 @@ function PublicOAuthButtons({
   dividerLabel = "또는",
   dividerPosition = "top",
   placement = "bottom",
+  // 클릭 계측용 콜백(선택) — 리다이렉트 전에 provider 이름을 알려준다.
+  onProviderClick = null,
+  // 일부 provider만 렌더링(선택) — 예: ["kakao"]. 미지정이면 전체.
+  providers = null,
 }) {
   const [activeProvider, setActiveProvider] = useState("");
   const [notice, setNotice] = useState("");
 
   const handleOAuthSignIn = async (providerConfig) => {
     setNotice("");
+    onProviderClick?.(providerConfig.provider);
 
     if (!isSupabaseConfigured || !supabase) {
       setNotice("소셜 로그인 기능을 사용하려면 Supabase 환경 변수가 필요합니다.");
@@ -157,7 +162,10 @@ function PublicOAuthButtons({
       ) : null}
 
       <div className="public-auth-social__buttons">
-        {oauthProviders.map((providerConfig) => {
+        {(providers
+          ? oauthProviders.filter((config) => providers.includes(config.provider))
+          : oauthProviders
+        ).map((providerConfig) => {
           const isActive = activeProvider === providerConfig.provider;
           const BrandIcon = BRAND_ICONS[providerConfig.brandIcon];
 

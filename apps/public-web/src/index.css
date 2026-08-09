@@ -5148,12 +5148,27 @@ img {
   gap: 10px;
 }
 
-/* 비회원 주문 진입 (바로구매 게이트 전용) — 로그인/회원가입보다 한 단계 낮은 위계 */
-.public-member-gate__guest {
-  min-height: 44px;
-  border: 1px solid var(--public-ds-border);
-  border-radius: var(--public-radius-md);
-  background: #fff;
+/* ── 관문 위계 (2026-08-09 GA 개편: 통과율 49% → 카카오 히어로 + 비회원 승격) ── */
+
+/* 카카오 = 단독 히어로 (로그인의 64%) */
+.public-member-gate .public-auth-social__button--kakao {
+  min-height: 52px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+/* Google = 슬림 보조 (미디어쿼리 44px 공통 규칙보다 구체도 우위) */
+.public-member-gate .public-auth-social__button--google {
+  min-height: 40px;
+  font-size: 13.5px;
+}
+
+/* 이메일 로그인·가입 — 텍스트 링크 위계 */
+.public-member-gate__email-link {
+  min-height: 40px;
+  border: 0;
+  padding: 0;
+  background: transparent;
   color: var(--public-ds-text-secondary);
   font-size: 14px;
   font-weight: 600;
@@ -5161,10 +5176,28 @@ img {
   cursor: pointer;
 }
 
+.public-member-gate__email-link:hover,
+.public-member-gate__email-link:focus-visible {
+  color: var(--public-ds-primary);
+  text-decoration: underline;
+}
+
+/* 비회원 주문 진입 (바로구매 게이트 전용) — 카카오와 공동 1순위 위계 */
+.public-member-gate__guest {
+  min-height: 48px;
+  border: 1.5px solid var(--public-ds-primary);
+  border-radius: var(--public-radius-md);
+  background: #fff;
+  color: var(--public-ds-primary);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.5;
+  cursor: pointer;
+}
+
 .public-member-gate__guest:hover,
 .public-member-gate__guest:focus-visible {
-  border-color: var(--public-ds-primary);
-  color: var(--public-ds-primary);
+  background: var(--public-ds-secondary);
 }
 
 .public-member-gate__dismiss {
