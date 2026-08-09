@@ -26,7 +26,13 @@ import bookImg1 from "../assets/book1.jpg";
 import bookImg2 from "../assets/book2.jpg";
 import bookImg3 from "../assets/book3.jpg";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
-import { BANK_LIST, submitPickupRequest } from "../lib/pickupRequest";
+import {
+  BANK_LIST,
+  fetchVerifiedPhone,
+  sendPhoneOtp,
+  submitPickupRequest,
+  verifyPhoneOtp,
+} from "../lib/pickupRequest";
 import { trackGenerateLead, trackPickupRequestStart } from "../lib/analytics";
 import { KAKAO_CHANNEL_URL } from "../lib/supportChannels";
 import { loadMemberPortalSnapshot } from "../lib/memberPortal";
@@ -407,14 +413,110 @@ function StepIntro({ onNext }) {
 }
 
 // ─── Step 1: 수거 정보 (신청자 정보 + 주소 + 희망수거일) ───
+// ─── 연락처 휴대폰 인증 — 장난/시험 수거신청 방지 ───
+// 이미 인증한 번호(verified_phone)와 일치하면 인증 UI 없이 통과.
+// 발송은 알림톡(미수신 시 문자), 검증 성공 시 RPC가 돌려준 실제 인증 번호를 반영한다.
+function PhoneVerifySection({ phone, isVerified, onVerified, showToast }) {
+  const digits = String(phone || "").replace(/\D/g, "");
+  const canSend = isValidKoreanMobile(phone);
+  const [sent, setSent] = useState(false);
+  const [code, setCode] = useState("");
+  const [isSending, setIsSending] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+
+  // 번호를 바꾸면 이전 발송 상태는 무효
+  useEffect(() => {
+    setSent(false);
+    setCode("");
+  }, [digits]);
+
+  const handleSend = async () => {
+    setIsSending(true);
+    const result = await sendPhoneOtp(digits);
+    setIsSending(false);
+    if (result.error) {
+      showToast(result.error.message, "error");
+      return;
+    }
+    setSent(true);
+    showToast("인증번호를 보냈어요. 5분 안에 입력해주세요.", "info");
+  };
+
+  const handleVerify = async () => {
+    setIsVerifying(true);
+    const result = await verifyPhoneOtp(code);
+    setIsVerifying(false);
+    if (result.error) {
+      showToast(result.error.message || "인증에 실패했습니다.", "error");
+      return;
+    }
+    onVerified(result.verifiedPhone);
+    showToast("휴대폰 인증이 완료되었습니다.", "success");
+  };
+
+  return (
+    <div className="pickup-form-field">
+      <label className="pickup-field-label">연락처 인증 *</label>
+      {isVerified ? (
+        <span className="pickup-field-hint">
+          <CheckCircleIcon size={13} /> 인증된 번호예요 ({phone})
+        </span>
+      ) : (
+        <>
+          <div className="pickup-form-row">
+            <button
+              className="pickup-btn pickup-btn--secondary pickup-btn--sm"
+              disabled={!canSend || isSending}
+              onClick={handleSend}
+              type="button"
+            >
+              {isSending ? "발송 중..." : sent ? "인증번호 다시 받기" : "인증번호 받기"}
+            </button>
+            {sent && (
+              <div className="pickup-form-field">
+                <input
+                  className="pickup-input"
+                  inputMode="numeric"
+                  maxLength={6}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  placeholder="인증번호 6자리"
+                  value={code}
+                />
+                <button
+                  className="pickup-btn pickup-btn--primary pickup-btn--sm"
+                  disabled={code.length !== 6 || isVerifying}
+                  onClick={handleVerify}
+                  type="button"
+                >
+                  {isVerifying ? "확인 중..." : "인증 확인"}
+                </button>
+              </div>
+            )}
+          </div>
+          <span className="pickup-field-hint">
+            {canSend
+              ? "장난 신청 방지를 위해 연락처 번호 인증이 필요해요. 카카오 알림톡(미수신 시 문자)으로 인증번호를 보내드려요."
+              : "휴대폰 번호를 먼저 입력해주세요."}
+          </span>
+        </>
+      )}
+    </div>
+  );
+}
+
 function StepAddressForm({
   address,
   setAddress,
   savedAddresses,
   onNext,
+  onPhoneVerified,
   onPrev,
   showToast,
+  verifiedPhone,
 }) {
+  const phoneDigits = String(address.recipient_phone || "").replace(/\D/g, "");
+  const isPhoneVerified =
+    phoneDigits.length >= 10 && phoneDigits === String(verifiedPhone || "");
   const [selectedSavedId, setSelectedSavedId] = useState(null);
   const [useNewAddress, setUseNewAddress] = useState(
     savedAddresses.length === 0,
@@ -527,7 +629,8 @@ function StepAddressForm({
     isValidKoreanMobile(address.recipient_phone) &&
     address.postal_code.trim() &&
     address.address_line1.trim() &&
-    address.address_line2.trim();
+    address.address_line2.trim() &&
+    isPhoneVerified;
 
   return (
     <div className="pickup-step">
@@ -653,6 +756,14 @@ function StepAddressForm({
         </div>
       )}
 
+      {/* 연락처 인증 — 저장 주소/새 주소 어느 쪽이든 현재 연락처 번호 기준 */}
+      <PhoneVerifySection
+        isVerified={isPhoneVerified}
+        onVerified={onPhoneVerified}
+        phone={address.recipient_phone}
+        showToast={showToast}
+      />
+
       {/* 이메일 / 공동현관 비밀번호 */}
       <div className="pickup-form-row">
         <div className="pickup-form-field">
@@ -706,7 +817,9 @@ function StepAddressForm({
             ? "수령인 이름과 휴대폰 번호를 정확히 입력해주세요."
             : !address.postal_code.trim() || !address.address_line1.trim()
               ? "주소 검색으로 도로명/지번 주소를 선택해주세요."
-              : "상세 주소(동/호수)를 입력해주세요."}
+              : !address.address_line2.trim()
+                ? "상세 주소(동/호수)를 입력해주세요."
+                : "연락처 휴대폰 인증을 완료해주세요."}
         </p>
       )}
 
@@ -1617,6 +1730,8 @@ function PublicPickupRequestPage() {
   const [savedAddresses, setSavedAddresses] = useState([]);
   const [savedAccounts, setSavedAccounts] = useState([]);
   const [memberProfileName, setMemberProfileName] = useState("");
+  // 본인이 OTP 인증을 통과한 휴대폰 번호(숫자만) — 연락처와 일치해야 신청 가능
+  const [verifiedPhone, setVerifiedPhone] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitResult, setSubmitResult] = useState(null);
   const [toast, setToast] = useState(null);
@@ -1653,6 +1768,10 @@ function PublicPickupRequestPage() {
               prev.recipient_phone || snapshot.profile.phone || "",
           }));
         }
+
+        // 이미 인증한 번호면 연락처 인증 단계를 건너뛰게 한다
+        const { verifiedPhone: knownVerifiedPhone } = await fetchVerifiedPhone(user.id);
+        if (!cancelled) setVerifiedPhone(knownVerifiedPhone);
       } catch {
         // 로딩 실패 시 빈 상태로 진행
       } finally {
@@ -1777,7 +1896,8 @@ function PublicPickupRequestPage() {
     setIsSubmitting(false);
 
     if (error) {
-      showToast("요청에 실패했습니다. 다시 시도해주세요.", "error");
+      // 서버 거부 사유(휴대폰 인증 필요 등)를 그대로 보여준다
+      showToast(error.message || "요청에 실패했습니다. 다시 시도해주세요.", "error");
       return;
     }
 
@@ -1913,10 +2033,12 @@ function PublicPickupRequestPage() {
                     <StepAddressForm
                       address={address}
                       onNext={() => goToStep(2)}
+                      onPhoneVerified={setVerifiedPhone}
                       onPrev={() => goToStep(0)}
                       savedAddresses={savedAddresses}
                       setAddress={setAddress}
                       showToast={showToast}
+                      verifiedPhone={verifiedPhone}
                     />
                   )}
                   {currentStep === 2 && (

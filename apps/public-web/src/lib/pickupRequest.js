@@ -155,6 +155,87 @@ async function submitPickupRequest({
   return { data, error: null };
 }
 
+// ─── 연락처 휴대폰 인증(OTP) — 장난/시험 수거신청 방어 (2026-08-10) ───
+// 발송은 서버리스 /api/auth/send-phone-otp(솔라피 알림톡 우선·레이트리밋),
+// 검증은 verify_phone_otp RPC → member_profiles.verified_phone 기록.
+// submit_pickup_request가 연락처 번호와 verified_phone을 대조해 서버에서도 강제한다.
+
+async function fetchVerifiedPhone(userId) {
+  if (!isSupabaseConfigured || !supabase || !userId) {
+    return { verifiedPhone: "", error: null };
+  }
+
+  const { data, error } = await supabase
+    .from("member_profiles")
+    .select("verified_phone, phone_verified_at")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) {
+    return { verifiedPhone: "", error };
+  }
+
+  return {
+    verifiedPhone: data?.phone_verified_at ? String(data?.verified_phone ?? "") : "",
+    error: null,
+  };
+}
+
+async function sendPhoneOtp(phone) {
+  if (!isSupabaseConfigured || !supabase) {
+    return { success: false, error: new Error("서비스에 연결할 수 없습니다.") };
+  }
+
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData?.session?.access_token;
+  if (!token) {
+    return { success: false, error: new Error("로그인이 필요합니다.") };
+  }
+
+  try {
+    const response = await fetch("/api/auth/send-phone-otp", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ phone: String(phone || "").replace(/\D/g, "") }),
+    });
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok || !result?.success) {
+      return {
+        success: false,
+        error: new Error(result?.error || "인증번호 발송에 실패했습니다."),
+      };
+    }
+
+    return { success: true, error: null };
+  } catch {
+    return {
+      success: false,
+      error: new Error("인증번호 발송에 실패했습니다. 잠시 후 다시 시도해 주세요."),
+    };
+  }
+}
+
+async function verifyPhoneOtp(code) {
+  if (!isSupabaseConfigured || !supabase) {
+    return { verifiedPhone: "", error: new Error("서비스에 연결할 수 없습니다.") };
+  }
+
+  const { data, error } = await supabase.rpc("verify_phone_otp", {
+    p_code: String(code || "").trim(),
+  });
+
+  if (error) {
+    return { verifiedPhone: "", error };
+  }
+
+  // RPC가 실제 인증된 번호를 돌려준다 — 발송 후 입력 번호를 바꾼 경우 대비.
+  return { verifiedPhone: String(data?.phone ?? "").replace(/\D/g, ""), error: null };
+}
+
 export {
   BANK_LIST,
   BOOK_TYPES,
@@ -165,6 +246,9 @@ export {
   createEmptyManualItem,
   createItemFromProduct,
   createLocalItemId,
+  fetchVerifiedPhone,
   searchBooksForPickup,
+  sendPhoneOtp,
   submitPickupRequest,
+  verifyPhoneOtp,
 };

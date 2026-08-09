@@ -73,6 +73,14 @@ function formatAddress(pickupRequest) {
     .join(" ");
 }
 
+// 가입 후 경과일 — 접수 전 신뢰 신호(신규가입 뱃지)용. member_since 없으면 null.
+function getMemberDays(memberSince) {
+  if (!memberSince) return null;
+  const since = new Date(memberSince).getTime();
+  if (Number.isNaN(since)) return null;
+  return Math.max(0, Math.floor((Date.now() - since) / 86400000));
+}
+
 function getPickupItemSummary(pickupRequest) {
   const items = Array.isArray(pickupRequest.items) ? pickupRequest.items : [];
   if (items.length === 0) {
@@ -1304,6 +1312,40 @@ function AdminPickupRequestsPage() {
                           <p className="mt-2 max-w-sm text-xs font-medium leading-relaxed text-slate-500">
                             {formatAddress(pickupRequest)}
                           </p>
+                          {/* 접수 전 신뢰 신호 — 장난/시험 신청 선별용 (대기 상태에서만) */}
+                          {pickupRequest.status === "pending" ? (
+                            <div className="mt-2 flex flex-wrap gap-1">
+                              {pickupRequest.phone_verified ? (
+                                <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-800">
+                                  번호 인증됨
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-bold text-rose-700">
+                                  번호 미인증
+                                </span>
+                              )}
+                              {(pickupRequest.prior_pickup_count ?? 0) > 0 ? (
+                                <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600">
+                                  수거 {pickupRequest.prior_pickup_count}회
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800">
+                                  첫 수거
+                                </span>
+                              )}
+                              {getMemberDays(pickupRequest.member_since) !== null &&
+                              getMemberDays(pickupRequest.member_since) <= 7 ? (
+                                <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800">
+                                  가입 {getMemberDays(pickupRequest.member_since) === 0 ? "오늘" : `${getMemberDays(pickupRequest.member_since)}일차`}
+                                </span>
+                              ) : null}
+                              {(pickupRequest.duplicate_pending_count ?? 0) > 0 ? (
+                                <span className="inline-flex items-center rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-bold text-rose-700">
+                                  중복 대기 {pickupRequest.duplicate_pending_count}건
+                                </span>
+                              ) : null}
+                            </div>
+                          ) : null}
                         </td>
                         <td className="min-w-[220px] px-4 py-4">
                           <p className="font-semibold text-slate-700">
