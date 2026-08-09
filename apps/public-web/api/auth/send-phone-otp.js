@@ -1,7 +1,13 @@
-// 휴대폰 SMS 인증번호 발송 (회원 전용 · public-web /api/auth/send-phone-otp)
+// 휴대폰 인증번호 발송 (회원 전용 · public-web /api/auth/send-phone-otp)
 //
 // 가입 쿠폰 어뷰징 방어 기반: 인증번호는 해시로만 저장(phone_verification_codes),
-// 검증은 DB RPC verify_phone_otp. 발송 채널은 솔라피 SMS 단문.
+// 검증은 DB RPC verify_phone_otp.
+//
+// 발송 채널 (2026-08-09 알림톡 템플릿 v2):
+//   1순위 카카오 알림톡(수북 본인인증 v2, #{code}) — SOLAPI_PFID + SOLAPI_OTP_TEMPLATE_ID
+//   설정 시. disableSms:false라 카카오 미수신(미사용자·채널 차단)은 솔라피가 문자로
+//   자동 대체발송. 요청 자체가 실패하면(미승인 템플릿 등) 코드에서 SMS 단문으로 재발송.
+//   env 미설정이면 기존대로 SMS 단문만.
 //
 // ⚠ 의존성 없음(global fetch + node crypto만). 이 함수는 배포 스테이징 루트의 /api로
 //   복사되어 frontend 워크스페이스 node_modules와 분리되므로, npm import는 런타임에
@@ -34,7 +40,7 @@ function buildSolapiAuthHeader(apiKey, apiSecret) {
   return `HMAC-SHA256 apiKey=${apiKey}, date=${date}, salt=${salt}, signature=${signature}`;
 }
 
-async function sendSms({ to, from, text, apiKey, apiSecret }) {
+async function sendSolapiMessage({ message, apiKey, apiSecret }) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), SOLAPI_REQUEST_TIMEOUT_MS);
 
@@ -45,7 +51,7 @@ async function sendSms({ to, from, text, apiKey, apiSecret }) {
         Authorization: buildSolapiAuthHeader(apiKey, apiSecret),
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ message: { to, from, text } }),
+      body: JSON.stringify({ message }),
       signal: controller.signal,
     });
     const result = await response.json().catch(() => ({}));
@@ -69,11 +75,33 @@ async function sendSms({ to, from, text, apiKey, apiSecret }) {
   } catch (err) {
     return {
       success: false,
-      error: err.name === "AbortError" ? "SMS 발송 시간 초과" : err.message,
+      error: err.name === "AbortError" ? "발송 시간 초과" : err.message,
     };
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+async function sendSms({ to, from, text, apiKey, apiSecret }) {
+  return sendSolapiMessage({ message: { to, from, text }, apiKey, apiSecret });
+}
+
+// 알림톡(수북 본인인증 v2) — 카카오 미수신 시 솔라피가 문자로 자동 대체발송(disableSms:false)
+async function sendOtpAlimtalk({ to, from, code, pfId, templateId, apiKey, apiSecret }) {
+  return sendSolapiMessage({
+    message: {
+      to,
+      from,
+      kakaoOptions: {
+        pfId,
+        templateId,
+        variables: { "#{code}": String(code) },
+        disableSms: false,
+      },
+    },
+    apiKey,
+    apiSecret,
+  });
 }
 
 export default async function handler(req, res) {
@@ -172,16 +200,40 @@ export default async function handler(req, res) {
     return res.status(500).json(makeErrorResponse({ error: "인증번호 생성에 실패했습니다.", code: "STORE_FAILED" }));
   }
 
-  const smsResult = await sendSms({
-    to: phone,
-    from,
-    text: `[수북] 휴대폰 인증번호는 [${code}] 입니다. 5분 안에 입력해 주세요.`,
-    apiKey,
-    apiSecret,
-  });
+  // 알림톡 우선 발송 — env(pfId·템플릿ID)가 있을 때만. 요청 실패 시 SMS로 즉시 폴백.
+  // (알림톡이 접수된 뒤 카카오 단에서 실패하는 케이스는 솔라피 자동 대체발송이 처리 —
+  //  이 경우 코드가 SMS를 또 쏘면 이중 발송이라, 접수 성공이면 여기서 끝낸다.)
+  const pfId = process.env.SOLAPI_PFID;
+  const otpTemplateId = process.env.SOLAPI_OTP_TEMPLATE_ID;
 
-  if (!smsResult.success) {
-    console.error("Failed to send verification SMS:", smsResult.error);
+  let sendResult = null;
+  if (pfId && otpTemplateId) {
+    sendResult = await sendOtpAlimtalk({
+      to: phone,
+      from,
+      code,
+      pfId,
+      templateId: otpTemplateId,
+      apiKey,
+      apiSecret,
+    });
+    if (!sendResult.success) {
+      console.error("OTP alimtalk failed, falling back to SMS:", sendResult.error);
+    }
+  }
+
+  if (!sendResult?.success) {
+    sendResult = await sendSms({
+      to: phone,
+      from,
+      text: `[수북] 휴대폰 인증번호는 [${code}] 입니다. 5분 안에 입력해 주세요.`,
+      apiKey,
+      apiSecret,
+    });
+  }
+
+  if (!sendResult.success) {
+    console.error("Failed to send verification message:", sendResult.error);
     return res.status(502).json(makeErrorResponse({ error: "인증번호 발송에 실패했습니다. 잠시 후 다시 시도해 주세요.", code: "SMS_FAILED" }));
   }
 

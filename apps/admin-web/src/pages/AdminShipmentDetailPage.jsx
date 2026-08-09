@@ -9,7 +9,7 @@ import { bookConditionLabel, bookStatusLabel, shipmentStatusLabel } from "@share
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import StatusBadge from "@shared-domain/StatusBadge";
 import NotificationResultModal from "../components/NotificationResultModal";
-import { notifyArrived, notifyInspectionDone } from "../lib/adminNotification";
+import { notifyInspectionDone } from "../lib/adminNotification";
 import { PRICE_LOCKED_MESSAGE, isBookPriceLocked } from "../lib/bookEditRules";
 
 const BOOKS_PAGE_SIZE = 30;
@@ -932,15 +932,13 @@ function AdminShipmentDetailPage() {
 
     // 알림톡 발송 — 결과를 명시적으로 모달에 노출 (성공/실패 분리).
     // 이전엔 console.warn으로만 끝나서 운영자가 "알림톡 갔다"고 잘못 인지하던 P0 사고.
+    // 2026-08-09 템플릿 v2: 입고 완료(arrived) 알림은 폐지 — 검수 완료만 발송.
     try {
       let result = null;
       let label = "알림톡";
-      if (nextStatus === "inspecting") {
-        label = "입고 완료 알림";
-        result = await notifyArrived({ shipment: { ...shipment, book_count: books.length } });
-      } else if (nextStatus === "inspected") {
+      if (nextStatus === "inspected") {
         label = "검수 완료 알림";
-        result = await notifyInspectionDone({ shipment, books });
+        result = await notifyInspectionDone({ shipment });
       }
       if (result && result.success === false) {
         setShipmentNotificationResult({
@@ -989,8 +987,8 @@ function AdminShipmentDetailPage() {
   };
 
   const handleUpdateShipmentStatus = ({ nextStatus, successMessage }) => {
-    // 책을 등록하기 전에 검수중으로 바꾸면 입고 알림톡이 "교재 0권 도착"으로 나간다 —
-    // 전환 자체를 차단해 상품 등록 → 검수중 순서를 강제한다.
+    // 상품 등록 → 검수중 순서를 강제한다. 검수중 전환 후 책이 없으면
+    // 검수 완료 시점의 결과·정산 흐름이 전부 빈 상태로 흘러가기 때문.
     // (버튼도 비활성화되어 있어 평소엔 도달하지 않는 방어 코드)
     if (nextStatus === "inspecting" && books.length === 0) {
       setError(
@@ -1010,7 +1008,7 @@ function AdminShipmentDetailPage() {
           title: "미등급 책이 있습니다",
           description:
             `폐기 ${discardedCount}권, 미등급 ${ungradedCount}권이 있습니다.\n\n` +
-            `미등급 책은 셀러에게 알림톡이 전송될 때 등급 정보가 누락됩니다.\n` +
+            `미등급 책은 셀러 마이페이지의 검수 결과에 등급이 빈칸으로 보입니다.\n` +
             `모든 책에 등급을 입력한 뒤 전환하는 것을 권장합니다.\n\n` +
             `그래도 강행하시겠습니까?`,
           confirmPhrase: "강행",
@@ -1444,7 +1442,7 @@ function AdminShipmentDetailPage() {
                 {books.length === 0 ? (
                   <p className="mt-1 text-xs text-slate-500">
                     책을 먼저 등록해야 변경할 수 있습니다 — 아래 '이 고객 상품 등록하기'로
-                    등록하면 입고 알림톡에 정확한 권수가 담깁니다.
+                    등록한 뒤 검수중으로 변경하세요.
                   </p>
                 ) : null}
               </>

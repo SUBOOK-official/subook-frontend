@@ -4,6 +4,25 @@
 > 발송 대행사 = **솔라피(SOLAPI)** ([send-notification.js](api/admin/send-notification.js)).
 > v1 문안(2026-06-22)은 git 이력 참조.
 
+## 진행 상태 (2026-08-09)
+
+9종 전부 검수 승인 → 코드·env 전환 완료. 남은 것: 전환 검증 후 솔라피 콘솔에서 **구 템플릿 삭제**.
+
+| 템플릿 (솔라피 등록명) | 내부 타입 | templateId |
+|---|---|---|
+| 수북수거접수 v2 | `pickup_accepted` | `KA01TP260803071212434hOu8puNWGcW` |
+| 수북검수완료 v2 | `inspection_done` | `KA01TP2608030711454204wq2CxbPeKg` |
+| 수북정산완료 v2 | `settlement_done` | `KA01TP260803071126329xtAcEms3i1d` |
+| 수북주문확인 v2 | `order_confirmed` | `KA01TP260803043617677LpBdwZp04Hm` |
+| 수북배송시작 v2 | `shipping_started` | `KA01TP260803043550044gCZuIUU3abK` |
+| 수북배송완료 v2 | `delivery_done` | `KA01TP260803043043300wR9PTzmZNjh` |
+| 수북재입고 v2 | `restock` | `KA01TP260803043011253EN21EHyakeo` |
+| 수북환불완료 v2 | `refund_completed` | `KA01TP260801164841664xjNKTh4surF` |
+| 수북본인인증 v2 | (public-web OTP) | `KA01TP260801164657253JGX9omE8pKv` |
+
+- admin-web env `SOLAPI_TEMPLATE_IDS` = 위 8종(JSON), public-web env `SOLAPI_PFID` + `SOLAPI_OTP_TEMPLATE_ID` = OTP.
+- OTP 발송 함수는 알림톡 우선·SMS 폴백으로 전환됨. 단, OTP UI 연동 자체는 보류 상태(2026-07-28 결정) — 함수만 대기.
+
 ## 왜 "수정"이 아니라 "신규 등록"인가
 
 - 카카오 알림톡은 **검수 요청된 템플릿의 본문 수정이 불가** — 문안을 바꾸려면 새 템플릿으로

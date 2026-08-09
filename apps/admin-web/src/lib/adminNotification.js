@@ -63,32 +63,9 @@ export async function notifyPickupAccepted({ pickupRequest }) {
   });
 }
 
-// 입고 완료 알림 (판매자) — shipment 기반
-export async function notifyArrived({ shipment }) {
-  return callSendNotification({
-    notificationType: "arrived",
-    recipientPhone: shipment.seller_phone,
-    recipientName: shipment.seller_name,
-    recipientUserId: shipment.user_id,
-    refType: "shipment",
-    refId: shipment.id,
-    templateVariables: {
-      itemCount: shipment.book_count ?? 0,
-    },
-  });
-}
-
 // 검수 완료 알림 (판매자) — shipment 기반
-export async function notifyInspectionDone({ shipment, books }) {
-  // 카카오 알림톡은 배열 변수를 못 받으므로 한 문자열(#{inspectionResult})로 합쳐 전달.
-  const inspectionResult = (books || [])
-    .filter((b) => b.condition_grade)
-    .map((b) => {
-      const price = b.price ? `${Number(b.price).toLocaleString("ko-KR")}원` : "미정";
-      return `▸ ${b.title}: ${b.condition_grade} / ${price}`;
-    })
-    .join("\n");
-
+// v2 템플릿(2026-08-09)은 변수 없음 — 등급·가격 상세는 마이페이지에서 확인.
+export async function notifyInspectionDone({ shipment }) {
   return callSendNotification({
     notificationType: "inspection_done",
     recipientPhone: shipment.seller_phone,
@@ -96,20 +73,7 @@ export async function notifyInspectionDone({ shipment, books }) {
     recipientUserId: shipment.user_id,
     refType: "shipment",
     refId: shipment.id,
-    templateVariables: { inspectionResult },
-  });
-}
-
-// 판매 완료 알림 (판매자) — 주문 확정 시
-export async function notifySold({ sellerPhone, sellerName, sellerUserId, bookTitle, settlementDate, orderId }) {
-  return callSendNotification({
-    notificationType: "sold",
-    recipientPhone: sellerPhone,
-    recipientName: sellerName,
-    recipientUserId: sellerUserId,
-    refType: "order",
-    refId: orderId,
-    templateVariables: { bookTitle, settlementDate },
+    templateVariables: {},
   });
 }
 
