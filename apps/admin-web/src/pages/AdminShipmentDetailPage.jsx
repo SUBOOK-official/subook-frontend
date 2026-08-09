@@ -986,17 +986,9 @@ function AdminShipmentDetailPage() {
     setNotice(`박스 수 ${parsed}개 저장 — 상품화 비용 ${(parsed * 5000).toLocaleString()}원이 셀러 정산 시 차감됩니다.`);
   };
 
+  // 검수중 진입은 수동 버튼이 아니라 책 등록 시 DB 트리거(trg_books_auto_inspecting)가
+  // 자동 수행한다 (2026-08-09 등록=검수 시작). 이 핸들러는 검수완료 전환 전용.
   const handleUpdateShipmentStatus = ({ nextStatus, successMessage }) => {
-    // 상품 등록 → 검수중 순서를 강제한다. 검수중 전환 후 책이 없으면
-    // 검수 완료 시점의 결과·정산 흐름이 전부 빈 상태로 흘러가기 때문.
-    // (버튼도 비활성화되어 있어 평소엔 도달하지 않는 방어 코드)
-    if (nextStatus === "inspecting" && books.length === 0) {
-      setError(
-        "등록된 책이 0권입니다. '이 고객 상품 등록하기'로 책을 먼저 등록한 뒤 검수중으로 변경하세요.",
-      );
-      return;
-    }
-
     if (nextStatus === "inspected") {
       const discardedCount = books.filter((book) => book.condition_grade === "DISCARD").length;
       const ungradedCount = books.filter(
@@ -1425,27 +1417,9 @@ function AdminShipmentDetailPage() {
             </div>
 
             {isScheduled ? (
-              <>
-                <button
-                  className="btn-primary mt-2"
-                  disabled={actionLoading || books.length === 0}
-                  onClick={() =>
-                    handleUpdateShipmentStatus({
-                      nextStatus: "inspecting",
-                      successMessage: "검수중 상태로 변경되었습니다.",
-                    })
-                  }
-                  type="button"
-                >
-                  {actionLoading ? "변경 중..." : "검수중으로 변경"}
-                </button>
-                {books.length === 0 ? (
-                  <p className="mt-1 text-xs text-slate-500">
-                    책을 먼저 등록해야 변경할 수 있습니다 — 아래 '이 고객 상품 등록하기'로
-                    등록한 뒤 검수중으로 변경하세요.
-                  </p>
-                ) : null}
-              </>
+              <p className="mt-2 text-xs text-slate-500">
+                '이 고객 상품 등록하기'로 책을 등록하면 자동으로 검수중으로 전환됩니다.
+              </p>
             ) : null}
 
             {isInspecting ? (
