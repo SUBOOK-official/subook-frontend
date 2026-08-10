@@ -4,6 +4,7 @@ import AdminShell from "../components/AdminShell";
 import AdminDialog from "../components/AdminDialog";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { formatCurrency } from "@shared-domain/format";
+import { pickupRequestStatusLabel, shipmentStatusLabel } from "@shared-domain/status";
 import { CheckIcon, CloseIcon, PlusIcon } from "../components/icons";
 import { BOOK_TYPE_OPTIONS, BRAND_OPTIONS, SUBJECT_OPTIONS } from "../lib/productCategories";
 import { MAX_DETAIL_PHOTOS } from "../lib/adminImageUpload";
@@ -286,6 +287,9 @@ function AdminProductRegisterPage() {
   const [custLoading, setCustLoading] = useState(false);
   const [newCust, setNewCust] = useState({ seller_name: "", seller_phone: "", pickup_date: todayStr() });
   const [creatingCust, setCreatingCust] = useState(false);
+  // 새 고객 등록 폼에 입력된 번호의 사전 조회 결과
+  // { members: [...], pending_requests: [...], existing_shipments: [...] }
+  const [sellerContext, setSellerContext] = useState(null);
 
   // 신규 교재 (Frame 2 우측)
   const [newRows, setNewRows] = useState([blankNewRow()]);
@@ -340,6 +344,11 @@ function AdminProductRegisterPage() {
   }, [shipmentIdParam, showToast]);
 
   // 고객 검색 (디바운스)
+  // 검수 건뿐 아니라 '진행 중인 회원 수거신청'도 같은 목록에 섞어 보여준다.
+  // 수거신청 행을 고르면 브리지 RPC를 태워 user_id·pickup_request_id가 채워진
+  // 검수 건으로 이어지므로, 운영자는 하던 대로 이름만 쳐도 연동이 끊기지 않는다.
+  // (이전엔 shipments만 검색해서 회원 수거신청이 있어도 안 보였고, 그래서 다들
+  //  '새 고객 등록'으로 새로 만들어 브리지가 통째로 끊겼다 — 2026-08-10)
   useEffect(() => {
     if (step !== "customer" || !isSupabaseConfigured) return undefined;
     const q = custSearch.replace(/[,()%]/g, " ").trim();
@@ -350,21 +359,47 @@ function AdminProductRegisterPage() {
     let active = true;
     setCustLoading(true);
     const timer = window.setTimeout(async () => {
-      const { data } = await supabase
-        .from("shipments")
-        .select("id,seller_name,seller_phone,pickup_date,status,created_at")
-        .or(`seller_name.ilike.%${q}%,seller_phone.ilike.%${q}%`)
-        .order("created_at", { ascending: false })
-        .limit(20);
+      const { data, error } = await supabase.rpc("admin_search_register_targets", {
+        p_search: q,
+        p_limit: 20,
+      });
       if (!active) return;
-      setCustResults(data || []);
+      if (error) {
+        showToast(error.message || "고객 검색에 실패했습니다.", "error");
+        setCustResults([]);
+      } else {
+        setCustResults(Array.isArray(data) ? data : []);
+      }
       setCustLoading(false);
     }, 250);
     return () => {
       active = false;
       window.clearTimeout(timer);
     };
-  }, [custSearch, step]);
+  }, [custSearch, step, showToast]);
+
+  // 새 고객 등록 폼 — 같은 번호의 진행 중 수거신청 / 회원 매칭 사전 조회 (디바운스)
+  useEffect(() => {
+    if (step !== "customer" || !isSupabaseConfigured) return undefined;
+    const digits = newCust.seller_phone.replace(/[^0-9]/g, "");
+    if (digits.length < 9) {
+      setSellerContext(null);
+      return undefined;
+    }
+    let active = true;
+    const timer = window.setTimeout(async () => {
+      const { data, error } = await supabase.rpc("admin_lookup_seller_context", {
+        p_seller_name: newCust.seller_name.trim() || null,
+        p_seller_phone: newCust.seller_phone.trim(),
+      });
+      if (!active || error) return;
+      setSellerContext(data || null);
+    }, 350);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [newCust.seller_name, newCust.seller_phone, step]);
 
   // 교재 검색 (디바운스, RPC)
   useEffect(() => {
@@ -471,36 +506,76 @@ function AdminProductRegisterPage() {
     };
   }, [newRows, step]);
 
+  // 새 고객 등록. 생 insert 대신 RPC를 경유해 회원 연결을 서버가 책임진다.
+  // (이름+전화가 회원과 유일하게 맞으면 user_id가 자동으로 붙는다 — 안 붙으면
+  //  셀러 마이페이지에서 자기 검수 결과를 영영 못 본다)
   const handleCreateCustomer = async (event) => {
     event.preventDefault();
     if (!newCust.seller_name.trim() || !newCust.seller_phone.trim() || !newCust.pickup_date) {
       showToast("이름 · 전화번호 · 수거 일자를 입력하세요.", "error");
       return;
     }
+    // 후보 회원이 여럿이면 자동 연결이 불가능하므로 운영자가 고른 값을 넘긴다.
+    const exactMembers = (sellerContext?.members ?? []).filter((m) => m.name_matches);
     setCreatingCust(true);
-    const { data, error } = await supabase
-      .from("shipments")
-      .insert({
-        seller_name: newCust.seller_name.trim(),
-        seller_phone: newCust.seller_phone.trim(),
-        pickup_date: newCust.pickup_date,
-        status: "scheduled",
-      })
-      .select("id,seller_name,seller_phone,pickup_date,status")
-      .single();
+    const { data, error } = await supabase.rpc("admin_create_direct_shipment", {
+      p_seller_name: newCust.seller_name.trim(),
+      p_seller_phone: newCust.seller_phone.trim(),
+      p_pickup_date: newCust.pickup_date,
+      p_user_id: exactMembers.length === 1 ? exactMembers[0].user_id : null,
+    });
     setCreatingCust(false);
-    if (error) {
-      showToast(error.message || "고객 등록에 실패했습니다.", "error");
+    if (error || !data?.shipment) {
+      showToast(error?.message || "고객 등록에 실패했습니다.", "error");
       return;
     }
-    setShipment(data);
+    setShipment(data.shipment);
+    setSellerContext(null);
     setStep("list");
-    showToast(`${data.seller_name} 님 고객을 새로 등록했습니다.`, "success");
+    showToast(
+      data.linked_member
+        ? `${data.shipment.seller_name} 님 (회원 연결됨) 등록을 시작합니다.`
+        : `${data.shipment.seller_name} 님 고객을 새로 등록했습니다. (비회원)`,
+      "success",
+    );
   };
 
-  const selectCustomer = (customer) => {
-    setShipment(customer);
+  // 검색 결과 선택. 수거신청 행이면 브리지된 검수 건을 만들어(있으면 재사용) 넘어간다.
+  const selectCustomer = async (row) => {
+    if (row.kind !== "pickup_request") {
+      setShipment({
+        id: row.ref_id,
+        seller_name: row.seller_name,
+        seller_phone: row.seller_phone,
+        pickup_date: row.target_date,
+        status: row.status,
+      });
+      setStep("list");
+      return;
+    }
+
+    setCreatingCust(true);
+    const { data, error } = await supabase.rpc("admin_start_inspection_from_pickup", {
+      p_pickup_request_id: row.ref_id,
+    });
+    if (error || !data?.shipment_id) {
+      setCreatingCust(false);
+      showToast(error?.message || "수거신청을 검수 건으로 전환하지 못했습니다.", "error");
+      return;
+    }
+    const { data: created, error: loadError } = await supabase
+      .from("shipments")
+      .select("id,seller_name,seller_phone,pickup_date,status")
+      .eq("id", data.shipment_id)
+      .maybeSingle();
+    setCreatingCust(false);
+    if (loadError || !created) {
+      showToast("검수 건을 불러오지 못했습니다.", "error");
+      return;
+    }
+    setShipment(created);
     setStep("list");
+    showToast(`${row.request_number} 수거신청에 연결해 등록을 시작합니다.`, "success");
   };
 
   // 신규 교재 행 편집 — 마지막 행이 채워지면 빈 행 자동 추가 (위치는 배치 위치로 프리필)
@@ -1047,13 +1122,15 @@ function AdminProductRegisterPage() {
         {step === "customer" ? (
           <div className="grid gap-5 lg:grid-cols-2">
             <section className="rounded-2xl border border-slate-200 bg-white p-6">
-              <h2 className="text-lg font-black text-slate-900">기존 고객 검색</h2>
-              <p className="mt-1 text-sm text-slate-500">이름 또는 전화번호로 검색하세요.</p>
+              <h2 className="text-lg font-black text-slate-900">고객 · 수거신청 검색</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                이름 · 전화번호 · 수거신청 번호로 검색하세요. 회원 수거신청도 함께 나옵니다.
+              </p>
               <input
                 type="search"
                 value={custSearch}
                 onChange={(e) => setCustSearch(e.target.value)}
-                placeholder="예: 나유찬 / 010-1234-5678"
+                placeholder="예: 나유찬 / 010-1234-5678 / PU-2608-0005"
                 className="mt-3 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
               />
               <div className="mt-3 max-h-80 space-y-2 overflow-y-auto">
@@ -1064,27 +1141,120 @@ function AdminProductRegisterPage() {
                     {custSearch.trim() ? "검색 결과가 없습니다." : "검색어를 입력하세요."}
                   </p>
                 ) : (
-                  custResults.map((c) => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => selectCustomer(c)}
-                      className="flex w-full items-center justify-between rounded-lg border border-slate-200 px-4 py-3 text-left hover:border-slate-900 hover:bg-slate-50"
-                    >
-                      <div>
-                        <p className="font-bold text-slate-900">{c.seller_name}</p>
-                        <p className="text-xs text-slate-500">{c.seller_phone}</p>
-                      </div>
-                      <span className="text-xs font-semibold text-slate-400">선택 →</span>
-                    </button>
-                  ))
+                  custResults.map((c) => {
+                    const isRequest = c.kind === "pickup_request";
+                    return (
+                      <button
+                        key={`${c.kind}-${c.ref_id}`}
+                        type="button"
+                        disabled={creatingCust}
+                        onClick={() => selectCustomer(c)}
+                        className={`flex w-full items-center justify-between rounded-lg border px-4 py-3 text-left disabled:opacity-50 ${
+                          isRequest
+                            ? "border-indigo-200 bg-indigo-50/60 hover:border-indigo-500"
+                            : "border-slate-200 hover:border-slate-900 hover:bg-slate-50"
+                        }`}
+                      >
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="font-bold text-slate-900">{c.seller_name}</span>
+                            <span
+                              className={`rounded px-1.5 py-0.5 text-[11px] font-bold ${
+                                isRequest ? "bg-indigo-600 text-white" : "bg-slate-200 text-slate-700"
+                              }`}
+                            >
+                              {isRequest ? "수거신청" : "직접입고"}
+                            </span>
+                            {c.user_id ? (
+                              <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[11px] font-bold text-emerald-700">
+                                회원
+                              </span>
+                            ) : null}
+                          </div>
+                          <p className="mt-0.5 truncate text-xs text-slate-500">
+                            {c.seller_phone}
+                            {isRequest ? ` · ${c.request_number}` : ""}
+                            {c.target_date ? ` · ${c.target_date}` : ""}
+                          </p>
+                          <p className="mt-0.5 text-xs font-semibold text-slate-600">
+                            {(isRequest ? pickupRequestStatusLabel : shipmentStatusLabel)[c.status] ?? c.status}
+                            {" · "}
+                            등록 {c.book_count}권
+                            {isRequest && c.expected_book_count ? ` / 예상 ${c.expected_book_count}권` : ""}
+                          </p>
+                        </div>
+                        <span className="shrink-0 pl-3 text-xs font-semibold text-slate-400">선택 →</span>
+                      </button>
+                    );
+                  })
                 )}
               </div>
             </section>
 
             <section className="rounded-2xl border border-slate-200 bg-white p-6">
               <h2 className="text-lg font-black text-slate-900">새 고객 등록</h2>
-              <p className="mt-1 text-sm text-slate-500">신규 셀러를 등록하고 바로 상품을 추가합니다.</p>
+              <p className="mt-1 text-sm text-slate-500">
+                수거신청 없이 직접 입고된 셀러용입니다. 회원 수거신청은 왼쪽에서 고르세요.
+              </p>
+
+              {/* 같은 번호로 진행 중인 수거신청이 있으면 새로 만들지 못하게 막고 그쪽으로 보낸다.
+                  여기서 새로 만들면 검수 결과가 셀러 마이페이지에 안 뜬다. */}
+              {(sellerContext?.pending_requests ?? []).length > 0 ? (
+                <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3">
+                  <p className="text-sm font-bold text-amber-900">
+                    이 번호로 진행 중인 수거신청이 있습니다
+                  </p>
+                  <p className="mt-1 text-xs text-amber-800">
+                    새로 만들지 말고 아래 신청을 선택하세요. 새로 만들면 셀러 마이페이지에
+                    검수 결과가 연결되지 않습니다.
+                  </p>
+                  <div className="mt-2 space-y-1.5">
+                    {sellerContext.pending_requests.map((pr) => (
+                      <button
+                        key={pr.id}
+                        type="button"
+                        disabled={creatingCust}
+                        onClick={() =>
+                          selectCustomer({
+                            kind: "pickup_request",
+                            ref_id: pr.id,
+                            request_number: pr.request_number,
+                          })
+                        }
+                        className="flex w-full items-center justify-between rounded-md border border-amber-300 bg-white px-3 py-2 text-left text-xs hover:border-amber-600 disabled:opacity-50"
+                      >
+                        <span className="font-bold text-slate-900">
+                          {pr.request_number}
+                          <span className="ml-1.5 font-semibold text-slate-500">
+                            {pickupRequestStatusLabel[pr.status] ?? pr.status}
+                            {pr.expected_book_count ? ` · 예상 ${pr.expected_book_count}권` : ""}
+                          </span>
+                        </span>
+                        <span className="font-bold text-amber-700">이 신청으로 등록 →</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {/* 회원 매칭 안내 — 이름까지 맞아야 자동 연결된다 */}
+              {(sellerContext?.members ?? []).length > 0 ? (
+                <p
+                  className={`mt-3 rounded-md px-3 py-2 text-xs font-semibold ${
+                    sellerContext.members.filter((m) => m.name_matches).length === 1
+                      ? "bg-emerald-50 text-emerald-800"
+                      : "bg-slate-100 text-slate-700"
+                  }`}
+                >
+                  {sellerContext.members.filter((m) => m.name_matches).length === 1
+                    ? `회원 ${sellerContext.members.find((m) => m.name_matches).name} 님으로 자동 연결됩니다.`
+                    : `이 번호를 쓰는 회원이 ${sellerContext.members.length}명 있는데 이름이 일치하지 않습니다 (${sellerContext.members
+                        .map((m) => m.name)
+                        .filter(Boolean)
+                        .join(", ")}). 이름을 회원 정보와 똑같이 입력하면 자동 연결됩니다.`}
+                </p>
+              ) : null}
+
               <form onSubmit={handleCreateCustomer} className="mt-3 space-y-3">
                 <label className="block">
                   <span className="text-xs font-bold text-slate-700">판매자 이름 *</span>

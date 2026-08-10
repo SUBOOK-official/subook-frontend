@@ -601,6 +601,16 @@ function AdminPickupRequestsPage() {
     }
     navigate(`/admin/register?shipmentId=${data.shipment_id}`);
   };
+
+  // 수거신청 병합 — 하나의 물리적 수거가 여러 신청으로 쪼개진 경우에 쓴다.
+  // (예: 멀티박스 송장이 일부만 나가 남은 박스를 위해 신청을 새로 만든 경우)
+  // 병합하면 어느 신청에서 '상품 등록'을 눌러도 원본의 검수 건으로 모이고,
+  // 셀러 마이페이지에도 원본 한 건으로만 보인다.
+  const [mergeModal, setMergeModal] = useState(null);
+  const [mergeCandidates, setMergeCandidates] = useState([]);
+  const [mergeLoading, setMergeLoading] = useState(false);
+  const [mergingId, setMergingId] = useState(null);
+
   // 알림톡/RPC 부분 실패를 전체 노출 — 이전엔 setError에 3건만 보여 4건 이후가 사라지는 P0 사고
   const [cjFailureModal, setCjFailureModal] = useState(null);
   const [notificationResult, setNotificationResult] = useState(null);
@@ -713,6 +723,64 @@ function AdminPickupRequestsPage() {
   useEffect(() => {
     void loadPickupRequests();
   }, [loadPickupRequests]);
+
+  const openMergeModal = async (pickupRequest) => {
+    setMergeModal(pickupRequest);
+    setMergeCandidates([]);
+    setMergeLoading(true);
+    // 같은 번호로 접수된 다른 신청을 후보로 — 병합은 같은 회원 것끼리만 허용된다(RPC 가드).
+    const { data, error: rpcError } = await supabase.rpc("list_admin_pickup_requests", {
+      p_search: pickupRequest.pickup_recipient_phone,
+      p_statuses: null,
+      p_from_date: null,
+      p_to_date: null,
+      p_limit: 50,
+      p_offset: 0,
+    });
+    setMergeLoading(false);
+    if (rpcError) {
+      setError(rpcError.message || "병합 대상을 불러오지 못했습니다.");
+      return;
+    }
+    setMergeCandidates(
+      (Array.isArray(data) ? data : []).filter(
+        (row) =>
+          row.id !== pickupRequest.id &&
+          row.merged_into_id === null &&
+          row.status !== "cancelled" &&
+          row.user_id === pickupRequest.user_id,
+      ),
+    );
+  };
+
+  const handleMerge = async (targetId) => {
+    if (!mergeModal) return;
+    setMergingId(targetId);
+    const { error: rpcError } = await supabase.rpc("admin_merge_pickup_requests", {
+      p_source_id: mergeModal.id,
+      p_target_id: targetId,
+    });
+    setMergingId(null);
+    if (rpcError) {
+      setError(rpcError.message || "병합에 실패했습니다.");
+      return;
+    }
+    setMergeModal(null);
+    setError("");
+    await loadPickupRequests();
+  };
+
+  const handleUnmerge = async (pickupRequest) => {
+    const { error: rpcError } = await supabase.rpc("admin_unmerge_pickup_request", {
+      p_pickup_request_id: pickupRequest.id,
+    });
+    if (rpcError) {
+      setError(rpcError.message || "병합 해제에 실패했습니다.");
+      return;
+    }
+    setError("");
+    await loadPickupRequests();
+  };
 
   useEffect(
     () => () => {
@@ -1302,6 +1370,22 @@ function AdminPickupRequestsPage() {
                           <p className="mt-1 text-xs font-semibold text-slate-500">
                             {formatDate(pickupRequest.created_at)}
                           </p>
+                          {/* 병합 상태 — 한 수거가 여러 신청으로 쪼개진 경우(박스 누락 재접수 등).
+                              병합된 신청은 셀러 마이페이지에서 원본 하나로 합쳐 보인다. */}
+                          {pickupRequest.merged_into_id ? (
+                            <span className="mt-1.5 inline-flex items-center rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-bold text-slate-700">
+                              {pickupRequest.merged_into_request_number} 에 병합됨
+                            </span>
+                          ) : pickupRequest.merged_child_count > 0 ? (
+                            <span className="mt-1.5 inline-flex items-center rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-bold text-indigo-800">
+                              +{pickupRequest.merged_child_count}건 병합
+                            </span>
+                          ) : null}
+                          {pickupRequest.bridged_shipment_id ? (
+                            <p className="mt-1 text-[11px] font-semibold text-slate-400">
+                              검수 #{pickupRequest.bridged_shipment_id} · {pickupRequest.bridged_book_count}권
+                            </p>
+                          ) : null}
                         </td>
                         <td className="min-w-[260px] px-4 py-4">
                           <p className="font-bold text-slate-900">
@@ -1449,6 +1533,27 @@ function AdminPickupRequestsPage() {
                               </button>
                             ) : null}
 
+                            {/* 다른 신청과 같은 수거인 경우 묶기 (박스 누락 재접수 등) */}
+                            {pickupRequest.status !== "cancelled" && pickupRequest.user_id ? (
+                              pickupRequest.merged_into_id ? (
+                                <button
+                                  className="btn-secondary !w-auto !px-3 !py-2 text-xs"
+                                  onClick={() => void handleUnmerge(pickupRequest)}
+                                  type="button"
+                                >
+                                  병합 해제
+                                </button>
+                              ) : (
+                                <button
+                                  className="btn-secondary !w-auto !px-3 !py-2 text-xs"
+                                  onClick={() => void openMergeModal(pickupRequest)}
+                                  type="button"
+                                >
+                                  다른 신청과 병합
+                                </button>
+                              )
+                            ) : null}
+
                             {/* 수동 상태 전환 — CJ 미연동 기간에도 검수중 등으로 진행 가능 (취소 상태 제외) */}
                             {pickupRequest.status !== "cancelled" ? (
                               <select
@@ -1591,6 +1696,70 @@ function AdminPickupRequestsPage() {
                   : "상태 변경"}
               </button>
             </div>
+          </div>
+        ) : null}
+      </AdminDialog>
+
+      <AdminDialog
+        busy={mergingId !== null}
+        onClose={() => setMergeModal(null)}
+        open={Boolean(mergeModal)}
+        size="md"
+        title={mergeModal ? `수거신청 병합 — ${mergeModal.request_number}` : ""}
+      >
+        {mergeModal ? (
+          <div className="space-y-4 p-6">
+            <p className="text-sm text-slate-700">
+              <strong>{mergeModal.request_number}</strong>을(를) 아래 신청의 일부로 합칩니다.
+              박스가 나눠 들어와 신청이 둘로 쪼개진 경우에 쓰세요.
+            </p>
+            <ul className="list-inside list-disc space-y-1 rounded-lg bg-slate-50 px-4 py-3 text-xs text-slate-600">
+              <li>병합 후에는 어느 신청에서 [상품 등록]을 눌러도 원본의 검수 건으로 모입니다.</li>
+              <li>판매자 마이페이지에는 원본 신청 하나로만 보이고, 박스 수는 합산됩니다.</li>
+              <li>병합되는 쪽에 책이 0권인 빈 검수 건이 있으면 함께 정리됩니다.</li>
+              <li>같은 회원의 신청끼리만 병합할 수 있습니다.</li>
+            </ul>
+
+            {mergeLoading ? (
+              <p className="py-6 text-center text-sm text-slate-400">
+                <InlineLoading label="병합 대상 조회 중..." />
+              </p>
+            ) : mergeCandidates.length === 0 ? (
+              <p className="py-6 text-center text-sm font-semibold text-slate-400">
+                병합할 수 있는 다른 신청이 없습니다.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {mergeCandidates.map((candidate) => (
+                  <button
+                    className="flex w-full items-center justify-between rounded-lg border border-slate-200 px-4 py-3 text-left hover:border-slate-900 hover:bg-slate-50 disabled:opacity-50"
+                    disabled={mergingId !== null}
+                    key={candidate.id}
+                    onClick={() => void handleMerge(candidate.id)}
+                    type="button"
+                  >
+                    <div>
+                      <p className="font-mono text-xs font-black text-slate-900">
+                        {candidate.request_number}
+                      </p>
+                      <p className="mt-1 text-xs font-semibold text-slate-500">
+                        {pickupRequestStatusLabel[candidate.status] ?? candidate.status}
+                        {candidate.desired_pickup_date ? ` · ${candidate.desired_pickup_date}` : ""}
+                        {` · ${candidate.box_count ?? 0}박스`}
+                        {candidate.bridged_book_count > 0 ? ` · 등록 ${candidate.bridged_book_count}권` : ""}
+                      </p>
+                    </div>
+                    <span className="text-xs font-bold text-slate-600">
+                      {mergingId === candidate.id ? <BusyText>병합 중...</BusyText> : "이 신청에 병합 →"}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <button className="btn-ghost w-full" onClick={() => setMergeModal(null)} type="button">
+              닫기
+            </button>
           </div>
         ) : null}
       </AdminDialog>
