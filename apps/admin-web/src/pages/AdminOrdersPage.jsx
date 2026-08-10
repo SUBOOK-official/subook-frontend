@@ -1735,7 +1735,7 @@ function AdminOrdersPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[64rem] text-sm">
               <thead>
                 <tr className="border-b border-slate-100 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">
                   <th className="px-2 py-3 w-10">
@@ -2309,7 +2309,7 @@ function AdminOrdersPage() {
                     <div className="overflow-x-auto">
                       <table className="w-full text-xs">
                         <thead>
-                          <tr className="border-b text-left text-slate-500">
+                          <tr className="whitespace-nowrap border-b text-left text-slate-500">
                             <th className="py-2 px-2">주문번호</th>
                             <th className="py-2 px-2">택배사</th>
                             <th className="py-2 px-2">송장번호</th>
@@ -2324,12 +2324,12 @@ function AdminOrdersPage() {
                                 className={`border-b border-slate-50 ${invalid ? "bg-rose-50" : ""}`}
                                 key={i}
                               >
-                                <td className="py-1.5 px-2 font-mono">{row.orderNumber}</td>
-                                <td className="py-1.5 px-2">{row.carrier}</td>
-                                <td className={`py-1.5 px-2 font-mono ${invalid ? "text-rose-700 font-bold" : ""}`}>
+                                <td className="whitespace-nowrap py-1.5 px-2 font-mono">{row.orderNumber}</td>
+                                <td className="whitespace-nowrap py-1.5 px-2">{row.carrier}</td>
+                                <td className={`whitespace-nowrap py-1.5 px-2 font-mono ${invalid ? "text-rose-700 font-bold" : ""}`}>
                                   {row.trackingNumber}
                                 </td>
-                                <td className={`py-1.5 px-2 font-semibold ${invalid ? "text-rose-600" : "text-emerald-600"}`}>
+                                <td className={`whitespace-nowrap py-1.5 px-2 font-semibold ${invalid ? "text-rose-600" : "text-emerald-600"}`}>
                                   {invalid ? "형식 오류" : "OK"}
                                 </td>
                               </tr>
@@ -2372,7 +2372,7 @@ function AdminOrdersPage() {
                   <div className="overflow-x-auto">
                     <table className="w-full text-xs">
                       <thead>
-                        <tr className="border-b text-left text-slate-500">
+                        <tr className="whitespace-nowrap border-b text-left text-slate-500">
                           <th className="py-2 px-2">주문번호</th>
                           <th className="py-2 px-2">송장번호</th>
                           <th className="py-2 px-2">결과</th>
@@ -2381,8 +2381,8 @@ function AdminOrdersPage() {
                       <tbody>
                         {csvResults.map((r, i) => (
                           <tr className="border-b border-slate-50" key={i}>
-                            <td className="py-1.5 px-2 font-mono">{r.orderNumber}</td>
-                            <td className="py-1.5 px-2 font-mono">{r.trackingNumber}</td>
+                            <td className="whitespace-nowrap py-1.5 px-2 font-mono">{r.orderNumber}</td>
+                            <td className="whitespace-nowrap py-1.5 px-2 font-mono">{r.trackingNumber}</td>
                             <td className={`py-1.5 px-2 font-semibold ${r.success ? "text-green-600" : "text-red-500"}`}>
                               {r.message}
                             </td>

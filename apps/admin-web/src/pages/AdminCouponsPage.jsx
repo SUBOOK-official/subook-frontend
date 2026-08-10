@@ -488,9 +488,11 @@ function AdminCouponsPage() {
               {search ? "검색 결과가 없습니다." : "등록된 쿠폰이 없습니다. 우측 상단에서 새로 만들어보세요."}
             </div>
           ) : (
-            <table className="w-full text-sm">
+            // 컬럼이 많아 셀이 눌리면 한글이 한 글자씩 쪼개지므로 min-w + 가로 스크롤로 처리
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[68rem] text-sm">
               <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500">
-                <tr>
+                <tr className="whitespace-nowrap">
                   <th className="px-4 py-3 text-left">쿠폰 이름</th>
                   <th className="px-4 py-3 text-left">할인</th>
                   <th className="px-4 py-3 text-left">최소 주문</th>
@@ -515,22 +517,22 @@ function AdminCouponsPage() {
                         <div className="mt-1 text-xs font-mono text-indigo-600">{coupon.code}</div>
                       ) : null}
                     </td>
-                    <td className="px-4 py-3 text-slate-700">{describeDiscount(coupon)}</td>
-                    <td className="px-4 py-3 text-slate-700">
+                    <td className="whitespace-nowrap px-4 py-3 text-slate-700">{describeDiscount(coupon)}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-slate-700">
                       {coupon.min_order_amount > 0 ? formatCurrency(coupon.min_order_amount) : "조건 없음"}
                     </td>
-                    <td className="px-4 py-3 text-xs text-slate-600">{describeValidity(coupon)}</td>
-                    <td className="px-4 py-3 text-xs text-slate-600">
+                    <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-600">{describeValidity(coupon)}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-600">
                       {ISSUANCE_TYPE_LABEL[coupon.issuance_type] ?? coupon.issuance_type}
                     </td>
-                    <td className="px-4 py-3 text-slate-700">
+                    <td className="whitespace-nowrap px-4 py-3 text-slate-700">
                       {coupon.issued_count}
                       {coupon.total_quantity ? ` / ${coupon.total_quantity}` : ""}
                     </td>
                     <td className="px-4 py-3">
                       <StatusBadge status={coupon.is_active ? "active" : "inactive"} type="coupon" />
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="whitespace-nowrap px-4 py-3 text-right">
                       <button
                         type="button"
                         disabled={!coupon.is_active}
@@ -575,6 +577,7 @@ function AdminCouponsPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
         <AdminPagination
@@ -1032,15 +1035,15 @@ function AdminCouponsPage() {
                           </div>
                           <div className="text-xs text-slate-500">{row.email}</div>
                         </td>
-                        <td className="px-3 py-2 text-xs text-slate-600">
+                        <td className="whitespace-nowrap px-3 py-2 text-xs text-slate-600">
                           {row.issued_at ? new Date(row.issued_at).toLocaleString("ko-KR") : "-"}
                         </td>
-                        <td className="px-3 py-2 text-xs text-slate-600">
+                        <td className="whitespace-nowrap px-3 py-2 text-xs text-slate-600">
                           {row.expires_at ? new Date(row.expires_at).toLocaleString("ko-KR") : "무기한"}
                         </td>
                         <td className="px-3 py-2">
                           <span
-                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-bold ${
+                            className={`inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-bold ${
                               row.status === "used"
                                 ? "bg-emerald-100 text-emerald-800"
                                 : row.status === "expired"

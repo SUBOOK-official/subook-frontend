@@ -286,7 +286,7 @@ function AdminAnalyticsPage() {
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-xs text-slate-500 border-b border-slate-100">
+                <tr className="text-left text-xs text-slate-500 border-b border-slate-100 whitespace-nowrap">
                   <th className="py-2">셀러</th>
                   <th className="py-2 text-right">정산 금액</th>
                   <th className="py-2 text-right">권수</th>
@@ -302,10 +302,10 @@ function AdminAnalyticsPage() {
                         {(row.seller_email || "").replace(/@oauth\.subook\.local$/i, "(OAuth)")}
                       </span>
                     </td>
-                    <td className="py-2.5 text-right font-bold tabular-nums">
+                    <td className="whitespace-nowrap py-2.5 text-right font-bold tabular-nums">
                       {formatCurrency(Number(row.total_net_amount) || 0)}
                     </td>
-                    <td className="py-2.5 text-right tabular-nums text-slate-600">{row.book_count}권</td>
+                    <td className="whitespace-nowrap py-2.5 text-right tabular-nums text-slate-600">{row.book_count}권</td>
                   </tr>
                 ))}
               </tbody>
@@ -320,7 +320,7 @@ function AdminAnalyticsPage() {
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-xs text-slate-500 border-b border-slate-100">
+                <tr className="text-left text-xs text-slate-500 border-b border-slate-100 whitespace-nowrap">
                   <th className="py-2">상품</th>
                   <th className="py-2 text-right">매출</th>
                   <th className="py-2 text-right">판매</th>
@@ -336,10 +336,10 @@ function AdminAnalyticsPage() {
                         {row.product_subject ?? ""}{row.product_brand ? ` · ${row.product_brand}` : ""}
                       </span>
                     </td>
-                    <td className="py-2.5 text-right font-bold tabular-nums">
+                    <td className="whitespace-nowrap py-2.5 text-right font-bold tabular-nums">
                       {formatCurrency(Number(row.total_sales) || 0)}
                     </td>
-                    <td className="py-2.5 text-right tabular-nums text-slate-600">
+                    <td className="whitespace-nowrap py-2.5 text-right tabular-nums text-slate-600">
                       {row.sold_quantity}권
                     </td>
                   </tr>

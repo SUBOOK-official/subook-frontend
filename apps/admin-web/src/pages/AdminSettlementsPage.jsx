@@ -685,7 +685,7 @@ function AdminSettlementsPage() {
               </p>
             ) : (
               <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-slate-200 text-sm">
+                <table className="w-full min-w-[56rem] divide-y divide-slate-200 text-sm">
                   <thead className="bg-slate-50">
                     <tr>
                       <th className="px-4 py-3 text-left text-xs font-black text-slate-500">예금주</th>

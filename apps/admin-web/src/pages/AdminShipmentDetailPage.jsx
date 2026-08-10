@@ -1681,7 +1681,7 @@ function AdminShipmentDetailPage() {
 
               <div className="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-soft lg:block">
                 <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-slate-200 text-sm">
+                  <table className="w-full min-w-[64rem] divide-y divide-slate-200 text-sm">
                     <thead className="bg-slate-50">
                       <tr>
                         <th className="w-10 px-2 py-3 text-left">
