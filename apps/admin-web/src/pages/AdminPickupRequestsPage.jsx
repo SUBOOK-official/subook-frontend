@@ -485,6 +485,36 @@ function InspectionWorkbenchSection() {
                     <td className="px-4 py-3 font-bold text-slate-500">{shipment.id}</td>
                     <td className="px-4 py-3 font-semibold text-slate-800">
                       {shipment.seller_name}
+                      {/* 연결 상태 — 위저드로 새로 만들면 회원·수거신청 연결이 빠질 수 있어
+                          목록에서 눈으로 잡는 그물. unlinked면 셀러가 자기 검수 결과를
+                          마이페이지에서 못 본다. */}
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {shipment.member_link_status === "unlinked" ? (
+                          <span
+                            className="inline-flex items-center rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-bold text-rose-700"
+                            title={`같은 번호의 회원: ${shipment.member_match_names ?? ""}`}
+                          >
+                            회원 미연결
+                          </span>
+                        ) : shipment.member_link_status === "guest" ? (
+                          <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-500">
+                            비회원
+                          </span>
+                        ) : null}
+                        {shipment.request_number ? (
+                          <span className="inline-flex items-center rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-bold text-indigo-700">
+                            {shipment.request_number}
+                          </span>
+                        ) : null}
+                        {shipment.unbridged_request_number ? (
+                          <span
+                            className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800"
+                            title="같은 번호·비슷한 날짜의 수거신청이 아직 이 검수 건에 연결되지 않았습니다."
+                          >
+                            수거신청 미연결 · {shipment.unbridged_request_number}
+                          </span>
+                        ) : null}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-slate-600">{shipment.seller_phone}</td>
                     <td className="px-4 py-3 text-slate-600">{formatDate(shipment.pickup_date)}</td>
