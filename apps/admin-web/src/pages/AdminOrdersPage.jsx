@@ -321,6 +321,18 @@ function AdminOrdersPage() {
     [orders, selectedIds],
   );
 
+  // 일괄 재출력 대상 — 이미 운송장이 있는 주문. 채번·접수·상태변경·알림톡 전부 없음.
+  const selectedCjReprintTargets = useMemo(
+    () =>
+      orders.filter(
+        (o) =>
+          selectedIds.has(o.id)
+          && o.tracking_number
+          && ["shipping", "delivered", "confirmed"].includes(o.status),
+      ),
+    [orders, selectedIds],
+  );
+
   const toggleSelectId = (id) => {
     setSelectedIds((current) => {
       const next = new Set(current);
@@ -635,8 +647,10 @@ function AdminOrdersPage() {
     return collected;
   };
 
-  const handleBulkCjDelivery = async () => {
-    const targets = selectedCjTargets;
+  // 발급(reprint=false) / 재출력(reprint=true) 공용.
+  // 재출력은 채번·예약접수·상태변경·알림톡이 전부 없어서 순수하게 라벨만 다시 뽑는다.
+  const handleBulkCj = async ({ reprint }) => {
+    const targets = reprint ? selectedCjReprintTargets : selectedCjTargets;
     if (targets.length === 0) return;
 
     const { data: { session } } = await supabase.auth.getSession();
@@ -651,12 +665,15 @@ function AdminOrdersPage() {
 
     const ids = targets.map((o) => o.id);
     const results = await runCjDeliveryInChunks(session.access_token, ids, {
+      reprint,
       onProgress: (done) => setBulkCjProgress({ done, total: ids.length }),
     });
 
     // 이미 운송장이 있어 발급을 건너뛴 건(status: "skipped")은 라벨 라우팅 데이터가 없다.
-    // 재출력 경로(채번·접수 없음)로 한 번 더 받아 라벨을 채운다.
-    const staleIds = results.filter((r) => r.success && !r.addr).map((r) => r.orderId);
+    // 재출력 경로(채번·접수 없음)로 한 번 더 받아 라벨을 채운다. (재출력 모드는 애초에 불필요)
+    const staleIds = reprint
+      ? []
+      : results.filter((r) => r.success && !r.addr).map((r) => r.orderId);
     if (staleIds.length > 0) {
       const hydrated = await runCjDeliveryInChunks(session.access_token, staleIds, { reprint: true });
       const byId = new Map(hydrated.map((r) => [r.orderId, r]));
@@ -668,51 +685,65 @@ function AdminOrdersPage() {
       }
     }
 
-    const labels = results.filter((r) => r.success && r.addr && r.order);
+    // 재출력은 주소정제가 실패해도(addr=null) 운송장번호·수취인 기준으로 라벨이 뜬다 —
+    // 단건 '송장 재출력' 버튼과 같은 기준으로 맞춘다. 신규 발급은 분류코드가 필수라 addr 요구.
+    const labels = results.filter((r) => r.success && r.order && (reprint || r.addr));
     const describe = (r) => ({
       orderId: r.orderId,
       orderNumber:
         r.orderNumber ?? targets.find((o) => o.id === r.orderId)?.order_number ?? `#${r.orderId}`,
-      error: r.error || "발급 실패",
+      error: r.error || (reprint ? "재출력 실패" : "발급 실패"),
     });
     const failures = [
       ...results.filter((r) => !r.success).map(describe),
       // 발급은 됐는데 라벨 라우팅 데이터를 못 받은 건 — 조용히 빠지면 송장 없이 발송된다.
-      ...results
-        .filter((r) => r.success && !(r.addr && r.order))
-        .map((r) => ({
-          ...describe(r),
-          error: `발급됨(${r.trackingNumber ?? "번호 확인 필요"}) — 라벨 데이터를 못 받았습니다. '송장 재출력'으로 개별 출력해 주세요.`,
-        })),
+      ...(reprint
+        ? []
+        : results
+            .filter((r) => r.success && !(r.addr && r.order))
+            .map((r) => ({
+              ...describe(r),
+              error: `발급됨(${r.trackingNumber ?? "번호 확인 필요"}) — 라벨 데이터를 못 받았습니다. '송장 재출력'으로 개별 출력해 주세요.`,
+            }))),
     ];
 
-    // 배송 시작 알림톡 — 이번 호출로 운송장이 확정된 건.
-    // skipped(응답 유실 후 재시도로 기존 채번을 되받은 경우)도 포함해야 알림이 누락되지 않는다.
-    const notifiable = results.filter(
-      (r) => r.success && r.trackingNumber && (r.status === "registered" || r.status === "skipped"),
-    );
-    await Promise.allSettled(
-      notifiable.map((r) => {
-        const order = targets.find((o) => o.id === r.orderId);
-        return order
-          ? notifyShippingStarted({ order, trackingNumber: r.trackingNumber })
-          : Promise.resolve();
-      }),
-    );
+    if (!reprint) {
+      // 배송 시작 알림톡 — 이번 호출로 운송장이 확정된 건.
+      // skipped(응답 유실 후 재시도로 기존 채번을 되받은 경우)도 포함해야 알림이 누락되지 않는다.
+      const notifiable = results.filter(
+        (r) => r.success && r.trackingNumber && (r.status === "registered" || r.status === "skipped"),
+      );
+      await Promise.allSettled(
+        notifiable.map((r) => {
+          const order = targets.find((o) => o.id === r.orderId);
+          return order
+            ? notifyShippingStarted({ order, trackingNumber: r.trackingNumber })
+            : Promise.resolve();
+        }),
+      );
+    }
 
     setBulkProcessing(false);
     setBulkCjProgress(null);
-    setSelectedIds(new Set());
-    await loadOrders();
-    await loadSummary();
+    // 재출력은 주문에 아무 변화도 없다 → 선택·목록 그대로 두어 다시 뽑기 쉽게 한다.
+    if (!reprint) {
+      setSelectedIds(new Set());
+      await loadOrders();
+      await loadSummary();
+    }
 
     if (failures.length === 0 && labels.length > 0) {
       setLabelBatch(labels);
-      showToast(`송장 ${labels.length}건 발급 완료 — 인쇄 창에서 ${labels.length}장을 한 번에 출력하세요.`, "success");
+      showToast(
+        reprint
+          ? `송장 ${labels.length}장을 다시 불러왔습니다 — 인쇄 창에서 한 번에 출력하세요.`
+          : `송장 ${labels.length}건 발급 완료 — 인쇄 창에서 ${labels.length}장을 한 번에 출력하세요.`,
+        "success",
+      );
       return;
     }
     // 실패가 섞였으면 결과 요약을 먼저 보여주고, 거기서 인쇄로 넘어간다.
-    setBulkCjResult({ labels, failures, total: targets.length });
+    setBulkCjResult({ labels, failures, total: targets.length, reprint });
   };
 
   // 자동 정산 생성(주문 확정 트리거)이 누락된 경우 운영자가 수동으로 재실행.
@@ -1634,9 +1665,14 @@ function AdminOrdersPage() {
             선택 해제
           </button>
           <div className="flex-1" />
-          {selectedIds.size > Math.max(selectedBulkConfirmTargets.length, selectedCjTargets.length) && (
+          {selectedIds.size
+            > Math.max(
+              selectedBulkConfirmTargets.length,
+              selectedCjTargets.length,
+              selectedCjReprintTargets.length,
+            ) && (
             <span className="text-xs text-amber-700">
-              입금확인=무통장·입금대기 / 송장출력=상품 준비 중 주문만 대상입니다
+              입금확인=무통장·입금대기 / 송장출력=상품 준비 중 / 재출력=운송장 있는 주문만 대상입니다
             </span>
           )}
           {selectedBulkConfirmTargets.length > 0 && (
@@ -1662,7 +1698,22 @@ function AdminOrdersPage() {
                 : `CJ 송장 일괄 출력 (${selectedCjTargets.length}건)`}
             </button>
           )}
-          {selectedBulkConfirmTargets.length === 0 && selectedCjTargets.length === 0 && (
+          {/* 재출력 — 채번·접수·상태변경·알림톡 없이 라벨만 다시 뽑으므로 확인 단계 없이 바로 실행 */}
+          {selectedCjReprintTargets.length > 0 && (
+            <button
+              className="text-xs font-semibold text-slate-700 border border-slate-300 bg-white hover:border-slate-500 rounded-md px-3 py-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
+              disabled={bulkProcessing}
+              onClick={() => handleBulkCj({ reprint: true })}
+              type="button"
+            >
+              {bulkCjProgress
+                ? `불러오는 중... (${bulkCjProgress.done}/${bulkCjProgress.total})`
+                : `송장 일괄 재출력 (${selectedCjReprintTargets.length}건)`}
+            </button>
+          )}
+          {selectedBulkConfirmTargets.length === 0
+            && selectedCjTargets.length === 0
+            && selectedCjReprintTargets.length === 0 && (
             <span className="text-xs text-amber-700">
               선택한 주문에 가능한 일괄 작업이 없습니다
             </span>
@@ -1970,7 +2021,7 @@ function AdminOrdersPage() {
             <button
               className="btn-primary flex-1"
               disabled={bulkProcessing || selectedCjTargets.length === 0}
-              onClick={handleBulkCjDelivery}
+              onClick={() => handleBulkCj({ reprint: false })}
               type="button"
             >
               {bulkProcessing ? "발급 중..." : `${selectedCjTargets.length}건 발급하고 인쇄`}
@@ -1986,7 +2037,7 @@ function AdminOrdersPage() {
         size="md"
         title={
           bulkCjResult
-            ? `송장 발급 결과 — 인쇄 ${bulkCjResult.labels.length}장 / 확인 필요 ${bulkCjResult.failures.length}건`
+            ? `송장 ${bulkCjResult.reprint ? "재출력" : "발급"} 결과 — 인쇄 ${bulkCjResult.labels.length}장 / 확인 필요 ${bulkCjResult.failures.length}건`
             : ""
         }
       >
@@ -2009,7 +2060,7 @@ function AdminOrdersPage() {
             )}
             {bulkCjResult.labels.length > 0 ? (
               <p className="text-sm text-slate-700">
-                성공한 <strong>{bulkCjResult.labels.length}건</strong>은 발급이 끝났습니다. 라벨을 지금 출력하세요.
+                <strong>{bulkCjResult.labels.length}건</strong>은 라벨이 준비됐습니다. 지금 출력하세요.
               </p>
             ) : (
               <p className="text-sm text-slate-500">출력할 라벨이 없습니다.</p>
