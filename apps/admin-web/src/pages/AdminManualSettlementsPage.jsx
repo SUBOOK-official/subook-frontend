@@ -5,6 +5,7 @@ import AdminPagination from "../components/AdminPagination";
 import { exportRowsToXlsx, readSheetRowsAsObjects } from "../lib/excelFile";
 import { formatCurrency, formatDate } from "@shared-domain/format";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
+import { BusyText, InlineLoading, LoadingOverlay } from "../components/Loading";
 
 // 수동 정산(식스샵 구 사이트·오프라인 판매분) — Model C.
 // 책 상태(settled)는 재고 축으로 단일 유지, "셀러 입금 여부"는 manual_settlements에서 추적.
@@ -518,7 +519,7 @@ function AdminManualSettlementsPage() {
               onClick={() => fileInputRef.current?.click()}
               type="button"
             >
-              {isParsing ? "읽는 중..." : "엑셀 선택"}
+              {isParsing ? <BusyText>읽는 중...</BusyText> : "엑셀 선택"}
             </button>
           </div>
         </div>
@@ -572,7 +573,7 @@ function AdminManualSettlementsPage() {
                 onClick={runMatch}
                 type="button"
               >
-                {isMatching ? "매칭 중..." : `매칭 검토 (${totalRows}행)`}
+                {isMatching ? <BusyText>매칭 중...</BusyText> : `매칭 검토 (${totalRows}행)`}
               </button>
               <button
                 className="text-xs font-semibold text-slate-500 hover:underline"
@@ -671,7 +672,7 @@ function AdminManualSettlementsPage() {
               type="button"
             >
               {isCommitting
-                ? "처리 중..."
+                ? <BusyText>처리 중...</BusyText>
                 : `정산 확정 (${matchReport.commitItems.length}권)`}
             </button>
           </div>
@@ -734,7 +735,7 @@ function AdminManualSettlementsPage() {
               onClick={() => setPaid(selectedUnpaidIds, true)}
               type="button"
             >
-              {busyAction === "pay" ? "처리 중..." : `지급완료 (${selectedUnpaidIds.length})`}
+              {busyAction === "pay" ? <BusyText>처리 중...</BusyText> : `지급완료 (${selectedUnpaidIds.length})`}
             </button>
             <button
               className="btn-secondary !w-auto !px-4 !py-2 text-sm"
@@ -742,14 +743,14 @@ function AdminManualSettlementsPage() {
               onClick={() => setPaid(selectedPaidIds, false)}
               type="button"
             >
-              {busyAction === "unpay" ? "처리 중..." : `미지급 되돌리기 (${selectedPaidIds.length})`}
+              {busyAction === "unpay" ? <BusyText>처리 중...</BusyText> : `미지급 되돌리기 (${selectedPaidIds.length})`}
             </button>
           </div>
         </div>
 
         <div className="overflow-x-auto rounded-lg border border-slate-100">
           {isLoading ? (
-            <div className="p-8 text-center text-sm font-semibold text-slate-400">불러오는 중...</div>
+            <div className="p-8 text-center text-sm font-semibold text-slate-400"><InlineLoading /></div>
           ) : rows.length === 0 ? (
             <div className="p-8 text-center text-sm font-semibold text-slate-400">정산 내역이 없습니다.</div>
           ) : (
@@ -864,6 +865,16 @@ function AdminManualSettlementsPage() {
           {toast.message}
         </div>
       ) : null}
+      <LoadingOverlay
+        message={
+          isParsing
+            ? "엑셀을 읽고 있습니다"
+            : isMatching
+              ? "주문과 매칭하고 있습니다"
+              : "정산을 처리하고 있습니다"
+        }
+        open={isParsing || isMatching || Boolean(busyAction)}
+      />
     </AdminShell>
   );
 }

@@ -10,6 +10,7 @@ import { notifySettlementDone } from "../lib/adminNotification";
 import { exportRowsToXlsx } from "../lib/excelFile";
 import { formatCurrency, formatDate } from "@shared-domain/format";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
+import { BusyText, InlineLoading, LoadingOverlay } from "../components/Loading";
 
 const PAGE_SIZE = 50;
 
@@ -665,7 +666,7 @@ function AdminSettlementsPage() {
                   onClick={() => setPayoutExportConfirmOpen(true)}
                   type="button"
                 >
-                  {isPayoutExporting ? "생성 중..." : "대량이체 엑셀 (평문 계좌)"}
+                  {isPayoutExporting ? <BusyText>생성 중...</BusyText> : "대량이체 엑셀 (평문 계좌)"}
                 </button>
               </div>
             </div>
@@ -677,7 +678,7 @@ function AdminSettlementsPage() {
 
           <section className="card p-0">
             {isPayoutLoading ? (
-              <p className="py-10 text-center text-sm font-semibold text-slate-400">불러오는 중...</p>
+              <p className="py-10 text-center text-sm font-semibold text-slate-400"><InlineLoading /></p>
             ) : payoutRows.length === 0 ? (
               <p className="py-10 text-center text-sm font-semibold text-slate-400">
                 지급 대상이 없습니다. (범위: {payoutScope === "approved" ? "승인 완료" : "대기 포함"})
@@ -876,7 +877,7 @@ function AdminSettlementsPage() {
               onClick={() => approveSettlements(selectedPendingIds)}
               type="button"
             >
-              {busyAction === "approve" ? "승인 중..." : `선택 승인 (${selectedPendingIds.length})`}
+              {busyAction === "approve" ? <BusyText>승인 중...</BusyText> : `선택 승인 (${selectedPendingIds.length})`}
             </button>
             <button
               className="btn-primary !w-auto !px-4 !py-2 text-sm"
@@ -884,7 +885,7 @@ function AdminSettlementsPage() {
               onClick={() => setCompleteConfirm({ ids: selectedApprovedIds })}
               type="button"
             >
-              {busyAction === "complete" ? "처리 중..." : `선택 정산 완료 (${selectedApprovedIds.length})`}
+              {busyAction === "complete" ? <BusyText>처리 중...</BusyText> : `선택 정산 완료 (${selectedApprovedIds.length})`}
             </button>
           </div>
         </div>
@@ -892,7 +893,7 @@ function AdminSettlementsPage() {
 
       <section className="card p-0">
         {isLoading ? (
-          <div className="p-8 text-center text-sm font-semibold text-slate-400">정산 목록을 불러오는 중...</div>
+          <div className="p-8 text-center text-sm font-semibold text-slate-400"><InlineLoading label="정산 목록을 불러오는 중..." /></div>
         ) : rows.length === 0 ? (
           <div className="p-8 text-center text-sm font-semibold text-slate-400">
             정산 데이터가 없습니다.
@@ -1132,6 +1133,11 @@ function AdminSettlementsPage() {
         reasonPlaceholder="예) 2026-08-01 정기 송금"
         reasonRequired
         title="대량이체 엑셀 — 평문 계좌 포함"
+      />
+      <LoadingOverlay
+        detail={isPayoutExporting ? "건수가 많으면 시간이 걸립니다" : "정산 건별로 순차 처리합니다"}
+        message={isPayoutExporting ? "대량이체 엑셀을 만들고 있습니다" : "정산을 처리하고 있습니다"}
+        open={isPayoutExporting || Boolean(busyAction)}
       />
     </AdminShell>
   );

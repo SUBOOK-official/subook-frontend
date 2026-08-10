@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useId } from "react";
 import { createPortal } from "react-dom";
 import { useFocusTrap } from "@shared-domain/useFocusTrap";
 import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
+import { BusyText } from "./Loading";
 
 // 예/아니오 재확인 모달 (+ 필요 시 사유 입력).
 // 과거에는 "확인 문구를 정확히 입력" 타이핑을 요구했으나, 매 작업마다 단어를 치게 해
@@ -106,7 +107,7 @@ function DestructiveConfirmModal({
             onClick={handleConfirm}
             type="button"
           >
-            {busy ? "처리 중..." : confirmLabel}
+            {busy ? <BusyText>처리 중...</BusyText> : confirmLabel}
           </button>
         </div>
       </div>

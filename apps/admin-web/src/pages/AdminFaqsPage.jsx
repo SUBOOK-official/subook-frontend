@@ -6,6 +6,7 @@ import RichTextEditor from "../components/RichTextEditor";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { looksLikeRichHtml, plainTextToHtml, richTextToPlain } from "@shared-domain/richText";
 import { computeCardOffset, computeReorderTarget, reorderArray } from "../lib/pointerReorder";
+import { BusyText, InlineLoading } from "../components/Loading";
 
 // FAQ 고정 카테고리 (2026-07-14 확정 6종) — 자유 입력 폐지.
 // 기존 데이터는 마이그레이션 20260714072449에서 이 목록으로 재분류됨.
@@ -255,7 +256,7 @@ function AdminFaqsPage() {
         <p className="text-sm text-slate-500">
           전체 {faqs.length}건 · 게시 {faqs.filter((f) => f.is_published).length}건
           <span className="ml-2 text-slate-400">
-            {isReorderSaving ? "순서 저장 중..." : "카드를 드래그해서 노출 순서를 바꿀 수 있어요"}
+            {isReorderSaving ? <BusyText>순서 저장 중...</BusyText> : "카드를 드래그해서 노출 순서를 바꿀 수 있어요"}
           </span>
         </p>
         <button className="btn-primary !w-auto !px-4 !py-2 text-sm" onClick={openNew} type="button">
@@ -270,7 +271,7 @@ function AdminFaqsPage() {
       ) : null}
 
       {isLoading ? (
-        <p className="text-sm text-slate-400 py-8 text-center">불러오는 중...</p>
+        <p className="text-sm text-slate-400 py-8 text-center"><InlineLoading /></p>
       ) : faqs.length === 0 ? (
         <p className="text-sm text-slate-400 py-12 text-center">등록된 FAQ가 없습니다.</p>
       ) : (
@@ -408,7 +409,7 @@ function AdminFaqsPage() {
                 onClick={handleSave}
                 type="button"
               >
-                {isSaving ? "저장 중..." : "저장"}
+                {isSaving ? <BusyText>저장 중...</BusyText> : "저장"}
               </button>
             </div>
           </div>

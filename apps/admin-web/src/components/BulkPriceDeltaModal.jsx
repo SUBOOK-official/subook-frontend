@@ -2,6 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useFocusTrap } from "@shared-domain/useFocusTrap";
 import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
+import { BusyText } from "./Loading";
 
 const MIN_PERCENT = -50;
 const MAX_PERCENT = 50;
@@ -156,7 +157,7 @@ function BulkPriceDeltaModal({ open, books, selectedIds, busy = false, onCancel,
             onClick={handleConfirm}
             type="button"
           >
-            {busy ? "처리 중..." : `${num > 0 ? "+" : ""}${num}% 적용`}
+            {busy ? <BusyText>처리 중...</BusyText> : `${num > 0 ? "+" : ""}${num}% 적용`}
           </button>
         </div>
       </div>

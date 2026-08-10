@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { getSellerLookupOrigin } from "../lib/portalLinks";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
+import { BusyText } from "../components/Loading";
 
 function buildAuthLinkErrorMessage({ error, errorCode, errorDescription }) {
   const parts = [];
@@ -265,7 +266,7 @@ function ResetPasswordPage() {
           </label>
 
           <button className="btn-primary" disabled={phase !== "ready"} type="submit">
-            {phase === "saving" ? "저장 중..." : "비밀번호 저장"}
+            {phase === "saving" ? <BusyText>저장 중...</BusyText> : "비밀번호 저장"}
           </button>
         </form>
 

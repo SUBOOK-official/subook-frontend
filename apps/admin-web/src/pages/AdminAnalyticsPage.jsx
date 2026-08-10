@@ -17,6 +17,7 @@ import {
 import AdminShell from "../components/AdminShell";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { formatCurrency, formatDate } from "@shared-domain/format";
+import { BusyText } from "../components/Loading";
 
 const PRESETS = [
   { key: "7d", label: "최근 7일", days: 7 },
@@ -167,7 +168,7 @@ function AdminAnalyticsPage() {
           onClick={loadData}
           type="button"
         >
-          {isLoading ? "불러오는 중..." : "새로고침"}
+          {isLoading ? <BusyText>불러오는 중...</BusyText> : "새로고침"}
         </button>
       </div>
 

@@ -17,6 +17,7 @@ import {
 import { CjWaybillFormPrintModal } from "../components/CjWaybillFormLabel";
 import { AlertTriangleIcon, CheckIcon } from "../components/icons";
 import { downloadSalesSheetXlsx } from "../lib/salesSheetExport";
+import { BusyText, InlineLoading, LoadingOverlay } from "../components/Loading";
 
 const PAGE_SIZE = 30;
 
@@ -1436,7 +1437,7 @@ function AdminOrdersPage() {
                   onClick={() => handleRefund(selectedOrder.id)}
                   type="button"
                 >
-                  {busyOrderId === selectedOrder.id ? "처리 중..." : action.label}
+                  {busyOrderId === selectedOrder.id ? <BusyText>처리 중...</BusyText> : action.label}
                 </button>
               );
             }
@@ -1464,7 +1465,7 @@ function AdminOrdersPage() {
                   onClick={() => handleCjDelivery(selectedOrder.id)}
                   type="button"
                 >
-                  {busyOrderId === selectedOrder.id ? "발급 중..." : action.label}
+                  {busyOrderId === selectedOrder.id ? <BusyText>발급 중...</BusyText> : action.label}
                 </button>
               );
             }
@@ -1478,7 +1479,7 @@ function AdminOrdersPage() {
                   onClick={() => handleCjReprint(selectedOrder.id)}
                   type="button"
                 >
-                  {busyOrderId === selectedOrder.id ? "불러오는 중..." : action.label}
+                  {busyOrderId === selectedOrder.id ? <BusyText>불러오는 중...</BusyText> : action.label}
                 </button>
               );
             }
@@ -1491,7 +1492,7 @@ function AdminOrdersPage() {
                 onClick={() => handleUpdateStatus(selectedOrder.id, action.status)}
                 type="button"
               >
-                {busyOrderId === selectedOrder.id ? "처리 중..." : action.label}
+                {busyOrderId === selectedOrder.id ? <BusyText>처리 중...</BusyText> : action.label}
               </button>
             );
           })}
@@ -1503,7 +1504,7 @@ function AdminOrdersPage() {
               onClick={() => handleRunSettlement(selectedOrder.id)}
               type="button"
             >
-              {busyOrderId === selectedOrder.id ? "처리 중..." : "정산 생성(수동)"}
+              {busyOrderId === selectedOrder.id ? <BusyText>처리 중...</BusyText> : "정산 생성(수동)"}
             </button>
           ) : null}
 
@@ -1616,7 +1617,7 @@ function AdminOrdersPage() {
               title="현재 검색·상태·기간 필터 그대로, 운영 구글시트(판매내역 탭) 양식으로 다운로드"
               type="button"
             >
-              {isSalesExporting ? "생성 중..." : "판매내역 엑셀"}
+              {isSalesExporting ? <BusyText>생성 중...</BusyText> : "판매내역 엑셀"}
             </button>
           </div>
         </div>
@@ -1682,7 +1683,7 @@ function AdminOrdersPage() {
               onClick={() => setBulkConfirmOpen(true)}
               type="button"
             >
-              {bulkProcessing ? "처리 중..." : `일괄 입금확인 (${selectedBulkConfirmTargets.length}건)`}
+              {bulkProcessing ? <BusyText>처리 중...</BusyText> : `일괄 입금확인 (${selectedBulkConfirmTargets.length}건)`}
             </button>
           )}
           {/* CJ 송장 일괄 출력 — 발급 후 한 번의 인쇄 작업으로 N장 (배송 건수 늘어난 뒤 핵심 동선) */}
@@ -1694,7 +1695,7 @@ function AdminOrdersPage() {
               type="button"
             >
               {bulkCjProgress
-                ? `송장 발급 중... (${bulkCjProgress.done}/${bulkCjProgress.total})`
+                ? <BusyText>{`송장 발급 중... (${bulkCjProgress.done}/${bulkCjProgress.total})`}</BusyText>
                 : `CJ 송장 일괄 출력 (${selectedCjTargets.length}건)`}
             </button>
           )}
@@ -1707,7 +1708,7 @@ function AdminOrdersPage() {
               type="button"
             >
               {bulkCjProgress
-                ? `불러오는 중... (${bulkCjProgress.done}/${bulkCjProgress.total})`
+                ? <BusyText>{`불러오는 중... (${bulkCjProgress.done}/${bulkCjProgress.total})`}</BusyText>
                 : `송장 일괄 재출력 (${selectedCjReprintTargets.length}건)`}
             </button>
           )}
@@ -1724,7 +1725,7 @@ function AdminOrdersPage() {
       {/* 주문 목록 */}
       <div className="card">
         {isLoading ? (
-          <div className="p-8 text-center text-sm text-slate-400">불러오는 중...</div>
+          <div className="p-8 text-center text-sm text-slate-400"><InlineLoading /></div>
         ) : orders.length === 0 ? (
           <div className="p-8 text-center text-sm text-slate-400">
             주문이 없습니다.
@@ -1968,7 +1969,7 @@ function AdminOrdersPage() {
               onClick={handleBulkConfirmPayment}
               type="button"
             >
-              {bulkProcessing ? "처리 중..." : `${selectedBulkConfirmTargets.length}건 입금확인 처리`}
+              {bulkProcessing ? <BusyText>처리 중...</BusyText> : `${selectedBulkConfirmTargets.length}건 입금확인 처리`}
             </button>
           </div>
         </div>
@@ -2024,7 +2025,7 @@ function AdminOrdersPage() {
               onClick={() => handleBulkCj({ reprint: false })}
               type="button"
             >
-              {bulkProcessing ? "발급 중..." : `${selectedCjTargets.length}건 발급하고 인쇄`}
+              {bulkProcessing ? <BusyText>발급 중...</BusyText> : `${selectedCjTargets.length}건 발급하고 인쇄`}
             </button>
           </div>
         </div>
@@ -2187,7 +2188,7 @@ function AdminOrdersPage() {
                 onClick={handleConfirmPayment}
                 type="button"
               >
-                {busyOrderId === paymentModal.id ? "확인 중..." : "입금확인 처리"}
+                {busyOrderId === paymentModal.id ? <BusyText>확인 중...</BusyText> : "입금확인 처리"}
               </button>
             </div>
           </div>
@@ -2251,7 +2252,7 @@ function AdminOrdersPage() {
                 disabled={busyOrderId === trackingModal.id || !trackingInput.trim()}
                 type="submit"
               >
-                {busyOrderId === trackingModal.id ? "처리 중..." : "배송 처리"}
+                {busyOrderId === trackingModal.id ? <BusyText>처리 중...</BusyText> : "배송 처리"}
               </button>
             </div>
           </form>
@@ -2360,7 +2361,7 @@ function AdminOrdersPage() {
                     onClick={handleCsvBulkProcess}
                     type="button"
                   >
-                    {csvProcessing ? "처리 중..." : "일괄 처리"}
+                    {csvProcessing ? <BusyText>처리 중...</BusyText> : "일괄 처리"}
                   </button>
                 </div>
               </>
@@ -2578,7 +2579,7 @@ function AdminOrdersPage() {
                   type="button"
                 >
                   {busy
-                    ? "처리 중..."
+                    ? <BusyText>처리 중...</BusyText>
                     : `${isFinal ? "전액" : "부분"} 환불 진행 (${formatCurrency(amountNum || 0)})`}
                 </button>
               </div>
@@ -2605,6 +2606,28 @@ function AdminOrdersPage() {
         reasonPlaceholder={destructiveModal?.reasonPlaceholder}
         reasonRequired={destructiveModal?.reasonRequired}
         title={destructiveModal?.title ?? ""}
+      />
+
+      {/* 대량 처리·엑셀 생성처럼 수 초 이상 걸리는 작업 — 진행 중임을 화면에서 확실히 보이게.
+          단건 버튼 작업은 버튼 안 스피너로 충분해서 여기 넣지 않는다. */}
+      <LoadingOverlay
+        detail={
+          bulkCjProgress
+            ? `${bulkCjProgress.done} / ${bulkCjProgress.total}건 — CJ 서버 응답을 기다립니다`
+            : csvProcessing
+              ? "주문 건별로 순차 처리합니다"
+              : null
+        }
+        message={
+          bulkCjProgress
+            ? "CJ 송장을 처리하고 있습니다"
+            : csvProcessing
+              ? "송장을 일괄 처리하고 있습니다"
+              : isSalesExporting
+                ? "판매내역 엑셀을 만들고 있습니다"
+                : "선택한 주문을 처리하고 있습니다"
+        }
+        open={bulkProcessing || csvProcessing || isSalesExporting}
       />
 
       {/* 라벨 인쇄 — 단건(labelData) / 일괄(labelBatch) 공용. 일괄은 한 인쇄 작업으로 N장. */}
@@ -2648,7 +2671,7 @@ function AdminOrdersPage() {
                 onClick={() => fetchDeliveryTrace(deliveryTrace.invcNo)}
                 type="button"
               >
-                {isDeliveryTraceLoading ? "조회 중..." : "새로고침"}
+                {isDeliveryTraceLoading ? <BusyText>조회 중...</BusyText> : "새로고침"}
               </button>
             </header>
 

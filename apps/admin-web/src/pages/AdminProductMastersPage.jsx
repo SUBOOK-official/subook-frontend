@@ -12,6 +12,7 @@ import StatusBadge from "@shared-domain/StatusBadge";
 import { CloseIcon } from "../components/icons";
 import { downloadInventoryAuditXlsx } from "../lib/inventoryAuditExport";
 import { COVER_BUCKET, uploadImageToBucket } from "../lib/adminImageUpload";
+import { BusyText, InlineLoading, LoadingOverlay } from "../components/Loading";
 import {
   prepareStudioImagePayload,
   requestStudioGeneration,
@@ -628,7 +629,7 @@ function AdminProductMastersPage() {
             onClick={() => setExportDialogOpen(true)}
             type="button"
           >
-            {isInventoryExporting ? "생성 중..." : "재고 엑셀"}
+            {isInventoryExporting ? <BusyText>생성 중...</BusyText> : "재고 엑셀"}
           </button>
           <Link
             className="rounded-md bg-slate-900 px-3 py-2 text-xs font-bold text-white hover:bg-slate-700"
@@ -785,7 +786,7 @@ function AdminProductMastersPage() {
               onClick={() => handleBulkProductAction("delete")}
               type="button"
             >
-              {bulkProcessing ? "처리 중..." : "일괄 삭제"}
+              {bulkProcessing ? <BusyText>처리 중...</BusyText> : "일괄 삭제"}
             </button>
           </div>
         ) : null}
@@ -840,7 +841,7 @@ function AdminProductMastersPage() {
         {/* 상품 그리드 (테이블) */}
         <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
           {isLoading ? (
-            <div className="p-8 text-center text-sm text-slate-400">불러오는 중...</div>
+            <div className="p-8 text-center text-sm text-slate-400"><InlineLoading /></div>
           ) : products.length === 0 ? (
             <div className="p-12 text-center text-sm text-slate-400">
               {filterEmpty
@@ -1053,7 +1054,7 @@ function AdminProductMastersPage() {
                 권별 현황 ({detailBooks.length}권)
               </h3>
               {isDetailLoading ? (
-                <div className="p-8 text-center text-sm text-slate-400">불러오는 중...</div>
+                <div className="p-8 text-center text-sm text-slate-400"><InlineLoading /></div>
               ) : detailBooks.length === 0 ? (
                 <div className="p-8 text-center text-sm text-slate-400">아직 등록된 책이 없습니다.</div>
               ) : (
@@ -1192,7 +1193,7 @@ function AdminProductMastersPage() {
                 </p>
                 {isHistoryLoading ? (
                   <div className="rounded-md border border-slate-200 p-6 text-center text-xs text-slate-400">
-                    이력을 불러오는 중...
+                    <InlineLoading label="이력을 불러오는 중..." />
                   </div>
                 ) : !Array.isArray(historyEvents) || historyEvents.length === 0 ? (
                   <div className="rounded-md border border-slate-200 p-6 text-center text-xs text-slate-400">
@@ -1352,7 +1353,7 @@ function AdminProductMastersPage() {
             onClick={handleDownloadInventoryAudit}
             type="button"
           >
-            {isInventoryExporting ? "생성 중..." : "다운로드"}
+            {isInventoryExporting ? <BusyText>생성 중...</BusyText> : "다운로드"}
           </button>
         </div>
       </AdminDialog>
@@ -1374,6 +1375,11 @@ function AdminProductMastersPage() {
           await loadProducts();
         }}
         product={editTarget}
+      />
+      <LoadingOverlay
+        detail={isInventoryExporting ? "재고 건수가 많으면 시간이 걸립니다" : null}
+        message={isInventoryExporting ? "재고 엑셀을 만들고 있습니다" : "선택한 상품을 처리하고 있습니다"}
+        open={isInventoryExporting || bulkProcessing}
       />
     </AdminShell>
   );

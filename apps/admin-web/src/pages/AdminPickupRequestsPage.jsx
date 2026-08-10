@@ -10,6 +10,7 @@ import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseCl
 import { formatDate } from "@shared-domain/format";
 import { pickupRequestStatusLabel, shipmentStatusLabel } from "@shared-domain/status";
 import StatusBadge from "@shared-domain/StatusBadge";
+import { BusyText, InlineLoading, LoadingOverlay } from "../components/Loading";
 
 const PAGE_SIZE = 30;
 
@@ -459,7 +460,7 @@ function InspectionWorkbenchSection() {
       <section className="card space-y-3">
         {loadError ? <p className="notice-error">{loadError}</p> : null}
         {isLoading ? (
-          <p className="py-8 text-center text-sm font-semibold text-slate-400">불러오는 중...</p>
+          <p className="py-8 text-center text-sm font-semibold text-slate-400"><InlineLoading /></p>
         ) : rows.length === 0 ? (
           <p className="py-8 text-center text-sm font-semibold text-slate-400">
             조건에 맞는 검수 건이 없습니다.
@@ -1206,7 +1207,7 @@ function AdminPickupRequestsPage() {
               type="button"
             >
               {registeringIds.length > 0
-                ? "CJ 접수 중..."
+                ? <BusyText>CJ 접수 중...</BusyText>
                 : `선택 ${selectedEligibleIds.length}건 CJ 접수`}
             </button>
             <button
@@ -1259,7 +1260,7 @@ function AdminPickupRequestsPage() {
               {isLoading ? (
                 <tr>
                   <td className="px-4 py-8 text-center text-sm font-semibold text-slate-500" colSpan={8}>
-                    불러오는 중...
+                    <InlineLoading />
                   </td>
                 </tr>
               ) : null}
@@ -1421,7 +1422,7 @@ function AdminPickupRequestsPage() {
                                 onClick={() => void handleRegisterPickups([pickupRequest.id])}
                                 type="button"
                               >
-                                {isRegistering ? "접수 중..." : "CJ 수거 접수"}
+                                {isRegistering ? <BusyText>접수 중...</BusyText> : "CJ 수거 접수"}
                               </button>
                             ) : null}
 
@@ -1432,7 +1433,7 @@ function AdminPickupRequestsPage() {
                                 onClick={() => void handleTrackingLookup(pickupRequest)}
                                 type="button"
                               >
-                                {trackingLookupId === pickupRequest.id ? "조회 중..." : "추적 조회"}
+                                {trackingLookupId === pickupRequest.id ? <BusyText>조회 중...</BusyText> : "추적 조회"}
                               </button>
                             ) : null}
 
@@ -1444,7 +1445,7 @@ function AdminPickupRequestsPage() {
                                 onClick={() => void handleStartInspection(pickupRequest)}
                                 type="button"
                               >
-                                {startingInspectionId === pickupRequest.id ? "전환 중..." : "상품 등록"}
+                                {startingInspectionId === pickupRequest.id ? <BusyText>전환 중...</BusyText> : "상품 등록"}
                               </button>
                             ) : null}
 
@@ -1481,7 +1482,7 @@ function AdminPickupRequestsPage() {
                                 onClick={() => handleCancelledRowCjCleanup(pickupRequest)}
                                 type="button"
                               >
-                                {isRegistering ? "취소 중..." : "CJ 예약 취소"}
+                                {isRegistering ? <BusyText>취소 중...</BusyText> : "CJ 예약 취소"}
                               </button>
                             ) : null}
                           </div>
@@ -1586,7 +1587,7 @@ function AdminPickupRequestsPage() {
                 type="button"
               >
                 {statusChangingId === statusChangeModal.pickupRequest.id
-                  ? "변경 중..."
+                  ? <BusyText>변경 중...</BusyText>
                   : "상태 변경"}
               </button>
             </div>
@@ -1768,6 +1769,22 @@ function AdminPickupRequestsPage() {
         reasonPlaceholder={destructiveModal?.reasonPlaceholder}
         reasonRequired={destructiveModal?.reasonRequired}
         title={destructiveModal?.title ?? ""}
+      />
+      {/* 수 초 이상 걸리는 CJ 통신 — 진행 중이라는 걸 화면에서 확실히 보이게 */}
+      <LoadingOverlay
+        detail={
+          registeringIds.length > 0
+            ? `${registeringIds.length}건 처리 중 — CJ 서버 응답을 기다립니다`
+            : "CJ 서버 응답을 기다립니다"
+        }
+        message={
+          registeringIds.length > 0
+            ? "CJ 수거 예약을 처리하고 있습니다"
+            : trackingLookupId
+              ? "배송 추적을 조회하고 있습니다"
+              : "상품 등록 화면을 준비하고 있습니다"
+        }
+        open={registeringIds.length > 0 || Boolean(trackingLookupId) || Boolean(startingInspectionId)}
       />
     </AdminShell>
   );

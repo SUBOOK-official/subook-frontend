@@ -7,6 +7,7 @@ import { formatCurrency } from "@shared-domain/format";
 import { CheckIcon, CloseIcon, PlusIcon } from "../components/icons";
 import { BOOK_TYPE_OPTIONS, BRAND_OPTIONS, SUBJECT_OPTIONS } from "../lib/productCategories";
 import { MAX_DETAIL_PHOTOS } from "../lib/adminImageUpload";
+import { BusyText, InlineLoading, LoadingOverlay } from "../components/Loading";
 import {
   prepareStudioImagePayload,
   requestStudioGeneration,
@@ -1057,7 +1058,7 @@ function AdminProductRegisterPage() {
               />
               <div className="mt-3 max-h-80 space-y-2 overflow-y-auto">
                 {custLoading ? (
-                  <p className="py-4 text-center text-sm text-slate-400">검색 중...</p>
+                  <p className="py-4 text-center text-sm text-slate-400"><InlineLoading label="검색 중..." /></p>
                 ) : custResults.length === 0 ? (
                   <p className="py-4 text-center text-sm text-slate-400">
                     {custSearch.trim() ? "검색 결과가 없습니다." : "검색어를 입력하세요."}
@@ -1118,7 +1119,7 @@ function AdminProductRegisterPage() {
                   disabled={creatingCust}
                   className="w-full rounded-md bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700 disabled:opacity-50"
                 >
-                  {creatingCust ? "등록 중..." : "이 고객으로 상품 등록 시작"}
+                  {creatingCust ? <BusyText>등록 중...</BusyText> : "이 고객으로 상품 등록 시작"}
                 </button>
               </form>
             </section>
@@ -1144,7 +1145,7 @@ function AdminProductRegisterPage() {
                 />
                 <div className="mt-3 max-h-[28rem] space-y-2 overflow-y-auto">
                   {prodLoading ? (
-                    <p className="py-4 text-center text-sm text-slate-400">검색 중...</p>
+                    <p className="py-4 text-center text-sm text-slate-400"><InlineLoading label="검색 중..." /></p>
                   ) : prodResults.length === 0 ? (
                     <p className="py-4 text-center text-sm text-slate-400">
                       {prodSearch.trim() ? "검색 결과가 없습니다. 오른쪽에서 신규 교재로 등록하세요." : "검색어를 입력하세요."}
@@ -1201,7 +1202,7 @@ function AdminProductRegisterPage() {
                         onClick={loadMoreProducts}
                         className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-center text-xs font-bold text-slate-600 hover:border-slate-900 hover:bg-slate-50 disabled:opacity-60"
                       >
-                        {prodLoadingMore ? "불러오는 중..." : `더 보기 ▾ (${PROD_SEARCH_LIMIT}건씩)`}
+                        {prodLoadingMore ? <BusyText>불러오는 중...</BusyText> : `더 보기 ▾ (${PROD_SEARCH_LIMIT}건씩)`}
                       </button>
                     ) : null}
                     </>
@@ -1588,7 +1589,7 @@ function AdminProductRegisterPage() {
                               onClick={() => applyStudioToCover(t.kind, t.uid)}
                               className="mt-2 block text-[11px] font-bold text-indigo-600 underline hover:text-indigo-800 disabled:opacity-50"
                             >
-                              {t.coverBusy ? "AI 변환 중..." : "이 표지를 AI 변환"}
+                              {t.coverBusy ? <BusyText>AI 변환 중...</BusyText> : "이 표지를 AI 변환"}
                             </button>
                           )}
                         </>
@@ -1601,7 +1602,9 @@ function AdminProductRegisterPage() {
                           >
                             <span className="text-2xl leading-none"><PlusIcon size={22} /></span>
                             <span className="mt-1 text-[10px]">
-                              {t.coverBusy ? (t.coverAutoStudio ? "AI 변환 중..." : "업로드 중...") : "표지 추가"}
+                              {t.coverBusy
+                                ? <BusyText>{t.coverAutoStudio ? "AI 변환 중..." : "업로드 중..."}</BusyText>
+                                : "표지 추가"}
                             </span>
                           </DropBox>
                           {t.detailUrls.length > 0 ? (
@@ -1643,7 +1646,7 @@ function AdminProductRegisterPage() {
                             onFiles={(files) => uploadDetails(t.kind, t.uid, files)}
                           >
                             <span className="text-xl leading-none"><PlusIcon size={18} /></span>
-                            <span className="mt-1 text-[10px]">{t.detailBusy ? "업로드 중..." : "사진 추가"}</span>
+                            <span className="mt-1 text-[10px]">{t.detailBusy ? <BusyText>업로드 중...</BusyText> : "사진 추가"}</span>
                           </DropBox>
                         ) : null}
                       </div>
@@ -1679,7 +1682,7 @@ function AdminProductRegisterPage() {
                   onClick={handleSubmit}
                   className="rounded-md bg-emerald-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-40"
                 >
-                  {submitting ? "등록 중..." : "등록 완료"}
+                  {submitting ? <BusyText>등록 중...</BusyText> : "등록 완료"}
                 </button>
               </div>
             </section>
@@ -2051,6 +2054,11 @@ function AdminProductRegisterPage() {
           {toast.message}
         </div>
       ) : null}
+      <LoadingOverlay
+        detail="책 수량이 많으면 시간이 걸립니다"
+        message="상품을 등록하고 있습니다"
+        open={submitting}
+      />
     </AdminShell>
   );
 }

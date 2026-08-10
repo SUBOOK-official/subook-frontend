@@ -6,6 +6,7 @@ import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 
 import { resendNotificationFromLog } from "../lib/adminNotification";
+import { InlineLoading } from "../components/Loading";
 
 // 알림톡/SMS 발송 로그 뷰어 (감사 P1)
 // 솔라피 실발송이 라이브인데 notification_logs를 볼 화면이 없어
@@ -259,7 +260,7 @@ function AdminNotificationLogsPage() {
 
       <section className="card p-0">
         {isLoading ? (
-          <p className="py-10 text-center text-sm font-semibold text-slate-400">불러오는 중...</p>
+          <p className="py-10 text-center text-sm font-semibold text-slate-400"><InlineLoading /></p>
         ) : rows.length === 0 ? (
           <p className="py-10 text-center text-sm font-semibold text-slate-400">
             조건에 맞는 발송 이력이 없습니다.

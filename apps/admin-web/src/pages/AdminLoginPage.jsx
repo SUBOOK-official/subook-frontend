@@ -4,6 +4,7 @@ import { getAdminAccessState } from "../lib/adminAuth";
 import { getSellerLookupOrigin } from "../lib/portalLinks";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import brandLogoImage from "../assets/brand/logo-horizontal.png";
+import { BusyText } from "../components/Loading";
 
 const initialForm = {
   email: "",
@@ -179,7 +180,7 @@ function AdminLoginPage() {
             </label>
 
             <button className="btn-primary" disabled={isLoading} type="submit">
-              {isLoading ? "로그인 중..." : "로그인"}
+              {isLoading ? <BusyText>로그인 중...</BusyText> : "로그인"}
             </button>
           </form>
 
@@ -190,7 +191,7 @@ function AdminLoginPage() {
               onClick={handleSendReset}
               type="button"
             >
-              {isSendingReset ? "전송 중..." : "비밀번호 재설정 메일 보내기"}
+              {isSendingReset ? <BusyText>전송 중...</BusyText> : "비밀번호 재설정 메일 보내기"}
             </button>
             {resetError ? <p className="notice-error mt-3">{resetError}</p> : null}
             {resetNotice ? <p className="notice-success mt-3">{resetNotice}</p> : null}

@@ -9,6 +9,7 @@ import { adminNavigationGroups, resolveActiveAdminModule } from "./adminNavigati
 import AdminGuideModal from "./AdminGuideModal";
 import { HelpCircleIcon, MenuIcon } from "./icons";
 import brandLogoImage from "../assets/brand/logo-horizontal.png";
+import { BusyText } from "./Loading";
 
 function formatBadgeValue(value) {
   if (!Number.isFinite(value) || value <= 0) return null;
@@ -191,7 +192,7 @@ function AdminShell({ title, activeModule, actions = null, summaryCards = [], ch
                   onClick={handleSignOut}
                   type="button"
                 >
-                  {isSigningOut ? "로그아웃 중..." : "로그아웃"}
+                  {isSigningOut ? <BusyText>로그아웃 중...</BusyText> : "로그아웃"}
                 </button>
               </div>
             </div>

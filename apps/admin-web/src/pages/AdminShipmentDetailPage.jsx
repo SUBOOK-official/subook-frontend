@@ -11,6 +11,7 @@ import StatusBadge from "@shared-domain/StatusBadge";
 import NotificationResultModal from "../components/NotificationResultModal";
 import { notifyInspectionDone } from "../lib/adminNotification";
 import { PRICE_LOCKED_MESSAGE, isBookPriceLocked } from "../lib/bookEditRules";
+import { BusyText, InlineLoading, LoadingOverlay } from "../components/Loading";
 
 const BOOKS_PAGE_SIZE = 30;
 
@@ -259,7 +260,7 @@ function BookPriceEditor({
           onClick={onSave}
           type="button"
         >
-          {isSaving ? "저장 중..." : "판매가 저장"}
+          {isSaving ? <BusyText>저장 중...</BusyText> : "판매가 저장"}
         </button>
         {isLocked ? (
           <span className="text-xs font-semibold text-amber-700">{PRICE_LOCKED_MESSAGE}</span>
@@ -326,7 +327,7 @@ function BookStatusEditor({
           onClick={onSave}
           type="button"
         >
-          {isSaving ? "저장 중..." : "상태 저장"}
+          {isSaving ? <BusyText>저장 중...</BusyText> : "상태 저장"}
         </button>
         {isDirty ? (
           <button
@@ -1311,7 +1312,7 @@ function AdminShipmentDetailPage() {
         description="수거 건과 연결된 책 목록, 검수 상태, 가격 정보를 불러오고 있습니다."
         title="검수 · 가격 책정"
       >
-        <div className="card text-sm font-semibold text-slate-500">불러오는 중...</div>
+        <div className="card text-sm font-semibold text-slate-500"><InlineLoading /></div>
       </AdminShell>
     );
   }
@@ -1434,7 +1435,7 @@ function AdminShipmentDetailPage() {
                 }
                 type="button"
               >
-                {actionLoading ? "변경 중..." : "검수 완료로 변경"}
+                {actionLoading ? <BusyText>변경 중...</BusyText> : "검수 완료로 변경"}
               </button>
             ) : null}
 
@@ -1597,7 +1598,7 @@ function AdminShipmentDetailPage() {
                           }
                           type="button"
                         >
-                          {openingProductEditId === book.id ? "여는 중..." : "상품 정보 수정"}
+                          {openingProductEditId === book.id ? <BusyText>여는 중...</BusyText> : "상품 정보 수정"}
                         </button>
                         <button
                           className="inline-flex rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700"
@@ -1605,7 +1606,7 @@ function AdminShipmentDetailPage() {
                           onClick={() => handleDeleteBook(book)}
                           type="button"
                         >
-                          {deletingBookId === book.id ? "삭제 중..." : "책 삭제"}
+                          {deletingBookId === book.id ? <BusyText>삭제 중...</BusyText> : "책 삭제"}
                         </button>
                       </div>
                     </article>
@@ -1673,7 +1674,7 @@ function AdminShipmentDetailPage() {
                     onClick={() => handleBulkBookAction("status-discarded")}
                     type="button"
                   >
-                    {bulkBookProcessing ? "처리 중..." : "일괄 폐기"}
+                    {bulkBookProcessing ? <BusyText>처리 중...</BusyText> : "일괄 폐기"}
                   </button>
                 </div>
               ) : null}
@@ -1805,7 +1806,7 @@ function AdminShipmentDetailPage() {
                                     }
                                     type="button"
                                   >
-                                    {openingProductEditId === book.id ? "여는 중..." : "상품 정보 수정"}
+                                    {openingProductEditId === book.id ? <BusyText>여는 중...</BusyText> : "상품 정보 수정"}
                                   </button>
                                   <button
                                     className="inline-flex justify-center rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700"
@@ -1813,7 +1814,7 @@ function AdminShipmentDetailPage() {
                                     onClick={() => handleDeleteBook(book)}
                                     type="button"
                                   >
-                                    {deletingBookId === book.id ? "삭제 중..." : "책 삭제"}
+                                    {deletingBookId === book.id ? <BusyText>삭제 중...</BusyText> : "책 삭제"}
                                   </button>
                                 </div>
                               </td>
@@ -1880,6 +1881,11 @@ function AdminShipmentDetailPage() {
         open={Boolean(shipmentNotificationResult)}
         successCount={shipmentNotificationResult?.successCount ?? 0}
         title={shipmentNotificationResult?.title ?? "알림톡 발송 결과"}
+      />
+      <LoadingOverlay
+        detail="책 한 권씩 순차 처리합니다"
+        message="선택한 책을 일괄 처리하고 있습니다"
+        open={bulkBookProcessing}
       />
     </AdminShell>
   );

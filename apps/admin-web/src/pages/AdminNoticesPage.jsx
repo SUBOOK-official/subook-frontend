@@ -7,6 +7,7 @@ import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseCl
 import { formatDate } from "@shared-domain/format";
 import { looksLikeRichHtml, plainTextToHtml, richTextToPlain } from "@shared-domain/richText";
 import { PinIcon } from "../components/icons";
+import { BusyText, InlineLoading } from "../components/Loading";
 
 // 레거시 plain text 본문은 에디터용 HTML로 변환해서 연다 (FAQ와 동일 패턴)
 function toEditorHtml(body) {
@@ -190,7 +191,7 @@ function AdminNoticesPage() {
       ) : null}
 
       {isLoading ? (
-        <p className="text-sm text-slate-400 py-8 text-center">불러오는 중...</p>
+        <p className="text-sm text-slate-400 py-8 text-center"><InlineLoading /></p>
       ) : notices.length === 0 ? (
         <p className="text-sm text-slate-400 py-12 text-center">등록된 공지가 없습니다.</p>
       ) : (
@@ -333,7 +334,7 @@ function AdminNoticesPage() {
                 onClick={handleSave}
                 type="button"
               >
-                {isSaving ? "저장 중..." : "저장"}
+                {isSaving ? <BusyText>저장 중...</BusyText> : "저장"}
               </button>
             </div>
           </div>

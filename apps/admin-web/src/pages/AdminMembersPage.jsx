@@ -8,6 +8,7 @@ import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import { formatCurrency, formatDate } from "@shared-domain/format";
 import { pickupRequestStatusLabel, shipmentStatusLabel } from "@shared-domain/status";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
+import { BusyText, InlineLoading } from "../components/Loading";
 
 const PAGE_SIZE = 50;
 
@@ -499,7 +500,7 @@ function AdminMembersPage() {
 
       <section className="card p-0">
         {isLoading ? (
-          <div className="p-8 text-center text-sm font-semibold text-slate-400">회원 목록을 불러오는 중...</div>
+          <div className="p-8 text-center text-sm font-semibold text-slate-400"><InlineLoading label="회원 목록을 불러오는 중..." /></div>
         ) : members.length === 0 ? (
           <div className="p-8 text-center text-sm font-semibold text-slate-400">조건에 맞는 회원이 없습니다.</div>
         ) : (
@@ -752,7 +753,7 @@ function AdminMembersPage() {
                   onClick={() => void handleAddMemberNote()}
                   type="button"
                 >
-                  {isNoteSaving ? "저장 중..." : "메모 추가"}
+                  {isNoteSaving ? <BusyText>저장 중...</BusyText> : "메모 추가"}
                 </button>
               </div>
               {memberNotes.length > 0 ? (
@@ -774,7 +775,7 @@ function AdminMembersPage() {
             </div>
 
             {isDetailLoading ? (
-              <div className="p-10 text-center text-sm font-semibold text-slate-400">회원 상세를 불러오는 중...</div>
+              <div className="p-10 text-center text-sm font-semibold text-slate-400"><InlineLoading label="회원 상세를 불러오는 중..." /></div>
             ) : memberDetail ? (
               <div className="space-y-6 pt-5">
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">

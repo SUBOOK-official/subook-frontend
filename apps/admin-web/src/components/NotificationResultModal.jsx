@@ -2,6 +2,7 @@ import { useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useFocusTrap } from "@shared-domain/useFocusTrap";
 import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
+import { BusyText } from "./Loading";
 
 /**
  * 알림톡 발송 결과를 사용자에게 보여주는 모달.
@@ -107,8 +108,8 @@ function NotificationResultModal({
             >
               {busy
                 ? retryLabel
-                  ? "처리 중..."
-                  : "재전송 중..."
+                  ? <BusyText>처리 중...</BusyText>
+                  : <BusyText>재전송 중...</BusyText>
                 : retryLabel || `실패 ${failures.length}건 재전송`}
             </button>
           ) : null}

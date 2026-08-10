@@ -3,6 +3,7 @@ import AdminShell from "../components/AdminShell";
 import { useAdminStudio } from "../contexts/AdminStudioContext";
 import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
 import { isSupabaseConfigured } from "@shared-supabase/adminSupabaseClient";
+import { BusyText } from "../components/Loading";
 
 function formatEstimatedTime(ms) {
   if (!Number.isFinite(ms) || ms <= 0) {
@@ -243,7 +244,7 @@ function AdminStudioPage() {
               onClick={startGeneration}
               type="button"
             >
-              {isGenerating ? "백그라운드 처리 중..." : "스튜디오 사진 생성"}
+              {isGenerating ? <BusyText>백그라운드 처리 중...</BusyText> : "스튜디오 사진 생성"}
             </button>
             <button
               className="btn-secondary !w-auto !px-3 !py-2 text-xs"
@@ -343,8 +344,8 @@ function AdminStudioPage() {
                     <p className="truncate text-xs font-bold text-slate-800">{job.fileName}</p>
                     <p className="mt-0.5 text-[11px] font-semibold text-slate-600">
                       {job.status === "ready" ? "준비됨" : null}
-                      {job.status === "queued" ? "대기 중..." : null}
-                      {job.status === "processing" ? "생성 중..." : null}
+                      {job.status === "queued" ? <BusyText>대기 중...</BusyText> : null}
+                      {job.status === "processing" ? <BusyText>생성 중...</BusyText> : null}
                       {job.status === "done" ? "생성 완료" : null}
                       {job.status === "error" ? "생성 실패" : null}
                     </p>

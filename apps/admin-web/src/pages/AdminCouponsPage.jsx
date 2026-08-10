@@ -6,6 +6,7 @@ import StatusBadge from "@shared-domain/StatusBadge";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { formatCurrency } from "@shared-domain/format";
 import { CloseIcon } from "../components/icons";
+import { BusyText, InlineLoading } from "../components/Loading";
 
 const ISSUANCE_TYPE_LABEL = {
   admin_assigned: "어드민 발급",
@@ -481,7 +482,7 @@ function AdminCouponsPage() {
 
         <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
           {isLoading ? (
-            <div className="p-8 text-center text-sm text-slate-400">불러오는 중...</div>
+            <div className="p-8 text-center text-sm text-slate-400"><InlineLoading /></div>
           ) : coupons.length === 0 ? (
             <div className="p-8 text-center text-sm text-slate-400">
               {search ? "검색 결과가 없습니다." : "등록된 쿠폰이 없습니다. 우측 상단에서 새로 만들어보세요."}
@@ -855,7 +856,7 @@ function AdminCouponsPage() {
                 disabled={isSaving}
                 className="rounded-md bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700 disabled:opacity-50"
               >
-                {isSaving ? "저장 중..." : form.id ? "수정 저장" : "쿠폰 생성"}
+                {isSaving ? <BusyText>저장 중...</BusyText> : form.id ? "수정 저장" : "쿠폰 생성"}
               </button>
             </footer>
           </form>
@@ -915,7 +916,7 @@ function AdminCouponsPage() {
 
             <div className="max-h-64 overflow-y-auto rounded-md border border-slate-200">
               {isIssueLoading ? (
-                <div className="p-4 text-center text-sm text-slate-400">불러오는 중...</div>
+                <div className="p-4 text-center text-sm text-slate-400"><InlineLoading /></div>
               ) : issueMembers.length === 0 ? (
                 <div className="p-4 text-center text-sm text-slate-400">
                   {issueSearch ? "검색 결과가 없습니다." : "검색어를 입력하세요."}
@@ -1009,7 +1010,7 @@ function AdminCouponsPage() {
             {/* 발급 이력 목록 */}
             <div className="overflow-hidden rounded-md border border-slate-200">
               {isHistoryLoading ? (
-                <div className="p-8 text-center text-sm text-slate-400">불러오는 중...</div>
+                <div className="p-8 text-center text-sm text-slate-400"><InlineLoading /></div>
               ) : historyRows.length === 0 ? (
                 <div className="p-8 text-center text-sm text-slate-400">아직 발급되지 않았습니다.</div>
               ) : (

@@ -3,6 +3,7 @@ import AdminShell from "../components/AdminShell";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { DETAIL_BUCKET, MAX_DETAIL_PHOTOS, uploadImageToBucket } from "../lib/adminImageUpload";
 import { CheckCircleIcon, CloseIcon, InboxIcon, SearchIcon } from "../components/icons";
+import { BusyText, InlineLoading } from "../components/Loading";
 
 // 사진 입고 (스캐너 연동) — 2026-07-20
 //
@@ -680,7 +681,7 @@ function AdminPhotoIntakePage() {
           </div>
           <div className="max-h-[560px] overflow-y-auto">
             {isLoading ? (
-              <p className="p-6 text-center text-sm text-slate-400">불러오는 중...</p>
+              <p className="p-6 text-center text-sm text-slate-400"><InlineLoading /></p>
             ) : workQueue.length === 0 ? (
               <p className="p-6 text-center text-sm font-semibold text-emerald-700">
                 {queueFilter === "missing" ? "상세사진 없는 상품이 없습니다. 끝!" : "표시할 상품이 없습니다."}
@@ -802,7 +803,7 @@ function AdminPhotoIntakePage() {
                       onClick={() => void saveCurrent()}
                       type="button"
                     >
-                      {isSaving ? "저장 중..." : `저장 & 다음 (Enter) — ${staged.length}장`}
+                      {isSaving ? <BusyText>저장 중...</BusyText> : `저장 & 다음 (Enter) — ${staged.length}장`}
                     </button>
                     <div className="flex gap-2">
                       <button
@@ -828,7 +829,7 @@ function AdminPhotoIntakePage() {
               </>
             ) : (
               <p className="p-6 text-center text-sm text-slate-400">
-                {isLoading ? "불러오는 중..." : "작업할 상품이 없습니다."}
+                {isLoading ? <BusyText>불러오는 중...</BusyText> : "작업할 상품이 없습니다."}
               </p>
             )}
           </section>

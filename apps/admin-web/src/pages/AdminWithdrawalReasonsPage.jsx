@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import AdminShell from "../components/AdminShell";
 import AdminPageTabs from "../components/AdminPageTabs";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
+import { InlineLoading } from "../components/Loading";
 import {
   WITHDRAWAL_REASON_CATEGORIES,
   getWithdrawalReasonLabel,
@@ -149,7 +150,7 @@ function AdminWithdrawalReasonsPage() {
 
       {isLoading ? (
         <div className="card p-8 text-center text-sm font-semibold text-slate-500">
-          불러오는 중...
+          <InlineLoading />
         </div>
       ) : rows.length === 0 ? (
         <div className="card p-8 text-center">

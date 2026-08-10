@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import AdminRoute from "./components/AdminRoute";
+import { InlineLoading } from "./components/Loading";
 
 const AdminAnalyticsPage = lazy(() => import("./pages/AdminAnalyticsPage"));
 const AdminDashboardPage = lazy(() => import("./pages/AdminDashboardPage"));
@@ -61,7 +62,7 @@ function AuthEmailRedirector() {
 function PageLoadingFallback() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm font-semibold text-slate-500">
-      불러오는 중...
+      <InlineLoading />
     </div>
   );
 }

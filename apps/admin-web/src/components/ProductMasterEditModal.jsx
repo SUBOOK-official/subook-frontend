@@ -14,6 +14,7 @@ import {
   isBookPriceLocked,
 } from "../lib/bookEditRules";
 import { bookConditionLabel, bookStatusLabel } from "@shared-domain/status";
+import { BusyText, InlineLoading } from "./Loading";
 
 // 상품 마스터 수정 모달 (2026-07-06 운영 피드백: 제목/가격/사진 수정 기능).
 //
@@ -61,7 +62,7 @@ function FileButton({ accept = "image/*", busy = false, children, className = ""
         onClick={() => inputRef.current?.click()}
         type="button"
       >
-        {busy ? "업로드 중..." : children}
+        {busy ? <BusyText>업로드 중...</BusyText> : children}
       </button>
     </>
   );
@@ -348,7 +349,7 @@ function ProductMasterEditModal({ onClose, onSaved, product }) {
           ) : null}
 
           {isLoading ? (
-            <div className="p-8 text-center text-sm text-slate-400">불러오는 중...</div>
+            <div className="p-8 text-center text-sm text-slate-400"><InlineLoading /></div>
           ) : (
             <>
               <div className="grid gap-4 sm:grid-cols-2">
@@ -604,7 +605,7 @@ function ProductMasterEditModal({ onClose, onSaved, product }) {
                   취소
                 </button>
                 <button className="btn-primary flex-1" disabled={busy} onClick={handleSave} type="button">
-                  {isSaving ? "저장 중..." : "저장"}
+                  {isSaving ? <BusyText>저장 중...</BusyText> : "저장"}
                 </button>
               </div>
             </>
