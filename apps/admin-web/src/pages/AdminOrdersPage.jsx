@@ -60,6 +60,21 @@ function formatDateTime(value) {
   }).format(date);
 }
 
+// 목록 표 전용 압축 날짜 — "2026년 8월 9일"은 열 폭을 많이 먹어 표가 가로로 넘친다.
+function formatCompactDate(value) {
+  if (!value) {
+    return "-";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return String(value);
+  }
+
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}.${pad(date.getMonth() + 1)}.${pad(date.getDate())}`;
+}
+
 // 워크플로우: pending → (무통장 입금확인 / PG 결제승인) → preparing → shipping → delivered → confirmed
 // '결제완료(paid)' 대기 단계는 2026-07 폐지 — 결제가 확인되면 곧바로 '상품 준비 중'으로 간다.
 //   · 무통장(bank_transfer): 입금확인 버튼(admin_confirm_payment)이 pending→preparing 전이
@@ -1679,14 +1694,14 @@ function AdminOrdersPage() {
                       type="checkbox"
                     />
                   </th>
-                  <th className="px-4 py-3">주문번호</th>
-                  <th className="px-4 py-3">구매자</th>
-                  <th className="px-4 py-3">상품</th>
-                  <th className="px-4 py-3 text-right">금액</th>
-                  <th className="px-4 py-3">상태</th>
-                  <th className="px-4 py-3">결제</th>
-                  <th className="px-4 py-3">주문일</th>
-                  <th className="px-4 py-3">관리</th>
+                  <th className="px-3 py-3">주문번호</th>
+                  <th className="px-3 py-3">구매자</th>
+                  <th className="px-3 py-3">상품</th>
+                  <th className="px-3 py-3 text-right">금액</th>
+                  {/* 결제수단은 상태 아래 줄로 합쳤다 — 열을 하나 줄여야 관리(상세)가 안 밀린다 */}
+                  <th className="px-3 py-3">상태/결제</th>
+                  <th className="px-3 py-3">주문일</th>
+                  <th className="px-3 py-3">관리</th>
                 </tr>
               </thead>
               <tbody>
@@ -1715,7 +1730,7 @@ function AdminOrdersPage() {
                         type="checkbox"
                       />
                     </td>
-                    <td className="px-4 py-3 font-mono text-xs font-bold whitespace-nowrap">
+                    <td className="px-3 py-3 font-mono text-xs font-bold whitespace-nowrap">
                       <div className="flex items-center gap-1.5">
                         {order.order_number}
                         {hasPendingRefundRequest && (
@@ -1731,21 +1746,24 @@ function AdminOrdersPage() {
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-3 max-w-[170px]">
                       <div className="text-sm font-semibold flex items-center gap-1.5">
                         {/* 비회원 주문: profiles가 없어 수령인 이름으로 표시 (2026-08-03) */}
-                        {order.is_guest ? order.shipping_recipient_name || "—" : order.buyer_name || "—"}
+                        <span className="truncate">
+                          {order.is_guest ? order.shipping_recipient_name || "—" : order.buyer_name || "—"}
+                        </span>
                         {order.is_guest && (
-                          <span className="inline-flex items-center rounded-full bg-slate-200 px-1.5 py-0.5 text-[10px] font-bold text-slate-600">
+                          <span className="inline-flex shrink-0 items-center rounded-full bg-slate-200 px-1.5 py-0.5 text-[10px] font-bold text-slate-600">
                             비회원
                           </span>
                         )}
                       </div>
-                      <div className="text-xs text-slate-400">
+                      {/* 긴 이메일이 열 폭을 밀어내지 않게 잘라 보여준다 (전체 값은 상세에서 확인) */}
+                      <div className="truncate text-xs text-slate-400">
                         {order.is_guest ? order.shipping_recipient_phone || "" : order.buyer_email || ""}
                       </div>
                     </td>
-                    <td className="px-4 py-3 max-w-[200px]">
+                    <td className="px-3 py-3 max-w-[200px]">
                       <div className="text-sm truncate">
                         {order.items?.[0]?.title ?? "—"}
                         {order.item_count > 1 && (
@@ -1764,23 +1782,25 @@ function AdminOrdersPage() {
                         ) : null;
                       })()}
                     </td>
-                    <td className="px-4 py-3 text-right font-bold whitespace-nowrap">
+                    <td className="px-3 py-3 text-right font-bold whitespace-nowrap">
                       {formatCurrency(order.total_amount)}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-3 whitespace-nowrap">
                       <StatusBadge status={order.status} type="order" />
+                      <div className="mt-1 text-[11px] text-slate-400">
+                        {PAYMENT_METHOD_LABEL[order.payment_method] ?? order.payment_method}
+                      </div>
                     </td>
-                    <td className="px-4 py-3 text-xs text-slate-500">
-                      {PAYMENT_METHOD_LABEL[order.payment_method] ?? order.payment_method}
+                    <td className="px-3 py-3 text-xs text-slate-500 whitespace-nowrap">
+                      {formatCompactDate(order.created_at)}
                     </td>
-                    <td className="px-4 py-3 text-xs text-slate-500 whitespace-nowrap">
-                      {formatDate(order.created_at)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-2 items-center">
+                    {/* 액션은 한 줄, 운송장번호는 그 아래 줄 — 한 줄에 다 넣으면 표가 가로로 넘쳐
+                        '상세'가 화면 밖으로 밀린다 */}
+                    <td className="px-3 py-3">
+                      <div className="flex items-center gap-2 whitespace-nowrap">
                         {(order.status === "preparing" || order.status === "paid") && (
                           <button
-                            className="text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-md px-2.5 py-1 whitespace-nowrap"
+                            className="text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-md px-2.5 py-1"
                             onClick={() => openTrackingModal(order)}
                             type="button"
                           >
@@ -1789,34 +1809,35 @@ function AdminOrdersPage() {
                         )}
                         {order.tracking_number &&
                           ["shipping", "delivered", "confirmed"].includes(order.status) && (
-                          <span className="flex items-center gap-1.5 whitespace-nowrap">
-                            <span className="text-xs text-slate-500 font-mono">
-                              {order.tracking_number}
-                            </span>
-                            <button
-                              className="text-xs font-semibold text-emerald-700 hover:underline"
-                              onClick={() => openDeliveryTrace(order)}
-                              title="CJ 실시간 배송 추적"
-                              type="button"
-                            >
-                              배송조회
-                            </button>
-                          </span>
+                          <button
+                            className="text-xs font-semibold text-emerald-700 hover:underline"
+                            onClick={() => openDeliveryTrace(order)}
+                            title="CJ 실시간 배송 추적"
+                            type="button"
+                          >
+                            배송조회
+                          </button>
                         )}
                         <button
-                          className="text-xs font-semibold text-blue-600 hover:underline whitespace-nowrap"
+                          className="text-xs font-semibold text-blue-600 hover:underline"
                           onClick={() => setSelectedOrderId(selectedOrderId === order.id ? null : order.id)}
                           type="button"
                         >
                           {selectedOrderId === order.id ? "닫기" : "상세"}
                         </button>
                       </div>
+                      {order.tracking_number &&
+                        ["shipping", "delivered", "confirmed"].includes(order.status) && (
+                        <div className="mt-0.5 font-mono text-[11px] text-slate-400">
+                          {order.tracking_number}
+                        </div>
+                      )}
                     </td>
                   </tr>
                   {/* 상세 — 행 바로 아래에 붙여서 펼친다 */}
                   {selectedOrderId === order.id && (
                     <tr className="border-b-2 border-blue-100 bg-blue-50/40">
-                      <td className="p-0" colSpan={9}>
+                      <td className="p-0" colSpan={8}>
                         {renderOrderDetail(order)}
                       </td>
                     </tr>
