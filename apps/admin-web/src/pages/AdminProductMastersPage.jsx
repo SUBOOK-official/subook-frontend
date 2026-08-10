@@ -7,7 +7,6 @@ import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import ProductMasterEditModal from "../components/ProductMasterEditModal";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { formatCurrency, formatDate } from "@shared-domain/format";
-import { bookStatusLabel } from "@shared-domain/status";
 import StatusBadge from "@shared-domain/StatusBadge";
 import { CloseIcon } from "../components/icons";
 import { downloadInventoryAuditXlsx } from "../lib/inventoryAuditExport";
@@ -61,75 +60,9 @@ const CONDITION_LABEL = {
   A: "A (사용감 있음)",
 };
 
-// ── 상태 변경 이력 (2026-08-01) ──────────────────────────────────────────────
-// admin_get_product_status_history RPC가 book_change_logs(권별 status/is_public,
-// 2026-05-13부터)와 product_status_logs(상품 파생 상태 전이, 2026-08-01부터)를 합쳐 준다.
-// actor_type: 'admin'=관리자 수동 / 'member'=회원 행위(주문·취소)로 인한 자동 /
-// 'system'=크론·PG 서버리스 등 auth 컨텍스트 없는 완전 자동.
-
-// 권 상태 전이별 원인 힌트 — 실제 전이를 만드는 경로가 정해져 있어 안전하게 표기 가능
-// (on_sale→reserved는 주문 선점 트리거, reserved→on_sale은 취소/만료 복원 등)
-const HISTORY_TRANSITION_HINT = {
-  "on_sale>reserved": "주문 선점",
-  "reserved>on_sale": "주문 취소·만료 복원",
-  "reserved>settled": "판매완료 처리",
-  "on_sale>settled": "판매완료 처리",
-  "settled>on_sale": "판매 복귀 (환불·정산취소)",
-};
-
-function formatHistoryDateTime(value) {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value);
-  return new Intl.DateTimeFormat("ko-KR", {
-    year: "2-digit",
-    month: "numeric",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-}
-
-function describeHistoryEvent(ev) {
-  if (ev.kind === "product_status") {
-    const from = STATUS_LABEL[ev.old_value] ?? ev.old_value ?? "-";
-    const to = STATUS_LABEL[ev.new_value] ?? ev.new_value ?? "-";
-    return { text: `${from} → ${to}`, hint: null };
-  }
-  if (ev.kind === "book_registered") {
-    return { text: "재고 등록 (입고)", hint: null };
-  }
-  if (ev.kind === "book_visibility") {
-    return ev.new_value === "true"
-      ? { text: "스토어 노출 처리", hint: null }
-      : { text: "스토어 노출 해제", hint: null };
-  }
-  const from = bookStatusLabel[ev.old_value] ?? ev.old_value ?? "-";
-  const to = bookStatusLabel[ev.new_value] ?? ev.new_value ?? "-";
-  return {
-    text: `${from} → ${to}`,
-    hint: HISTORY_TRANSITION_HINT[`${ev.old_value}>${ev.new_value}`] ?? null,
-  };
-}
-
-function historyActorInfo(ev) {
-  if (ev.kind === "book_registered") return null;
-  if (ev.actor_type === "admin") {
-    return {
-      badge: "수동",
-      badgeClass: "bg-indigo-100 text-indigo-800",
-      label: `관리자 ${ev.actor_name ?? ""}`.trim(),
-    };
-  }
-  if (ev.actor_type === "member") {
-    return {
-      badge: "자동",
-      badgeClass: "bg-slate-100 text-slate-600",
-      label: `회원 ${ev.actor_name ?? ""}`.trim(),
-    };
-  }
-  return { badge: "자동", badgeClass: "bg-slate-100 text-slate-600", label: "시스템" };
-}
+// 상태 변경 이력 UI는 2026-08-10 제거 (상세 모달에서 비노출).
+// 기록 자체(book_change_logs·product_status_logs)와 admin_get_product_status_history RPC는
+// 감사 목적으로 그대로 유지 — 다시 노출하려면 이 페이지에 조회/렌더만 붙이면 된다.
 
 function priceRangeLabel(min, max) {
   if (min == null && max == null) return "-";
@@ -171,9 +104,6 @@ function AdminProductMastersPage() {
   const [detailData, setDetailData] = useState(null);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [bookBusyId, setBookBusyId] = useState(null);
-  // 상태 변경 이력 (2026-08-01) — null=미로딩, []=이력 없음/실패
-  const [historyEvents, setHistoryEvents] = useState(null);
-  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
   // 권별 위치/일련번호 인라인 수정 (2026-07-18 재고 실사 이관)
   const [invEdit, setInvEdit] = useState(null);
   const [invSaving, setInvSaving] = useState(false);
@@ -530,27 +460,14 @@ function AdminProductMastersPage() {
     await loadProducts();
   };
 
-  // 상세 모달 열기 — 권별 현황과 상태 변경 이력을 병렬 로드.
-  // 이력 RPC 실패는 권별 현황 표시를 막지 않는다 (2026-08-01).
+  // 상세 모달 열기 — 권별 현황 로드
   const openDetail = async (product) => {
     setDetailTarget(product);
     setDetailData(null);
     setInvEdit(null);
     setIsDetailLoading(true);
-    setHistoryEvents(null);
-    setIsHistoryLoading(true);
-    const [invRes, histRes] = await Promise.all([
-      supabase.rpc("admin_get_product_inventory", { p_product_id: product.id }),
-      supabase.rpc("admin_get_product_status_history", { p_product_id: product.id }),
-    ]);
+    const invRes = await supabase.rpc("admin_get_product_inventory", { p_product_id: product.id });
     setIsDetailLoading(false);
-    setIsHistoryLoading(false);
-    if (histRes.error) {
-      setHistoryEvents([]);
-      console.warn("[상태 변경 이력] 조회 실패:", histRes.error.message);
-    } else {
-      setHistoryEvents(Array.isArray(histRes.data?.events) ? histRes.data.events : []);
-    }
     if (invRes.error) {
       showToast(invRes.error.message || "상세 정보를 불러오지 못했습니다.", "error");
       return;
@@ -561,8 +478,6 @@ function AdminProductMastersPage() {
     setDetailTarget(null);
     setDetailData(null);
     setInvEdit(null);
-    setHistoryEvents(null);
-    setIsHistoryLoading(false);
   };
 
   const handleBookVisibility = async (book, nextValue) => {
@@ -1176,77 +1091,6 @@ function AdminProductMastersPage() {
                   </tbody>
                 </table>
               )}
-
-              {/* 상태 변경 이력 (2026-08-01) — 수동(관리자)/자동(주문·결제·만료 등) 구분 타임라인 */}
-              <div className="mt-8">
-                <div className="mb-1 flex items-baseline justify-between">
-                  <h3 className="text-sm font-bold text-slate-700">상태 변경 이력</h3>
-                  {Array.isArray(historyEvents) && historyEvents.length > 0 ? (
-                    <span className="text-[11px] text-slate-400">최근 {historyEvents.length}건</span>
-                  ) : null}
-                </div>
-                <p className="mb-3 text-xs text-slate-400">
-                  권별 판매 상태·노출 변경과 상품 상태(판매중·품절·숨김) 전환 기록입니다.{" "}
-                  <span className="font-semibold text-indigo-600">수동</span>은 관리자 직접 조작,{" "}
-                  <span className="font-semibold text-slate-500">자동</span>은 주문·결제·취소·만료 등
-                  시스템/회원 행위에 의한 변경입니다.
-                </p>
-                {isHistoryLoading ? (
-                  <div className="rounded-md border border-slate-200 p-6 text-center text-xs text-slate-400">
-                    <InlineLoading label="이력을 불러오는 중..." />
-                  </div>
-                ) : !Array.isArray(historyEvents) || historyEvents.length === 0 ? (
-                  <div className="rounded-md border border-slate-200 p-6 text-center text-xs text-slate-400">
-                    아직 기록된 이력이 없습니다.
-                  </div>
-                ) : (
-                  <ul className="max-h-80 divide-y divide-slate-100 overflow-y-auto rounded-md border border-slate-200">
-                    {historyEvents.map((ev, idx) => {
-                      const desc = describeHistoryEvent(ev);
-                      const actor = historyActorInfo(ev);
-                      return (
-                        <li
-                          className="flex items-center gap-3 px-3 py-2 text-xs"
-                          key={`${ev.kind}-${ev.book_id ?? "p"}-${ev.changed_at}-${idx}`}
-                        >
-                          <span className="w-28 flex-shrink-0 font-mono text-[11px] text-slate-400">
-                            {formatHistoryDateTime(ev.changed_at)}
-                          </span>
-                          {ev.kind === "product_status" ? (
-                            <span className="w-20 flex-shrink-0 rounded bg-slate-900 px-1.5 py-0.5 text-center text-[10px] font-bold text-white">
-                              상품
-                            </span>
-                          ) : (
-                            <span
-                              className="w-20 flex-shrink-0 truncate rounded bg-indigo-50 px-1.5 py-0.5 text-center text-[10px] font-bold text-indigo-700"
-                              title={ev.seller_name ? `셀러: ${ev.seller_name}` : undefined}
-                            >
-                              {ev.serial_number != null ? `No.${ev.serial_number}` : `권 #${ev.book_id}`}
-                            </span>
-                          )}
-                          <span className="min-w-0 flex-1 truncate font-semibold text-slate-700">
-                            {desc.text}
-                            {desc.hint ? (
-                              <span className="ml-1.5 font-normal text-slate-400">· {desc.hint}</span>
-                            ) : null}
-                          </span>
-                          {actor ? (
-                            <span className="flex flex-shrink-0 items-center gap-1.5">
-                              <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${actor.badgeClass}`}>
-                                {actor.badge}
-                              </span>
-                              <span className="max-w-32 truncate text-[11px] text-slate-500">{actor.label}</span>
-                            </span>
-                          ) : null}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-                <p className="mt-2 text-[11px] text-slate-400">
-                  권별 이력은 2026-05-13부터, 상품 상태 전환은 2026-08-01부터 기록됩니다. (최근 200건까지 표시)
-                </p>
-              </div>
             </div>
           </>
         ) : null}
