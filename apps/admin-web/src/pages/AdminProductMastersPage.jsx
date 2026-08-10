@@ -916,7 +916,7 @@ function AdminProductMastersPage() {
         bodyClassName="!p-0"
         onClose={closeDetail}
         open={Boolean(detailTarget)}
-        size="xl"
+        size="2xl"
       >
         {detailTarget ? (
           <>
@@ -973,9 +973,11 @@ function AdminProductMastersPage() {
               ) : detailBooks.length === 0 ? (
                 <div className="p-8 text-center text-sm text-slate-400">아직 등록된 책이 없습니다.</div>
               ) : (
-                <table className="w-full text-sm">
+                // 좁은 화면에서 셀 텍스트가 한 글자씩 쪼개지지 않도록 nowrap + 가로 스크롤로 처리
+                <div className="overflow-x-auto">
+                <table className="w-full min-w-[52rem] text-sm">
                   <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500">
-                    <tr>
+                    <tr className="whitespace-nowrap">
                       <th className="px-3 py-2 text-left">셀러</th>
                       <th className="px-3 py-2 text-left">옵션</th>
                       <th className="px-3 py-2 text-left">위치 · 번호</th>
@@ -990,17 +992,17 @@ function AdminProductMastersPage() {
                     {detailBooks.map((book) => (
                       <tr key={book.id}>
                         <td className="px-3 py-2">
-                          <div className="font-bold text-slate-900">{book.seller_name || "-"}</div>
-                          <div className="text-xs text-slate-500">{book.seller_phone || ""}</div>
+                          <div className="break-keep font-bold text-slate-900">{book.seller_name || "-"}</div>
+                          <div className="whitespace-nowrap text-xs text-slate-500">{book.seller_phone || ""}</div>
                         </td>
                         <td className="px-3 py-2 text-slate-700">
                           {book.option ? (
-                            <span className="font-mono text-xs">{book.option}</span>
+                            <span className="break-keep font-mono text-xs">{book.option}</span>
                           ) : (
                             <span className="text-slate-400">-</span>
                           )}
                         </td>
-                        <td className="px-3 py-2">
+                        <td className="whitespace-nowrap px-3 py-2">
                           {invEdit?.bookId === book.id ? (
                             <div className="flex items-center gap-1">
                               <input
@@ -1054,16 +1056,16 @@ function AdminProductMastersPage() {
                               ) : (
                                 <span className="text-xs text-slate-400">미지정</span>
                               )}
-                              <span className="text-[10px] font-semibold text-slate-300 group-hover:text-slate-500">
+                              <span className="shrink-0 text-[10px] font-semibold text-slate-300 group-hover:text-slate-500">
                                 수정
                               </span>
                             </button>
                           )}
                         </td>
-                        <td className="px-3 py-2 text-slate-700">
+                        <td className="whitespace-nowrap px-3 py-2 text-slate-700">
                           {CONDITION_LABEL[book.condition_grade] ?? book.condition_grade ?? "S"}
                         </td>
-                        <td className="px-3 py-2 text-right font-bold text-slate-900">
+                        <td className="whitespace-nowrap px-3 py-2 text-right font-bold text-slate-900">
                           {book.price != null ? formatCurrency(book.price) : "-"}
                         </td>
                         <td className="px-3 py-2 text-center">
@@ -1074,7 +1076,7 @@ function AdminProductMastersPage() {
                             type="button"
                             disabled={bookBusyId === book.id}
                             onClick={() => handleBookVisibility(book, !book.is_public)}
-                            className={`rounded-full px-3 py-1 text-xs font-bold disabled:opacity-50 ${
+                            className={`whitespace-nowrap rounded-full px-3 py-1 text-xs font-bold disabled:opacity-50 ${
                               book.is_public
                                 ? "bg-emerald-100 text-emerald-800"
                                 : "bg-slate-200 text-slate-600"
@@ -1083,13 +1085,14 @@ function AdminProductMastersPage() {
                             {book.is_public ? "노출 중" : "비노출"}
                           </button>
                         </td>
-                        <td className="px-3 py-2 text-right text-xs text-slate-500">
+                        <td className="whitespace-nowrap px-3 py-2 text-right text-xs text-slate-500">
                           {formatDate(book.created_at)}
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+                </div>
               )}
             </div>
           </>
