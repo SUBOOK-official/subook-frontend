@@ -214,14 +214,22 @@ function Page() {
 
 // ?modal=1 — admin 주문관리의 실제 인쇄 모달(CjWaybillFormPrintModal)을 body에 큰 앱 콘텐츠와
 // 함께 띄워 '인쇄 밀림'을 헤드리스로 재현·검증하는 모드.
+// ?modal=1&n=<장수> — 일괄 출력(다건 시트) 검증. 문서 높이가 정확히 120mm × 장수여야 한다.
 function ModalRepro() {
+  const count = Math.max(1, Number(urlParams.get("n")) || 1);
+  const batch =
+    count > 1
+      ? Array.from({ length: count }, (_, i) => ({
+          ...(FULL_SAMPLES[i % FULL_SAMPLES.length] ?? FORM_MOCK),
+        }))
+      : null;
   return (
     <>
       {/* admin 앱처럼 #root 안에 긴 콘텐츠(밀림 유발 조건). 모달은 createPortal로 body 직계라 #root 밖. */}
       <div id="root" style={{ height: "4000px", background: "#f1f5f9", padding: "40px" }}>
         (admin 앱 시뮬레이션 — #root 긴 콘텐츠, 인쇄 시 display:none 되어야 함)
       </div>
-      <CjWaybillFormPrintModal open data={FORM_MOCK} onClose={() => {}} />
+      <CjWaybillFormPrintModal open data={FORM_MOCK} items={batch} onClose={() => {}} />
     </>
   );
 }

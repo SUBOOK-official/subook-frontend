@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import AdminDialog from "../components/AdminDialog";
 import AdminShell from "../components/AdminShell";
@@ -235,6 +235,11 @@ function AdminOrdersPage() {
 
   // CJ 송장 출력 라벨 모달 데이터 (cj-delivery 응답의 단건 result)
   const [labelData, setLabelData] = useState(null);
+  // CJ 송장 일괄 출력 — 선택 주문을 묶어 발급하고 한 번의 인쇄 작업으로 N장 출력
+  const [bulkCjConfirmOpen, setBulkCjConfirmOpen] = useState(false);
+  const [bulkCjProgress, setBulkCjProgress] = useState(null); // { done, total }
+  const [bulkCjResult, setBulkCjResult] = useState(null); // 실패가 섞였을 때만 결과 요약 모달
+  const [labelBatch, setLabelBatch] = useState(null); // 다건 라벨 배열
 
   // 일괄 입금확인 대상 — 선택된 주문 중 무통장(bank_transfer) + 입금대기(pending)만.
   // (2026-07-06 운영 피드백: 건별 금액 검증 모달이 번거로움 → 선택 후 입력 없이 일괄 처리.
@@ -290,6 +295,16 @@ function AdminOrdersPage() {
     await loadOrders();
     await loadSummary();
   };
+
+  // CJ 송장 일괄 출력 대상 — 선택된 주문 중 발급 가능한 상태(상품 준비 중 + 레거시 paid)만.
+  // 서버(cj-delivery)의 canRegisterDelivery와 같은 기준.
+  const selectedCjTargets = useMemo(
+    () =>
+      orders.filter(
+        (o) => selectedIds.has(o.id) && (o.status === "preparing" || o.status === "paid"),
+      ),
+    [orders, selectedIds],
+  );
 
   const toggleSelectId = (id) => {
     setSelectedIds((current) => {
@@ -554,6 +569,135 @@ function AdminOrdersPage() {
     } finally {
       setBusyOrderId(null);
     }
+  };
+
+  // ── CJ 송장 일괄 출력 ────────────────────────────────────────────────
+  // 서버(cj-delivery)는 orderIds 배열을 받아 1Day 토큰 하나로 순차 처리한다(최대 30건).
+  // 프론트는 함수 실행시간·진행률 노출을 위해 CJ_BULK_CHUNK 단위로 끊어 호출한다.
+  const CJ_BULK_CHUNK = 5;
+
+  // 청크 1개 요청. 네트워크성 실패만 재시도 — 이미 채번된 주문은 서버가 skipped로 흘려보내므로
+  // 재시도로 이중 접수되지 않는다.
+  const requestCjDeliveryChunk = async (accessToken, ids, reprint) => {
+    const MAX = 4;
+    const transientRe = /fetch failed|timeout|ECONN|EAI_AGAIN|socket|reset|network|Failed to fetch|Load failed/i;
+    for (let attempt = 1; attempt <= MAX; attempt += 1) {
+      let errMsg = "";
+      try {
+        const resp = await fetch("/api/admin/cj-delivery", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify(reprint ? { orderIds: ids, reprint: true } : { orderIds: ids }),
+        });
+        const result = await resp.json().catch(() => ({}));
+        if (resp.ok && Array.isArray(result.results)) {
+          return result.results;
+        }
+        errMsg = String(result?.error || "요청 실패");
+      } catch {
+        errMsg = "fetch failed";
+      }
+      if (attempt < MAX && transientRe.test(errMsg)) {
+        await new Promise((r) => setTimeout(r, 1200));
+        continue;
+      }
+      // 청크 전체 실패 — 개별 주문 실패로 펼쳐 결과 요약에 그대로 노출
+      return ids.map((orderId) => ({ orderId, success: false, error: errMsg }));
+    }
+    return ids.map((orderId) => ({ orderId, success: false, error: "CJ 서버 응답 없음" }));
+  };
+
+  const runCjDeliveryInChunks = async (accessToken, ids, { reprint = false, onProgress } = {}) => {
+    const collected = [];
+    for (let i = 0; i < ids.length; i += CJ_BULK_CHUNK) {
+      const chunk = ids.slice(i, i + CJ_BULK_CHUNK);
+      collected.push(...(await requestCjDeliveryChunk(accessToken, chunk, reprint)));
+      onProgress?.(Math.min(i + CJ_BULK_CHUNK, ids.length));
+    }
+    return collected;
+  };
+
+  const handleBulkCjDelivery = async () => {
+    const targets = selectedCjTargets;
+    if (targets.length === 0) return;
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      showToast("인증이 만료되었습니다. 다시 로그인해 주세요.", "error");
+      return;
+    }
+
+    setBulkCjConfirmOpen(false);
+    setBulkProcessing(true);
+    setBulkCjProgress({ done: 0, total: targets.length });
+
+    const ids = targets.map((o) => o.id);
+    const results = await runCjDeliveryInChunks(session.access_token, ids, {
+      onProgress: (done) => setBulkCjProgress({ done, total: ids.length }),
+    });
+
+    // 이미 운송장이 있어 발급을 건너뛴 건(status: "skipped")은 라벨 라우팅 데이터가 없다.
+    // 재출력 경로(채번·접수 없음)로 한 번 더 받아 라벨을 채운다.
+    const staleIds = results.filter((r) => r.success && !r.addr).map((r) => r.orderId);
+    if (staleIds.length > 0) {
+      const hydrated = await runCjDeliveryInChunks(session.access_token, staleIds, { reprint: true });
+      const byId = new Map(hydrated.map((r) => [r.orderId, r]));
+      for (let i = 0; i < results.length; i += 1) {
+        const patch = byId.get(results[i].orderId);
+        if (patch?.success && patch.addr) {
+          results[i] = { ...results[i], addr: patch.addr, sender: patch.sender, order: patch.order };
+        }
+      }
+    }
+
+    const labels = results.filter((r) => r.success && r.addr && r.order);
+    const describe = (r) => ({
+      orderId: r.orderId,
+      orderNumber:
+        r.orderNumber ?? targets.find((o) => o.id === r.orderId)?.order_number ?? `#${r.orderId}`,
+      error: r.error || "발급 실패",
+    });
+    const failures = [
+      ...results.filter((r) => !r.success).map(describe),
+      // 발급은 됐는데 라벨 라우팅 데이터를 못 받은 건 — 조용히 빠지면 송장 없이 발송된다.
+      ...results
+        .filter((r) => r.success && !(r.addr && r.order))
+        .map((r) => ({
+          ...describe(r),
+          error: `발급됨(${r.trackingNumber ?? "번호 확인 필요"}) — 라벨 데이터를 못 받았습니다. '송장 재출력'으로 개별 출력해 주세요.`,
+        })),
+    ];
+
+    // 배송 시작 알림톡 — 이번 호출로 운송장이 확정된 건.
+    // skipped(응답 유실 후 재시도로 기존 채번을 되받은 경우)도 포함해야 알림이 누락되지 않는다.
+    const notifiable = results.filter(
+      (r) => r.success && r.trackingNumber && (r.status === "registered" || r.status === "skipped"),
+    );
+    await Promise.allSettled(
+      notifiable.map((r) => {
+        const order = targets.find((o) => o.id === r.orderId);
+        return order
+          ? notifyShippingStarted({ order, trackingNumber: r.trackingNumber })
+          : Promise.resolve();
+      }),
+    );
+
+    setBulkProcessing(false);
+    setBulkCjProgress(null);
+    setSelectedIds(new Set());
+    await loadOrders();
+    await loadSummary();
+
+    if (failures.length === 0 && labels.length > 0) {
+      setLabelBatch(labels);
+      showToast(`송장 ${labels.length}건 발급 완료 — 인쇄 창에서 ${labels.length}장을 한 번에 출력하세요.`, "success");
+      return;
+    }
+    // 실패가 섞였으면 결과 요약을 먼저 보여주고, 거기서 인쇄로 넘어간다.
+    setBulkCjResult({ labels, failures, total: targets.length });
   };
 
   // 자동 정산 생성(주문 확정 트리거)이 누락된 경우 운영자가 수동으로 재실행.
@@ -976,9 +1120,354 @@ function AdminOrdersPage() {
     [orders],
   );
 
-  const selectedOrder = useMemo(
-    () => orders.find((o) => o.id === selectedOrderId) ?? null,
-    [orders, selectedOrderId],
+  // 주문 상세 — 클릭한 주문 행 바로 아래에서 펼쳐진다.
+  // (예전엔 표 아래 별도 카드로 떠서 상세를 볼 때마다 페이지 맨 밑까지 스크롤해야 했다.)
+  const renderOrderDetail = (selectedOrder) => (
+    <div className="space-y-4 border-l-4 border-blue-500 bg-white px-5 py-5">
+      <div className="flex items-start justify-between">
+        <div>
+          <h3 className="text-lg font-black text-slate-950">
+            주문 {selectedOrder.order_number}
+          </h3>
+          <p className="text-sm text-slate-500 mt-1">
+            {selectedOrder.is_guest ? (
+              <>
+                {formatDate(selectedOrder.created_at)} · {selectedOrder.shipping_recipient_name}{" "}
+                <span className="inline-flex items-center rounded-full bg-slate-200 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 align-middle">
+                  비회원
+                </span>
+              </>
+            ) : (
+              <>
+                {formatDate(selectedOrder.created_at)} · {selectedOrder.buyer_name} ({selectedOrder.buyer_email})
+                {" "}
+                <Link
+                  className="font-bold text-brand underline underline-offset-2"
+                  to={`/admin/members?q=${encodeURIComponent(selectedOrder.buyer_email || selectedOrder.buyer_name || "")}`}
+                >
+                  회원 조회
+                </Link>
+              </>
+            )}
+          </p>
+        </div>
+        <StatusBadge status={selectedOrder.status} type="order" />
+      </div>
+
+      {/* 주문 상품 */}
+      <div>
+        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">주문 상품</h4>
+        <div className="space-y-2">
+          {selectedOrder.items?.map((item) => (
+            <div
+              className={`flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2${item.refunded_at ? " opacity-70" : ""}`}
+              key={item.id}
+            >
+              <div>
+                <span className="text-sm font-semibold">{item.title}</span>
+                {item.option_label && (
+                  <span className="ml-2 text-xs text-slate-400">{item.option_label}</span>
+                )}
+                {item.condition_grade && (
+                  <span className="ml-2 text-xs text-slate-400">{item.condition_grade}</span>
+                )}
+                <span className="ml-2 text-xs text-slate-400">×{item.quantity}</span>
+                {/* 품목별 환불 상태 (2026-08-01 부분환불) */}
+                {item.refunded_at && (
+                  <span className="ml-2 inline-flex items-center rounded-full bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-700">
+                    환불됨{item.refund_amount != null ? ` ${formatCurrency(item.refund_amount)}` : ""}
+                  </span>
+                )}
+                {/* 피킹 정보 — 위치로 가서 일련번호로 실물 확인 (2026-07-18) */}
+                {item.book_location || item.book_serial_number != null ? (
+                  <span className="ml-2 inline-flex items-center rounded bg-indigo-50 px-1.5 py-0.5 font-mono text-[11px] font-bold text-indigo-700">
+                    {item.book_location ?? "위치 미지정"}
+                    {item.book_serial_number != null ? ` · No.${item.book_serial_number}` : ""}
+                  </span>
+                ) : (
+                  <span className="ml-2 inline-flex items-center rounded bg-amber-50 px-1.5 py-0.5 text-[11px] font-bold text-amber-700">
+                    위치 미지정
+                  </span>
+                )}
+              </div>
+              <span className={`text-sm font-bold${item.refunded_at ? " text-slate-400 line-through" : ""}`}>
+                {formatCurrency(item.total_price)}
+              </span>
+            </div>
+          ))}
+        </div>
+        {(() => {
+          // 쿠폰 할인액 — coupon_discount_amount가 쿠폰 전용 필드, discount_amount는 총 할인(현재 동일 값)
+          const couponDiscount = Number(
+            selectedOrder.coupon_discount_amount ?? selectedOrder.discount_amount ?? 0,
+          );
+          return (
+            <div className="mt-2 pt-2 border-t border-slate-100 text-sm space-y-1">
+              <div className="flex justify-between">
+                <span>상품 {formatCurrency(selectedOrder.subtotal)} + 배송비 {selectedOrder.shipping_fee === 0 ? "무료" : formatCurrency(selectedOrder.shipping_fee)}</span>
+                {couponDiscount > 0 ? (
+                  <span className="font-semibold text-rose-600">쿠폰 −{formatCurrency(couponDiscount)}</span>
+                ) : (
+                  <span className="font-black text-lg">{formatCurrency(selectedOrder.total_amount)}</span>
+                )}
+              </div>
+              {couponDiscount > 0 && (
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-slate-400">쿠폰 할인 적용 후 결제 금액</span>
+                  <span className="font-black text-lg">{formatCurrency(selectedOrder.total_amount)}</span>
+                </div>
+              )}
+              {/* 환불 누계 (2026-08-01 부분환불) — 부분환불 진행 중이면 잔액도 표시 */}
+              {Number(selectedOrder.refunded_amount ?? 0) > 0 && (
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold text-rose-600">
+                    환불 완료 {selectedOrder.status === "refunded" ? "(전액)" : "(부분)"}
+                  </span>
+                  <span className="font-bold text-rose-600">
+                    −{formatCurrency(selectedOrder.refunded_amount)}
+                  </span>
+                </div>
+              )}
+              {Number(selectedOrder.refunded_amount ?? 0) > 0 && selectedOrder.status !== "refunded" && (
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-slate-400">환불 후 결제 유지액</span>
+                  <span className="font-bold">
+                    {formatCurrency(
+                      Number(selectedOrder.total_amount ?? 0) - Number(selectedOrder.refunded_amount ?? 0),
+                    )}
+                  </span>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+      </div>
+
+      {/* 결제 정보 — paid_at은 2026-07-13부터 트리거 기록(무통장 입금확인·PG 승인 공통).
+          그 이전 무통장 주문은 시각이 없어 결제수단만 표시된다. */}
+      <div>
+        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">결제 정보</h4>
+        <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm space-y-1">
+          <p className="font-semibold">
+            {PAYMENT_METHOD_LABEL[selectedOrder.payment_method] ?? selectedOrder.payment_method ?? "-"}
+          </p>
+          {(() => {
+            const paidAt = selectedOrder.paid_at ?? selectedOrder.pg_approved_at ?? null;
+            if (!paidAt) {
+              return selectedOrder.status === "pending" ? (
+                <p className="text-xs text-slate-400">입금 확인 전</p>
+              ) : null;
+            }
+            return (
+              <p className="text-slate-600">
+                {selectedOrder.payment_method === "bank_transfer" ? "입금확인" : "결제승인"} ·{" "}
+                {formatDateTime(paidAt)}
+              </p>
+            );
+          })()}
+        </div>
+      </div>
+
+      {/* 배송지 */}
+      <div>
+        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">배송지</h4>
+        <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm space-y-1">
+          <p className="font-semibold">{selectedOrder.shipping_recipient_name} · {selectedOrder.shipping_recipient_phone}</p>
+          <p className="text-slate-600">
+            [{selectedOrder.shipping_postal_code}] {selectedOrder.shipping_address_line1} {selectedOrder.shipping_address_line2 ?? ""}
+          </p>
+          {selectedOrder.shipping_memo && (
+            <p className="text-xs text-slate-400">메모: {selectedOrder.shipping_memo}</p>
+          )}
+        </div>
+      </div>
+
+      {/* 송장 정보 */}
+      {selectedOrder.tracking_number && (
+        <div>
+          <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">배송 추적</h4>
+          <p className="text-sm flex items-center gap-2">
+            <span>
+              {selectedOrder.tracking_carrier ?? "CJ대한통운"} · {selectedOrder.tracking_number}
+            </span>
+            <button
+              className="text-xs font-semibold text-emerald-700 hover:underline"
+              onClick={() => openDeliveryTrace(selectedOrder)}
+              type="button"
+            >
+              배송조회
+            </button>
+          </p>
+        </div>
+      )}
+
+      {/* 환불 신청 사유 — 구매자가 신청했고 아직 처리 안 된 경우 강조 */}
+      {selectedOrder.refund_requested_at && selectedOrder.status !== "refunded" && (
+        <div className="rounded-lg border-l-4 border-rose-500 bg-rose-50 px-4 py-3">
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs font-bold text-rose-700 uppercase tracking-wider">
+              환불 신청 접수
+            </h4>
+            <span className="text-xs text-rose-600">
+              {formatDate(selectedOrder.refund_requested_at)}
+            </span>
+          </div>
+          <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">
+            {selectedOrder.refund_request_reason || "사유 미기재"}
+          </p>
+          {/* 무통장입금 환불계좌 — 주문 시 구매자가 입력 (2026-07-12부터 필수 수집) */}
+          {selectedOrder.refund_bank_name ? (
+            <p className="mt-2 text-sm font-semibold text-slate-800">
+              환불 계좌: {selectedOrder.refund_bank_name} {selectedOrder.refund_account_number}{" "}
+              (예금주 {selectedOrder.refund_account_holder})
+            </p>
+          ) : (
+            selectedOrder.payment_method === "bank_transfer" && (
+              <p className="mt-2 text-xs text-rose-600">
+                환불 계좌 미입력 주문 — 구매자에게 입금자 본인 명의 계좌를 확인해 주세요.
+              </p>
+            )
+          )}
+          <p className="mt-2 text-xs text-rose-600">
+            아래 "환불처리" 버튼으로 처리하거나, 구매자와 협의 후 보류할 수 있습니다.
+          </p>
+        </div>
+      )}
+
+      {/* 환불 완료 내역 — 이미 처리된 주문이면 결과 표시 */}
+      {selectedOrder.status === "refunded" && (
+        <div className="rounded-lg bg-slate-50 px-4 py-3">
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+              환불 완료
+            </h4>
+            <span className="text-xs text-slate-500">
+              {selectedOrder.refunded_at ? formatDate(selectedOrder.refunded_at) : ""}
+              {Number(selectedOrder.refunded_amount ?? 0) > 0
+                ? ` · ${formatCurrency(selectedOrder.refunded_amount)}`
+                : ""}
+            </span>
+          </div>
+          {selectedOrder.refund_request_reason && (
+            <p className="mt-2 text-sm text-slate-700">
+              <span className="text-xs font-semibold text-slate-500">구매자 사유: </span>
+              {selectedOrder.refund_request_reason}
+            </p>
+          )}
+          {selectedOrder.refund_reason && (
+            <p className="mt-1 text-sm text-slate-700">
+              <span className="text-xs font-semibold text-slate-500">처리 메모: </span>
+              {selectedOrder.refund_reason}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* 상태 변경 액션 */}
+      <div>
+        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">상태 변경</h4>
+        <div className="flex flex-wrap gap-2 items-end">
+          {getOrderActions(selectedOrder).map((action) => {
+            if (action.requiresTracking) {
+              return (
+                <button
+                  className="btn-primary !w-auto !px-4 !py-2 text-sm"
+                  key={action.status}
+                  onClick={() => openTrackingModal(selectedOrder)}
+                  type="button"
+                >
+                  송장입력
+                </button>
+              );
+            }
+
+            if (action.action === "refund") {
+              return (
+                <button
+                  className={`${action.style} !w-auto !px-4 !py-2 text-sm`}
+                  disabled={busyOrderId === selectedOrder.id}
+                  key="refund"
+                  onClick={() => handleRefund(selectedOrder.id)}
+                  type="button"
+                >
+                  {busyOrderId === selectedOrder.id ? "처리 중..." : action.label}
+                </button>
+              );
+            }
+
+            if (action.action === "confirm_payment") {
+              return (
+                <button
+                  className={`${action.style} !w-auto !px-4 !py-2 text-sm`}
+                  disabled={busyOrderId === selectedOrder.id}
+                  key="confirm_payment"
+                  onClick={() => openPaymentModal(selectedOrder)}
+                  type="button"
+                >
+                  {action.label}
+                </button>
+              );
+            }
+
+            if (action.action === "cj_delivery") {
+              return (
+                <button
+                  className={`${action.style} !w-auto !px-4 !py-2 text-sm`}
+                  disabled={busyOrderId === selectedOrder.id}
+                  key="cj_delivery"
+                  onClick={() => handleCjDelivery(selectedOrder.id)}
+                  type="button"
+                >
+                  {busyOrderId === selectedOrder.id ? "발급 중..." : action.label}
+                </button>
+              );
+            }
+
+            if (action.action === "cj_reprint") {
+              return (
+                <button
+                  className={`${action.style} !w-auto !px-4 !py-2 text-sm`}
+                  disabled={busyOrderId === selectedOrder.id}
+                  key="cj_reprint"
+                  onClick={() => handleCjReprint(selectedOrder.id)}
+                  type="button"
+                >
+                  {busyOrderId === selectedOrder.id ? "불러오는 중..." : action.label}
+                </button>
+              );
+            }
+
+            return (
+              <button
+                className={`${action.style} !w-auto !px-4 !py-2 text-sm`}
+                disabled={busyOrderId === selectedOrder.id}
+                key={action.status}
+                onClick={() => handleUpdateStatus(selectedOrder.id, action.status)}
+                type="button"
+              >
+                {busyOrderId === selectedOrder.id ? "처리 중..." : action.label}
+              </button>
+            );
+          })}
+
+          {selectedOrder.status === "confirmed" ? (
+            <button
+              className="btn-secondary !w-auto !px-4 !py-2 text-sm"
+              disabled={busyOrderId === selectedOrder.id}
+              onClick={() => handleRunSettlement(selectedOrder.id)}
+              type="button"
+            >
+              {busyOrderId === selectedOrder.id ? "처리 중..." : "정산 생성(수동)"}
+            </button>
+          ) : null}
+
+          {getOrderActions(selectedOrder).length === 0 &&
+            selectedOrder.status !== "confirmed" && (
+              <p className="text-xs text-slate-400">현재 상태에서 가능한 작업이 없습니다.</p>
+            )}
+        </div>
+      </div>
+    </div>
   );
 
   const summaryCards = summary
@@ -1130,19 +1619,39 @@ function AdminOrdersPage() {
             선택 해제
           </button>
           <div className="flex-1" />
-          {selectedIds.size > selectedBulkConfirmTargets.length && (
+          {selectedIds.size > Math.max(selectedBulkConfirmTargets.length, selectedCjTargets.length) && (
             <span className="text-xs text-amber-700">
-              무통장·입금대기 주문만 입금확인 대상입니다
+              입금확인=무통장·입금대기 / 송장출력=상품 준비 중 주문만 대상입니다
             </span>
           )}
-          <button
-            className="text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-md px-3 py-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
-            disabled={bulkProcessing || selectedBulkConfirmTargets.length === 0}
-            onClick={() => setBulkConfirmOpen(true)}
-            type="button"
-          >
-            {bulkProcessing ? "처리 중..." : `일괄 입금확인 (${selectedBulkConfirmTargets.length}건)`}
-          </button>
+          {selectedBulkConfirmTargets.length > 0 && (
+            <button
+              className="text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-md px-3 py-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
+              disabled={bulkProcessing}
+              onClick={() => setBulkConfirmOpen(true)}
+              type="button"
+            >
+              {bulkProcessing ? "처리 중..." : `일괄 입금확인 (${selectedBulkConfirmTargets.length}건)`}
+            </button>
+          )}
+          {/* CJ 송장 일괄 출력 — 발급 후 한 번의 인쇄 작업으로 N장 (배송 건수 늘어난 뒤 핵심 동선) */}
+          {selectedCjTargets.length > 0 && (
+            <button
+              className="text-xs font-semibold text-white bg-slate-900 hover:bg-slate-700 rounded-md px-3 py-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
+              disabled={bulkProcessing}
+              onClick={() => setBulkCjConfirmOpen(true)}
+              type="button"
+            >
+              {bulkCjProgress
+                ? `송장 발급 중... (${bulkCjProgress.done}/${bulkCjProgress.total})`
+                : `CJ 송장 일괄 출력 (${selectedCjTargets.length}건)`}
+            </button>
+          )}
+          {selectedBulkConfirmTargets.length === 0 && selectedCjTargets.length === 0 && (
+            <span className="text-xs text-amber-700">
+              선택한 주문에 가능한 일괄 작업이 없습니다
+            </span>
+          )}
         </div>
       ) : null}
 
@@ -1186,17 +1695,17 @@ function AdminOrdersPage() {
                   const hasPendingRefundRequest =
                     Boolean(order.refund_requested_at) && order.status !== "refunded";
                   return (
+                  <Fragment key={order.id}>
                   <tr
-                    className={`border-b border-slate-50 hover:bg-slate-50 transition ${
+                    className={`border-b border-slate-50 transition ${
                       selectedOrderId === order.id
                         ? "bg-blue-50"
                         : hasPendingRefundRequest
                           ? "bg-rose-50"
                           : selectedIds.has(order.id)
                             ? "bg-amber-50"
-                            : ""
+                            : "hover:bg-slate-50"
                     }`}
-                    key={order.id}
                   >
                     <td className="px-2 py-3">
                       <input
@@ -1304,6 +1813,15 @@ function AdminOrdersPage() {
                       </div>
                     </td>
                   </tr>
+                  {/* 상세 — 행 바로 아래에 붙여서 펼친다 */}
+                  {selectedOrderId === order.id && (
+                    <tr className="border-b-2 border-blue-100 bg-blue-50/40">
+                      <td className="p-0" colSpan={9}>
+                        {renderOrderDetail(order)}
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                   );
                 })}
               </tbody>
@@ -1332,355 +1850,6 @@ function AdminOrdersPage() {
           >
             CSV 일괄 송장 입력
           </button>
-        </div>
-      )}
-
-      {/* 주문 상세 패널 */}
-      {selectedOrder && (
-        <div className="card p-5 space-y-4 animate-rise">
-          <div className="flex items-start justify-between">
-            <div>
-              <h3 className="text-lg font-black text-slate-950">
-                주문 {selectedOrder.order_number}
-              </h3>
-              <p className="text-sm text-slate-500 mt-1">
-                {selectedOrder.is_guest ? (
-                  <>
-                    {formatDate(selectedOrder.created_at)} · {selectedOrder.shipping_recipient_name}{" "}
-                    <span className="inline-flex items-center rounded-full bg-slate-200 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 align-middle">
-                      비회원
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    {formatDate(selectedOrder.created_at)} · {selectedOrder.buyer_name} ({selectedOrder.buyer_email})
-                    {" "}
-                    <Link
-                      className="font-bold text-brand underline underline-offset-2"
-                      to={`/admin/members?q=${encodeURIComponent(selectedOrder.buyer_email || selectedOrder.buyer_name || "")}`}
-                    >
-                      회원 조회
-                    </Link>
-                  </>
-                )}
-              </p>
-            </div>
-            <StatusBadge status={selectedOrder.status} type="order" />
-          </div>
-
-          {/* 주문 상품 */}
-          <div>
-            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">주문 상품</h4>
-            <div className="space-y-2">
-              {selectedOrder.items?.map((item) => (
-                <div
-                  className={`flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2${item.refunded_at ? " opacity-70" : ""}`}
-                  key={item.id}
-                >
-                  <div>
-                    <span className="text-sm font-semibold">{item.title}</span>
-                    {item.option_label && (
-                      <span className="ml-2 text-xs text-slate-400">{item.option_label}</span>
-                    )}
-                    {item.condition_grade && (
-                      <span className="ml-2 text-xs text-slate-400">{item.condition_grade}</span>
-                    )}
-                    <span className="ml-2 text-xs text-slate-400">×{item.quantity}</span>
-                    {/* 품목별 환불 상태 (2026-08-01 부분환불) */}
-                    {item.refunded_at && (
-                      <span className="ml-2 inline-flex items-center rounded-full bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-700">
-                        환불됨{item.refund_amount != null ? ` ${formatCurrency(item.refund_amount)}` : ""}
-                      </span>
-                    )}
-                    {/* 피킹 정보 — 위치로 가서 일련번호로 실물 확인 (2026-07-18) */}
-                    {item.book_location || item.book_serial_number != null ? (
-                      <span className="ml-2 inline-flex items-center rounded bg-indigo-50 px-1.5 py-0.5 font-mono text-[11px] font-bold text-indigo-700">
-                        {item.book_location ?? "위치 미지정"}
-                        {item.book_serial_number != null ? ` · No.${item.book_serial_number}` : ""}
-                      </span>
-                    ) : (
-                      <span className="ml-2 inline-flex items-center rounded bg-amber-50 px-1.5 py-0.5 text-[11px] font-bold text-amber-700">
-                        위치 미지정
-                      </span>
-                    )}
-                  </div>
-                  <span className={`text-sm font-bold${item.refunded_at ? " text-slate-400 line-through" : ""}`}>
-                    {formatCurrency(item.total_price)}
-                  </span>
-                </div>
-              ))}
-            </div>
-            {(() => {
-              // 쿠폰 할인액 — coupon_discount_amount가 쿠폰 전용 필드, discount_amount는 총 할인(현재 동일 값)
-              const couponDiscount = Number(
-                selectedOrder.coupon_discount_amount ?? selectedOrder.discount_amount ?? 0,
-              );
-              return (
-                <div className="mt-2 pt-2 border-t border-slate-100 text-sm space-y-1">
-                  <div className="flex justify-between">
-                    <span>상품 {formatCurrency(selectedOrder.subtotal)} + 배송비 {selectedOrder.shipping_fee === 0 ? "무료" : formatCurrency(selectedOrder.shipping_fee)}</span>
-                    {couponDiscount > 0 ? (
-                      <span className="font-semibold text-rose-600">쿠폰 −{formatCurrency(couponDiscount)}</span>
-                    ) : (
-                      <span className="font-black text-lg">{formatCurrency(selectedOrder.total_amount)}</span>
-                    )}
-                  </div>
-                  {couponDiscount > 0 && (
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs text-slate-400">쿠폰 할인 적용 후 결제 금액</span>
-                      <span className="font-black text-lg">{formatCurrency(selectedOrder.total_amount)}</span>
-                    </div>
-                  )}
-                  {/* 환불 누계 (2026-08-01 부분환불) — 부분환불 진행 중이면 잔액도 표시 */}
-                  {Number(selectedOrder.refunded_amount ?? 0) > 0 && (
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs font-bold text-rose-600">
-                        환불 완료 {selectedOrder.status === "refunded" ? "(전액)" : "(부분)"}
-                      </span>
-                      <span className="font-bold text-rose-600">
-                        −{formatCurrency(selectedOrder.refunded_amount)}
-                      </span>
-                    </div>
-                  )}
-                  {Number(selectedOrder.refunded_amount ?? 0) > 0 && selectedOrder.status !== "refunded" && (
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs text-slate-400">환불 후 결제 유지액</span>
-                      <span className="font-bold">
-                        {formatCurrency(
-                          Number(selectedOrder.total_amount ?? 0) - Number(selectedOrder.refunded_amount ?? 0),
-                        )}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
-          </div>
-
-          {/* 결제 정보 — paid_at은 2026-07-13부터 트리거 기록(무통장 입금확인·PG 승인 공통).
-              그 이전 무통장 주문은 시각이 없어 결제수단만 표시된다. */}
-          <div>
-            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">결제 정보</h4>
-            <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm space-y-1">
-              <p className="font-semibold">
-                {PAYMENT_METHOD_LABEL[selectedOrder.payment_method] ?? selectedOrder.payment_method ?? "-"}
-              </p>
-              {(() => {
-                const paidAt = selectedOrder.paid_at ?? selectedOrder.pg_approved_at ?? null;
-                if (!paidAt) {
-                  return selectedOrder.status === "pending" ? (
-                    <p className="text-xs text-slate-400">입금 확인 전</p>
-                  ) : null;
-                }
-                return (
-                  <p className="text-slate-600">
-                    {selectedOrder.payment_method === "bank_transfer" ? "입금확인" : "결제승인"} ·{" "}
-                    {formatDateTime(paidAt)}
-                  </p>
-                );
-              })()}
-            </div>
-          </div>
-
-          {/* 배송지 */}
-          <div>
-            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">배송지</h4>
-            <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm space-y-1">
-              <p className="font-semibold">{selectedOrder.shipping_recipient_name} · {selectedOrder.shipping_recipient_phone}</p>
-              <p className="text-slate-600">
-                [{selectedOrder.shipping_postal_code}] {selectedOrder.shipping_address_line1} {selectedOrder.shipping_address_line2 ?? ""}
-              </p>
-              {selectedOrder.shipping_memo && (
-                <p className="text-xs text-slate-400">메모: {selectedOrder.shipping_memo}</p>
-              )}
-            </div>
-          </div>
-
-          {/* 송장 정보 */}
-          {selectedOrder.tracking_number && (
-            <div>
-              <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">배송 추적</h4>
-              <p className="text-sm flex items-center gap-2">
-                <span>
-                  {selectedOrder.tracking_carrier ?? "CJ대한통운"} · {selectedOrder.tracking_number}
-                </span>
-                <button
-                  className="text-xs font-semibold text-emerald-700 hover:underline"
-                  onClick={() => openDeliveryTrace(selectedOrder)}
-                  type="button"
-                >
-                  배송조회
-                </button>
-              </p>
-            </div>
-          )}
-
-          {/* 환불 신청 사유 — 구매자가 신청했고 아직 처리 안 된 경우 강조 */}
-          {selectedOrder.refund_requested_at && selectedOrder.status !== "refunded" && (
-            <div className="rounded-lg border-l-4 border-rose-500 bg-rose-50 px-4 py-3">
-              <div className="flex items-center justify-between">
-                <h4 className="text-xs font-bold text-rose-700 uppercase tracking-wider">
-                  환불 신청 접수
-                </h4>
-                <span className="text-xs text-rose-600">
-                  {formatDate(selectedOrder.refund_requested_at)}
-                </span>
-              </div>
-              <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">
-                {selectedOrder.refund_request_reason || "사유 미기재"}
-              </p>
-              {/* 무통장입금 환불계좌 — 주문 시 구매자가 입력 (2026-07-12부터 필수 수집) */}
-              {selectedOrder.refund_bank_name ? (
-                <p className="mt-2 text-sm font-semibold text-slate-800">
-                  환불 계좌: {selectedOrder.refund_bank_name} {selectedOrder.refund_account_number}{" "}
-                  (예금주 {selectedOrder.refund_account_holder})
-                </p>
-              ) : (
-                selectedOrder.payment_method === "bank_transfer" && (
-                  <p className="mt-2 text-xs text-rose-600">
-                    환불 계좌 미입력 주문 — 구매자에게 입금자 본인 명의 계좌를 확인해 주세요.
-                  </p>
-                )
-              )}
-              <p className="mt-2 text-xs text-rose-600">
-                아래 "환불처리" 버튼으로 처리하거나, 구매자와 협의 후 보류할 수 있습니다.
-              </p>
-            </div>
-          )}
-
-          {/* 환불 완료 내역 — 이미 처리된 주문이면 결과 표시 */}
-          {selectedOrder.status === "refunded" && (
-            <div className="rounded-lg bg-slate-50 px-4 py-3">
-              <div className="flex items-center justify-between">
-                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                  환불 완료
-                </h4>
-                <span className="text-xs text-slate-500">
-                  {selectedOrder.refunded_at ? formatDate(selectedOrder.refunded_at) : ""}
-                  {Number(selectedOrder.refunded_amount ?? 0) > 0
-                    ? ` · ${formatCurrency(selectedOrder.refunded_amount)}`
-                    : ""}
-                </span>
-              </div>
-              {selectedOrder.refund_request_reason && (
-                <p className="mt-2 text-sm text-slate-700">
-                  <span className="text-xs font-semibold text-slate-500">구매자 사유: </span>
-                  {selectedOrder.refund_request_reason}
-                </p>
-              )}
-              {selectedOrder.refund_reason && (
-                <p className="mt-1 text-sm text-slate-700">
-                  <span className="text-xs font-semibold text-slate-500">처리 메모: </span>
-                  {selectedOrder.refund_reason}
-                </p>
-              )}
-            </div>
-          )}
-
-          {/* 상태 변경 액션 */}
-          <div>
-            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">상태 변경</h4>
-            <div className="flex flex-wrap gap-2 items-end">
-              {getOrderActions(selectedOrder).map((action) => {
-                if (action.requiresTracking) {
-                  return (
-                    <button
-                      className="btn-primary !w-auto !px-4 !py-2 text-sm"
-                      key={action.status}
-                      onClick={() => openTrackingModal(selectedOrder)}
-                      type="button"
-                    >
-                      송장입력
-                    </button>
-                  );
-                }
-
-                if (action.action === "refund") {
-                  return (
-                    <button
-                      className={`${action.style} !w-auto !px-4 !py-2 text-sm`}
-                      disabled={busyOrderId === selectedOrder.id}
-                      key="refund"
-                      onClick={() => handleRefund(selectedOrder.id)}
-                      type="button"
-                    >
-                      {busyOrderId === selectedOrder.id ? "처리 중..." : action.label}
-                    </button>
-                  );
-                }
-
-                if (action.action === "confirm_payment") {
-                  return (
-                    <button
-                      className={`${action.style} !w-auto !px-4 !py-2 text-sm`}
-                      disabled={busyOrderId === selectedOrder.id}
-                      key="confirm_payment"
-                      onClick={() => openPaymentModal(selectedOrder)}
-                      type="button"
-                    >
-                      {action.label}
-                    </button>
-                  );
-                }
-
-                if (action.action === "cj_delivery") {
-                  return (
-                    <button
-                      className={`${action.style} !w-auto !px-4 !py-2 text-sm`}
-                      disabled={busyOrderId === selectedOrder.id}
-                      key="cj_delivery"
-                      onClick={() => handleCjDelivery(selectedOrder.id)}
-                      type="button"
-                    >
-                      {busyOrderId === selectedOrder.id ? "발급 중..." : action.label}
-                    </button>
-                  );
-                }
-
-                if (action.action === "cj_reprint") {
-                  return (
-                    <button
-                      className={`${action.style} !w-auto !px-4 !py-2 text-sm`}
-                      disabled={busyOrderId === selectedOrder.id}
-                      key="cj_reprint"
-                      onClick={() => handleCjReprint(selectedOrder.id)}
-                      type="button"
-                    >
-                      {busyOrderId === selectedOrder.id ? "불러오는 중..." : action.label}
-                    </button>
-                  );
-                }
-
-                return (
-                  <button
-                    className={`${action.style} !w-auto !px-4 !py-2 text-sm`}
-                    disabled={busyOrderId === selectedOrder.id}
-                    key={action.status}
-                    onClick={() => handleUpdateStatus(selectedOrder.id, action.status)}
-                    type="button"
-                  >
-                    {busyOrderId === selectedOrder.id ? "처리 중..." : action.label}
-                  </button>
-                );
-              })}
-
-              {selectedOrder.status === "confirmed" ? (
-                <button
-                  className="btn-secondary !w-auto !px-4 !py-2 text-sm"
-                  disabled={busyOrderId === selectedOrder.id}
-                  onClick={() => handleRunSettlement(selectedOrder.id)}
-                  type="button"
-                >
-                  {busyOrderId === selectedOrder.id ? "처리 중..." : "정산 생성(수동)"}
-                </button>
-              ) : null}
-
-              {getOrderActions(selectedOrder).length === 0 &&
-                selectedOrder.status !== "confirmed" && (
-                  <p className="text-xs text-slate-400">현재 상태에서 가능한 작업이 없습니다.</p>
-                )}
-            </div>
-          </div>
         </div>
       )}
 
@@ -1731,6 +1900,117 @@ function AdminOrdersPage() {
             </button>
           </div>
         </div>
+      </AdminDialog>
+
+      {/* CJ 송장 일괄 출력 확인 모달 — 발급은 되돌릴 수 없으므로 대상·부작용을 한 번 보여준다 */}
+      <AdminDialog
+        busy={bulkProcessing}
+        onClose={() => setBulkCjConfirmOpen(false)}
+        open={bulkCjConfirmOpen}
+        size="md"
+        title={`CJ 송장 일괄 출력 — ${selectedCjTargets.length}건`}
+      >
+        <div className="p-6 space-y-4">
+          <p className="text-sm text-slate-700">
+            선택한 <strong>{selectedCjTargets.length}건</strong>의 운송장을 한 번에 발급하고,
+            인쇄 창에서 <strong>{selectedCjTargets.length}장</strong>을 한 번의 인쇄 작업으로 출력합니다.
+          </p>
+          <div className="max-h-56 overflow-y-auto rounded-lg border border-slate-100 divide-y divide-slate-50">
+            {selectedCjTargets.map((order, index) => {
+              const locs = [
+                ...new Set((order.items ?? []).map((i) => i.book_location).filter(Boolean)),
+              ];
+              return (
+                <div className="flex items-center gap-2 px-3 py-2 text-sm" key={order.id}>
+                  <span className="w-5 shrink-0 text-xs font-bold text-slate-400">{index + 1}</span>
+                  <span className="font-mono text-xs font-bold">{order.order_number}</span>
+                  <span className="truncate text-xs text-slate-500">
+                    {order.shipping_recipient_name}
+                  </span>
+                  <span className="ml-auto shrink-0 font-mono text-[11px] font-bold text-indigo-600">
+                    {locs.length > 0 ? `위치 ${locs.join(" · ")}` : ""}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          <p className="text-xs text-amber-700">
+            발급 즉시 각 주문이 &lsquo;배송중&rsquo;으로 전환되고 구매자에게 배송 시작 알림톡이 발송됩니다.
+            라벨은 위 순서(목록과 동일)대로 출력됩니다.
+          </p>
+          <div className="flex gap-2">
+            <button
+              className="btn-ghost flex-1"
+              onClick={() => setBulkCjConfirmOpen(false)}
+              type="button"
+            >
+              취소
+            </button>
+            <button
+              className="btn-primary flex-1"
+              disabled={bulkProcessing || selectedCjTargets.length === 0}
+              onClick={handleBulkCjDelivery}
+              type="button"
+            >
+              {bulkProcessing ? "발급 중..." : `${selectedCjTargets.length}건 발급하고 인쇄`}
+            </button>
+          </div>
+        </div>
+      </AdminDialog>
+
+      {/* CJ 송장 일괄 출력 결과 — 실패가 섞였을 때만. 성공분은 여기서 인쇄로 넘어간다. */}
+      <AdminDialog
+        onClose={() => setBulkCjResult(null)}
+        open={Boolean(bulkCjResult)}
+        size="md"
+        title={
+          bulkCjResult
+            ? `송장 발급 결과 — 인쇄 ${bulkCjResult.labels.length}장 / 확인 필요 ${bulkCjResult.failures.length}건`
+            : ""
+        }
+      >
+        {bulkCjResult ? (
+          <div className="p-6 space-y-4">
+            {bulkCjResult.failures.length > 0 && (
+              <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2">
+                <p className="text-xs font-bold text-rose-700 mb-1.5">
+                  <AlertTriangleIcon size={13} /> 아래 주문은 이번 인쇄에 포함되지 않았습니다. 사유 확인 후 개별 처리해 주세요.
+                </p>
+                <div className="max-h-48 overflow-y-auto divide-y divide-rose-100">
+                  {bulkCjResult.failures.map((f) => (
+                    <div className="py-1.5 text-xs" key={f.orderId}>
+                      <span className="font-mono font-bold text-slate-700">{f.orderNumber}</span>
+                      <span className="ml-2 text-rose-700">{f.error}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {bulkCjResult.labels.length > 0 ? (
+              <p className="text-sm text-slate-700">
+                성공한 <strong>{bulkCjResult.labels.length}건</strong>은 발급이 끝났습니다. 라벨을 지금 출력하세요.
+              </p>
+            ) : (
+              <p className="text-sm text-slate-500">출력할 라벨이 없습니다.</p>
+            )}
+            <div className="flex gap-2">
+              <button className="btn-ghost flex-1" onClick={() => setBulkCjResult(null)} type="button">
+                닫기
+              </button>
+              <button
+                className="btn-primary flex-1"
+                disabled={bulkCjResult.labels.length === 0}
+                onClick={() => {
+                  setLabelBatch(bulkCjResult.labels);
+                  setBulkCjResult(null);
+                }}
+                type="button"
+              >
+                {`${bulkCjResult.labels.length}장 인쇄`}
+              </button>
+            </div>
+          </div>
+        ) : null}
       </AdminDialog>
 
       {/* 입금확인 모달 (금액 검증) */}
@@ -2255,10 +2535,15 @@ function AdminOrdersPage() {
         title={destructiveModal?.title ?? ""}
       />
 
+      {/* 라벨 인쇄 — 단건(labelData) / 일괄(labelBatch) 공용. 일괄은 한 인쇄 작업으로 N장. */}
       <CjWaybillFormPrintModal
         data={labelData}
-        onClose={() => setLabelData(null)}
-        open={!!labelData}
+        items={labelBatch}
+        onClose={() => {
+          setLabelData(null);
+          setLabelBatch(null);
+        }}
+        open={Boolean(labelData) || Boolean(labelBatch?.length)}
       />
 
       {/* CJ 실시간 배송조회 모달 */}

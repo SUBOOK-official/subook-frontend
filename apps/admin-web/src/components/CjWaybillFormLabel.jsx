@@ -98,10 +98,23 @@ function formatWaybill(no) {
 }
 
 // 주문관리 '송장 출력' 인쇄 모달 — CJ 지급 양식(96×120 롤, PS70 회전 급지) 전용.
-// 1건=1문서 원칙(크롬 다건 인쇄 축소 버그 회피). 인쇄 CSS는 label-preview 하네스에서
-// 실물 4회 검증된 것과 동일 (@page 96×120·회전·데이터만).
-export function CjWaybillFormPrintModal({ open, data, onClose }) {
-  if (!open || !data) return null;
+// 단건(data) / 다건(items) 모두 지원 — 다건은 시트를 세로로 이어붙여 한 번의 인쇄 작업으로 N장.
+//
+// ── 다건 인쇄에서 반드시 지켜야 하는 것 (2026-08-10 헤드리스 PDF로 실측) ─────────
+// ⚠ `.cj-form-sheet { contain: strict }` 없으면 2장 이상부터 문서 전체가 0.836배 축소된다.
+//   원인: 회전 레이어(.cj-form-rot) 안의 라벨은 레이아웃상 120mm 폭이라 96mm 시트를 넘치는데,
+//   크롬 인쇄는 이 넘침을 문서 폭(≈114.8mm)으로 보고 shrink-to-fit을 걸어버린다.
+//   overflow:hidden만으로는 안 막히고 contain(size+layout+paint)까지 있어야 막힌다.
+//   1장일 때는 안 걸려서 오래 못 잡았던 함정 — "다건 인쇄 시 0.84배 축소" 사고의 진짜 원인.
+//   (축소가 걸리면 페이지 높이 계산까지 어긋나 7장→6페이지처럼 라벨이 통째로 사라진다.)
+// · 축소를 없애면 브레이크 유무와 무관하게 장수가 맞지만, 반올림 드리프트 방어로 시트마다
+//   break-after: page를 명시한다(마지막 시트는 제외 — 빈 페이지가 딸려 나온다).
+// · 검증: n=1·2·3·7·13·30 전부 페이지수=장수, 내부 배율 3.125(=단건 실물 검증치와 동일),
+//   시트 박스 363×454px(=96×120mm), 단건은 텍스트 배치행렬 86개가 변경 전과 완전 동일.
+// 인쇄 CSS는 label-preview 하네스에서 실물 검증된 것과 동일 (@page 96×120·회전·데이터만).
+export function CjWaybillFormPrintModal({ open, data, items, onClose }) {
+  const sheets = Array.isArray(items) && items.length > 0 ? items : data ? [data] : [];
+  if (!open || sheets.length === 0) return null;
   const offsetX = Number(import.meta.env.VITE_CJ_PRINT_OFFSET_X ?? 2.6); // PS70 실측 캘리브레이션
   const offsetY = Number(import.meta.env.VITE_CJ_PRINT_OFFSET_Y ?? 0.4);
   // 모달을 body 직계로 포털 렌더 → 인쇄 시 #root(앱 전체)를 display:none으로 완전히 제거하고
@@ -126,27 +139,30 @@ export function CjWaybillFormPrintModal({ open, data, onClose }) {
       <style>{`
         @media print {
           @page { size: 96mm 120mm; margin: 0; }
-          /* 앱 전체(#root)를 아예 제거 → 문서에 라벨 시트만 남아 단일 페이지로 출력 */
+          /* 앱 전체(#root)를 아예 제거 → 문서에 라벨 시트만 남아 라벨 장수만큼만 출력 */
           #root { display: none !important; }
           html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
-          /* overlay를 96×120으로 물리적으로 가둔다 → 회전 라벨의 삐침이 여기서 클리핑되어
-             문서 전체 높이가 120mm로 확정(실물 프린터가 2페이지로 못 나눔). */
+          /* overlay는 폭만 96mm로 고정하고 높이는 시트 수만큼 자연 증가.
+             (높이를 고정 클램프하면 장수가 늘 때 마지막 라벨이 잘려나간다) */
           .cj-form-overlay {
             position: static !important; inset: auto !important;
             padding: 0 !important; margin: 0 !important;
             background: none !important; display: block !important;
-            width: 96mm !important; height: 120mm !important; overflow: hidden !important;
+            width: 96mm !important; height: auto !important; overflow: hidden !important;
           }
           .cj-form-noprint { display: none !important; }
-          /* 시트는 문서 흐름 첫 요소 + position:relative(회전 레이어의 containing block).
-             relative가 없으면 rot(absolute)가 body 기준이 되어 회전 라벨이 문서 높이를
-             120→180mm로 늘리고 → 실물 프린터가 2페이지로 나눠 밀린다(왼쪽 사진 원인). */
+          /* 시트 = 페이지 1장. position:relative(회전 레이어의 containing block)가 없으면
+             rot(absolute)가 body 기준이 되어 라벨이 문서 높이를 늘리고 인쇄가 밀린다.
+             contain:strict는 위 주석 참고 — 다건 인쇄 축소를 막는 핵심. */
           .cj-form-sheet {
             position: relative !important;
             width: 96mm !important; height: 120mm !important;
             margin: 0 !important; padding: 0 !important; box-shadow: none !important;
             overflow: hidden !important;
+            contain: strict !important;
           }
+          /* 마지막 시트에는 걸지 않는다 — 빈 페이지가 한 장 더 나온다 */
+          .cj-form-sheet:not(:last-of-type) { break-after: page !important; }
           .cj-form-rot { position: absolute; top: 0; left: 0; width: 0; height: 0; overflow: visible; transform-origin: top left; transform: translateX(96mm) rotate(90deg); }
         }
       `}</style>
@@ -158,7 +174,7 @@ export function CjWaybillFormPrintModal({ open, data, onClose }) {
             onClick={() => window.print()}
             style={{ background: "#2563eb", color: "#fff", border: "none", borderRadius: "8px", padding: "10px 20px", fontWeight: 700, cursor: "pointer" }}
           >
-            🖨 송장 인쇄
+            🖨 송장 인쇄{sheets.length > 1 ? ` (${sheets.length}장)` : ""}
           </button>
           <button
             type="button"
@@ -170,16 +186,33 @@ export function CjWaybillFormPrintModal({ open, data, onClose }) {
         </div>
         <div style={{ background: "#fff", borderRadius: "8px", padding: "8px 14px", fontSize: "12px", color: "#475569", textAlign: "center", lineHeight: 1.6 }}>
           CJ 양식 라벨을 프린터에 넣고 인쇄 — 용지 <b>cj테스트(96×120)</b> · 여백 <b>없음</b> · 배율 <b>100%</b> · 양면 <b>해제</b>
+          {sheets.length > 1 ? (
+            <>
+              <br />
+              <b>{sheets.length}장</b>이 한 번에 출력됩니다. 라벨 용지가 <b>{sheets.length}장 이상</b> 남았는지 확인하세요.
+            </>
+          ) : null}
           <br />
           <span style={{ color: "#b45309" }}>혹시 라벨이 밀려 나오면 → 인쇄창 대상을 <b>"PDF로 저장"</b>으로 뽑은 뒤 그 PDF를 프린터로 출력하세요.</span>
         </div>
       </div>
 
-      <div className="cj-form-sheet" style={{ background: "#fff", boxShadow: "0 4px 20px rgba(0,0,0,0.3)" }}>
-        <div className="cj-form-rot">
-          <CjWaybillFormLabel data={data} offsetX={offsetX} offsetY={offsetY} />
+      {sheets.map((sheet, index) => (
+        <div
+          className="cj-form-sheet"
+          key={`${sheet?.trackingNumber ?? "label"}-${index}`}
+          style={{
+            background: "#fff",
+            boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
+            // 화면에서만 시트 사이 간격 — 인쇄 CSS의 margin:0 !important가 덮는다
+            marginBottom: index < sheets.length - 1 ? "16px" : 0,
+          }}
+        >
+          <div className="cj-form-rot">
+            <CjWaybillFormLabel data={sheet} offsetX={offsetX} offsetY={offsetY} />
+          </div>
         </div>
-      </div>
+      ))}
     </div>,
     document.body,
   );
