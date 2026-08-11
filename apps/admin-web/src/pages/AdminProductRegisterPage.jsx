@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import AdminShell from "../components/AdminShell";
 import AdminDialog from "../components/AdminDialog";
@@ -106,6 +106,79 @@ function isNewRowBlank(row) {
     !String(row.originalPrice).trim() &&
     !String(row.discountValue).trim()
   );
+}
+
+// ── 작성 중 임시 저장 ────────────────────────────────────────────────
+// 등록은 한 배치에 수십 권이라 작성이 길어지는데, 새로고침·실수 이탈이면
+// 전부 날아갔다 (2026-08-11 운영자 피드백). 입력이 바뀔 때마다 localStorage에
+// 초안을 남기고, 다시 들어오면 복구한다. 업로드가 끝난 사진은 이미 스토리지
+// URL이라 그대로 되살아난다.
+const DRAFT_KEY = "subook.admin.register.draft.v1";
+const DRAFT_SAVE_DELAY = 700;
+
+function hydrateDraftRow(row) {
+  return {
+    ...blankNewRow(),
+    ...row,
+    uid: row?.uid || nextUid(),
+    detailUrls: Array.isArray(row?.detailUrls) ? row.detailUrls : [],
+    // 업로드 진행 플래그는 저장 시점의 잔재 — 복구할 때 항상 초기화
+    coverBusy: false,
+    detailBusy: false,
+  };
+}
+
+function hydrateDraftAddition(addition) {
+  return {
+    ...addition,
+    uid: addition?.uid || nextUid(),
+    options: Array.isArray(addition?.options) ? addition.options : [],
+    detailUrls: Array.isArray(addition?.detailUrls) ? addition.detailUrls : [],
+    coverBusy: false,
+    detailBusy: false,
+  };
+}
+
+function loadDraft(shipmentIdParam) {
+  try {
+    const raw = window.localStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    const draft = JSON.parse(raw);
+    if (!draft || typeof draft !== "object") return null;
+    // ?shipmentId=로 특정 고객에 들어온 경우, 다른 고객의 초안을 되살리면 안 된다
+    if (shipmentIdParam && String(draft.shipment?.id ?? "") !== String(shipmentIdParam)) return null;
+    const newRows = (Array.isArray(draft.newRows) ? draft.newRows : []).map(hydrateDraftRow);
+    const existingAdditions = (Array.isArray(draft.existingAdditions) ? draft.existingAdditions : [])
+      .filter((a) => a?.product?.id)
+      .map(hydrateDraftAddition);
+    if (!newRows.some((r) => !isNewRowBlank(r)) && existingAdditions.length === 0) return null;
+    return { ...draft, newRows, existingAdditions };
+  } catch {
+    return null;
+  }
+}
+
+function saveDraft(payload) {
+  try {
+    window.localStorage.setItem(DRAFT_KEY, JSON.stringify(payload));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function clearDraft() {
+  try {
+    window.localStorage.removeItem(DRAFT_KEY);
+  } catch {
+    // 저장소를 못 써도 등록 흐름은 계속돼야 한다
+  }
+}
+
+function formatDraftTime(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
 }
 
 function toNumber(value) {
@@ -252,6 +325,17 @@ function DropBox({ onFiles, multiple = false, disabled = false, className = "", 
   );
 }
 
+// 신규 교재 카드의 입력 한 칸 — 표 헤더 대신 칸마다 작은 라벨을 달아
+// 폭이 좁아 그리드가 접혀도 어떤 값인지 바로 보이게 한다.
+function FieldCell({ label, children }) {
+  return (
+    <div className="min-w-0">
+      <span className="mb-0.5 block text-[10px] font-bold text-slate-500">{label}</span>
+      {children}
+    </div>
+  );
+}
+
 function StepBadge({ index, label, active, done }) {
   return (
     <div className="flex items-center gap-2">
@@ -272,8 +356,15 @@ function AdminProductRegisterPage() {
   const navigate = useNavigate();
   const shipmentIdParam = params.get("shipmentId");
 
-  const [shipment, setShipment] = useState(null);
-  const [step, setStep] = useState("customer"); // customer | list | photos
+  // 임시 저장 초안 — 첫 렌더에서 한 번만 읽어 아래 state 초기값으로 흘려보낸다
+  const [initialDraft] = useState(() => loadDraft(shipmentIdParam));
+  const [draftSavedAt, setDraftSavedAt] = useState(initialDraft?.savedAt ?? null);
+  const [draftRestoredAt, setDraftRestoredAt] = useState(initialDraft?.savedAt ?? null);
+  // 이번 세션에서 저장할 내용이 있었는지 — 다 지웠을 때만 초안을 회수한다
+  const hadDraftContentRef = useRef(Boolean(initialDraft));
+
+  const [shipment, setShipment] = useState(initialDraft?.shipment ?? null);
+  const [step, setStep] = useState(initialDraft?.step ?? "customer"); // customer | list | photos
   const [toast, setToast] = useState(null);
 
   const showToast = useCallback((message, tone = "info") => {
@@ -292,9 +383,11 @@ function AdminProductRegisterPage() {
   const [sellerContext, setSellerContext] = useState(null);
 
   // 신규 교재 (Frame 2 우측)
-  const [newRows, setNewRows] = useState([blankNewRow()]);
+  const [newRows, setNewRows] = useState(() =>
+    initialDraft?.newRows?.length ? initialDraft.newRows : [blankNewRow()],
+  );
   // 기존 교재 재고 추가 (Frame 3 결과)
-  const [existingAdditions, setExistingAdditions] = useState([]);
+  const [existingAdditions, setExistingAdditions] = useState(() => initialDraft?.existingAdditions ?? []);
   // 교재 검색 (Frame 2 좌측) — 50건 단위 페이지, '더 보기'로 이어 붙임 (2026-07-23)
   const [prodSearch, setProdSearch] = useState("");
   const [prodResults, setProdResults] = useState([]);
@@ -307,15 +400,15 @@ function AdminProductRegisterPage() {
   // 신규 교재 카테고리(과목·브랜드·유형) 설정 모달 — 대상 행 uid
   const [categoryModalUid, setCategoryModalUid] = useState(null);
   // 창고 위치 항상성 — 한 곳에서 입력하면 배치 전체(신규 행·기존 교재)에 같은 값이 따라간다
-  const [batchLocation, setBatchLocation] = useState("");
+  const [batchLocation, setBatchLocation] = useState(initialDraft?.batchLocation ?? "");
   // 시작 일련번호 — 운영자가 정하면 등록 순서대로 start, start+1, ... 순차 배정
-  const [serialStart, setSerialStart] = useState("");
+  const [serialStart, setSerialStart] = useState(initialDraft?.serialStart ?? "");
   // 유사 시세 힌트 — uid → RPC 결과, 같은 조건은 세션 내 캐시 재사용
   const [priceHints, setPriceHints] = useState({});
   const hintCacheRef = useRef(new Map());
 
   // 완료/공개
-  const [publishOnComplete, setPublishOnComplete] = useState(true);
+  const [publishOnComplete, setPublishOnComplete] = useState(initialDraft?.publishOnComplete ?? true);
   const [submitting, setSubmitting] = useState(false);
   // 등록 완료 모달 — 자동 채번된 일련번호를 보여주고 라벨링 안내 후 이동
   const [completeInfo, setCompleteInfo] = useState(null);
@@ -336,12 +429,55 @@ function AdminProductRegisterPage() {
         return;
       }
       setShipment(data);
-      setStep("list");
+      // 초안에서 사진 단계까지 복구된 경우엔 그 단계를 유지한다
+      setStep((prev) => (prev === "customer" ? "list" : prev));
     })();
     return () => {
       active = false;
     };
   }, [shipmentIdParam, showToast]);
+
+  // 작성 내용 자동 저장 (디바운스) — 등록이 끝난 뒤에는 다시 만들지 않는다
+  useEffect(() => {
+    if (completeInfo) return undefined;
+    const hasContent = newRows.some((r) => !isNewRowBlank(r)) || existingAdditions.length > 0;
+    if (!hasContent) {
+      // 직접 다 지운 경우엔 초안도 지운다 (안 그러면 새로고침에 되살아난다).
+      // 이번 세션에서 내용을 가진 적 있을 때만 — 다른 고객의 초안을 건드리면 안 된다.
+      if (hadDraftContentRef.current) {
+        clearDraft();
+        setDraftSavedAt(null);
+        hadDraftContentRef.current = false;
+      }
+      return undefined;
+    }
+    hadDraftContentRef.current = true;
+    const timer = window.setTimeout(() => {
+      const savedAt = new Date().toISOString();
+      const ok = saveDraft({
+        version: 1,
+        savedAt,
+        shipment,
+        step,
+        newRows: newRows.map((r) => ({ ...r, coverBusy: false, detailBusy: false })),
+        existingAdditions: existingAdditions.map((a) => ({ ...a, coverBusy: false, detailBusy: false })),
+        batchLocation,
+        serialStart,
+        publishOnComplete,
+      });
+      if (ok) setDraftSavedAt(savedAt);
+    }, DRAFT_SAVE_DELAY);
+    return () => window.clearTimeout(timer);
+  }, [
+    shipment,
+    step,
+    newRows,
+    existingAdditions,
+    batchLocation,
+    serialStart,
+    publishOnComplete,
+    completeInfo,
+  ]);
 
   // 고객 검색 (디바운스)
   // 검수 건뿐 아니라 '진행 중인 회원 수거신청'도 같은 목록에 섞어 보여준다.
@@ -610,29 +746,47 @@ function AdminProductRegisterPage() {
     setExistingAdditions((prev) => prev.map((a) => (a.uid === uid ? { ...a, ...patch } : a)));
 
   // Frame 3 열기
+  // 이미 목록에 담아둔 교재를 다시 여는 경우(= '수정')엔 그때 입력한 수량·가격·신규
+  // 옵션을 그대로 되살린다. (이전엔 상품 원본으로만 다시 그려서, 수정을 누르면 입력이
+  // 전부 빈칸이 됐다 — 처음부터 다시 쳐야 했음. 2026-08-11 운영자 피드백)
   const openFramePanel = (product) => {
     const repOriginal = product.representative_original_price ?? "";
-    let existingOptions = (product.options || []).map((o) => ({
-      option: o.option ?? "",
-      stock_count: o.stock_count ?? 0,
-      quantity: "",
-      price: o.price ?? repOriginal,
-      originalPrice: o.original_price ?? repOriginal,
-      discountType: "none",
-      discountValue: "",
-    }));
+    const prevAddition = existingAdditions.find((a) => a.product.id === product.id);
+    // 옵션명 → 직전 입력값. 카탈로그 옵션과 매칭되면 꺼내 쓰고, 남은 건 신규 옵션 행으로.
+    const prevByOption = new Map(
+      (prevAddition?.options ?? []).map((o) => [String(o.option ?? "").trim(), o]),
+    );
+    const takePrev = (name) => {
+      const key = String(name ?? "").trim();
+      const found = prevByOption.get(key);
+      if (found) prevByOption.delete(key);
+      return found ?? null;
+    };
+    let existingOptions = (product.options || []).map((o) => {
+      const prev = takePrev(o.option);
+      return {
+        option: o.option ?? "",
+        stock_count: o.stock_count ?? 0,
+        quantity: prev ? String(prev.quantity ?? "") : "",
+        price: prev?.price ?? o.price ?? repOriginal,
+        originalPrice: prev?.original_price ?? o.original_price ?? repOriginal,
+        discountType: prev?.discount_type || "none",
+        discountValue: prev?.discount_value ?? "",
+      };
+    });
     // 옵션이 없는 교재(깡통 상품)도 옵션명 없이 '기본 옵션'으로 수량만 추가할 수 있게
     // 합성 행을 노출한다 (2026-07-22 운영자 피드백). RPC는 옵션명이 비면 null로 저장하고,
     // 공개 사이트는 null 옵션을 "기본 옵션"으로 렌더한다.
     if (existingOptions.length === 0) {
+      const prev = takePrev("");
       existingOptions = [{
         option: "",
         stock_count: 0,
-        quantity: "",
-        price: repOriginal,
-        originalPrice: repOriginal,
-        discountType: "none",
-        discountValue: "",
+        quantity: prev ? String(prev.quantity ?? "") : "",
+        price: prev?.price ?? repOriginal,
+        originalPrice: prev?.original_price ?? repOriginal,
+        discountType: prev?.discount_type || "none",
+        discountValue: prev?.discount_value ?? "",
         isDefaultSynthetic: true,
       }];
     }
@@ -640,12 +794,23 @@ function AdminProductRegisterPage() {
     const defaultNewPrice =
       existingOptions.find((o) => String(o.price ?? "").trim() !== "")?.price ??
       repOriginal;
+    // 카탈로그에 아직 없는(= 이번에 새로 만든) 옵션들 — 입력했던 순서대로 복원
+    const restoredNewOptions = [...prevByOption.values()].map((o) => ({
+      option: String(o.option ?? ""),
+      quantity: String(o.quantity ?? "1"),
+      price: o.price ?? "",
+      // 복원된 행은 이미 확정된 값이라 다른 행 판매가 입력에 휩쓸리지 않게 자동 추종 해제
+      priceAuto: false,
+      originalPrice: o.original_price ?? repOriginal,
+      discountType: o.discount_type || "none",
+      discountValue: o.discount_value ?? "",
+    }));
     // 이미 목록에 추가해 둔 배치를 수정하는 경우 위치 입력값은 유지, 아니면 배치 위치 프리필
-    const prevAddition = existingAdditions.find((a) => a.product.id === product.id);
     setFramePanel({
       product,
+      isEditing: Boolean(prevAddition),
       existingOptions,
-      newOptions: [blankNewOption(defaultNewPrice, repOriginal)],
+      newOptions: [...restoredNewOptions, blankNewOption(defaultNewPrice, repOriginal)],
       location: prevAddition?.location ?? batchLocation,
     });
   };
@@ -720,12 +885,12 @@ function AdminProductRegisterPage() {
       return;
     }
     setExistingAdditions((prev) => {
-      const prevAddition = prev.find((a) => a.product.id === fp.product.id);
-      const others = prev.filter((a) => a.product.id !== fp.product.id);
-      return [
-        ...others,
+      // 수정이면 원래 자리·uid를 유지 (목록 순서가 튀면 일련번호 배정도 같이 흔들린다)
+      const index = prev.findIndex((a) => a.product.id === fp.product.id);
+      const prevAddition = index >= 0 ? prev[index] : null;
+      const next =
         {
-          uid: nextUid(),
+          uid: prevAddition?.uid ?? nextUid(),
           product: fp.product,
           options,
           location: (fp.location ?? "").trim(),
@@ -744,14 +909,35 @@ function AdminProductRegisterPage() {
           detailBusy: false,
           // 기존 교재는 변환된 표지를 이미 갖고 있는 경우가 대부분 → AI 자동 변환 기본 꺼짐
           coverAutoStudio: prevAddition?.coverAutoStudio ?? false,
-        },
-      ];
+        };
+      if (index < 0) return [...prev, next];
+      const copy = [...prev];
+      copy[index] = next;
+      return copy;
     });
     setFramePanel(null);
-    showToast(`"${fp.product.title}" 재고를 목록에 추가했습니다.`, "success");
+    showToast(
+      fp.isEditing
+        ? `"${fp.product.title}" 수정 내용을 반영했습니다.`
+        : `"${fp.product.title}" 재고를 목록에 추가했습니다.`,
+      "success",
+    );
   };
 
   const removeAddition = (uid) => setExistingAdditions((prev) => prev.filter((a) => a.uid !== uid));
+
+  // 임시 저장 초안 버리고 교재 목록만 비우기 (고객 선택은 유지)
+  const discardDraft = () => {
+    if (!window.confirm("작성 중인 교재 목록을 모두 비웁니다. 계속할까요?")) return;
+    clearDraft();
+    setNewRows([blankNewRow()]);
+    setExistingAdditions([]);
+    setSerialStart("");
+    setDraftSavedAt(null);
+    setDraftRestoredAt(null);
+    setStep("list");
+    showToast("작성 내용을 비웠습니다.", "info");
+  };
 
   // ── 사진 업로드 (kind: new | existing) ────────────────────────────
   const setItemBusy = (kind, uid, field, busy) =>
@@ -1056,6 +1242,10 @@ function AdminProductRegisterPage() {
     const createdProducts = data?.created_products ?? 0;
     const createdBooks = data?.created_books ?? 0;
     const createdSerials = Array.isArray(data?.created_serials) ? data.created_serials : [];
+    // 등록에 성공했으면 임시 저장 초안은 역할이 끝났다
+    clearDraft();
+    setDraftSavedAt(null);
+    setDraftRestoredAt(null);
     showToast(
       `교재 ${createdProducts}종 · 재고 ${createdBooks}권 등록 완료${publishOnComplete ? " (스토어 공개)" : ""}`,
       "success",
@@ -1116,6 +1306,29 @@ function AdminProductRegisterPage() {
           </div>
         ) : null}
       </div>
+
+      {/* 임시 저장 — 새로고침·실수 이탈로 작성 내용이 날아가지 않게 (2026-08-11) */}
+      {hasItems || draftRestoredAt ? (
+        <div className="mt-2 flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-2">
+          {draftRestoredAt ? (
+            <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-900">
+              임시 저장된 작성 내용을 불러왔습니다 ({formatDraftTime(draftRestoredAt)} 저장)
+            </span>
+          ) : null}
+          {draftSavedAt ? (
+            <span className="text-xs font-semibold text-slate-500">
+              자동 저장됨 · {formatDraftTime(draftSavedAt)}
+            </span>
+          ) : null}
+          <button
+            type="button"
+            onClick={discardDraft}
+            className="ml-auto text-xs font-semibold text-slate-500 underline hover:text-rose-600"
+          >
+            작성 내용 비우기
+          </button>
+        </div>
+      ) : null}
 
       <div className="mt-5">
         {/* ── STEP 1: 고객 선택/생성 ─────────────────────────────── */}
@@ -1310,7 +1523,7 @@ function AdminProductRegisterPage() {
                   type="search"
                   value={prodSearch}
                   onChange={(e) => setProdSearch(e.target.value)}
-                  placeholder="교재 키워드 검색 (예: 또선생)"
+                  placeholder="교재 키워드 검색 (예: 서바이벌 물리)"
                   className="mt-3 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
                 />
                 <div className="mt-3 max-h-[28rem] space-y-2 overflow-y-auto">
@@ -1392,44 +1605,53 @@ function AdminProductRegisterPage() {
                 <p className="mt-1 text-xs text-indigo-600">
                   · 위치는 행별 입력 (아래 '전체 적용'으로 일괄 채움) · 일련번호는 시작 번호부터 순차 배정, 행별로 직접 지정도 가능
                 </p>
-                <div className="mt-3 overflow-x-auto">
-                  <table className="w-full min-w-[920px] text-sm">
-                    <thead>
-                      <tr className="border-b border-slate-200 text-left text-xs font-bold text-slate-500">
-                        <th className="py-2 pr-2">상품명</th>
-                        <th className="py-2 pr-2 w-24">카테고리</th>
-                        <th className="py-2 pr-2 w-28">옵션</th>
-                        <th className="py-2 pr-2 w-14">수량</th>
-                        <th className="py-2 pr-2 w-20">위치</th>
-                        <th className="py-2 pr-2 w-24">일련번호</th>
-                        <th className="py-2 pr-2 w-24">정가</th>
-                        <th className="py-2 pr-2 w-24">할인 방식</th>
-                        <th className="py-2 pr-2 w-20">할인 값</th>
-                        <th className="py-2 pr-2 w-24">판매가</th>
-                        <th className="py-2 w-8" />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {newRows.map((row) => {
-                        const sell = computeSellPrice(row.originalPrice, row.discountType, row.discountValue);
-                        const blank = isNewRowBlank(row);
-                        const hint = priceHints[row.uid];
-                        const showHint = !blank && hint?.found && toNumber(hint.suggested_price) !== null;
-                        return (
-                          <Fragment key={row.uid}>
-                          <tr className={`align-top ${showHint ? "" : "border-b border-slate-100"}`}>
-                            <td className="py-1.5 pr-2">
-                              <input
-                                type="text"
-                                value={row.title}
-                                onChange={(e) => handleRowChange(row.uid, "title", e.target.value)}
-                                placeholder="2026 강남대성 …"
-                                className="w-full rounded border border-slate-200 px-2 py-1.5"
-                              />
-                            </td>
-                            <td className="py-1.5 pr-2">
-                              {/* 카테고리(과목·브랜드·유형)는 모달에서 설정 — 표가 뚱뚱해지지 않게
-                                  셀에는 현재 선택 요약만 보여준다. 전부 미선택이면 '자동'. */}
+                {/* 표 → 교재별 카드. 11칸짜리 가로 표는 상품명이 잘리고 가로 스크롤이
+                    필요했다 (2026-08-11 운영자 피드백). 상품명은 한 줄을 통째로 쓰고,
+                    나머지 항목은 폭에 맞춰 접히는 그리드로 내린다. */}
+                <div className="mt-3 space-y-2">
+                  {newRows.map((row) => {
+                    const sell = computeSellPrice(row.originalPrice, row.discountType, row.discountValue);
+                    const blank = isNewRowBlank(row);
+                    const hint = priceHints[row.uid];
+                    const showHint = !blank && hint?.found && toNumber(hint.suggested_price) !== null;
+                    return (
+                      <div
+                        key={row.uid}
+                        className={`rounded-xl border p-3 ${
+                          blank ? "border-dashed border-slate-300 bg-slate-50/60" : "border-slate-200"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={row.title}
+                            onChange={(e) => handleRowChange(row.uid, "title", e.target.value)}
+                            placeholder={
+                              blank
+                                ? "새 교재 상품명 입력 (예: 2026 강남대성 크럭스 CRUX 수학1 현우진T)"
+                                : "2026 강남대성 …"
+                            }
+                            aria-label="상품명"
+                            className="min-w-0 flex-1 rounded border border-slate-200 px-2 py-1.5 text-sm"
+                          />
+                          {!blank ? (
+                            <button
+                              type="button"
+                              onClick={() => handleRowDelete(row.uid)}
+                              className="shrink-0 text-slate-300 hover:text-rose-600"
+                              aria-label="행 삭제"
+                            >
+                              <CloseIcon size={14} />
+                            </button>
+                          ) : null}
+                        </div>
+
+                        {/* 상품명이 비어 있는 마지막 행은 접어둔다 — 입력하면 나머지 칸이 열린다 */}
+                        {!blank ? (
+                          <div className="mt-2 grid gap-2 text-sm [grid-template-columns:repeat(auto-fill,minmax(6.5rem,1fr))]">
+                            <FieldCell label="카테고리">
+                              {/* 과목·브랜드·유형은 모달에서 설정 — 칸에는 현재 선택 요약만.
+                                  전부 미선택이면 '자동'(상품명에서 파싱). */}
                               <button
                                 type="button"
                                 onClick={() => setCategoryModalUid(row.uid)}
@@ -1438,66 +1660,72 @@ function AdminProductRegisterPage() {
                               >
                                 {[row.subject, row.brand, row.bookType].filter(Boolean).join(" · ") || "자동"}
                               </button>
-                            </td>
-                            <td className="py-1.5 pr-2">
+                            </FieldCell>
+                            <FieldCell label="옵션">
                               <input
                                 type="text"
                                 value={row.option}
                                 onChange={(e) => handleRowChange(row.uid, "option", e.target.value)}
                                 placeholder="2권, 3권"
+                                aria-label="옵션"
                                 className="w-full rounded border border-slate-200 px-2 py-1.5"
                               />
-                            </td>
-                            <td className="py-1.5 pr-2">
+                            </FieldCell>
+                            <FieldCell label="수량">
                               {/* 같은 구성 여러 권 — 옵션 수 × 수량 만큼 등록 */}
                               <input
                                 type="number"
                                 min="1"
                                 value={row.quantity}
                                 onChange={(e) => handleRowChange(row.uid, "quantity", e.target.value)}
+                                aria-label="수량"
                                 className="w-full rounded border border-slate-200 px-2 py-1.5"
                               />
-                            </td>
-                            <td className="py-1.5 pr-2">
+                            </FieldCell>
+                            <FieldCell label="위치">
                               {/* 행별 위치 — 개별 수정 가능, 일괄 채움은 하단 '전체 적용' */}
                               <input
                                 type="text"
                                 value={row.location}
                                 onChange={(e) => handleRowChange(row.uid, "location", e.target.value)}
                                 placeholder="A1"
+                                aria-label="창고 위치"
                                 className="w-full rounded border border-slate-200 px-2 py-1.5"
                               />
-                            </td>
-                            <td className="py-1.5 pr-2">
+                            </FieldCell>
+                            <FieldCell label="일련번호">
                               {/* 비우면 시작 번호 순차 배정, 입력하면 이 행만 그 번호부터 배정 */}
                               <input
                                 type="number"
                                 min="1"
                                 value={row.serialOverride}
                                 onChange={(e) => handleRowChange(row.uid, "serialOverride", e.target.value)}
-                                placeholder={blank ? "-" : serialRangeText("new", row.uid) || "자동"}
+                                placeholder={serialRangeText("new", row.uid) || "자동"}
+                                aria-label="일련번호"
                                 className="w-full rounded border border-slate-200 px-2 py-1.5 font-mono text-xs"
                               />
-                              {!blank && String(row.serialOverride).trim() && countBooksForNewRow(row) > 1 ? (
+                              {String(row.serialOverride).trim() && countBooksForNewRow(row) > 1 ? (
                                 <span className="mt-0.5 block px-1 font-mono text-[10px] font-bold text-indigo-600">
                                   {serialRangeText("new", row.uid)}
                                 </span>
                               ) : null}
-                            </td>
-                            <td className="py-1.5 pr-2">
+                            </FieldCell>
+                            <FieldCell label="정가">
                               <input
                                 type="number"
                                 min="0"
                                 value={row.originalPrice}
                                 onChange={(e) => handleRowChange(row.uid, "originalPrice", e.target.value)}
                                 placeholder="원"
+                                aria-label="정가"
                                 className="w-full rounded border border-slate-200 px-2 py-1.5"
                               />
-                            </td>
-                            <td className="py-1.5 pr-2">
+                            </FieldCell>
+                            <FieldCell label="할인 방식">
                               <select
                                 value={row.discountType}
                                 onChange={(e) => handleRowChange(row.uid, "discountType", e.target.value)}
+                                aria-label="할인 방식"
                                 className="w-full rounded border border-slate-200 px-1 py-1.5"
                               >
                                 {DISCOUNT_TYPES.map((d) => (
@@ -1506,8 +1734,8 @@ function AdminProductRegisterPage() {
                                   </option>
                                 ))}
                               </select>
-                            </td>
-                            <td className="py-1.5 pr-2">
+                            </FieldCell>
+                            <FieldCell label="할인 값">
                               <input
                                 type="number"
                                 min="0"
@@ -1515,53 +1743,42 @@ function AdminProductRegisterPage() {
                                 disabled={row.discountType === "none"}
                                 onChange={(e) => handleRowChange(row.uid, "discountValue", e.target.value)}
                                 placeholder={row.discountType === "rate" ? "%" : row.discountType === "amount" ? "원" : "-"}
+                                aria-label="할인 값"
                                 className="w-full rounded border border-slate-200 px-2 py-1.5 disabled:bg-slate-100"
                               />
-                            </td>
-                            <td className="py-1.5 pr-2 text-right font-bold text-slate-900">
-                              {blank ? "-" : sell == null ? "—" : formatCurrency(sell)}
-                            </td>
-                            <td className="py-1.5">
-                              {!blank ? (
-                                <button
-                                  type="button"
-                                  onClick={() => handleRowDelete(row.uid)}
-                                  className="text-slate-300 hover:text-rose-600"
-                                  aria-label="행 삭제"
-                                >
-                                  <CloseIcon size={14} />
-                                </button>
-                              ) : null}
-                            </td>
-                          </tr>
-                          {showHint ? (
-                            <tr className="border-b border-slate-100 bg-indigo-50/50">
-                              <td colSpan={11} className="px-2 py-1.5 text-[11px] font-semibold text-indigo-800">
-                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                                  <span className="font-bold">
-                                    유사 시세 {formatCurrency(hint.suggested_price)}
-                                    {hint.avg_discount_rate ? ` (정가 대비 약 -${hint.avg_discount_rate}%)` : ""}
-                                  </span>
-                                  <span className="min-w-0 flex-1 truncate font-medium text-indigo-500">
-                                    {hint.product_count}종 {hint.book_count}권 기준:{" "}
-                                    {(hint.samples || []).slice(0, 3).map((s) => s.title).join(" · ")}
-                                  </span>
-                                  <button
-                                    type="button"
-                                    onClick={() => applyPriceHint(row.uid)}
-                                    className="rounded border border-indigo-300 bg-white px-2 py-0.5 text-[11px] font-bold text-indigo-700 hover:bg-indigo-100"
-                                  >
-                                    이 가격 적용
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          ) : null}
-                          </Fragment>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                            </FieldCell>
+                            <FieldCell label="판매가">
+                              <span className="block rounded border border-transparent px-2 py-1.5 text-right font-bold text-slate-900">
+                                {sell == null ? "—" : formatCurrency(sell)}
+                              </span>
+                            </FieldCell>
+                          </div>
+                        ) : null}
+
+                        {showHint ? (
+                          <div className="mt-2 rounded-lg bg-indigo-50/70 px-3 py-1.5 text-[11px] font-semibold text-indigo-800">
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                              <span className="font-bold">
+                                유사 시세 {formatCurrency(hint.suggested_price)}
+                                {hint.avg_discount_rate ? ` (정가 대비 약 -${hint.avg_discount_rate}%)` : ""}
+                              </span>
+                              <span className="min-w-0 flex-1 truncate font-medium text-indigo-500">
+                                {hint.product_count}종 {hint.book_count}권 기준:{" "}
+                                {(hint.samples || []).slice(0, 3).map((s) => s.title).join(" · ")}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => applyPriceHint(row.uid)}
+                                className="rounded border border-indigo-300 bg-white px-2 py-0.5 text-[11px] font-bold text-indigo-700 hover:bg-indigo-100"
+                              >
+                                이 가격 적용
+                              </button>
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })}
                 </div>
               </section>
             </div>
@@ -1925,7 +2142,7 @@ function AdminProductRegisterPage() {
       <AdminDialog
         open={Boolean(framePanel)}
         onClose={() => setFramePanel(null)}
-        title="기존 교재 재고 추가"
+        title={framePanel?.isEditing ? "기존 교재 재고 수정" : "기존 교재 재고 추가"}
         size="xl"
       >
         {framePanel ? (
@@ -2170,7 +2387,7 @@ function AdminProductRegisterPage() {
                 onClick={confirmFramePanel}
                 className="rounded-md bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700"
               >
-                목록에 추가
+                {framePanel.isEditing ? "수정 반영" : "목록에 추가"}
               </button>
             </div>
           </div>
