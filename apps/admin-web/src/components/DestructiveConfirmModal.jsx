@@ -16,6 +16,7 @@ function DestructiveConfirmModal({
   reasonRequired = false,
   reasonMinLength = 1,
   reasonPlaceholder = "사유를 입력하세요",
+  reasonPresets = null,
   confirmLabel = "진행",
   cancelLabel = "취소",
   busy = false,
@@ -26,6 +27,7 @@ function DestructiveConfirmModal({
   const reasonRef = useRef(null);
   const dialogRef = useRef(null);
   const titleId = useId();
+  const reasonId = useId();
 
   useFocusTrap(dialogRef, open);
   useBodyScrollLock(open);
@@ -78,18 +80,41 @@ function DestructiveConfirmModal({
         <p className="mt-2 whitespace-pre-line text-sm text-slate-700">{description}</p>
 
         {reasonRequired ? (
-          <label className="mt-4 block text-sm font-semibold text-slate-700">
-            <span>사유 (최소 {reasonMinLength}자)</span>
+          <div className="mt-4">
+            <label className="block text-sm font-semibold text-slate-700" htmlFor={reasonId}>
+              사유 (최소 {reasonMinLength}자)
+            </label>
+            {/* 자주 쓰는 사유는 한 번에 채운다 — 반복 입력(폐기 등) 부담 완화 */}
+            {Array.isArray(reasonPresets) && reasonPresets.length > 0 ? (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {reasonPresets.map((preset) => (
+                  <button
+                    className={`rounded-full border px-2.5 py-1 text-xs font-semibold transition disabled:opacity-50 ${
+                      reason.trim() === preset
+                        ? "border-rose-400 bg-rose-50 text-rose-700"
+                        : "border-slate-300 bg-white text-slate-600 hover:border-slate-400 hover:bg-slate-50"
+                    }`}
+                    disabled={busy}
+                    key={preset}
+                    onClick={() => setReason(preset)}
+                    type="button"
+                  >
+                    {preset}
+                  </button>
+                ))}
+              </div>
+            ) : null}
             <textarea
               className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-rose-500 focus:outline-none"
               disabled={busy}
+              id={reasonId}
               onChange={(event) => setReason(event.target.value)}
               placeholder={reasonPlaceholder}
               ref={reasonRef}
               rows={3}
               value={reason}
             />
-          </label>
+          </div>
         ) : null}
 
         <div className="mt-5 flex items-center justify-end gap-2">

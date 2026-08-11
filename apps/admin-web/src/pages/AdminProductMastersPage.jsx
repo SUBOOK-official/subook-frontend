@@ -60,6 +60,10 @@ const CONDITION_LABEL = {
   A: "A (사용감 있음)",
 };
 
+// 권별 폐기 사유 프리셋 (2026-08-11) — 셀러 마이페이지 '판매불가 사유'로 그대로 노출되므로
+// 내부 은어 대신 셀러가 이해할 문구만 둔다.
+const DISCARD_REASON_PRESETS = ["답지 없음", "파손·오염", "필기 과다", "분실"];
+
 // 상태 변경 이력 UI는 2026-08-10 제거 (상세 모달에서 비노출).
 // 기록 자체(book_change_logs·product_status_logs)와 admin_get_product_status_history RPC는
 // 감사 목적으로 그대로 유지 — 다시 노출하려면 이 페이지에 조회/렌더만 붙이면 된다.
@@ -495,6 +499,60 @@ function AdminProductMastersPage() {
     // 모달 데이터 갱신 + 목록 갱신 (재고/min/max 변동)
     if (detailTarget) await openDetail(detailTarget);
     await loadProducts();
+  };
+
+  // 권별 폐기 (2026-08-11 대표 요청) — 배송 준비 중 답지 누락/파손을 발견했을 때
+  // 그 권 하나만 재고에서 내린다. 검수 상세 페이지의 일괄 폐기와 같은 RPC를 쓰며
+  // 재고 화면 진입점만 추가한 것 (하드 삭제가 아니라 status='discarded'):
+  //   · 위탁 이력·정산 근거는 books 행에 그대로 남는다
+  //   · 사유는 books.discard_reason → 셀러 마이페이지 '판매불가 사유'로 노출
+  //   · is_public=false·상품 상태 재계산은 books 트리거가 처리
+  //   · 활성 주문이 있는 권은 books_discard_active_order_guard가 차단(환불이 먼저)
+  const handleBookDiscard = (book) => {
+    const bookLabel = [
+      book.seller_name || "수북 자체 매입",
+      book.option || null,
+      book.serial_number != null ? `No.${book.serial_number}` : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+
+    setDestructiveModal({
+      title: "이 권만 폐기",
+      description:
+        `${bookLabel} 1권을 폐기 처리합니다.\n\n` +
+        `· 스토어에서 즉시 내려가고 정산 대상에서 빠집니다.\n` +
+        `· 같은 상품의 다른 권은 그대로 판매됩니다.\n` +
+        `· 입력한 사유는 셀러 마이페이지에 '판매불가 사유'로 표시됩니다.\n\n` +
+        `이 작업은 되돌릴 수 없습니다.`,
+      reasonRequired: true,
+      reasonMinLength: 2,
+      reasonPresets: DISCARD_REASON_PRESETS,
+      reasonPlaceholder: "예) 답지 없음",
+      confirmLabel: "폐기 처리",
+      run: async (reason) => {
+        setBookBusyId(book.id);
+        const { data, error } = await supabase.rpc("admin_bulk_update_books_status", {
+          p_ids: [book.id],
+          p_status: "discarded",
+          p_reason: typeof reason === "string" && reason.trim() ? reason.trim() : null,
+        });
+        setBookBusyId(null);
+        if (error) {
+          showToast(error.message || "폐기 처리에 실패했습니다.", "error");
+          return;
+        }
+        // RPC는 권별 예외를 삼키고 failures로 돌려준다 — 활성 주문 가드가 여기로 온다
+        if ((data?.fail_count ?? 0) > 0) {
+          const failure = Array.isArray(data?.failures) ? data.failures[0] : null;
+          showToast(`폐기하지 못했습니다 — ${failure?.reason || "알 수 없는 오류"}`, "error");
+        } else {
+          showToast(`${bookLabel} 1권을 폐기 처리했습니다.`, "success");
+        }
+        if (detailTarget) await openDetail(detailTarget);
+        await loadProducts();
+      },
+    });
   };
 
   // 권별 위치/일련번호 저장 — 빈 입력은 값 비우기(clear)로 처리
@@ -975,7 +1033,7 @@ function AdminProductMastersPage() {
               ) : (
                 // 좁은 화면에서 셀 텍스트가 한 글자씩 쪼개지지 않도록 nowrap + 가로 스크롤로 처리
                 <div className="overflow-x-auto">
-                <table className="w-full min-w-[52rem] text-sm">
+                <table className="w-full min-w-[56rem] text-sm">
                   <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500">
                     <tr className="whitespace-nowrap">
                       <th className="px-3 py-2 text-left">셀러</th>
@@ -986,6 +1044,7 @@ function AdminProductMastersPage() {
                       <th className="px-3 py-2 text-center">판매 상태</th>
                       <th className="px-3 py-2 text-center">노출</th>
                       <th className="px-3 py-2 text-right">검수일</th>
+                      <th className="px-3 py-2 text-right">관리</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -1088,6 +1147,32 @@ function AdminProductMastersPage() {
                         <td className="whitespace-nowrap px-3 py-2 text-right text-xs text-slate-500">
                           {formatDate(book.created_at)}
                         </td>
+                        <td className="whitespace-nowrap px-3 py-2 text-right">
+                          {book.status === "on_sale" ? (
+                            <button
+                              className="rounded-md border border-rose-200 px-2.5 py-1 text-xs font-bold text-rose-600 hover:border-rose-400 hover:bg-rose-50 disabled:opacity-50"
+                              disabled={bookBusyId === book.id}
+                              onClick={() => handleBookDiscard(book)}
+                              title="이 권만 폐기합니다 (답지 없음·파손 등)"
+                              type="button"
+                            >
+                              {bookBusyId === book.id ? "처리 중" : "폐기"}
+                            </button>
+                          ) : book.status === "discarded" ? (
+                            <span className="text-xs text-slate-400">폐기됨</span>
+                          ) : (
+                            <span
+                              className="text-xs text-slate-300"
+                              title={
+                                book.status === "reserved"
+                                  ? "주문이 진행 중인 권입니다. 주문 취소·환불 후 폐기할 수 있습니다."
+                                  : "판매완료된 권은 폐기할 수 없습니다."
+                              }
+                            >
+                              폐기 불가
+                            </span>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -1129,6 +1214,7 @@ function AdminProductMastersPage() {
         open={!!destructiveModal}
         reasonMinLength={destructiveModal?.reasonMinLength}
         reasonPlaceholder={destructiveModal?.reasonPlaceholder}
+        reasonPresets={destructiveModal?.reasonPresets}
         reasonRequired={destructiveModal?.reasonRequired}
         title={destructiveModal?.title ?? ""}
       />
