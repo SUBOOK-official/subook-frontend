@@ -46,6 +46,7 @@ import {
   loadNicepaySdk,
   requestNicepayCardPay,
 } from "../lib/nicepay";
+import { PG_OVERRIDE } from "../lib/pgReviewMode";
 import { BANK_OPTIONS } from "../lib/publicMypageUtils";
 import "./PublicOrderPage.css";
 
@@ -606,10 +607,18 @@ const TOSS_ENABLED = import.meta.env.VITE_TOSS_ENABLED === "true";
 const TOSS_CLIENT_KEY = import.meta.env.VITE_TOSS_CLIENT_KEY || "";
 const TOSS_READY = TOSS_ENABLED && Boolean(TOSS_CLIENT_KEY);
 
+// 토스 전자결제 심사 모드 — ?pg=toss 세션은 결제창을 토스 결제위젯으로 강제한다.
+// 키가 없으면 공식 문서용 공개 테스트 키로 렌더링(실결제 불가, 결제창 확인 전용).
+// 심사 종료(라이브 키 전환) 시 lib/pgReviewMode.js와 함께 제거.
+const TOSS_DOCS_TEST_CLIENT_KEY = "test_gck_docs_Ovk5rk1EwkEbP0W43n07xlzm";
+const REVIEW_TOSS_CLIENT_KEY = TOSS_CLIENT_KEY || TOSS_DOCS_TEST_CLIENT_KEY;
+
 // PG 제공사 선택 — 나이스페이(결제창)와 토스(결제위젯)는 배타적으로 운용.
 // 나이스페이 포스타트 선도입(2026-07) 기간엔 나이스페이 우선, 둘 다 꺼져 있으면 계좌이체만.
-const PG_PROVIDER = NICEPAY_READY ? "nicepay" : TOSS_READY ? "toss" : null;
+const PG_PROVIDER = PG_OVERRIDE === "toss" ? "toss" : NICEPAY_READY ? "nicepay" : TOSS_READY ? "toss" : null;
 const PG_READY = PG_PROVIDER !== null;
+// 위젯 초기화에 실제 사용할 클라이언트 키 (심사 모드에서만 문서용 키 폴백 허용)
+const ACTIVE_TOSS_CLIENT_KEY = PG_OVERRIDE === "toss" ? REVIEW_TOSS_CLIENT_KEY : TOSS_CLIENT_KEY;
 
 // 결제위젯 orderName(최대 100자): "첫 상품명 외 N건"
 function buildOrderName(items) {
@@ -902,14 +911,16 @@ function PublicOrderPage() {
   //   async init이 경쟁(double render)하고 "결제 모듈을 불러오지 못했어요" 오류가 났다.
   //   금액 동기화는 아래 sync effect가 전담. init은 user에만 의존 + 동기 가드로 재진입 차단.
   useEffect(() => {
-    if (PG_PROVIDER !== "toss" || !user?.id || tossInitStartedRef.current) return;
+    if (PG_PROVIDER !== "toss" || tossInitStartedRef.current) return;
+    // 회원은 uid가 준비된 뒤 열고, 비회원(게스트 주문)은 ANONYMOUS로 바로 연다.
+    if (!user?.id && !isGuestCheckout) return;
     tossInitStartedRef.current = true;
     setTossLoadError(false);
     (async () => {
       try {
         const { loadTossPayments, ANONYMOUS } = await import("@tosspayments/tosspayments-sdk");
-        const toss = await loadTossPayments(TOSS_CLIENT_KEY);
-        const widgets = toss.widgets({ customerKey: user.id || ANONYMOUS });
+        const toss = await loadTossPayments(ACTIVE_TOSS_CLIENT_KEY);
+        const widgets = toss.widgets({ customerKey: user?.id || ANONYMOUS });
         const p = pricingRef.current || {};
         // setAmount는 render보다 먼저 호출해야 한다. 정확한 금액은 sync effect가 유지.
         await widgets.setAmount({
@@ -930,7 +941,7 @@ function PublicOrderPage() {
         }
       }
     })();
-  }, [user]);
+  }, [user, isGuestCheckout]);
 
   // 금액(쿠폰/배송비) 변동 시 결제위젯 금액 동기화
   useEffect(() => {

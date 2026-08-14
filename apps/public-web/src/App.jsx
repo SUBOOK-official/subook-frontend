@@ -1,6 +1,9 @@
 import { lazy, Suspense, useEffect, useRef } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate, useNavigationType } from "react-router-dom";
 import { usePublicAuth } from "./contexts/PublicAuthContext";
+// PG 심사 모드 파라미터(?pg=toss)는 부트 시점에 캡처해야 한다 — 페이지 모듈이 lazy라
+// 주문서 도착 시점엔 진입 파라미터가 이미 사라져 있기 때문 (side-effect import).
+import "./lib/pgReviewMode";
 
 const PublicAuthCallbackPage = lazy(() => import("./pages/PublicAuthCallbackPage"));
 const PublicCartPage = lazy(() => import("./pages/PublicCartPage"));
