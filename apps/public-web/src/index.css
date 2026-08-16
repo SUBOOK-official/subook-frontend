@@ -8106,15 +8106,19 @@ img {
     margin: 0 -16px;
     padding: 0 16px 4px;
     scroll-padding-left: 16px;
+    /* 카드 사이 간격 — 그리드(12px)보다 4px 좁혀 세 번째 카드 peek 폭을 벌어준다 */
+    gap: 8px;
   }
 
-  /* 모바일: 카드 폭을 아래 상품 그리드(2열, column-gap 12px)와 동일하게 맞춘다.
-     레일의 content-box 폭이 그리드 폭과 같으므로 (100% - 12px) / 2 는 그리드 열 폭과
-     정확히 일치한다. (뒤쪽 base 규칙에 덮이지 않도록 .__rail 하위로 명시도를 높임) */
+  /* 모바일: 카드 폭을 아래 상품 그리드(2열, column-gap 12px)에 맞추되, 세 번째 카드가
+     ~24px 보이도록(옆으로 넘길 수 있다는 신호) 그리드 열 폭에서 6px만 줄인다.
+     레일 content-box 폭 = 그리드 폭이라 (100% - 12px) / 2 가 곧 그리드 열 폭.
+     peek = 28px + 2×(줄인 폭) − 2×(레일 gap) = 28 + 12 − 16 = 24px.
+     (뒤쪽 base 규칙에 덮이지 않도록 .__rail 하위로 명시도를 높임) */
   .public-home-best-books__rail .public-home-best-books__card {
-    flex-basis: calc((100% - 12px) / 2);
-    min-width: calc((100% - 12px) / 2);
-    /* 표지↔본문 간격도 .public-product-card 기본값(10px)으로 되돌려 높이까지 일치 */
+    flex-basis: calc((100% - 12px) / 2 - 6px);
+    min-width: calc((100% - 12px) / 2 - 6px);
+    /* 표지↔본문 간격도 .public-product-card 기본값(10px)으로 되돌려 그리드 카드와 동일하게 */
     gap: 10px;
   }
 
