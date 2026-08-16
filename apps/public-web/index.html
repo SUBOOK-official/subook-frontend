@@ -48,6 +48,24 @@
     <!-- 도메인 전환(식스샵→신규) SEO: 정식 도메인 기준 canonical — temp 도메인 중복 색인 방지 -->
     <link rel="canonical" href="https://subook.kr/" />
 
+    <!-- 홈 히어로 1번 슬라이드(LCP) 선로딩 — HeroBanner의 767px 브레이크포인트와 동일하게 분기 -->
+    <link
+      rel="preload"
+      as="image"
+      type="image/webp"
+      href="/banners/hero-banner-1-mobile.webp"
+      media="(max-width: 767px)"
+      fetchpriority="high"
+    />
+    <link
+      rel="preload"
+      as="image"
+      type="image/webp"
+      href="/banners/hero-banner-1-desktop.webp"
+      media="(min-width: 768px)"
+      fetchpriority="high"
+    />
+
     <!-- Open Graph (카카오톡 / 페이스북 등 미리보기) -->
     <meta property="og:type" content="website" />
     <meta property="og:title" content="수북 | 수능을 위한 가장 똑똑한 선택" />

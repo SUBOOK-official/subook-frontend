@@ -92,6 +92,10 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
   const [products, setProducts] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  // API 실패를 빈 상태와 구분 (BestBooksSection의 hasFatalError 패턴).
+  const [hasFatalError, setHasFatalError] = useState(false);
+  // "다시 시도" — 값을 올려 같은 조건의 질의 useEffect를 재실행시킨다.
+  const [retryNonce, setRetryNonce] = useState(0);
   const [selectedSubject, setSelectedSubject] = useState(initialQueryState.selectedSubject);
   const [selectedFilters, setSelectedFilters] = useState(initialQueryState.selectedFilters);
   const [sortOption, setSortOption] = useState(initialQueryState.sortOption);
@@ -160,6 +164,7 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
         const resolvedTotal = result.totalCount ?? rows.length;
         setTotalCount(resolvedTotal);
         setProducts(rows);
+        setHasFatalError(false);
 
         // GA4 view_item_list — 결과 세트가 화면에 실제로 노출되는 시점마다 (조건·페이지 단위)
         trackViewItemList(
@@ -186,6 +191,7 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
         if (!cancelled && seq === requestSeqRef.current) {
           setProducts([]);
           setTotalCount(0);
+          setHasFatalError(true);
         }
       } finally {
         if (!cancelled && seq === requestSeqRef.current) {
@@ -198,7 +204,7 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
       cancelled = true;
     };
     // conditionKey가 subject/filters/search/sort를 모두 포괄한다. pageSize는 isMobileViewport 파생.
-  }, [conditionKey, currentPage, pageSize]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [conditionKey, currentPage, pageSize, retryNonce]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 뷰포트 추적 (페이지네이션 vs 무한 스크롤 분기)
   useEffect(() => {
@@ -481,7 +487,7 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
     setRestockSubmitState({ busy: false, done: true, error: "" });
   };
 
-  const isEmpty = !isLoading && displayedProducts.length === 0;
+  const isEmpty = !isLoading && !hasFatalError && displayedProducts.length === 0;
 
   // 검색 중일 때만 관련도순 노출 (기본 목록에선 의미 없는 정렬이라 숨김)
   const sortMenuOptions = searchKeyword
@@ -651,7 +657,7 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
           <div className="public-home-store-grid__active-filters">
             {searchKeyword ? (
               <span className="public-home-store-grid__search-chip">
-                {`"${searchKeyword}" 검색 결과 ${isLoading ? "…" : `${totalCount.toLocaleString("ko-KR")}건`}`}
+                {`"${searchKeyword}" 검색 결과 ${isLoading || hasFatalError ? "…" : `${totalCount.toLocaleString("ko-KR")}건`}`}
                 <button
                   aria-label="검색 해제"
                   className="public-home-store-grid__search-chip-remove"
@@ -683,6 +689,18 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
             {Array.from({ length: SKELETON_COUNT }, (_, index) => (
               <ProductCardSkeleton key={`home-store-skeleton-${index}`} />
             ))}
+          </div>
+        ) : hasFatalError ? (
+          /* 불러오기 실패 — 빈 상태("조건에 맞는 교재가 없어요")와 구분해 재시도 동선 제공 */
+          <div className="public-home-store-grid__empty" role="alert">
+            <strong>교재를 불러오지 못했습니다</strong>
+            <button
+              className="public-home-store-grid__empty-button"
+              onClick={() => setRetryNonce((nonce) => nonce + 1)}
+              type="button"
+            >
+              다시 시도
+            </button>
           </div>
         ) : isEmpty ? (
           <div className="public-home-store-grid__empty">

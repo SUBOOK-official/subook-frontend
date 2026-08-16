@@ -33,8 +33,8 @@ const HOME_HERO_SLIDES = [
     /* 폴백 슬라이드(이미지 미로드 시)도 브랜드 네이비 계열만 사용 */
     gradient: "135deg, #050933 0%, #080f47 55%, #2e5578 100%",
     actionType: "shop",
-    imageDesktop: "/banners/hero-banner-1-desktop.png",
-    imageMobile: "/banners/hero-banner-1-mobile.png",
+    imageDesktop: "/banners/hero-banner-1-desktop.webp",
+    imageMobile: "/banners/hero-banner-1-mobile.webp",
     imageAlt: "수능 끝, 안 쓴 교재를 합리적인 가격에 - 교재 보러가기",
   },
   {
@@ -50,15 +50,15 @@ const HOME_HERO_SLIDES = [
     /* 브랜드 teal(--public-teal) 계열 */
     gradient: "135deg, #056b70 0%, #0a8f84 100%",
     actionType: "pickup",
-    imageDesktop: "/banners/hero-banner-2-desktop.png",
-    imageMobile: "/banners/hero-banner-2-mobile.png",
+    imageDesktop: "/banners/hero-banner-2-desktop.webp",
+    imageMobile: "/banners/hero-banner-2-mobile.webp",
     imageAlt: "집에 쌓인 교재를 합리적인 정산금으로 - 판매 신청하기",
   },
   {
     id: "banner-3",
     actionType: "faq",
-    imageDesktop: "/banners/hero-banner-3-desktop.png",
-    imageMobile: "/banners/hero-banner-3-mobile.png",
+    imageDesktop: "/banners/hero-banner-3-desktop.webp",
+    imageMobile: "/banners/hero-banner-3-mobile.webp",
     imageAlt: "수북, 정말 믿고 사도 되는걸까요? 자주 묻는 질문 FAQ 바로가기",
   },
 ];

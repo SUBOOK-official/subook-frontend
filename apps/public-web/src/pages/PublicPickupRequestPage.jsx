@@ -264,6 +264,42 @@ function StepIntro({ onNext }) {
         </div>
       </section>
 
+      {/* 수수료·정산 — Step 4 약관 동의 라벨·접힘 약관과 동일 수치. 변경 시 3곳 동시 수정 */}
+      <section className="pickup-guide-section">
+        <p className="pickup-guide-section__title">수수료·정산</p>
+        <ul className="pickup-guide-list">
+          <li className="pickup-guide-list__item">
+            <span className="pickup-guide-list__icon">
+              <CoinIcon size={18} />
+            </span>
+            <div className="pickup-guide-list__text">
+              <strong>판매 수수료</strong>
+              <span>
+                판매가 1만원 초과 교재 40% · 1만원 이하 교재·모의고사 45%
+              </span>
+            </div>
+          </li>
+          <li className="pickup-guide-list__item">
+            <span className="pickup-guide-list__icon">
+              <ClockIcon size={18} />
+            </span>
+            <div className="pickup-guide-list__text">
+              <strong>정산 일정</strong>
+              <span>구매확정된 판매분을 매월 1일 등록 계좌로 일괄 지급</span>
+            </div>
+          </li>
+          <li className="pickup-guide-list__item">
+            <span className="pickup-guide-list__icon">
+              <BoxIcon size={18} />
+            </span>
+            <div className="pickup-guide-list__text">
+              <strong>상품화 비용</strong>
+              <span>박스 1개당 5,000원 정산 시 차감</span>
+            </div>
+          </li>
+        </ul>
+      </section>
+
       {/* 판매 가능 상품 — 아이콘 + 설명 */}
       <section className="pickup-guide-section">
         <p className="pickup-guide-section__title">판매 가능 상품</p>
@@ -1283,6 +1319,7 @@ function StepSettlement({
 
         {showPolicyDetail && (
           <div className="pickup-policy-box">
+            {/* 수수료·정산 수치는 StepIntro 수수료·정산 블록·위 동의 라벨과 동일 유지 */}
             <div className="pickup-policy-box__section">
               <p className="pickup-policy-box__heading">수수료 안내</p>
               <ul className="pickup-policy-box__list">

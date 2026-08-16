@@ -40,6 +40,10 @@ function PublicSubjectPage() {
   const [totalCount, setTotalCount] = useState(0);
   const [page, setPage] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
+  // API 실패를 빈 상태와 구분 (BestBooksSection의 hasFatalError 패턴).
+  const [hasFatalError, setHasFatalError] = useState(false);
+  // "다시 시도" — 값을 올려 질의 useEffect를 재실행시킨다.
+  const [retryNonce, setRetryNonce] = useState(0);
   const requestSeqRef = useRef(0);
 
   // 과목 전환 시 목록 리셋
@@ -47,6 +51,7 @@ function PublicSubjectPage() {
     setProducts([]);
     setTotalCount(0);
     setPage(1);
+    setHasFatalError(false);
   }, [subject]);
 
   useEffect(() => {
@@ -68,6 +73,7 @@ function PublicSubjectPage() {
         const rows = result.products ?? [];
         setTotalCount(result.totalCount ?? rows.length);
         setProducts((current) => (page === 1 ? rows : [...current, ...rows]));
+        setHasFatalError(false);
 
         // GA4 view_item_list — 과목 랜딩 목록 노출 (새로 로드된 페이지 단위)
         trackViewItemList(
@@ -82,9 +88,12 @@ function PublicSubjectPage() {
           })),
         );
       } catch {
+        // 첫 페이지 실패만 전면 에러로 처리. "더 보기" 실패는 기존 목록을 유지하고
+        // 버튼이 그대로 남아 재시도 동선이 된다.
         if (!cancelled && seq === requestSeqRef.current && page === 1) {
           setProducts([]);
           setTotalCount(0);
+          setHasFatalError(true);
         }
       } finally {
         if (!cancelled && seq === requestSeqRef.current) {
@@ -96,9 +105,9 @@ function PublicSubjectPage() {
     return () => {
       cancelled = true;
     };
-  }, [subject, page, isValidSubject]);
+  }, [subject, page, isValidSubject, retryNonce]);
 
-  const isEmpty = !isLoading && products.length === 0;
+  const isEmpty = !isLoading && !hasFatalError && products.length === 0;
   const hasMore = products.length < totalCount;
   const origin = typeof window !== "undefined" ? window.location.origin : "https://subook.kr";
 
@@ -110,7 +119,8 @@ function PublicSubjectPage() {
           title: `수능 ${subject} 교재`,
           description: `검수 완료된 수능 ${subject} 교재 — 새 책 수준의 미사용 교재를 합리적인 가격에.`,
           canonicalPath: `/store/subject/${encodeURIComponent(subject)}`,
-          noindex: isEmpty && totalCount === 0,
+          // noindex는 "정말 빈 결과"일 때만 — fetch 실패를 빈 페이지로 오인해 색인 제외하지 않는다.
+          noindex: !hasFatalError && isEmpty && totalCount === 0,
           jsonLd: [
             {
               "@context": "https://schema.org",
@@ -170,7 +180,9 @@ function PublicSubjectPage() {
         <div className="public-subject-head">
           <h1 className="public-subject-head__title">수능 {subject} 교재</h1>
           <span className="public-subject-head__count">
-            {isLoading && products.length === 0 ? "…" : `총 ${totalCount.toLocaleString("ko-KR")}종`}
+            {(isLoading && products.length === 0) || hasFatalError
+              ? "…"
+              : `총 ${totalCount.toLocaleString("ko-KR")}종`}
           </span>
         </div>
 
@@ -194,6 +206,18 @@ function PublicSubjectPage() {
             {Array.from({ length: SKELETON_COUNT }, (_, index) => (
               <ProductCardSkeleton key={`subject-skeleton-${index}`} />
             ))}
+          </div>
+        ) : hasFatalError ? (
+          /* 불러오기 실패 — "아직 등록된 교재가 없어요"와 구분해 재시도 동선 제공 */
+          <div className="public-subject-empty" role="alert">
+            <strong>교재를 불러오지 못했습니다</strong>
+            <button
+              className="public-subject-more__button"
+              onClick={() => setRetryNonce((nonce) => nonce + 1)}
+              type="button"
+            >
+              다시 시도
+            </button>
           </div>
         ) : isEmpty ? (
           <div className="public-subject-empty">

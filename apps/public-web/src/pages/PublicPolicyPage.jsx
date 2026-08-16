@@ -24,6 +24,13 @@ const POLICY_EFFECTIVE_DATES = {
   refund: "2026년 4월 12일",
 };
 
+// 정책별 최종 개정일 — 개정 시 여기 갱신 (null이면 표기 생략).
+const POLICY_LAST_REVISED_DATES = {
+  privacy: "2026년 8월 16일", // 수탁사 현행화(나이스페이먼츠·SOLAPI)·환불계좌 수집항목 반영 개정
+  terms: null,
+  refund: null,
+};
+
 // 문서 서두(전문) — 제목/시행일 바로 아래에 표시.
 const POLICY_INTROS = {
   privacy:
@@ -74,7 +81,9 @@ const privacySections = [
       headers: ["수탁업체", "위탁업무 내용"],
       rows: [
         ["CJ대한통운", "상품 수거 및 배송 업무"],
-        ["토스페이먼츠", "결제 처리 및 정산 업무"],
+        ["나이스페이먼츠(주)", "카드 결제 처리"],
+        ["토스페이먼츠", "결제 처리(연동 예정)"],
+        ["SOLAPI(주)", "카카오 알림톡·문자 발송 대행"],
         ["카카오톡 비즈니스채널", "주문·배송·환불 관련 안내 발송"],
       ],
     },
@@ -97,10 +106,11 @@ const privacySections = [
     paragraphs: ["① 회사는 다음의 개인정보 항목을 처리하고 있습니다."],
     list: [
       "필수항목: 이름, 이메일, 연락처, 배송지 주소, 정산 계좌정보(예금주명·은행명·계좌번호)",
+      "무통장입금 주문 시: 환불계좌 정보(은행명·계좌번호·예금주)",
       "서비스 이용 과정에서 자동으로 생성·수집될 수 있는 정보: 접속 IP, 쿠키, 서비스 이용기록, 접속 로그",
     ],
     paragraphsAfter: [
-      "② 정산 계좌번호는 서버에서 암호화하여 저장하며, 화면에는 마지막 4자리 중심의 마스킹 정보만 표시합니다.",
+      "② 정산 계좌번호는 서버에서 암호화하여 저장하며, 개인정보 취급 권한은 업무 수행에 필요한 최소한의 인원으로 제한하여 통제합니다.",
     ],
   },
   {
@@ -116,7 +126,7 @@ const privacySections = [
     paragraphs: [
       "회사는 개인정보의 안전성 확보를 위해 다음과 같은 조치를 취하고 있습니다.",
       "① 관리적 조치: 내부관리계획 수립·시행, 개인정보 취급 직원에 대한 정기적 교육",
-      "② 기술적 조치: 개인정보처리시스템 등의 접근권한 관리, 접근통제시스템 설치, 정산 계좌정보 등 주요 정보의 암호화, 마스킹 처리, 보안프로그램 설치 및 갱신",
+      "② 기술적 조치: 개인정보처리시스템 등의 접근권한 관리, 접근통제시스템 설치, 정산 계좌정보 등 주요 정보의 암호화, 보안프로그램 설치 및 갱신",
       "③ 물리적 조치: 전산실, 자료보관실 등의 접근 통제",
     ],
   },
@@ -488,6 +498,9 @@ function PublicPolicyPage({ type = "privacy" }) {
               <p className="public-policy-eyebrow">수북 정책</p>
               <h1>{title}</h1>
               <p className="public-policy-updated">시행일: {POLICY_EFFECTIVE_DATES[pageType] ?? POLICY_EFFECTIVE_DATES.privacy}</p>
+              {POLICY_LAST_REVISED_DATES[pageType] ? (
+                <p className="public-policy-updated">최종 개정일: {POLICY_LAST_REVISED_DATES[pageType]}</p>
+              ) : null}
               {intro ? <p className="public-policy-intro">{intro}</p> : null}
 
               <div className="public-policy-section-list">

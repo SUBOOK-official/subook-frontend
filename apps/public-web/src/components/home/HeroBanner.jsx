@@ -446,11 +446,22 @@ function HeroBanner({ onSlideAction, slides = [] }) {
             const isActive = cloneKey === null && slideIndex === activeIndex;
             const hasImage = Boolean(slide.imageDesktop);
             const hasClickAction = Boolean(slide.actionType || slide.href);
+            // 초기 LCP 이미지 = 첫 번째 실제 슬라이드(클론 제외)만 eager + 우선 로드.
+            // 활성 슬라이드 기준이 아니라 마운트 시점 기준이라 회전해도 로딩 정책이 바뀌지 않는다.
+            const isInitialLcpSlide = cloneKey === null && slideIndex === 0;
 
             const imageContent = (
               <picture>
                 {slide.imageMobile ? <source media={MOBILE_IMAGE_MEDIA_QUERY} srcSet={slide.imageMobile} /> : null}
-                <img alt={slide.imageAlt ?? ""} className="public-home-hero-banner__image" src={slide.imageDesktop} />
+                <img
+                  alt={slide.imageAlt ?? ""}
+                  className="public-home-hero-banner__image"
+                  decoding={isInitialLcpSlide ? undefined : "async"}
+                  /* React 18은 camelCase fetchPriority 미지원 — 소문자 속성으로 DOM에 그대로 전달 */
+                  fetchpriority={isInitialLcpSlide ? "high" : undefined}
+                  loading={isInitialLcpSlide ? undefined : "lazy"}
+                  src={slide.imageDesktop}
+                />
               </picture>
             );
 

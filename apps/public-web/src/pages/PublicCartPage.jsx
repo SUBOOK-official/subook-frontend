@@ -189,6 +189,8 @@ function PublicCartPage() {
   // 수량 변경 중인 그룹 key — 더블클릭/경쟁 방지로 해당 그룹 버튼 비활성.
   const [busyGroupKeys, setBusyGroupKeys] = useState(new Set());
   const [isLoading, setIsLoading] = useState(true);
+  // 불러오기 실패를 빈 장바구니와 구분 (BestBooksSection의 hasFatalError 패턴).
+  const [hasFatalError, setHasFatalError] = useState(false);
   const [toast, setToast] = useState(null);
   // 비로그인 진입 시 갑작스러운 /login 점프 대신 dialog로 맥락 안내 (codex UX 감사 권고).
   const [isMemberGateOpen, setIsMemberGateOpen] = useState(false);
@@ -243,35 +245,38 @@ function PublicCartPage() {
     }
 
     // P1-3: 주문 페이지 뒤로가기 시 selection 복원. 살아 있는 구매가능 item만 추려 복원.
-    const availableIdsArr = cartItems
-      .filter((i) => !i.is_sold_out && i.price !== null && i.price !== undefined)
-      .map((i) => i.id);
-    const availableIdSet = new Set(availableIdsArr);
-    const persisted = readPersistedCartSelection();
-    if (persisted && persisted.length > 0) {
-      const restored = persisted
-        .map((id) => Number(id))
-        .filter((id) => Number.isFinite(id) && availableIdSet.has(id));
-      setSelectedIds(restored.length > 0 ? new Set(restored) : new Set(availableIdsArr));
-    } else {
-      setSelectedIds(new Set(availableIdsArr));
+    // 불러오기 실패 시에는 빈 목록 기준으로 selection을 덮어쓰지 않는다(재시도 후 복원 유지).
+    if (!error) {
+      const availableIdsArr = cartItems
+        .filter((i) => !i.is_sold_out && i.price !== null && i.price !== undefined)
+        .map((i) => i.id);
+      const availableIdSet = new Set(availableIdsArr);
+      const persisted = readPersistedCartSelection();
+      if (persisted && persisted.length > 0) {
+        const restored = persisted
+          .map((id) => Number(id))
+          .filter((id) => Number.isFinite(id) && availableIdSet.has(id));
+        setSelectedIds(restored.length > 0 ? new Set(restored) : new Set(availableIdsArr));
+      } else {
+        setSelectedIds(new Set(availableIdsArr));
+      }
     }
 
-    if (error) {
-      showToast("장바구니를 불러오지 못했습니다.", "error");
-    }
+    // 실패는 토스트(사라짐) 대신 화면 에러 상태로 — 빈 장바구니로 위장되는 것 방지.
+    setHasFatalError(Boolean(error));
     setIsLoading(false);
 
     // 재고 맵은 백그라운드로 — 받기 전엔 "+"가 잠시 비활성(재고 미확인).
     const nextStockMap = await loadStockMap(cartItems);
     setStockMap(nextStockMap);
-  }, [showToast, loadStockMap]);
+  }, [loadStockMap]);
 
   // P1-3: 선택 변경 시 sessionStorage에 영속화 (mount 직후 빈 Set은 skip).
+  // 불러오기 실패 상태에서는 빈 selection으로 덮어쓰지 않는다.
   useEffect(() => {
-    if (isLoading) return;
+    if (isLoading || hasFatalError) return;
     persistCartSelection(selectedIds);
-  }, [selectedIds, isLoading]);
+  }, [selectedIds, isLoading, hasFatalError]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -565,6 +570,18 @@ function PublicCartPage() {
               {[1, 2, 3].map((i) => (
                 <div className="cart-skeleton__item" key={i} />
               ))}
+            </div>
+          ) : hasFatalError ? (
+            /* 불러오기 실패 — "장바구니가 비어있습니다"와 구분해 재시도 동선 제공 */
+            <div className="cart-empty" role="alert">
+              <p className="cart-empty__text">장바구니를 불러오지 못했습니다</p>
+              <button
+                className="cart-empty__link"
+                onClick={() => void loadCart()}
+                type="button"
+              >
+                다시 시도
+              </button>
             </div>
           ) : items.length === 0 ? (
             <div className="cart-empty">

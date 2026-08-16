@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { trackSelectPromotion, trackViewPromotion } from "../lib/analytics";
-import popupBannerImg from "../assets/popup-banner.png";
+import popupBannerImg from "../assets/popup-banner.webp";
 import "./PublicPopupBanner.css";
 
 const STORAGE_KEY = "subook.public.popup-banner.dismissed.v1";

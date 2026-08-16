@@ -445,6 +445,15 @@
   border-color: var(--public-ds-accent);
 }
 
+/* iOS Safari 포커스 강제 확대 방지 — 모바일 입력 폰트 16px */
+@media (max-width: 767px) {
+  .pickup-input,
+  .pickup-input--sm,
+  .pickup-select {
+    font-size: 16px;
+  }
+}
+
 .pickup-form-field {
   display: flex;
   flex-direction: column;

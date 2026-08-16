@@ -177,11 +177,17 @@ async function getCartItems() {
   // ⚠️ Supabase가 연결된 production에서는 localStorage 데모 카트를 emit하지 않는다.
   // mock book id(local-...)로 'create_order' RPC가 호출되면 'Book X is not available'
   // 에러로 사용자가 좌절. mock 카트는 데모 환경 전용.
-  const { data, error } = await supabase.rpc("get_cart_items");
-  if (error) {
-    return { items: [], error };
+  try {
+    const { data, error } = await supabase.rpc("get_cart_items");
+    if (error) {
+      return { items: [], error };
+    }
+    return { items: Array.isArray(data) ? data : [], error: null };
+  } catch (unexpectedError) {
+    // 네트워크 단절 등 rpc 자체가 throw하는 경우에도 호출부가 error 플래그로 구분 가능하게 정규화.
+    // (반환 형태 { items, error } 유지 — PublicSiteHeader/PublicCartPage 호출부 회귀 없음)
+    return { items: [], error: unexpectedError };
   }
-  return { items: Array.isArray(data) ? data : [], error: null };
 }
 
 async function updateCartItemQuantity(cartItemId, quantity) {

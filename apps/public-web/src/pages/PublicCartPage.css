@@ -98,6 +98,13 @@
   border: 1px solid var(--public-ds-border);
 }
 
+/* 불러오기 실패 재시도 — cart-empty__link 스타일을 button 요소에서 재사용하기 위한 리셋 */
+button.cart-empty__link {
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+
 /* P2-3: 가격 등록 지연 안내 배지 */
 .cart-item__sold-out-badge--stale {
   color: #7d5514;

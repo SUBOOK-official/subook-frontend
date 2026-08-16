@@ -447,6 +447,18 @@ export default async function handler(req, res) {
         tid,
         cancelResult,
       });
+      // 운영 슬랙 즉시 경보 — 고객 돈이 묶인 상태라 고객 문의 전에 인지해야 함
+      await fetchWithTimeout(`${supabaseUrl}/rest/v1/rpc/notify_ops_slack`, {
+        method: "POST",
+        headers: {
+          apikey: serviceKey,
+          Authorization: `Bearer ${serviceKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          p_text: `:rotating_light: 결제 CRITICAL: 승인 후 확정·자동취소 모두 실패 — 수동 환불 필요\n주문 ${orderId} · TID ${tid} · ${approvedAmount.toLocaleString("ko-KR")}원`,
+        }),
+      }).catch(() => {});
     }
     return failRedirect(
       res,

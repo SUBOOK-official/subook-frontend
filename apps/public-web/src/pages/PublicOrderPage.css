@@ -741,9 +741,10 @@
     font-size: 12px;
   }
 
+  /* iOS Safari 포커스 강제 확대 방지 — 16px 미만 금지 */
   .order-form__input,
   .order-refund-account__input {
-    font-size: 13px;
+    font-size: 16px;
   }
 
   .order-sidebar__title {
@@ -1243,6 +1244,13 @@
   box-shadow: var(--public-focus-ring);
 }
 
+/* iOS Safari 포커스 강제 확대 방지 — 모바일 입력 폰트 16px */
+@media (max-width: 767px) {
+  .order-modal__textarea {
+    font-size: 16px;
+  }
+}
+
 .order-modal__actions {
   display: flex;
   gap: 10px;
@@ -1383,6 +1391,13 @@
 
 .order-addrbook__input.is-error {
   border-bottom-color: var(--public-ds-danger, #d0342c);
+}
+
+/* iOS Safari 포커스 강제 확대 방지 — 모바일 입력 폰트 16px */
+@media (max-width: 767px) {
+  .order-addrbook__input {
+    font-size: 16px;
+  }
 }
 
 .order-addrbook__field-error {

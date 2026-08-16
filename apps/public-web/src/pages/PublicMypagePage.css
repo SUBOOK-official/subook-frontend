@@ -283,6 +283,13 @@
   border-color: var(--public-ds-primary);
 }
 
+/* iOS Safari 포커스 강제 확대 방지 — 모바일 입력 폰트 16px */
+@media (max-width: 767px) {
+  .public-mypage-sales-search__input {
+    font-size: 16px;
+  }
+}
+
 .public-mypage-pagination {
   display: flex;
   align-items: center;
@@ -569,6 +576,13 @@
   font-size: 14px;
   font-family: inherit;
   letter-spacing: 0.05em;
+}
+
+/* iOS Safari 포커스 강제 확대 방지 — 모바일 입력 폰트 16px */
+@media (max-width: 767px) {
+  .public-mypage-coupon-code-input {
+    font-size: 16px;
+  }
 }
 
 .public-mypage-coupon-code-submit {
@@ -1718,6 +1732,13 @@
   outline: none;
   border-color: var(--public-primary, #080F47);
   box-shadow: var(--public-focus-ring);
+}
+
+/* iOS Safari 포커스 강제 확대 방지 — 모바일 입력 폰트 16px */
+@media (max-width: 767px) {
+  .public-mypage-confirm__reason-input {
+    font-size: 16px;
+  }
 }
 
 .public-mypage-confirm__reason-hint {

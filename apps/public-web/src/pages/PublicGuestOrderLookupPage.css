@@ -73,6 +73,13 @@
   border-color: var(--public-ds-primary);
 }
 
+/* iOS Safari 포커스 강제 확대 방지 — 모바일 입력 폰트 16px */
+@media (max-width: 640px) {
+  .guest-lookup-field__input {
+    font-size: 16px;
+  }
+}
+
 .guest-lookup-error {
   font-size: 13px;
   color: var(--public-ds-danger);
