@@ -8108,14 +8108,19 @@ img {
     scroll-padding-left: 16px;
   }
 
-  /* 모바일: 카드를 넓혀 다음 카드가 살짝 보이며 오른쪽으로 슬라이드되도록.
-     (뒤쪽 base 규칙에 덮이지 않도록 .__rail 하위로 명시도를 높임) */
+  /* 모바일: 카드 폭을 아래 상품 그리드(2열, column-gap 12px)와 동일하게 맞춘다.
+     레일의 content-box 폭이 그리드 폭과 같으므로 (100% - 12px) / 2 는 그리드 열 폭과
+     정확히 일치한다. (뒤쪽 base 규칙에 덮이지 않도록 .__rail 하위로 명시도를 높임) */
   .public-home-best-books__rail .public-home-best-books__card {
-    flex-basis: 240px;
-    min-width: 240px;
+    flex-basis: calc((100% - 12px) / 2);
+    min-width: calc((100% - 12px) / 2);
+    /* 표지↔본문 간격도 .public-product-card 기본값(10px)으로 되돌려 높이까지 일치 */
+    gap: 10px;
   }
 
-  /* 메타데이터(연도·강사·과목) 줄은 모바일에선 숨겨 카드를 간결하게 */
+  /* 태그·메타데이터(연도·강사·과목) 줄은 모바일에선 숨겨 카드를 간결하게.
+     그리드 카드(.public-home-store-grid__list)와 같은 규칙이라 높이까지 동일해진다. */
+  .public-home-best-books__card .public-product-card__tags,
   .public-home-best-books__card .public-product-card__meta-line {
     display: none;
   }
