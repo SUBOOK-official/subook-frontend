@@ -2246,6 +2246,17 @@ function SalesTab({
                   </div>
 
                   <div className="public-mypage-flow-card__header-actions">
+                    {/* CJ 접수 전(pending)에만 노출 — 접수 후 취소는 운영 문의 경유.
+                        접힌 카드에서도 보이도록 헤더에 둔다(시험 신청 셀프 정리 경로). */}
+                    {shipment.canCancel && onCancelPickup ? (
+                      <button
+                        className="public-mypage-inline-link"
+                        onClick={() => onCancelPickup(shipment)}
+                        type="button"
+                      >
+                        신청 취소
+                      </button>
+                    ) : null}
                     {!shipment.compact ? (
                       <span className={`public-mypage-chip public-mypage-chip--${getShipmentStatusTone(shipment.status)}`}>
                         {getShipmentStatusLabel(shipment.status)}
@@ -2280,16 +2291,6 @@ function SalesTab({
                         </button>
                       ) : null}
 
-                      {/* CJ 접수 전(pending)에만 노출 — 접수 후 취소는 운영 문의 경유 */}
-                      {shipment.canCancel && onCancelPickup ? (
-                        <button
-                          className="public-mypage-inline-link"
-                          onClick={() => onCancelPickup(shipment)}
-                          type="button"
-                        >
-                          신청 취소
-                        </button>
-                      ) : null}
                     </div>
 
                     {/* P1: 현재 단계를 1.4x 노드 + bold 라벨로 강조해 "지금 어디 있지?" 인지속도 향상 */}

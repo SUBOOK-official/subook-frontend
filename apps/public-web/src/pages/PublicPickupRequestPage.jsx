@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import PublicSiteHeader from "../components/PublicSiteHeader";
 import PublicFooter from "../components/PublicFooter";
 import {
@@ -1657,7 +1657,11 @@ function PickupSuccess({ result, expectedCount, boxCount }) {
           <span> 책 습기로 인한 폐기 판정을 줄여요.</span>
         </p>
         <p className="pickup-success__guide-hint">
-          1~2일 내 CJ대한통운 택배기사가 수거합니다. 문제가 생기면{" "}
+          1~2일 내 CJ대한통운 택배기사가 수거합니다. 기사님 배정 전까지는{" "}
+          <Link className="pickup-success__guide-link" to="/mypage#sales">
+            마이페이지 판매 내역
+          </Link>
+          에서 신청을 직접 취소할 수 있어요. 문제가 생기면{" "}
           <a
             className="pickup-success__guide-link"
             href={KAKAO_CHANNEL_URL}
