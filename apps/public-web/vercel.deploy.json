@@ -22,6 +22,11 @@
       "source": "/question/:path*",
       "destination": "/",
       "permanent": true
+    },
+    {
+      "source": "/categories/:path*",
+      "destination": "/",
+      "permanent": true
     }
   ],
   "rewrites": [
