@@ -65,6 +65,9 @@
 
 .public-policy-section-list {
   display: grid;
+  /* minmax(0,1fr) 필수 — auto 트랙이면 표(min-width)가 그리드 아이템의
+     암묵적 min-width:auto를 타고 모바일에서 페이지를 가로로 밀어냄 */
+  grid-template-columns: minmax(0, 1fr);
   gap: 28px;
   margin-top: 36px;
 }
@@ -72,6 +75,7 @@
 .public-policy-section {
   border-top: 1px solid #e5e5e5;
   padding-top: 24px;
+  min-width: 0;
 }
 
 .public-policy-section h2 {
@@ -123,6 +127,7 @@
 /* 법정 보존기간·위탁현황·사업자 정보 표 */
 .public-policy-table-wrap {
   margin-top: 12px;
+  max-width: 100%;
   overflow-x: auto;
 }
 
@@ -170,5 +175,16 @@
 
   .public-policy-document h1 {
     font-size: 28px;
+  }
+
+  /* 모바일에선 고정 최소폭을 풀어 표가 화면 안에서 줄바꿈되도록 */
+  .public-policy-table {
+    font-size: 13px;
+    min-width: 0;
+  }
+
+  .public-policy-table th,
+  .public-policy-table td {
+    padding: 8px 10px;
   }
 }
