@@ -9,21 +9,24 @@ import StatusBadge from "@shared-domain/StatusBadge";
 import { notifySettlementDone } from "../lib/adminNotification";
 import { exportRowsToXlsx } from "../lib/excelFile";
 import { formatCurrency, formatDate } from "@shared-domain/format";
+import { settlementStatusLabel } from "@shared-domain/status";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { BusyText, InlineLoading, LoadingOverlay } from "../components/Loading";
 
 const PAGE_SIZE = 50;
 
-const STATUS_OPTIONS = [
-  { value: "pending", label: "정산 대기" },
-  { value: "approved", label: "승인 완료" },
+// 승인 단계 폐지(2026-08-19): 정산대기(pending)에서 송금 후 바로 정산완료로 처리한다.
+// 'approved'는 폐지 전에 승인만 되고 송금 전인 레거시 행 — '정산 대기' 필터에 합산 노출.
+const PAYABLE_STATUSES = ["pending", "approved"];
+
+const STATUS_FILTERS = [
+  { value: "all", label: "전체" },
+  { value: "payable", label: "정산 대기" },
   { value: "completed", label: "정산 완료" },
 ];
 
-const STATUS_FILTERS = [{ value: "all", label: "전체" }, ...STATUS_OPTIONS];
-
 function getStatusLabel(status) {
-  return STATUS_OPTIONS.find((option) => option.value === status)?.label ?? status;
+  return settlementStatusLabel[status] ?? status;
 }
 
 function normalizeSettlementResponse(data) {
@@ -90,7 +93,7 @@ function AdminSettlementsPage() {
   const [rows, setRows] = useState([]);
   const [summary, setSummary] = useState({});
   const [totalCount, setTotalCount] = useState(0);
-  const [statusFilter, setStatusFilter] = useState("pending");
+  const [statusFilter, setStatusFilter] = useState("payable");
   const [search, setSearch] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
@@ -110,7 +113,7 @@ function AdminSettlementsPage() {
   const [viewMode, setViewMode] = useState("list"); // list | payout
   const [payoutRows, setPayoutRows] = useState([]);
   const [payoutTotals, setPayoutTotals] = useState({ groupCount: 0, grandTotal: 0 });
-  const [payoutScope, setPayoutScope] = useState("approved"); // approved | with-pending
+  const [payoutScope, setPayoutScope] = useState("due"); // due(지급일 도래분) | all(전체 미지급)
   const [isPayoutLoading, setIsPayoutLoading] = useState(false);
   const [payoutExportConfirmOpen, setPayoutExportConfirmOpen] = useState(false);
   const [isPayoutExporting, setIsPayoutExporting] = useState(false);
@@ -127,13 +130,8 @@ function AdminSettlementsPage() {
     [rows, selectedIds],
   );
 
-  const selectedPendingIds = useMemo(
-    () => selectedRows.filter((row) => row.status === "pending").map((row) => row.id),
-    [selectedRows],
-  );
-
-  const selectedApprovedIds = useMemo(
-    () => selectedRows.filter((row) => row.status === "approved").map((row) => row.id),
+  const selectedPayableIds = useMemo(
+    () => selectedRows.filter((row) => PAYABLE_STATUSES.includes(row.status)).map((row) => row.id),
     [selectedRows],
   );
 
@@ -141,14 +139,10 @@ function AdminSettlementsPage() {
 
   const summaryCards = [
     {
+      // pending + 레거시 approved 합산 = 아직 송금 전인 모든 건
       label: "정산 대기",
-      value: `${summary.pending_count ?? 0}건`,
-      hint: formatCurrency(summary.pending_amount ?? 0),
-    },
-    {
-      label: "승인 완료",
-      value: `${summary.approved_count ?? 0}건`,
-      hint: formatCurrency(summary.approved_amount ?? 0),
+      value: `${(summary.pending_count ?? 0) + (summary.approved_count ?? 0)}건`,
+      hint: formatCurrency((summary.pending_amount ?? 0) + (summary.approved_amount ?? 0)),
     },
     {
       label: "정산 완료",
@@ -156,7 +150,7 @@ function AdminSettlementsPage() {
       hint: formatCurrency(summary.completed_amount ?? 0),
     },
     {
-      label: "오늘 승인 필요",
+      label: "오늘 지급 필요",
       value: `${summary.due_pending_count ?? 0}건`,
       hint: formatCurrency(summary.due_pending_amount ?? 0),
     },
@@ -204,7 +198,9 @@ function AdminSettlementsPage() {
       p_offset: (currentPage - 1) * PAGE_SIZE,
     };
 
-    if (statusFilter !== "all") {
+    if (statusFilter === "payable") {
+      params.p_statuses = PAYABLE_STATUSES;
+    } else if (statusFilter !== "all") {
       params.p_statuses = [statusFilter];
     }
     if (search.trim()) {
@@ -271,9 +267,9 @@ function AdminSettlementsPage() {
   const loadPayouts = useCallback(async () => {
     if (!isSupabaseConfigured || !supabase) return;
     setIsPayoutLoading(true);
-    const statuses = payoutScope === "with-pending" ? ["pending", "approved"] : ["approved"];
     const { data, error } = await supabase.rpc("admin_list_settlement_payouts", {
-      p_statuses: statuses,
+      p_statuses: PAYABLE_STATUSES,
+      p_due_only: payoutScope === "due",
     });
     setIsPayoutLoading(false);
 
@@ -360,26 +356,7 @@ function AdminSettlementsPage() {
     }
   };
 
-  const approveSettlements = async (ids) => {
-    if (!ids.length || !supabase) {
-      return;
-    }
-
-    setBusyAction("approve");
-    const { data, error } = await supabase.rpc("admin_approve_settlements", {
-      p_settlement_ids: ids,
-    });
-    setBusyAction("");
-
-    if (error) {
-      showToast(error.message || "정산 승인에 실패했습니다.", "error");
-      return;
-    }
-
-    showToast(`${data?.updated_count ?? 0}건을 승인했습니다.`, "success");
-    await loadSettlements();
-  };
-
+  // 승인 단계 폐지(2026-08-19): approveSettlements 제거 — 대기 건은 송금 후 바로 완료 처리
   const completeSettlements = async (ids, transferReference = null) => {
     if (!ids.length || !supabase) {
       return;
@@ -608,7 +585,7 @@ function AdminSettlementsPage() {
           </button>
         </div>
       }
-      description="구매확정 후 자동 생성된 정산 예정건을 승인하고 지급 완료까지 처리합니다."
+      description="구매확정 후 자동 생성된 정산 대기 건을 송금 후 바로 정산 완료로 처리합니다."
       summaryCards={summaryCards}
       title="정산"
     >
@@ -643,8 +620,8 @@ function AdminSettlementsPage() {
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 {[
-                  { value: "approved", label: "승인 완료만" },
-                  { value: "with-pending", label: "대기 포함" },
+                  { value: "due", label: "지급일 도래분" },
+                  { value: "all", label: "전체 미지급" },
                 ].map((option) => (
                   <button
                     aria-pressed={payoutScope === option.value}
@@ -681,7 +658,7 @@ function AdminSettlementsPage() {
               <p className="py-10 text-center text-sm font-semibold text-slate-400"><InlineLoading /></p>
             ) : payoutRows.length === 0 ? (
               <p className="py-10 text-center text-sm font-semibold text-slate-400">
-                지급 대상이 없습니다. (범위: {payoutScope === "approved" ? "승인 완료" : "대기 포함"})
+                지급 대상이 없습니다. (범위: {payoutScope === "due" ? "지급일 도래분" : "전체 미지급"})
               </p>
             ) : (
               <div className="overflow-x-auto">
@@ -708,32 +685,23 @@ function AdminSettlementsPage() {
                         <td className="px-4 py-3 text-slate-600">{row.seller_name}</td>
                         <td className="px-4 py-3 text-right font-semibold text-slate-700">
                           {row.settlement_count}건
-                          {row.pending_count > 0 ? (
-                            <span className="ml-1 text-xs font-semibold text-amber-600">
-                              (대기 {row.pending_count})
-                            </span>
-                          ) : null}
                         </td>
                         <td className="px-4 py-3 text-right font-black text-slate-950">
                           {formatCurrency(row.total_net_amount)}
                         </td>
                         <td className="px-4 py-3 text-right">
-                          {row.approved_count > 0 ? (
-                            <button
-                              className="btn-primary !inline-flex !w-auto !px-3 !py-2 text-xs"
-                              disabled={busyAction !== ""}
-                              onClick={() =>
-                                setCompleteConfirm({
-                                  ids: (row.settlement_ids ?? []).map(Number),
-                                })
-                              }
-                              type="button"
-                            >
-                              완료 처리 ({row.approved_count})
-                            </button>
-                          ) : (
-                            <span className="text-xs font-semibold text-slate-400">승인 대기</span>
-                          )}
+                          <button
+                            className="btn-primary !inline-flex !w-auto !px-3 !py-2 text-xs"
+                            disabled={busyAction !== ""}
+                            onClick={() =>
+                              setCompleteConfirm({
+                                ids: (row.settlement_ids ?? []).map(Number),
+                              })
+                            }
+                            type="button"
+                          >
+                            완료 처리 ({row.settlement_count})
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -872,20 +840,12 @@ function AdminSettlementsPage() {
           </p>
           <div className="flex flex-wrap gap-2">
             <button
-              className="btn-secondary !w-auto !px-4 !py-2 text-sm"
-              disabled={!selectedPendingIds.length || busyAction !== ""}
-              onClick={() => approveSettlements(selectedPendingIds)}
-              type="button"
-            >
-              {busyAction === "approve" ? <BusyText>승인 중...</BusyText> : `선택 승인 (${selectedPendingIds.length})`}
-            </button>
-            <button
               className="btn-primary !w-auto !px-4 !py-2 text-sm"
-              disabled={!selectedApprovedIds.length || busyAction !== ""}
-              onClick={() => setCompleteConfirm({ ids: selectedApprovedIds })}
+              disabled={!selectedPayableIds.length || busyAction !== ""}
+              onClick={() => setCompleteConfirm({ ids: selectedPayableIds })}
               type="button"
             >
-              {busyAction === "complete" ? <BusyText>처리 중...</BusyText> : `선택 정산 완료 (${selectedApprovedIds.length})`}
+              {busyAction === "complete" ? <BusyText>처리 중...</BusyText> : `선택 정산 완료 (${selectedPayableIds.length})`}
             </button>
           </div>
         </div>
@@ -979,24 +939,14 @@ function AdminSettlementsPage() {
                       ) : null}
                     </td>
                     <td className="px-4 py-3">
-                      {row.status === "pending" ? (
-                        <button
-                          className="btn-secondary !w-auto !px-3 !py-1.5 text-xs"
-                          disabled={busyAction !== ""}
-                          onClick={() => approveSettlements([row.id])}
-                          type="button"
-                        >
-                          승인
-                        </button>
-                      ) : null}
-                      {row.status === "approved" ? (
+                      {PAYABLE_STATUSES.includes(row.status) ? (
                         <button
                           className="btn-primary !w-auto !px-3 !py-1.5 text-xs"
                           disabled={busyAction !== ""}
                           onClick={() => setCompleteConfirm({ ids: [row.id] })}
                           type="button"
                         >
-                          완료
+                          정산 완료
                         </button>
                       ) : null}
                     </td>

@@ -46,7 +46,9 @@ export function useAdminBadgeCounts() {
     inflightRef.current = true;
 
     try {
-      const today = new Date().toISOString().slice(0, 10);
+      // 로컬(KST) 기준 날짜 — toISOString은 UTC라 KST 새벽 0~9시에 전날로 밀린다
+      const now = new Date();
+      const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
       const oneDayAgoIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
       const [
@@ -55,7 +57,6 @@ export function useAdminBadgeCounts() {
         ordersPending,
         ordersPreparing,
         settlementsDue,
-        settlementsApproved,
         failedNotifications,
       ] = await Promise.all([
         fetchHeadCount("pickup_requests", (q) => q.eq("status", "pending")),
@@ -66,11 +67,10 @@ export function useAdminBadgeCounts() {
         // '오늘 할 일' 카드가 두 단계를 구분해 안내하도록 분리 집계 (nav 배지는 합산 사용).
         fetchHeadCount("orders", (q) => q.eq("status", "pending")),
         fetchHeadCount("orders", (q) => q.eq("status", "preparing")),
+        // 승인 단계 폐지(2026-08-19): 미지급(pending + 레거시 approved) 중 지급일 도래분만 배지
         fetchHeadCount("settlements", (q) =>
-          q.eq("status", "pending").lte("scheduled_date", today),
+          q.in("status", ["pending", "approved"]).lte("scheduled_date", today),
         ),
-        // 승인 후 실지급 대기 — 매월 1일 사이클에서 승인만 하고 송금을 잊으면 신호가 없던 구멍
-        fetchHeadCount("settlements", (q) => q.eq("status", "approved")),
         // 발송 실패는 24시간 창으로 셈 (전체 누적이면 과거 실패가 영구히 배지에 남음)
         fetchHeadCount("notification_logs", (q) =>
           q.eq("status", "failed").gte("created_at", oneDayAgoIso),
@@ -83,7 +83,7 @@ export function useAdminBadgeCounts() {
         orders: ordersPending + ordersPreparing,
         ordersPending,
         ordersPreparing,
-        settlements: settlementsDue + settlementsApproved,
+        settlements: settlementsDue,
         failedNotifications,
         loaded: true,
       });
