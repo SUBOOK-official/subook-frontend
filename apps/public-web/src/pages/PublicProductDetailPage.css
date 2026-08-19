@@ -1122,6 +1122,33 @@
   margin-top: 48px;
 }
 
+/* 시리즈·강사 랜딩 교차링크 — 비슷한 교재 섹션 상단 칩 */
+.public-detail-collections {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.public-detail-collections__link {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 14px;
+  border: 1px solid var(--public-border, #e5e5e5);
+  border-radius: 999px;
+  background: #ffffff;
+  color: var(--public-ds-text, #232323);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.public-detail-collections__link:hover {
+  border-color: var(--public-primary, #080f47);
+  color: var(--public-primary, #080f47);
+}
+
 .public-detail-related__header {
   display: flex;
   align-items: center;

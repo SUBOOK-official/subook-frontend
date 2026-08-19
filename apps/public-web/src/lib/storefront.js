@@ -717,6 +717,12 @@ function buildStorefrontRpcArgs(filters = {}) {
     Array.isArray(filters.years) && filters.years.length > 0
       ? filters.years.map((year) => normalizeInteger(year)).filter((year) => year !== null)
       : [];
+  const instructors = Array.isArray(filters.instructors)
+    ? filters.instructors.map(normalizeText).filter(Boolean)
+    : [];
+  const titleTerms = Array.isArray(filters.titleTerms)
+    ? filters.titleTerms.map(normalizeText).filter(Boolean)
+    : [];
 
   return {
     p_subjects: selectedSubject && selectedSubject !== STORE_DEFAULT_SUBJECT ? [selectedSubject] : null,
@@ -731,6 +737,10 @@ function buildStorefrontRpcArgs(filters = {}) {
     p_sort: normalizeStoreSort(filters.sort),
     p_limit: normalizeInteger(filters.limit) ?? DEFAULT_CATALOG_LIMIT,
     p_offset: normalizeInteger(filters.offset) ?? 0,
+    // 시리즈·강사 랜딩 전용 필터 — 값이 있을 때만 인자에 포함해, 파라미터가 없는
+    // 레거시 RPC fallback 호출과의 인자 호환을 유지한다.
+    ...(instructors.length > 0 ? { p_instructors: instructors } : {}),
+    ...(titleTerms.length > 0 ? { p_title_terms: titleTerms } : {}),
   };
 }
 
@@ -779,9 +789,24 @@ function filterStorefrontProducts(products, filters = {}) {
   const selectedBrands = Array.isArray(filters.brands) ? filters.brands : [];
   const selectedYears = Array.isArray(filters.years) ? filters.years : [];
   const selectedConditionGrades = Array.isArray(filters.conditionGrades) ? filters.conditionGrades : [];
+  const selectedInstructors = Array.isArray(filters.instructors) ? filters.instructors : [];
+  const selectedTitleTerms = Array.isArray(filters.titleTerms) ? filters.titleTerms : [];
 
   return products.filter((product) => {
     if (selectedSubject && selectedSubject !== STORE_DEFAULT_SUBJECT && product.subject !== selectedSubject) {
+      return false;
+    }
+
+    if (selectedInstructors.length > 0 && !selectedInstructors.includes(product.instructorName ?? "")) {
+      return false;
+    }
+
+    if (
+      selectedTitleTerms.length > 0 &&
+      !selectedTitleTerms.some((term) =>
+        String(product.title ?? "").toLowerCase().includes(String(term).toLowerCase()),
+      )
+    ) {
       return false;
     }
 
@@ -857,6 +882,8 @@ function hasScopedStorefrontFilters(filters = {}) {
       (Array.isArray(filters.brands) && filters.brands.length > 0) ||
       (Array.isArray(filters.years) && filters.years.length > 0) ||
       (Array.isArray(filters.conditionGrades) && filters.conditionGrades.length > 0) ||
+      (Array.isArray(filters.instructors) && filters.instructors.length > 0) ||
+      (Array.isArray(filters.titleTerms) && filters.titleTerms.length > 0) ||
       search,
   );
 }

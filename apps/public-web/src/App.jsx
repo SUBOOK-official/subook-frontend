@@ -28,6 +28,7 @@ const PublicResetPasswordPage = lazy(() => import("./pages/PublicResetPasswordPa
 const PublicSignupPage = lazy(() => import("./pages/PublicSignupPage"));
 const PublicSignupSuccessPage = lazy(() => import("./pages/PublicSignupSuccessPage"));
 const PublicSubjectPage = lazy(() => import("./pages/PublicSubjectPage"));
+const PublicCollectionPage = lazy(() => import("./pages/PublicCollectionPage"));
 
 function PageLoadingFallback() {
   return (
@@ -117,6 +118,8 @@ function App() {
           <Route element={<PublicPolicyPage type="privacy" />} path="/privacy" />
           <Route element={<PublicPolicyPage type="refund" />} path="/refund" />
           <Route element={<PublicSubjectPage />} path="/store/subject/:subject" />
+          <Route element={<PublicCollectionPage type="series" />} path="/store/series/:slug" />
+          <Route element={<PublicCollectionPage type="instructor" />} path="/store/instructor/:slug" />
           <Route element={<PublicProductDetailPage />} path="/store/:productId" />
           <Route element={<PublicSignupPage />} path="/signup" />
           <Route element={<PublicSignupSuccessPage />} path="/signup-success" />

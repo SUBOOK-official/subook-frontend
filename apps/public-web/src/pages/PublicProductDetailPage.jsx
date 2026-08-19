@@ -25,6 +25,10 @@ import {
   readPendingMemberAction,
 } from "../lib/pendingMemberAction";
 import { usePageMeta } from "../lib/usePageMeta";
+import {
+  findInstructorCollectionByName,
+  findSeriesForTitle,
+} from "../lib/publicStoreCollections";
 import { STORE_DEFAULT_SUBJECT, STORE_SUBJECTS } from "../lib/publicStoreNavigation";
 import {
   getDetailImageUrl,
@@ -782,7 +786,7 @@ function ProductImageLightbox({
 
 const RELATED_RAIL_LIST_NAME = "비슷한 교재 추천";
 
-function RelatedProductsRail({ products, favoriteIds, onToggleFavorite }) {
+function RelatedProductsRail({ products, favoriteIds, onToggleFavorite, collectionLinks = [] }) {
   const railRef = useRef(null);
   const [canScrollPrev, setCanScrollPrev] = useState(false);
   const [canScrollNext, setCanScrollNext] = useState(false);
@@ -857,6 +861,15 @@ function RelatedProductsRail({ products, favoriteIds, onToggleFavorite }) {
 
   return (
     <section aria-label="비슷한 교재 추천" className="public-detail-related">
+      {collectionLinks.length > 0 ? (
+        <nav aria-label="시리즈·강사별 교재" className="public-detail-collections">
+          {collectionLinks.map((link) => (
+            <Link className="public-detail-collections__link" key={link.to} to={link.to}>
+              {link.label} 전체보기
+            </Link>
+          ))}
+        </nav>
+      ) : null}
       <div className="public-detail-related__header">
         <h2 className="public-detail-related__title">비슷한 교재 추천</h2>
         {hasOverflow ? (
@@ -1024,6 +1037,28 @@ function PublicProductDetailPage() {
       : undefined,
   });
   const [relatedProducts, setRelatedProducts] = useState([]);
+  // 시리즈·강사 랜딩 교차링크 — 큐레이션에 있는 상품에만 노출 (프리렌더 nav와 동일 대상)
+  const collectionLinks = useMemo(() => {
+    if (!product) return [];
+    const links = [];
+    const instructorCollection = findInstructorCollectionByName(
+      product.instructorName ?? product.instructor_name,
+    );
+    if (instructorCollection) {
+      links.push({
+        to: `/store/instructor/${encodeURIComponent(instructorCollection.slug)}`,
+        label: `${instructorCollection.name} ${instructorCollection.subject} 교재`,
+      });
+    }
+    const seriesCollection = findSeriesForTitle(product.title);
+    if (seriesCollection) {
+      links.push({
+        to: `/store/series/${encodeURIComponent(seriesCollection.slug)}`,
+        label: `${seriesCollection.label} 교재`,
+      });
+    }
+    return links;
+  }, [product]);
   // 다중 옵션 선택: [{ key: 회차, quantity }]. 단일재고 모델이라 회차별 수량은 그 회차의
   // 남은 책 수로 캡되고, 담기/구매 시 회차별로 distinct한 book_id가 할당된다.
   const [selections, setSelections] = useState([]);
@@ -1912,8 +1947,9 @@ function PublicProductDetailPage() {
             </section>
             </div>
 
-            {/* 비슷한 교재 추천 (가로 스크롤) */}
+            {/* 비슷한 교재 추천 (가로 스크롤) + 시리즈·강사 랜딩 교차링크 */}
             <RelatedProductsRail
+              collectionLinks={collectionLinks}
               favoriteIds={favoriteIds}
               onToggleFavorite={handleToggleFavorite}
               products={relatedProducts}

@@ -50,6 +50,28 @@
       "destination": "/api/prerender-subject?subject=:subject"
     },
     {
+      "source": "/store/series/:key",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(yeti|naverbot|googlebot|google-inspectiontool|bingbot|kakaotalk-scrap|kakaostory-og-reader|facebookexternalhit|facebot|twitterbot|slackbot|telegrambot|whatsapp|linkedinbot|discordbot|applebot|petalbot|duckduckbot|baiduspider|yandexbot|daumoa|daum/|daumwebmastertool|gptbot|oai-searchbot|chatgpt-user|claudebot|claude-user|claude-searchbot|perplexitybot|perplexity-user|meta-externalagent|meta-externalfetcher|meta-webindexer|amazonbot|ccbot|bytespider|mistralai-user).*"
+        }
+      ],
+      "destination": "/api/prerender-collection?type=series&key=:key"
+    },
+    {
+      "source": "/store/instructor/:key",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(yeti|naverbot|googlebot|google-inspectiontool|bingbot|kakaotalk-scrap|kakaostory-og-reader|facebookexternalhit|facebot|twitterbot|slackbot|telegrambot|whatsapp|linkedinbot|discordbot|applebot|petalbot|duckduckbot|baiduspider|yandexbot|daumoa|daum/|daumwebmastertool|gptbot|oai-searchbot|chatgpt-user|claudebot|claude-user|claude-searchbot|perplexitybot|perplexity-user|meta-externalagent|meta-externalfetcher|meta-webindexer|amazonbot|ccbot|bytespider|mistralai-user).*"
+        }
+      ],
+      "destination": "/api/prerender-collection?type=instructor&key=:key"
+    },
+    {
       "source": "/store/:id(\\d+)",
       "has": [
         {

@@ -21,6 +21,8 @@
 - [수능 과학 교재](https://subook.kr/store/subject/과학)
 - [수능 사회 교재](https://subook.kr/store/subject/사회)
 - [수능 한국사 교재](https://subook.kr/store/subject/한국사)
+- 시리즈별 목록 (/store/series/{시리즈}): [시대인재 숏컷](https://subook.kr/store/series/숏컷) · [볼텍스](https://subook.kr/store/series/볼텍스) · [엣지](https://subook.kr/store/series/엣지) · [브릿지](https://subook.kr/store/series/브릿지) · [엑셀러레이터](https://subook.kr/store/series/엑셀러레이터) · [서바이벌](https://subook.kr/store/series/서바이벌) · [강기본](https://subook.kr/store/series/강기본)
+- 강사별 목록 (/store/instructor/{강사명}): [박종민](https://subook.kr/store/instructor/박종민) · [이동준](https://subook.kr/store/instructor/이동준) · [안가람](https://subook.kr/store/instructor/안가람) · [김현우](https://subook.kr/store/instructor/김현우) · [김범찬](https://subook.kr/store/instructor/김범찬) · [이신혁](https://subook.kr/store/instructor/이신혁) · [김강민](https://subook.kr/store/instructor/김강민) · [손창빈](https://subook.kr/store/instructor/손창빈) · [현우진](https://subook.kr/store/instructor/현우진) · [강민철](https://subook.kr/store/instructor/강민철) · [백호](https://subook.kr/store/instructor/백호)
 - [교재 판매 (수거 신청)](https://subook.kr/pickup/new)
 - [자주 묻는 질문](https://subook.kr/faq)
 - [공지사항](https://subook.kr/notices)
@@ -29,4 +31,4 @@
 ## 크롤링 안내
 
 - 사이트맵: https://subook.kr/sitemap.xml
-- 상품 상세(/store/{id}), 과목별 목록(/store/subject/{과목}), 자주 묻는 질문(/faq)은 검색·AI 크롤러에 서버 렌더링된 HTML(schema.org JSON-LD 포함)로 제공된다.
+- 상품 상세(/store/{id}), 과목별 목록(/store/subject/{과목}), 시리즈별 목록(/store/series/{시리즈}), 강사별 목록(/store/instructor/{강사명}), 자주 묻는 질문(/faq)은 검색·AI 크롤러에 서버 렌더링된 HTML(schema.org JSON-LD 포함)로 제공된다.

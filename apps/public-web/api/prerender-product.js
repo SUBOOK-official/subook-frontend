@@ -85,6 +85,47 @@ const GRADE_LABELS = { S: "S(새책)", "A+": "A+", A_PLUS: "A+", A: "A" };
 //   (과목 랜딩 /store/subject/:subject 링크·빵부스러기 대상 판정용)
 const SUBJECT_PAGE_SUBJECTS = ["국어", "수학", "영어", "과학", "사회", "한국사", "기타"];
 
+// 시리즈·강사 랜딩(/store/series/:slug, /store/instructor/:slug) 교차링크용 큐레이션.
+// ⚠ src/lib/publicStoreCollections.js·api/prerender-collection.js와 반드시 동기 유지
+const SERIES_COLLECTIONS = [
+  { slug: "숏컷", label: "시대인재 숏컷", terms: ["숏컷", "shortcut"] },
+  { slug: "볼텍스", label: "시대인재 볼텍스", terms: ["볼텍스", "vortex"] },
+  { slug: "엣지", label: "시대인재 엣지", terms: ["엣지", "edge"] },
+  { slug: "브릿지", label: "시대인재 브릿지", terms: ["브릿지", "bridge"] },
+  { slug: "엑셀러레이터", label: "시대인재 엑셀러레이터", terms: ["엑셀러레이터", "accelerator"] },
+  { slug: "서바이벌", label: "시대인재 서바이벌", terms: ["서바"] },
+  { slug: "강기본", label: "강기본", terms: ["강기본"] },
+];
+const INSTRUCTOR_COLLECTIONS = [
+  { slug: "박종민", name: "박종민", subject: "수학" },
+  { slug: "이동준", name: "이동준", subject: "수학" },
+  { slug: "안가람", name: "안가람", subject: "수학" },
+  { slug: "김현우", name: "김현우", subject: "수학" },
+  { slug: "김범찬", name: "김범찬", subject: "수학" },
+  { slug: "이신혁", name: "이신혁", subject: "지구과학" },
+  { slug: "김강민", name: "김강민", subject: "화학" },
+  { slug: "손창빈", name: "손창빈", subject: "국어" },
+  { slug: "현우진", name: "현우진", subject: "수학" },
+  { slug: "강민철", name: "강민철", subject: "국어" },
+  { slug: "백호", name: "백호", subject: "생명과학" },
+];
+
+function findSeriesForTitle(title) {
+  const normalizedTitle = String(title ?? "").toLowerCase();
+  if (!normalizedTitle) return null;
+  return (
+    SERIES_COLLECTIONS.find((series) =>
+      series.terms.some((term) => normalizedTitle.includes(term.toLowerCase())),
+    ) ?? null
+  );
+}
+
+function findInstructorByName(name) {
+  const normalized = String(name ?? "").trim();
+  if (!normalized) return null;
+  return INSTRUCTOR_COLLECTIONS.find((instructor) => instructor.name === normalized) ?? null;
+}
+
 // 관련 교재(비슷한 교재) — SPA 상세와 동일 소스(get_public_store_product_detail RPC의
 // related_books)를 사용해 봇/사람 간 내용 일치 유지. 부가 정보라 실패 시 빈 배열.
 async function fetchRelatedBooks({ url, key, productId }) {
@@ -209,6 +250,10 @@ function buildHtml({ product, stock, relatedBooks }) {
   const subjectPageUrl = hasSubjectPage
     ? `${SITE_ORIGIN}/store/subject/${encodeURIComponent(product.subject)}`
     : null;
+
+  // 시리즈·강사 랜딩 교차링크 (SPA 상세의 컬렉션 링크와 동일 대상)
+  const seriesCollection = findSeriesForTitle(product.title);
+  const instructorCollection = findInstructorByName(product.instructor_name);
 
   // 빵부스러기 — SPA(PublicProductDetailPage usePageMeta jsonLd)와 동일 구조 유지
   const breadcrumbJsonLd = {
@@ -338,7 +383,15 @@ function buildHtml({ product, stock, relatedBooks }) {
       </article>
       <nav>
         <a href="${SITE_ORIGIN}/">홈</a> ·
-        ${subjectPageUrl ? `<a href="${subjectPageUrl}">수능 ${escapeHtml(product.subject)} 교재</a> · ` : ""}<a href="${SITE_ORIGIN}/pickup/new">교재 판매(수거 신청)</a> ·
+        ${subjectPageUrl ? `<a href="${subjectPageUrl}">수능 ${escapeHtml(product.subject)} 교재</a> · ` : ""}${
+          instructorCollection
+            ? `<a href="${SITE_ORIGIN}/store/instructor/${encodeURIComponent(instructorCollection.slug)}">${escapeHtml(`${instructorCollection.name} ${instructorCollection.subject} 교재`)}</a> · `
+            : ""
+        }${
+          seriesCollection
+            ? `<a href="${SITE_ORIGIN}/store/series/${encodeURIComponent(seriesCollection.slug)}">${escapeHtml(`${seriesCollection.label} 교재`)}</a> · `
+            : ""
+        }<a href="${SITE_ORIGIN}/pickup/new">교재 판매(수거 신청)</a> ·
         <a href="${SITE_ORIGIN}/faq">자주 묻는 질문</a>
       </nav>
     </main>
