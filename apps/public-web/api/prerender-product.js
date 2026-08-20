@@ -404,7 +404,7 @@ function sendHtml(res, statusCode, html) {
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   // 같은 URL이 사람(SPA)/봇(프리렌더)으로 갈리므로 캐시는 UA로 분리
   res.setHeader("Vary", "User-Agent");
-  res.setHeader("Cache-Control", "public, max-age=0, s-maxage=600, stale-while-revalidate=3600");
+  res.setHeader("Cache-Control", "public, max-age=0, s-maxage=600, stale-while-revalidate=604800");
   res.status(statusCode).send(html);
 }
 
