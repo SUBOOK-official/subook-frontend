@@ -27,6 +27,21 @@
       "source": "/categories/:path*",
       "destination": "/",
       "permanent": true
+    },
+    {
+      "source": "/category/:path*",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/my-page/:path*",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/qna/:path*",
+      "destination": "/",
+      "permanent": true
     }
   ],
   "rewrites": [
