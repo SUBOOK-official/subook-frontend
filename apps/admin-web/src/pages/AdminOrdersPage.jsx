@@ -998,6 +998,37 @@ function AdminOrdersPage() {
     });
   };
 
+  // 환불 신청 반려(종결) — 보류 중이던 자동 구매확정·정산 송금이 재개된다 (2026-08-24)
+  const confirmResolveRefundRequest = (order) => {
+    setDestructiveModal({
+      title: (
+        <>
+          <AlertTriangleIcon size={16} /> 환불 신청 반려
+        </>
+      ),
+      description:
+        "환불 신청을 반려(종결) 처리합니다.\n\n" +
+        "보류 중이던 자동 구매확정과 셀러 정산 송금이 재개됩니다.\n" +
+        "구매자와 협의가 끝난 경우에만 진행하세요.\n" +
+        "(반려 알림은 자동 발송되지 않습니다 — 구매자에게 직접 안내해 주세요.)",
+      confirmLabel: "반려 — 확정 재개",
+      run: async () => {
+        setReturnBusy(true);
+        const { error } = await supabase.rpc("admin_resolve_refund_request", {
+          p_order_id: order.id,
+        });
+        setReturnBusy(false);
+        if (error) {
+          showToast(error.message || "반려 처리에 실패했습니다.", "error");
+          return;
+        }
+        showToast("환불 신청을 반려했습니다 — 자동 구매확정·정산 송금이 재개됩니다.", "success");
+        await loadOrders();
+        await loadSummary();
+      },
+    });
+  };
+
   // 정산완료(송금됨) 품목을 환불하면 그 정산금은 회사 손실. 셀러 정산은 회수하지 않음.
   const confirmRecoveryLoss = (order, params, { registerReturn = false } = {}) => {
     setDestructiveModal({
@@ -1507,8 +1538,24 @@ function AdminOrdersPage() {
         </div>
       )}
 
-      {/* 환불 신청 사유 — 구매자가 신청했고 아직 처리 안 된 경우 강조 */}
+      {/* 환불 신청 사유 — 미해소 신청은 강조(자동확정·송금 보류), 해소(처리/반려)되면 이력만 */}
       {selectedOrder.refund_requested_at && selectedOrder.status !== "refunded" && (
+        selectedOrder.refund_request_resolved_at ? (
+          <div className="rounded-lg bg-slate-50 px-4 py-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                환불 신청 이력 — {Number(selectedOrder.refunded_amount ?? 0) > 0 ? "부분환불 처리됨" : "반려됨"}
+              </h4>
+              <span className="text-xs text-slate-500">
+                {formatDate(selectedOrder.refund_requested_at)} 신청 · {formatDate(selectedOrder.refund_request_resolved_at)} 해소
+              </span>
+            </div>
+            <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">
+              {selectedOrder.refund_request_reason || "사유 미기재"}
+            </p>
+            <p className="mt-2 text-xs text-slate-500">자동 구매확정·정산 송금이 재개된 상태입니다.</p>
+          </div>
+        ) : (
         <div className="rounded-lg border-l-4 border-rose-500 bg-rose-50 px-4 py-3">
           <div className="flex items-center justify-between">
             <h4 className="text-xs font-bold text-rose-700 uppercase tracking-wider">
@@ -1535,9 +1582,18 @@ function AdminOrdersPage() {
             )
           )}
           <p className="mt-2 text-xs text-rose-600">
-            아래 "환불처리" 버튼으로 처리하거나, 구매자와 협의 후 보류할 수 있습니다.
+            처리 전까지 자동 구매확정·정산 송금이 보류됩니다 — 아래 "환불처리"로 진행하거나, 협의 종결 시 신청 반려로 재개하세요.
           </p>
+          <button
+            className="btn-ghost !w-auto !px-3 !py-1.5 mt-2 text-xs"
+            disabled={returnBusy}
+            onClick={() => confirmResolveRefundRequest(selectedOrder)}
+            type="button"
+          >
+            신청 반려 — 자동확정 재개
+          </button>
         </div>
+        )
       )}
 
       {/* 환불 완료 내역 — 이미 처리된 주문이면 결과 표시 */}
@@ -2009,9 +2065,11 @@ function AdminOrdersPage() {
               </thead>
               <tbody>
                 {orders.map((order) => {
-                  // 구매자가 환불 신청해 둔 상태(아직 미처리). 행 자체를 빨갛게 강조.
+                  // 구매자가 환불 신청해 둔 상태(아직 미처리·미반려). 행 자체를 빨갛게 강조.
                   const hasPendingRefundRequest =
-                    Boolean(order.refund_requested_at) && order.status !== "refunded";
+                    Boolean(order.refund_requested_at)
+                    && !order.refund_request_resolved_at
+                    && order.status !== "refunded";
                   return (
                   <Fragment key={order.id}>
                   <tr
