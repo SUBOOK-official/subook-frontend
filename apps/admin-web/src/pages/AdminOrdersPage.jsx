@@ -245,6 +245,11 @@ function AdminOrdersPage() {
   const [refundAmountInput, setRefundAmountInput] = useState("");
   const [refundAmountTouched, setRefundAmountTouched] = useState(false);
   const [refundReasonInput, setRefundReasonInput] = useState("");
+  // 반품 회수 옵션 (2026-08-24 반품 수거 자동화)
+  const [refundHoldRestock, setRefundHoldRestock] = useState(false);
+  const [refundRegisterReturn, setRefundRegisterReturn] = useState(false);
+  // 반품 수거 접수/취소/회수확인 진행 상태 (상세 패널 버튼 공용)
+  const [returnBusy, setReturnBusy] = useState(false);
 
   // 판매내역 엑셀 (운영 구글시트 판매내역 탭과 동일 양식) 생성 중 여부
   const [isSalesExporting, setIsSalesExporting] = useState(false);
@@ -815,7 +820,7 @@ function AdminOrdersPage() {
   // itemIds/refundAmount를 함께 넘기면 품목 단위 환불, 모든 품목 선택 시 전액 환불과 동일.
   // 반환 형태 { data, error }는 기존과 동일 — RECOVERY_REQUIRED_ACK 메시지도 그대로 전달돼
   // 호출부가 손실확인 모달로 분기한다.
-  const submitRefund = async (orderId, { itemIds, refundAmount, reason, acknowledgeRecovery }) => {
+  const submitRefund = async (orderId, { itemIds, refundAmount, reason, acknowledgeRecovery, restock }) => {
     setBusyOrderId(orderId);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -828,7 +833,7 @@ function AdminOrdersPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ orderId, reason, acknowledgeRecovery, itemIds, refundAmount }),
+        body: JSON.stringify({ orderId, reason, acknowledgeRecovery, itemIds, refundAmount, restock }),
       });
       const result = await resp.json().catch(() => ({}));
       if (!resp.ok || result.error) {
@@ -846,6 +851,7 @@ function AdminOrdersPage() {
   const finishRefund = async (data, order, reason) => {
     const cancelled = data?.cancelled_settlements ?? 0;
     const recovery = data?.recovery_required_settlements ?? 0;
+    const held = Number(data?.held_books ?? 0);
     const amount = Number(data?.refund_amount ?? order.total_amount ?? 0);
     // 레거시 admin_refund_order 응답에는 order_fully_refunded가 없음 → 전액으로 간주
     const isFull = data?.order_fully_refunded !== false;
@@ -858,7 +864,9 @@ function AdminOrdersPage() {
     showToast(
       `${isFull ? "전액" : "부분"} 환불 완료 (${formatCurrency(amount)}). 정산 자동 처리: 취소 ${cancelled}건${
         recovery > 0 ? ` / 회사 손실 ${recovery}건 (정산 완료분 — 회사 부담)` : ""
-      }.${isFull ? "" : " 주문은 기존 상태로 유지됩니다."} 구매자에게 환불 안내 알림톡 발송.`,
+      }.${held > 0 ? ` 재고 ${held}권 회수 대기(재입고 보류).` : ""}${
+        isFull ? "" : " 주문은 기존 상태로 유지됩니다."
+      } 구매자에게 환불 안내 알림톡 발송.`,
       "success",
     );
     closeRefundModal();
@@ -866,8 +874,132 @@ function AdminOrdersPage() {
     await loadOrders();
   };
 
+  // ── CJ 반품 수거 (2026-08-24) — 환불 주문 실물 회수: 구매자 배송지 → 수북 입고센터 ──
+  const requestCjReturn = async (orderId, payload = {}) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      return { result: null, error: "인증이 만료되었습니다. 다시 로그인해 주세요." };
+    }
+    try {
+      const resp = await fetch("/api/admin/cj-return", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ orderId, ...payload }),
+      });
+      const result = await resp.json().catch(() => ({}));
+      if (!resp.ok || result.error) {
+        return { result: null, error: result.error || "반품 수거 요청에 실패했습니다." };
+      }
+      return { result: result.result ?? null, error: null };
+    } catch (err) {
+      return { result: null, error: err?.message || "반품 수거 요청 중 오류가 발생했습니다." };
+    }
+  };
+
+  // 반품 수거 접수 — 환불 모달 체크박스와 상세 패널 버튼 공용. 접수는 멱등(-RT 키)이라 재시도 안전.
+  const registerReturnPickup = async (orderId) => {
+    setReturnBusy(true);
+    const { result, error } = await requestCjReturn(orderId, {});
+    setReturnBusy(false);
+    if (error || !result) {
+      showToast(
+        `CJ 반품 수거 접수 실패: ${error || "알 수 없는 오류"} — 주문 상세의 '반품 회수'에서 다시 시도할 수 있습니다.`,
+        "error",
+      );
+      return false;
+    }
+    showToast(
+      result.status === "skipped"
+        ? `이미 접수된 반품 수거가 있습니다 (운송장 ${result.trackingNumber}).`
+        : `CJ 반품 수거 접수 완료 — 운송장 ${result.trackingNumber}. 기사가 구매자 주소로 방문해 회수합니다.`,
+      "success",
+    );
+    await loadOrders();
+    return true;
+  };
+
+  // 반품 수거 접수 취소 — CJ 예약 취소가 거부되면(기사 스캔 등) 기록만 삭제 폴백을 확인받는다.
+  const handleCancelReturnPickup = async (order) => {
+    setReturnBusy(true);
+    const { result, error } = await requestCjReturn(order.id, { action: "cancel" });
+    setReturnBusy(false);
+    if (error || !result) {
+      setDestructiveModal({
+        title: (
+          <>
+            <AlertTriangleIcon size={16} /> CJ 반품 예약 취소 거부
+          </>
+        ),
+        description:
+          `CJ측 예약 취소가 거부되었습니다.\n\n${error || "사유 미상"}\n\n` +
+          "기사 배정/스캔이 이미 진행됐을 수 있습니다. CJ 지점에 확인한 뒤, " +
+          "우리 DB의 반품 수거 기록만 삭제하려면 진행하세요. (CJ측 예약은 남습니다)",
+        confirmLabel: "기록만 삭제",
+        run: async () => {
+          const forced = await requestCjReturn(order.id, { action: "cancel", force: true });
+          if (forced.error || !forced.result) {
+            showToast(forced.error || "반품 수거 기록 삭제에 실패했습니다.", "error");
+            return;
+          }
+          showToast("반품 수거 기록을 삭제했습니다. (CJ측 예약은 별도 확인 필요)", "success");
+          await loadOrders();
+        },
+      });
+      return;
+    }
+    showToast(
+      result.dbOnly
+        ? "반품 수거 기록을 삭제했습니다. (CJ측 예약은 별도 확인 필요)"
+        : "CJ 반품 수거 예약이 취소되었습니다.",
+      "success",
+    );
+    await loadOrders();
+  };
+
+  // 회수 확인 — 보류 품목의 책을 재판매 복원(restock) 또는 폐기(discard)
+  const handleReturnRecovery = async (order, outcome) => {
+    setReturnBusy(true);
+    const { data, error } = await supabase.rpc("admin_confirm_return_recovery", {
+      p_order_id: order.id,
+      p_outcome: outcome,
+    });
+    setReturnBusy(false);
+    if (error) {
+      showToast(error.message || "회수 확인 처리에 실패했습니다.", "error");
+      return;
+    }
+    const updated = data?.updated_books ?? 0;
+    showToast(
+      outcome === "restock"
+        ? `회수 완료 — ${updated}권 재판매 복원(공개 전환).`
+        : `회수 완료 — ${updated}권 폐기 처리.`,
+      "success",
+    );
+    await loadOrders();
+  };
+
+  // 폐기는 비가역 — 확인 모달을 거친다 (재판매 복원은 숨김 버튼으로 되돌릴 수 있어 즉시 실행)
+  const confirmReturnDiscard = (order) => {
+    setDestructiveModal({
+      title: (
+        <>
+          <AlertTriangleIcon size={16} /> 회수 도서 폐기
+        </>
+      ),
+      description:
+        "회수한 책을 폐기 처리합니다.\n\n" +
+        "필기·훼손 등으로 재판매가 불가한 경우에만 진행하세요.\n" +
+        "폐기 후에는 재판매로 되돌릴 수 없습니다.",
+      confirmLabel: "폐기 처리",
+      run: () => handleReturnRecovery(order, "discard"),
+    });
+  };
+
   // 정산완료(송금됨) 품목을 환불하면 그 정산금은 회사 손실. 셀러 정산은 회수하지 않음.
-  const confirmRecoveryLoss = (order, params) => {
+  const confirmRecoveryLoss = (order, params, { registerReturn = false } = {}) => {
     setDestructiveModal({
       title: (
         <>
@@ -888,6 +1020,9 @@ function AdminOrdersPage() {
           return;
         }
         await finishRefund(data, order, params.reason);
+        if (registerReturn) {
+          await registerReturnPickup(order.id);
+        }
       },
     });
   };
@@ -915,6 +1050,9 @@ function AdminOrdersPage() {
     setRefundAmountTouched(false);
     setRefundReasonInput("");
     setRefundAmountInput(String(computeRefundDefault(order, allChecked)));
+    // 실물이 이미 구매자에게 나간 주문은 회수 전 재판매 노출을 막는 게 기본값 (2026-08-24)
+    setRefundHoldRestock(["shipping", "delivered", "confirmed"].includes(order.status));
+    setRefundRegisterReturn(false);
   };
 
   const closeRefundModal = () => {
@@ -923,6 +1061,8 @@ function AdminOrdersPage() {
     setRefundAmountInput("");
     setRefundAmountTouched(false);
     setRefundReasonInput("");
+    setRefundHoldRestock(false);
+    setRefundRegisterReturn(false);
   };
 
   // 품목 체크 토글 — 금액을 직접 수정하기 전까지는 선택 변경에 맞춰 기본값을 따라간다
@@ -960,18 +1100,29 @@ function AdminOrdersPage() {
       showToast("환불 사유를 5자 이상 입력해주세요.", "error");
       return;
     }
-    const params = { itemIds, refundAmount: amount, reason, acknowledgeRecovery: false };
+    const params = {
+      itemIds,
+      refundAmount: amount,
+      reason,
+      acknowledgeRecovery: false,
+      // 재입고 보류 체크 시 복원하지 않는다 — 회수 확인 후 '회수 완료' 버튼으로 복원/폐기
+      restock: !refundHoldRestock,
+    };
+    const registerReturn = refundRegisterReturn;
     const { data, error } = await submitRefund(order.id, params);
     if (error) {
       if ((error.message || "").includes("RECOVERY_REQUIRED_ACK")) {
         // 이미 송금된 정산이 있음 — 손실 확인 모달로 전환 (환불 모달은 뒤에 유지)
-        confirmRecoveryLoss(order, params);
+        confirmRecoveryLoss(order, params, { registerReturn });
         return;
       }
       showToast(error.message || "환불 처리에 실패했습니다.", "error");
       return;
     }
     await finishRefund(data, order, reason);
+    if (registerReturn) {
+      await registerReturnPickup(order.id);
+    }
   };
 
   // 환불 처리 진입 — 품목 선택 모달 (전액/부분 공용)
@@ -1020,6 +1171,14 @@ function AdminOrdersPage() {
     const invcNo = String(order.tracking_number || "").trim();
     if (!invcNo) return;
     setDeliveryTrace({ invcNo, orderNumber: order.order_number });
+    void fetchDeliveryTrace(invcNo);
+  };
+
+  // 반품 수거 운송장 추적 — 배송조회 모달 재사용 (2026-08-24)
+  const openReturnTrace = (order) => {
+    const invcNo = String(order.return_tracking_number || "").trim();
+    if (!invcNo) return;
+    setDeliveryTrace({ invcNo, orderNumber: `${order.order_number} (반품 수거)` });
     void fetchDeliveryTrace(invcNo);
   };
 
@@ -1410,6 +1569,98 @@ function AdminOrdersPage() {
         </div>
       )}
 
+      {/* 반품 회수 (2026-08-24) — 회수 대기 재고·CJ 반품 수거 접수 현황. 실물이 구매자에게
+          있(었)을 상태에서만 노출. 회수 대기 = 환불했지만 재입고 보류된 품목. */}
+      {(() => {
+        const heldItems = (selectedOrder.items ?? []).filter((i) => i.restock_held_at);
+        const hasReturnReg = Boolean(selectedOrder.return_tracking_number);
+        const canRegister =
+          ["shipping", "delivered", "confirmed", "refunded"].includes(selectedOrder.status)
+          || Number(selectedOrder.refunded_amount ?? 0) > 0;
+        if (heldItems.length === 0 && !hasReturnReg && !selectedOrder.return_recovered_at && !canRegister) {
+          return null;
+        }
+        return (
+          <div>
+            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">반품 회수</h4>
+            <div className="rounded-lg bg-slate-50 px-3 py-2.5 text-sm space-y-2">
+              {heldItems.length > 0 && (
+                <p className="font-semibold text-amber-700">
+                  회수 대기 {heldItems.length}권 — 재입고 보류 중 (실물 확인 후 아래 버튼으로 처리)
+                </p>
+              )}
+              {hasReturnReg ? (
+                <p className="flex flex-wrap items-center gap-2">
+                  <span>CJ 반품 수거 · {selectedOrder.return_tracking_number}</span>
+                  <button
+                    className="text-xs font-semibold text-emerald-700 hover:underline"
+                    onClick={() => openReturnTrace(selectedOrder)}
+                    type="button"
+                  >
+                    배송조회
+                  </button>
+                  {selectedOrder.return_registered_at && (
+                    <span className="text-xs text-slate-400">
+                      {formatDate(selectedOrder.return_registered_at)} 접수
+                    </span>
+                  )}
+                </p>
+              ) : selectedOrder.return_recovered_at && heldItems.length === 0 ? (
+                <p className="text-xs text-slate-500">
+                  회수 완료 · {formatDate(selectedOrder.return_recovered_at)}
+                </p>
+              ) : (
+                <p className="text-xs text-slate-500">
+                  CJ 반품 수거 접수 시 기사가 구매자 주소로 방문해 회수합니다. (구매자가 직접 발송하는 경우 접수 불필요)
+                </p>
+              )}
+              <div className="flex flex-wrap gap-2">
+                {!hasReturnReg && canRegister && (
+                  <button
+                    className="btn-secondary !w-auto !px-3 !py-1.5 text-xs"
+                    disabled={returnBusy}
+                    onClick={() => registerReturnPickup(selectedOrder.id)}
+                    type="button"
+                  >
+                    {returnBusy ? <BusyText>처리 중...</BusyText> : "CJ 반품 수거 접수"}
+                  </button>
+                )}
+                {hasReturnReg && (
+                  <button
+                    className="btn-ghost !w-auto !px-3 !py-1.5 text-xs"
+                    disabled={returnBusy}
+                    onClick={() => handleCancelReturnPickup(selectedOrder)}
+                    type="button"
+                  >
+                    수거 접수 취소
+                  </button>
+                )}
+                {heldItems.length > 0 && (
+                  <>
+                    <button
+                      className="btn-primary !w-auto !px-3 !py-1.5 text-xs"
+                      disabled={returnBusy}
+                      onClick={() => handleReturnRecovery(selectedOrder, "restock")}
+                      type="button"
+                    >
+                      회수 완료 — 재판매 복원
+                    </button>
+                    <button
+                      className="btn-danger !w-auto !px-3 !py-1.5 text-xs"
+                      disabled={returnBusy}
+                      onClick={() => confirmReturnDiscard(selectedOrder)}
+                      type="button"
+                    >
+                      회수 완료 — 폐기
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* 상태 변경 액션 */}
       <div>
         <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">상태 변경</h4>
@@ -1794,6 +2045,12 @@ function AdminOrdersPage() {
                         {Number(order.refunded_amount ?? 0) > 0 && order.status !== "refunded" && (
                           <span className="inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">
                             부분환불
+                          </span>
+                        )}
+                        {/* 환불 후 실물 미회수(재입고 보류) 품목이 남은 주문 (2026-08-24 반품 수거) */}
+                        {(order.items ?? []).some((i) => i.restock_held_at) && (
+                          <span className="inline-flex items-center rounded-full bg-orange-100 px-1.5 py-0.5 text-[10px] font-bold text-orange-700">
+                            회수 대기
                           </span>
                         )}
                       </div>
@@ -2558,10 +2815,45 @@ function AdminOrdersPage() {
                 />
               </div>
 
+              {/* 반품 회수 옵션 (2026-08-24) — 배송 나간 주문은 재입고 보류가 기본값 */}
+              <div className="space-y-2 rounded-lg border border-slate-100 px-3 py-2.5">
+                <label className="flex cursor-pointer items-start gap-2 text-sm">
+                  <input
+                    checked={refundHoldRestock}
+                    className="mt-0.5"
+                    disabled={busy}
+                    onChange={(e) => setRefundHoldRestock(e.target.checked)}
+                    type="checkbox"
+                  />
+                  <span className="min-w-0">
+                    <span className="font-semibold">재입고 보류 (실물 회수 후 복원)</span>
+                    <span className="block text-xs text-slate-400">
+                      해제 시 환불 즉시 재판매로 풀립니다 — 책이 아직 구매자에게 있으면 보류를 유지하고,
+                      회수 후 주문 상세의 &apos;회수 완료&apos; 버튼으로 복원/폐기하세요.
+                    </span>
+                  </span>
+                </label>
+                <label className="flex cursor-pointer items-start gap-2 text-sm">
+                  <input
+                    checked={refundRegisterReturn}
+                    className="mt-0.5"
+                    disabled={busy}
+                    onChange={(e) => setRefundRegisterReturn(e.target.checked)}
+                    type="checkbox"
+                  />
+                  <span className="min-w-0">
+                    <span className="font-semibold">CJ 반품 수거 접수 (기사 방문)</span>
+                    <span className="block text-xs text-slate-400">
+                      환불 처리 직후 구매자 배송지로 CJ 반품 수거를 접수합니다.
+                    </span>
+                  </span>
+                </label>
+              </div>
+
               <div className="whitespace-pre-line rounded-lg bg-slate-50 px-3 py-2.5 text-xs text-slate-600">
                 {`[자동 처리]\n`
                   + `· ${refundModal.payment_method === "bank_transfer" ? "" : "PG 결제 부분/전액 취소 후 "}선택 품목 환불 · 해당 정산 pending/approved → cancelled\n`
-                  + `· reserved 재고 → 판매중 복원\n`
+                  + `· ${refundHoldRestock ? "reserved 재고 → 회수 대기 (재입고 보류)" : "reserved 재고 → 판매중 복원"}\n`
                   + `· 쿠폰 복구는 모든 품목이 환불 완료될 때만\n`
                   + `· 구매자에게 환불 안내 알림톡 발송`
                   + `${refundModal.payment_method === "bank_transfer" ? "\n※ 계좌이체 주문 — 처리 후 환불 계좌로 직접 송금해야 합니다." : ""}`
