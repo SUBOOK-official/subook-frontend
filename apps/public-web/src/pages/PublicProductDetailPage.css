@@ -1324,6 +1324,44 @@
   border-radius: 12px;
 }
 
+/* ── 판매 완료·미존재 교재 안내 (죽은 링크 회생) ───────── */
+.public-detail-notfound {
+  padding: 64px 20px 32px;
+  text-align: center;
+}
+
+.public-detail-notfound__title {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--public-ds-text, #232323);
+  letter-spacing: -0.01em;
+}
+
+.public-detail-notfound__desc {
+  margin-top: 10px;
+  font-size: 15px;
+  color: #6e6e73;
+}
+
+.public-detail-notfound__cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 24px;
+  height: 48px;
+  padding: 0 28px;
+  border-radius: 12px;
+  background: var(--public-primary, #080F47);
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.public-detail-notfound__cta:hover {
+  opacity: 0.92;
+}
+
 /* ── 토스트 ─────────────────────────────────────────── */
 .public-detail-toast {
   position: fixed;

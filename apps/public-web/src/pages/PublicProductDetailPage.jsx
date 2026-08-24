@@ -786,7 +786,13 @@ function ProductImageLightbox({
 
 const RELATED_RAIL_LIST_NAME = "비슷한 교재 추천";
 
-function RelatedProductsRail({ products, favoriteIds, onToggleFavorite, collectionLinks = [] }) {
+function RelatedProductsRail({
+  products,
+  favoriteIds,
+  onToggleFavorite,
+  collectionLinks = [],
+  title = RELATED_RAIL_LIST_NAME,
+}) {
   const railRef = useRef(null);
   const [canScrollPrev, setCanScrollPrev] = useState(false);
   const [canScrollNext, setCanScrollNext] = useState(false);
@@ -798,7 +804,7 @@ function RelatedProductsRail({ products, favoriteIds, onToggleFavorite, collecti
     if (viewListTrackedRef.current || products.length === 0) return;
     viewListTrackedRef.current = true;
     trackViewItemList(
-      RELATED_RAIL_LIST_NAME,
+      title,
       products.map((item) => ({
         productId: item.id,
         title: item.title,
@@ -808,7 +814,7 @@ function RelatedProductsRail({ products, favoriteIds, onToggleFavorite, collecti
         quantity: 1,
       })),
     );
-  }, [products]);
+  }, [products, title]);
 
   useEffect(() => {
     const rail = railRef.current;
@@ -860,7 +866,7 @@ function RelatedProductsRail({ products, favoriteIds, onToggleFavorite, collecti
   };
 
   return (
-    <section aria-label="비슷한 교재 추천" className="public-detail-related">
+    <section aria-label={title} className="public-detail-related">
       {collectionLinks.length > 0 ? (
         <nav aria-label="시리즈·강사별 교재" className="public-detail-collections">
           {collectionLinks.map((link) => (
@@ -871,7 +877,7 @@ function RelatedProductsRail({ products, favoriteIds, onToggleFavorite, collecti
         </nav>
       ) : null}
       <div className="public-detail-related__header">
-        <h2 className="public-detail-related__title">비슷한 교재 추천</h2>
+        <h2 className="public-detail-related__title">{title}</h2>
         {hasOverflow ? (
           <div
             className="public-detail-related__nav-group"
@@ -909,7 +915,7 @@ function RelatedProductsRail({ products, favoriteIds, onToggleFavorite, collecti
               role="listitem"
             >
               <ProductCard
-                analyticsListName={RELATED_RAIL_LIST_NAME}
+                analyticsListName={title}
                 isFavorite={favoriteIds.includes(String(relatedProduct.id))}
                 onToggleFavorite={onToggleFavorite}
                 product={relatedProduct}
@@ -957,6 +963,9 @@ function PublicProductDetailPage() {
   const { favoriteIds, isFavoritePending, toggleFavorite } =
     usePublicWishlist();
   const [product, setProduct] = useState(null);
+  // 판매 완료(숨김)·미존재 상품 — 죽은 링크로 들어온 방문자를 인기 교재로 연결.
+  // usePageMeta에서 참조하므로 반드시 메타 블록보다 위에 선언되어야 한다.
+  const [notFound, setNotFound] = useState(false);
   // 상품명·과목 동적 title + description + canonical/og:image + Product JSON-LD
   // (카톡/SNS 공유 미리보기에 교재 표지·가격이 정확히 뜨고, 검색 리치스니펫 대응)
   const metaCoverImage = product?.coverImageUrl ?? product?.cover_image_url ?? null;
@@ -1025,9 +1034,12 @@ function PublicProductDetailPage() {
   usePageMeta({
     title: product?.title
       ? `${product.title}${product.subject ? ` · ${product.subject}` : ""}`
-      : undefined,
+      : notFound
+        ? "교재를 찾을 수 없어요"
+        : undefined,
+    noindex: notFound || undefined,
     description: metaDescription,
-    canonicalPath: productId ? `/store/${productId}` : undefined,
+    canonicalPath: product && productId ? `/store/${productId}` : undefined,
     image: metaCoverImage ?? undefined,
     jsonLd: product?.title
       ? [
@@ -1168,6 +1180,7 @@ function PublicProductDetailPage() {
       try {
         setIsLoading(true);
         setError("");
+        setNotFound(false);
 
         const detailResult = await fetchStorefrontProductDetail(productId);
         if (!isActive) return;
@@ -1198,10 +1211,19 @@ function PublicProductDetailPage() {
         }
 
         if (!detailResult.product) {
-          setError(
-            detailResult.error
-              ? "교재 상세 정보를 불러오지 못했습니다."
-              : "해당 교재를 찾지 못했습니다.",
+          if (detailResult.error) {
+            setError("교재 상세 정보를 불러오지 못했습니다.");
+            return;
+          }
+          // 판매 완료·미존재 상품: 빈 에러 대신 인기 교재 레일로 대체 경로 제공
+          setNotFound(true);
+          const popularResult = await fetchStorefrontProducts({
+            limit: 12,
+            sort: "popular",
+          });
+          if (!isActive) return;
+          setRelatedProducts(
+            popularResult.products ?? popularResult.books ?? [],
           );
           return;
         }
@@ -1704,6 +1726,29 @@ function PublicProductDetailPage() {
           <div className="public-detail-error" role="alert">
             {error}
           </div>
+        ) : notFound ? (
+          <>
+            {/* 판매 완료·미존재 교재 — 죽은 링크로 온 방문자를 빈손으로 보내지 않는다 */}
+            <div className="public-detail-notfound" role="status">
+              <h1 className="public-detail-notfound__title">
+                교재를 찾을 수 없어요
+              </h1>
+              <p className="public-detail-notfound__desc">
+                판매가 완료되었거나 더 이상 판매하지 않는 교재예요.
+              </p>
+              <Link className="public-detail-notfound__cta" to="/">
+                판매 중인 교재 둘러보기
+              </Link>
+            </div>
+            {relatedProducts.length > 0 ? (
+              <RelatedProductsRail
+                favoriteIds={favoriteIds}
+                onToggleFavorite={handleToggleFavorite}
+                products={relatedProducts}
+                title="지금 인기 있는 교재"
+              />
+            ) : null}
+          </>
         ) : product ? (
           <>
             <div className="public-detail-hero">
