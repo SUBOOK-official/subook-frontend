@@ -16,6 +16,11 @@ const sharedRoot = isStandaloneFrontendRepo
   : resolve(workspaceRoot, "frontend/packages");
 const envDir = existsSync(resolve(frontendRepoRoot, ".env")) ? frontendRepoRoot : workspaceRoot;
 
+// react-vendor는 react의 런타임 의존성(scheduler, @remix-run/router)까지 포함해
+// 의존성 기준으로 닫혀 있어야 한다. 빠뜨리면 react-vendor -> vendor 역방향 엣지가 생기고,
+// vendor 쪽 react 의존 라이브러리(@sentry/react 등)의 vendor -> react-vendor 엣지와 만나
+// 순환 청크(circular chunk)가 된다. 순환 청크는 로드 순서에 따라 TDZ ReferenceError를
+// 일으킬 수 있는 잠복 리스크. (admin-web은 같은 문제를 단일 vendor 통합으로 해결)
 function getManualChunk(id) {
   const normalizedId = id.replaceAll("\\", "/");
   if (!normalizedId.includes("/node_modules/")) {
@@ -26,7 +31,9 @@ function getManualChunk(id) {
     normalizedId.includes("/node_modules/react/") ||
     normalizedId.includes("/node_modules/react-dom/") ||
     normalizedId.includes("/node_modules/react-router/") ||
-    normalizedId.includes("/node_modules/react-router-dom/")
+    normalizedId.includes("/node_modules/react-router-dom/") ||
+    normalizedId.includes("/node_modules/scheduler/") ||
+    normalizedId.includes("/node_modules/@remix-run/router/")
   ) {
     return "react-vendor";
   }
