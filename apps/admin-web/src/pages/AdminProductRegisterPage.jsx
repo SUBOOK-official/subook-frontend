@@ -14,6 +14,7 @@ import {
   requestStudioGeneration,
   studioResultToFile,
 } from "../lib/studioClient";
+import { requestCoverScan } from "../lib/coverScanClient";
 
 // 통합 상품 등록 플로우 (Frame 2~4 프로토타입).
 //   고객(수거) 선택/생성 → 교재 목록 작성(기존 검색 + 신규 표) → 사진 일괄 → 등록 완료
@@ -571,6 +572,177 @@ function AdminProductRegisterPage() {
       window.clearTimeout(timer);
     };
   }, [prodSearch, step, showToast]);
+
+  // ── 표지 스캔 (2026-08-24) ─────────────────────────────────────────────
+  // CZUR 스캐너 저장 폴더 감시(또는 사진 선택) → /api/admin/cover-scan 인식 →
+  // 카탈로그 후보 원클릭 선택. CZUR가 UVC 미지원이라 자체 앱 저장 폴더를
+  // File System Access API로 감시한다 (photo-intake와 동일 패턴, Chrome/Edge 전용).
+  const [coverScan, setCoverScan] = useState({
+    watching: false,
+    folderName: "",
+    busy: false,
+    pending: 0,
+    shotUrl: "",
+    extracted: null,
+    candidates: [],
+    error: "",
+  });
+  const coverWatchRef = useRef({ handle: null, timer: null, seen: new Map() });
+  const coverQueueRef = useRef({ running: false, items: [] });
+  const stepRef = useRef(step);
+  useEffect(() => {
+    stepRef.current = step;
+  }, [step]);
+
+  const stopCoverWatch = useCallback(() => {
+    const w = coverWatchRef.current;
+    if (w.timer) window.clearInterval(w.timer);
+    coverWatchRef.current = { handle: null, timer: null, seen: new Map() };
+    setCoverScan((s) => ({ ...s, watching: false, folderName: "" }));
+  }, []);
+  useEffect(() => () => stopCoverWatch(), [stopCoverWatch]);
+
+  // 스캔 큐 — CZUR가 연속으로 파일을 떨어뜨려도 한 장씩 순서대로 인식한다.
+  const runCoverScanQueue = async () => {
+    const q = coverQueueRef.current;
+    if (q.running) return;
+    q.running = true;
+    while (q.items.length > 0) {
+      const file = q.items.shift();
+      setCoverScan((s) => ({ ...s, busy: true, pending: q.items.length, error: "" }));
+      try {
+        const payload = await prepareStudioImagePayload(file);
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData?.session?.access_token || "";
+        if (!accessToken) throw new Error("로그인이 만료되었습니다. 새로고침 후 다시 시도해주세요.");
+        const result = await requestCoverScan(accessToken, payload);
+        setCoverScan((s) => ({
+          ...s,
+          shotUrl: `data:${payload.mimeType};base64,${payload.imageBase64}`,
+          extracted: result.extracted,
+          candidates: result.candidates || [],
+          error: "",
+        }));
+      } catch (err) {
+        setCoverScan((s) => ({ ...s, error: err?.message || "표지 인식에 실패했습니다." }));
+      }
+    }
+    q.running = false;
+    setCoverScan((s) => ({ ...s, busy: false, pending: 0 }));
+  };
+
+  const enqueueCoverScan = (files) => {
+    const list = [...files].filter((f) => f && String(f.type || "").startsWith("image/"));
+    if (!list.length) return;
+    coverQueueRef.current.items.push(...list);
+    runCoverScanQueue();
+  };
+
+  // 파일이 아직 저장 중일 수 있어, 크기가 한 틱(1.5초) 동안 안정된 뒤에만 처리한다.
+  const pollCoverWatchFolder = async () => {
+    const w = coverWatchRef.current;
+    if (!w.handle || stepRef.current !== "list") return;
+    try {
+      for await (const entry of w.handle.values()) {
+        if (entry.kind !== "file" || !/\.(jpe?g|png|webp)$/i.test(entry.name)) continue;
+        const file = await entry.getFile();
+        const rec = w.seen.get(entry.name);
+        if (!rec) {
+          w.seen.set(entry.name, { size: file.size, processed: false });
+          continue;
+        }
+        if (rec.processed) continue;
+        if (rec.size !== file.size) {
+          rec.size = file.size;
+          continue;
+        }
+        rec.processed = true;
+        enqueueCoverScan([file]);
+      }
+    } catch (err) {
+      stopCoverWatch();
+      showToast(`폴더 감시가 중단됐습니다${err?.message ? ` — ${err.message}` : ""}`, "error");
+    }
+  };
+
+  const toggleCoverWatch = async () => {
+    if (coverScan.watching) {
+      stopCoverWatch();
+      return;
+    }
+    if (typeof window.showDirectoryPicker !== "function") {
+      showToast("이 브라우저는 폴더 감시를 지원하지 않아요. Chrome 또는 Edge에서 열어주세요.", "error");
+      return;
+    }
+    let handle;
+    try {
+      handle = await window.showDirectoryPicker();
+    } catch {
+      return; // 사용자가 폴더 선택을 취소
+    }
+    const seen = new Map();
+    try {
+      // 기존 파일은 전부 처리됨으로 마킹 — 감시 시작 이후 새로 찍힌 사진만 인식한다.
+      for await (const entry of handle.values()) {
+        if (entry.kind === "file" && /\.(jpe?g|png|webp)$/i.test(entry.name)) {
+          const f = await entry.getFile();
+          seen.set(entry.name, { size: f.size, processed: true });
+        }
+      }
+    } catch (err) {
+      showToast(`폴더를 읽지 못했습니다${err?.message ? ` — ${err.message}` : ""}`, "error");
+      return;
+    }
+    const timer = window.setInterval(pollCoverWatchFolder, 1500);
+    coverWatchRef.current = { handle, timer, seen };
+    setCoverScan((s) => ({ ...s, watching: true, folderName: handle.name }));
+    showToast(`"${handle.name}" 폴더 감시 시작 — 스캐너로 표지를 찍으면 자동 인식됩니다.`, "success");
+  };
+
+  // 후보 선택 → 기존 검색 RPC로 전체 행(옵션·재고 포함)을 받아 기존 선택 흐름에 태운다.
+  const selectScanCandidate = async (candidate) => {
+    setProdSearch(candidate.title);
+    const { data, error } = await supabase.rpc("admin_search_products_for_register", {
+      p_search: candidate.title,
+      p_limit: PROD_SEARCH_LIMIT,
+      p_offset: 0,
+    });
+    if (error) {
+      showToast(`후보 상품을 불러오지 못했습니다 — ${error.message}`, "error");
+      return;
+    }
+    const rows = Array.isArray(data) ? data : [];
+    const row = rows.find((r) => r.id === candidate.id);
+    if (row) {
+      openFramePanel(row);
+    } else {
+      showToast("검색 결과 목록에서 해당 교재를 직접 선택해주세요.", "info");
+    }
+  };
+
+  // 카탈로그에 없는 책 — 추출값을 신규 교재 표의 상품명 규칙(연도+브랜드+교재명+과목+선생님)으로 조립
+  const fillNewRowFromScan = () => {
+    const ext = coverScan.extracted;
+    if (!ext) return;
+    const composed = [
+      ext.published_year,
+      ext.brand,
+      ext.title,
+      ext.subject,
+      ext.instructor_name ? `${ext.instructor_name}T` : "",
+    ]
+      .map((v) => String(v || "").trim())
+      .filter(Boolean)
+      .join(" ");
+    if (!composed) {
+      showToast("추출된 정보가 없습니다.", "error");
+      return;
+    }
+    const target = newRows.find((r) => isNewRowBlank(r)) || newRows[newRows.length - 1];
+    if (!target) return;
+    handleRowChange(target.uid, "title", composed);
+    showToast("신규 교재 표에 상품명을 채웠습니다. 정가·수량을 확인하세요.", "success");
+  };
 
   // '더 보기' — 같은 검색어로 다음 50건을 이어 붙인다. 요청 중 검색어가 바뀌면 버린다.
   const loadMoreProducts = async () => {
@@ -1519,6 +1691,102 @@ function AdminProductRegisterPage() {
                 <p className="mt-1 text-sm text-slate-500">
                   이미 등록된 교재인지 검색하고, 선택해 재고/옵션을 추가합니다.
                 </p>
+
+                {/* 표지 스캔 — 스캐너 저장 폴더 감시 or 사진 선택 → 인식 후보 원클릭 */}
+                <div className="mt-3 rounded-xl border border-indigo-200 bg-indigo-50/60 p-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-black text-indigo-900">표지 스캔</span>
+                    <button
+                      type="button"
+                      onClick={toggleCoverWatch}
+                      className={`rounded-md px-2.5 py-1.5 text-xs font-bold ${
+                        coverScan.watching
+                          ? "bg-indigo-600 text-white hover:bg-indigo-500"
+                          : "border border-indigo-300 bg-white text-indigo-700 hover:border-indigo-600"
+                      }`}
+                    >
+                      {coverScan.watching
+                        ? `감시 중: ${coverScan.folderName} (중지)`
+                        : "스캐너 폴더 감시"}
+                    </button>
+                    <label className="cursor-pointer rounded-md border border-indigo-300 bg-white px-2.5 py-1.5 text-xs font-bold text-indigo-700 hover:border-indigo-600">
+                      사진 선택
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        className="hidden"
+                        onChange={(e) => {
+                          enqueueCoverScan(e.target.files);
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
+                    {coverScan.busy ? (
+                      <span className="text-xs text-indigo-700">
+                        <InlineLoading
+                          label={`인식 중...${coverScan.pending ? ` (대기 ${coverScan.pending})` : ""}`}
+                        />
+                      </span>
+                    ) : null}
+                  </div>
+                  {coverScan.error ? (
+                    <p className="mt-2 text-xs font-bold text-red-600">{coverScan.error}</p>
+                  ) : null}
+                  {coverScan.extracted ? (
+                    <div className="mt-2 flex items-start gap-2">
+                      {coverScan.shotUrl ? (
+                        <img
+                          src={coverScan.shotUrl}
+                          alt=""
+                          className="h-16 w-12 flex-shrink-0 rounded-md border border-indigo-200 bg-white object-cover"
+                        />
+                      ) : null}
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-xs font-bold text-slate-900">
+                          {coverScan.extracted.title || "(제목 인식 실패)"}
+                        </p>
+                        <p className="truncate text-[11px] text-slate-500">
+                          {[
+                            coverScan.extracted.instructor_name,
+                            coverScan.extracted.brand,
+                            coverScan.extracted.published_year,
+                            coverScan.extracted.subject,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </p>
+                        <div className="mt-1.5 flex flex-wrap gap-1.5">
+                          {(coverScan.candidates || []).slice(0, 3).map((c, i) => (
+                            <button
+                              key={c.id}
+                              type="button"
+                              onClick={() => selectScanCandidate(c)}
+                              className={`max-w-full truncate rounded-md px-2 py-1 text-left text-[11px] font-bold ${
+                                i === 0
+                                  ? "bg-slate-900 text-white hover:bg-slate-700"
+                                  : "border border-slate-300 bg-white text-slate-700 hover:border-slate-900"
+                              }`}
+                            >
+                              {i + 1}위 · {c.title}
+                              {c.option ? ` (${c.option})` : ""}
+                              {c.published_year ? ` · ${c.published_year}` : ""} ·{" "}
+                              {Math.round((c.score || 0) * 100)}점
+                            </button>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={fillNewRowFromScan}
+                            className="rounded-md border border-dashed border-indigo-400 bg-white px-2 py-1 text-[11px] font-bold text-indigo-700 hover:border-indigo-700"
+                          >
+                            신규 교재로 입력
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+
                 <input
                   type="search"
                   value={prodSearch}
