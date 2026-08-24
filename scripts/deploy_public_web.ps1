@@ -182,6 +182,13 @@ if (Test-Path -LiteralPath $publicWebApiPath -PathType Container) {
   Copy-Item -LiteralPath $publicWebApiPath -Destination (Join-Path $stagingRoot "api") -Recurse
 }
 
+# 홈(/) 봇 프리렌더용 Routing Middleware — Vercel은 프로젝트 루트의 middleware.js만 인식
+$publicWebMiddlewarePath = Join-Path $publicWebRoot "middleware.js"
+if (Test-Path -LiteralPath $publicWebMiddlewarePath) {
+  Write-Step "Copying routing middleware into staging root."
+  Copy-Item -LiteralPath $publicWebMiddlewarePath -Destination (Join-Path $stagingRoot "middleware.js")
+}
+
 Assert-PathExists -Path (Join-Path $stagingFrontendRoot "packages/shared-domain/src") -Description "staging shared-domain" -Directory
 Assert-PathExists -Path (Join-Path $stagingFrontendRoot "packages/shared-supabase/src") -Description "staging shared-supabase" -Directory
 Assert-PathExists -Path (Join-Path $stagingFrontendRoot "apps/public-web/src") -Description "staging public web app" -Directory
