@@ -1769,9 +1769,6 @@ function AdminProductRegisterPage() {
                               }`}
                             >
                               {i + 1}위 · {c.title}
-                              {c.option ? ` (${c.option})` : ""}
-                              {c.published_year ? ` · ${c.published_year}` : ""} ·{" "}
-                              {Math.round((c.score || 0) * 100)}점
                             </button>
                           ))}
                           <button
