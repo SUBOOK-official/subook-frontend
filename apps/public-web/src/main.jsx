@@ -7,6 +7,7 @@ import MaintenancePage from "./MaintenancePage";
 import { PublicAuthProvider } from "./contexts/PublicAuthContext";
 import { PublicWishlistProvider } from "./contexts/PublicWishlistContext";
 import { initSentry, Sentry } from "./lib/sentryInit";
+import { installChunkReloadGuard } from "./lib/chunkReloadGuard";
 import "./index.css";
 
 // 도메인 전환 등 점검 모드: VITE_MAINTENANCE=1 로 빌드하면 전 경로가 점검 안내만 노출.
@@ -41,6 +42,9 @@ const showMaintenance = isMaintenance && !staffBypass;
 if (!showMaintenance) {
   // Sentry 초기화 (VITE_SENTRY_DSN 있을 때만 실제 활성화)
   initSentry();
+
+  // 배포 후 스테일 청크(옛 해시 자산) 로딩 실패 시 1회 자동 새로고침
+  installChunkReloadGuard();
 
   // 전역 Unhandled Promise rejection
   if (typeof window !== "undefined") {
