@@ -378,10 +378,7 @@ function StepIntro({ onNext }) {
             </span>
             <div className="pickup-guide-list__text">
               <strong>딱 맞는 박스에 담아주세요</strong>
-              <span>
-                빈 공간 없이 딱 맞는 박스에 담아주세요. 여러 박스보다 가장 큰
-                박스 하나가 유리해요.
-              </span>
+              <span>빈 공간 없이 딱 맞는 박스에 담아주세요.</span>
             </div>
           </li>
           <li className="pickup-guide-list__item">
@@ -971,8 +968,7 @@ function StepBoxCount({ address, setAddress, onNext, onPrev }) {
           value={address.box_count}
         />
         <span className="pickup-field-hint">
-          정산 시 박스 당 <strong>상품화 비용 5,000원</strong>이 차감돼요. 여러
-          박스보다 큰 박스 하나에 담는 게 유리해요.
+          정산 시 박스 당 <strong>상품화 비용 5,000원</strong>이 차감돼요.
         </span>
       </div>
 
@@ -989,7 +985,6 @@ function StepBoxCount({ address, setAddress, onNext, onPrev }) {
         </p>
         <ul className="pickup-info-box__list">
           <li>빈 공간 없이 딱 맞는 박스에 담아주세요.</li>
-          <li>여러 박스로 나누지 말고 가장 큰 박스 하나에 담는게 유리해요.</li>
           <li>교재가 흔들리지 않도록 포장해주세요.</li>
         </ul>
       </div>
@@ -1549,8 +1544,7 @@ function StepConfirm({
           </p>
           <p className="pickup-confirm-detail__memo">
             교재 권수와 무관하게 “박스당” 비용이 부과돼요. 여러 박스에 나눠
-            보내면 박스 수 × 5,000원이 부과되니, 가능하면{" "}
-            <strong>가장 큰 박스 하나에</strong> 담아주세요.
+            보내면 박스 수 × 5,000원이 부과돼요.
           </p>
           <p className="pickup-confirm-detail__memo">
             사전 결제가 아니라, 교재 판매 후 <strong>정산 과정에서 차감</strong>
