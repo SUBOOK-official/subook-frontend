@@ -1,0 +1,245 @@
+/* 카카오톡 채널 친구추가 쿠폰 — 디자인 토큰만 사용 (카카오 버튼은 index.css 브랜드 클래스 재사용) */
+
+.kakao-coupon-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: var(--public-ds-bg);
+}
+
+.kakao-coupon-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 48px;
+  padding-bottom: 72px;
+}
+
+.kakao-coupon-card {
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: var(--public-ds-card);
+  border: 1px solid var(--public-ds-border);
+  border-radius: 16px;
+  box-shadow: var(--public-ds-shadow);
+  padding: 32px 28px;
+  box-sizing: border-box;
+}
+
+.kakao-coupon-eyebrow {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--public-ds-text-muted);
+  letter-spacing: 0.02em;
+}
+
+.kakao-coupon-title {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1.3;
+  color: var(--public-ds-text-primary);
+  word-break: keep-all;
+}
+
+.kakao-coupon-subtitle {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--public-ds-text-secondary);
+  word-break: keep-all;
+}
+
+.kakao-coupon-steps {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.kakao-coupon-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.kakao-coupon-step__number {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--public-ds-primary);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.kakao-coupon-step__label {
+  font-size: 14px;
+  color: var(--public-ds-text-primary);
+}
+
+.kakao-coupon-channel-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  margin-top: 8px;
+  border: 1px solid var(--public-ds-border);
+  border-radius: 10px;
+  background: var(--public-ds-card);
+  color: var(--public-ds-text-primary);
+  font-size: 15px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.kakao-coupon-channel-link:hover {
+  border-color: var(--public-ds-primary);
+}
+
+/* index.css의 .public-auth-social__button 기본 레이아웃 위에 페이지 여백만 보정 */
+.kakao-coupon-kakao-btn {
+  width: 100%;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.kakao-coupon-kakao-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.kakao-coupon-claim-btn {
+  min-height: 48px;
+  border: none;
+  border-radius: 10px;
+  background: var(--public-ds-primary);
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.kakao-coupon-claim-btn:hover {
+  background: var(--public-ds-primary-strong);
+}
+.kakao-coupon-claim-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.kakao-coupon-notice {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--public-ds-danger);
+}
+
+.kakao-coupon-result {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px 16px;
+  border-radius: 12px;
+  background: var(--public-ds-bg);
+  border: 1px solid var(--public-ds-border);
+}
+.kakao-coupon-result--success {
+  border-color: var(--public-ds-primary);
+}
+.kakao-coupon-result--warn {
+  border-color: var(--public-ds-border);
+}
+
+.kakao-coupon-result__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--public-ds-text-primary);
+  word-break: keep-all;
+}
+
+.kakao-coupon-result__desc {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--public-ds-text-secondary);
+  word-break: keep-all;
+}
+
+.kakao-coupon-result__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.kakao-coupon-result__actions .kakao-coupon-channel-link {
+  margin-top: 0;
+}
+
+.kakao-coupon-result__link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  border-radius: 10px;
+  background: var(--public-ds-primary);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.kakao-coupon-result__link:hover {
+  background: var(--public-ds-primary-strong);
+}
+
+.kakao-coupon-retry {
+  min-height: 44px;
+  border: 1px solid var(--public-ds-primary);
+  border-radius: 10px;
+  background: var(--public-ds-card);
+  color: var(--public-ds-primary);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.kakao-coupon-retry:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.kakao-coupon-fineprint {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--public-ds-text-muted);
+  word-break: keep-all;
+}
+
+@media (max-width: 767px) {
+  .kakao-coupon-content {
+    padding-top: 28px;
+    padding-bottom: 56px;
+  }
+  .kakao-coupon-card {
+    padding: 24px 20px;
+  }
+  .kakao-coupon-title {
+    font-size: 22px;
+  }
+}

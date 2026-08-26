@@ -357,6 +357,12 @@ function trackGenerateLead({ boxCount, expectedBookCount }) {
   fbqEvent("Lead", {});
 }
 
+// 카카오톡 채널 친구추가 쿠폰 발급 성공 = 채널 리드 확보. GA4 generate_lead + Meta Lead.
+function trackKakaoCouponClaim() {
+  gtagEvent("generate_lead", { lead_type: "kakao_channel_coupon" });
+  fbqEvent("Lead", {});
+}
+
 // 홈의 수거 신청 CTA 클릭 (cta_source: hero_banner / home_bottom_cta)
 function trackPickupCtaClick(source) {
   gtagEvent("pickup_cta_click", { cta_source: source || "unknown" });
@@ -481,6 +487,7 @@ export {
   trackGenerateLead,
   trackGuestOrderLookup,
   trackImageZoom,
+  trackKakaoCouponClaim,
   trackLogin,
   trackLoginGateCta,
   trackLoginGateShown,
