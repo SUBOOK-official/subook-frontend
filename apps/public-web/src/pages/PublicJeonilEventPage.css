@@ -286,11 +286,11 @@
   text-align: center;
   font-family: "Gmarket Sans", var(--public-font);
   color: #ffffff;
-  /* 하단 중앙 글로우를 이미지 상단(중앙 #163565 · 모서리 #01062a)과 연속되게 이어붙여
-     남색이 뚝 끊겨 보이던 경계를 없앤다 */
-  background: radial-gradient(ellipse 72% 130% at 50% 118%, #163565 0%, #06163a 46%, #000621 80%);
+  /* 그라데이션 중심을 head 하단(=이미지 상단 접점)에 정확히 두어 이음새 제거.
+     이미지 상단 프로필: 중앙 좁은 글로우 #163565, 나머지 어두운 남색 #000621 */
+  background: radial-gradient(ellipse 30% 92% at 50% 100%, #163565 0%, #05153f 22%, #01082c 50%, #000621 85%);
 }
-.jeonil-answer-sub { margin: 0 0 clamp(8px, 1.5vw, 16px); font-weight: 700; font-size: clamp(15px, 3.2vw, 36px); white-space: nowrap; }
+.jeonil-answer-sub { margin: 0 0 clamp(2px, 0.5vw, 7px); font-weight: 700; font-size: clamp(15px, 3.2vw, 36px); white-space: nowrap; }
 .jeonil-answer-title { margin: 0; font-weight: 700; font-size: clamp(23px, 5.4vw, 62px); letter-spacing: -0.02em; white-space: nowrap; }
 .jeonil-x { color: #e6c07a; margin: 0 0.12em; }
 .jeonil-answer-sec.is-visible .jeonil-htitle { opacity: 1; transform: translateY(0); }
@@ -302,7 +302,7 @@
   text-align: center;
   font-family: "Gmarket Sans", var(--public-font);
 }
-.jeonil-click-sub { margin: 0 0 clamp(6px, 1.2vw, 12px); font-weight: 700; color: #2a2a2a; font-size: clamp(15px, 3.2vw, 36px); white-space: nowrap; }
+.jeonil-click-sub { margin: 0 0 clamp(2px, 0.5vw, 7px); font-weight: 700; color: #2a2a2a; font-size: clamp(15px, 3.2vw, 36px); white-space: nowrap; }
 .jeonil-click-title { margin: 0; font-weight: 700; color: #111111; font-size: clamp(21px, 5.2vw, 60px); letter-spacing: -0.02em; white-space: nowrap; }
 .jeonil-books-sec.is-visible .jeonil-htitle { opacity: 1; transform: translateY(0); }
 .jeonil-books-sec.is-visible .jeonil-click-title { transition-delay: 0.18s; }
