@@ -1,0 +1,500 @@
+/* Gmarket Sans */
+@font-face {
+  font-family: "Gmarket Sans";
+  font-weight: 500;
+  font-display: swap;
+  src: url("../assets/fonts/GmarketSansMedium.woff") format("woff");
+}
+@font-face {
+  font-family: "Gmarket Sans";
+  font-weight: 700;
+  font-display: swap;
+  src: url("../assets/fonts/GmarketSansBold.woff") format("woff");
+}
+
+.jeonil-page {
+  min-height: 100vh;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  user-select: none;
+  -webkit-user-select: none;
+  word-break: keep-all;
+}
+.jeonil-main {
+  flex: 1 0 auto;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 0;
+}
+
+/* 타이틀 rise-up (스크롤 진입) */
+.reveal-up {
+  opacity: 0;
+  transform: translateY(40px);
+  transition: opacity 0.6s ease-out, transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.reveal-up.is-visible { opacity: 1; transform: translateY(0); }
+
+/* ── D-day 바 ── */
+.jeonil-dday {
+  width: 100%;
+  max-width: 1920px;
+  box-sizing: border-box;
+  background: #512e00;
+  color: #e9cfa9;
+  font-family: "Gmarket Sans", var(--public-font);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  padding: 20px 20px 13px;
+  text-align: center;
+  animation: jeonil-dday-in 0.5s ease both;
+}
+.jeonil-dday__label { font-weight: 500; font-size: clamp(13px, 2.4vw, 22px); letter-spacing: -0.01em; }
+.jeonil-dday__count { font-weight: 700; font-size: clamp(16px, 2.8vw, 26px); color: #ffd97a; animation: jeonil-dday-pulse 1.4s ease-in-out infinite; }
+@keyframes jeonil-dday-in { from { opacity: 0; transform: translateY(-100%); } to { opacity: 1; transform: translateY(0); } }
+@keyframes jeonil-dday-pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.12); opacity: 0.85; } }
+
+/* ── 히어로 ── */
+.jeonil-hero {
+  position: relative;
+  width: 100%;
+  max-width: 1920px;
+  aspect-ratio: 1920 / 940;
+  background-size: cover;
+  background-position: center top;
+  background-color: #0a0602;
+  overflow: hidden;
+  font-family: "Gmarket Sans", var(--public-font);
+  font-size: 16px;
+}
+.jeonil-hero__line {
+  position: absolute;
+  left: 50%;
+  width: 92%;
+  margin: 0;
+  text-align: center;
+  color: #fdf1c2;
+  line-height: 1.3;
+  white-space: nowrap;
+  text-shadow: 0 3px 8px rgba(0, 0, 0, 0.55);
+  transform: translate(-50%, 40px);
+  opacity: 0;
+  animation: jeonil-rise-c 0.7s ease-out both;
+}
+.jeonil-hero__line b { font-weight: 700; }
+.jeonil-hero__line b.is-cyan { color: #a8ffff; }
+.jeonil-hero__line--1 { top: 24.5%; font-weight: 500; font-size: clamp(11px, 2.3vw, 26px); animation-delay: 0.15s; }
+.jeonil-hero__line--2 { top: 31%; font-weight: 500; font-size: clamp(13px, 2.65vw, 34px); animation-delay: 0.45s; }
+.jeonil-hero__title {
+  position: absolute;
+  top: 42%;
+  left: 0;
+  right: 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(10px, 2.2vw, 32px);
+  font-weight: 700;
+  font-size: clamp(40px, 9.4vw, 104px);
+  line-height: 1;
+  white-space: nowrap;
+  filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.5));
+  transform: translateY(40px);
+  opacity: 0;
+  animation: jeonil-rise 0.7s ease-out both;
+  animation-delay: 0.8s;
+}
+.jeonil-hero__title span {
+  white-space: nowrap;
+  background: linear-gradient(180deg, #ffba1e 0%, #fffec9 22%, #ff9a1e 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.jeonil-hero__title i { color: #ffd45e; font-style: normal; font-weight: 700; }
+.jeonil-hero__cta {
+  position: absolute;
+  top: 74%;
+  left: 50%;
+  display: inline-flex;
+  align-items: center;
+  gap: clamp(8px, 1.6vw, 20px);
+  padding: clamp(8px, 1.4vw, 18px) clamp(18px, 3vw, 44px);
+  border: 2px solid #cda16b;
+  border-radius: 100px;
+  background: #000000;
+  color: #e9cfa9;
+  font-family: "Gmarket Sans", var(--public-font);
+  font-weight: 500;
+  font-size: clamp(13px, 2.3vw, 34px);
+  white-space: nowrap;
+  cursor: pointer;
+  transform: translate(-50%, 40px);
+  opacity: 0;
+  animation: jeonil-rise-c 0.7s ease-out both;
+  animation-delay: 1.2s;
+  transition: background 0.15s ease;
+}
+.jeonil-hero__cta:hover { background: #1a1a1a; }
+.jeonil-hero__bookmark {
+  position: absolute;
+  top: 0;
+  right: 4%;
+  width: clamp(52px, 10%, 118px);
+  height: auto;
+  -webkit-user-drag: none;
+  opacity: 0;
+  animation: jeonil-drop 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  animation-delay: 1.5s;
+}
+@keyframes jeonil-rise-c { from { opacity: 0; transform: translate(-50%, 40px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes jeonil-rise { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes jeonil-drop { 0% { opacity: 0; transform: translateY(-200%); } 70% { opacity: 1; transform: translateY(6%); } 100% { opacity: 1; transform: translateY(0); } }
+
+/* ── 9월 3일 빨간 띠 ── */
+.jeonil-openbar {
+  position: relative;
+  width: 100%;
+  max-width: 1920px;
+  box-sizing: border-box;
+  padding: clamp(9px, 1.6vw, 16px) 20px;
+  background: linear-gradient(90deg, #d8371a 0%, #e8622a 60%, #cf7b38 100%);
+  overflow: hidden;
+  text-align: center;
+  animation: jeonil-openbar-pulse 1.8s ease-in-out infinite;
+}
+.jeonil-openbar__text { position: relative; z-index: 1; font-family: "Gmarket Sans", var(--public-font); font-weight: 500; color: #ffffff; font-size: clamp(20px, 4.2vw, 50px); white-space: nowrap; letter-spacing: -0.01em; text-shadow: 0 2px 6px rgba(0, 0, 0, 0.3); }
+.jeonil-openbar__text strong { font-weight: 700; color: #fff3b0; }
+.jeonil-openbar__shine { position: absolute; top: 0; left: -45%; width: 45%; height: 100%; background: linear-gradient(100deg, transparent 0%, rgba(255, 255, 255, 0.6) 50%, transparent 100%); transform: skewX(-18deg); animation: jeonil-shine 2.8s ease-in-out infinite; }
+@keyframes jeonil-shine { 0% { left: -45%; } 55%, 100% { left: 125%; } }
+@keyframes jeonil-openbar-pulse { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.12); } }
+
+/* ── 이미지 밴드 ── */
+.jeonil-canvas { position: relative; width: 100%; max-width: 1920px; line-height: 0; }
+.jeonil-band {
+  display: block;
+  width: 100%;
+  max-width: 1920px;
+  height: auto;
+  vertical-align: top;
+  -webkit-user-drag: none;
+  user-select: none;
+  /* 이미지 섹션은 항상 표시 — 페이드/이동 없이 경계를 완전히 밀착 */
+}
+.jeonil-band--flush { margin-top: -1px; margin-bottom: -1px; }
+
+/* 타이틀 순차 rise-up 밴드 — 섹션 배경색 컨테이너 안에서 이동해 틈이 안 보임 */
+.jeonil-riseband {
+  display: block;
+  width: 100%;
+  max-width: 1920px;
+  height: auto;
+  vertical-align: top;
+  -webkit-user-drag: none;
+  opacity: 0;
+  transform: translateY(42px);
+  transition: opacity 0.6s ease-out, transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+}
+
+/* 강사진 섹션 — 배경(흰+글로우)은 그대로, 타이틀 텍스트만 순차 rise-up */
+.jeonil-gangsa-sec {
+  width: 100%;
+  max-width: 1920px;
+  margin: 0 auto;
+  background: #ffffff;
+  font-size: 0;
+}
+.jeonil-gangsa-head {
+  position: relative;
+  padding: clamp(40px, 7vw, 82px) 20px clamp(20px, 3.5vw, 40px);
+  background: radial-gradient(ellipse 62% 90% at 50% 42%, rgba(213, 209, 255, 0.75) 0%, rgba(230, 233, 255, 0.35) 42%, #ffffff 78%);
+  text-align: center;
+  font-family: "Gmarket Sans", var(--public-font);
+  font-size: 16px;
+}
+/* HTML 타이틀 텍스트 rise-up */
+.jeonil-htitle {
+  opacity: 0;
+  transform: translateY(34px);
+  transition: opacity 0.6s ease-out, transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+}
+.jeonil-gangsa-sec.is-visible .jeonil-htitle { opacity: 1; transform: translateY(0); }
+.jeonil-gangsa-sec.is-visible .jeonil-gangsa-sub { transition-delay: 0.15s; }
+.jeonil-gangsa-sec.is-visible .jeonil-gangsa-title { transition-delay: 0.3s; }
+
+/* 강사진 콜라주 이미지 — 타이틀 다음(0.45s)에 밑에서 위로 */
+.jeonil-gangsa-collage {
+  opacity: 0;
+  transform: translateY(40px);
+  transition: opacity 0.6s ease-out, transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.jeonil-gangsa-sec.is-visible .jeonil-gangsa-collage {
+  opacity: 1;
+  transform: translateY(0);
+  transition-delay: 0.45s;
+}
+
+.jeonil-gangsa-pill {
+  display: inline-block;
+  padding: 0.55em 1.4em;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: 0 6px 18px rgba(101, 25, 200, 0.14);
+  color: #6519c8;
+  font-weight: 700;
+  font-size: clamp(15px, 2.7vw, 28px);
+  white-space: nowrap;
+}
+.jeonil-gangsa-sub {
+  margin: clamp(14px, 2.2vw, 26px) 0 4px;
+  font-weight: 700;
+  font-size: clamp(15px, 3.4vw, 40px);
+  color: #2a2f6e;
+  white-space: nowrap;
+}
+.jeonil-gangsa-title {
+  margin: 0;
+  font-weight: 700;
+  font-size: clamp(22px, 5.4vw, 68px);
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  background: linear-gradient(96deg, #492efa 0%, #6d12b8 92%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* 해답은 섹션 (남색) — 타이틀 텍스트만 HTML 순차 등장 */
+.jeonil-answer-sec {
+  width: 100%;
+  max-width: 1920px;
+  margin: 0 auto;
+  background: #000621;
+  font-size: 0;
+}
+.jeonil-answer-head {
+  padding: clamp(40px, 6vw, 72px) 20px clamp(22px, 3.5vw, 42px);
+  text-align: center;
+  font-family: "Gmarket Sans", var(--public-font);
+  color: #ffffff;
+  /* 하단 중앙 글로우를 이미지 상단(중앙 #163565 · 모서리 #01062a)과 연속되게 이어붙여
+     남색이 뚝 끊겨 보이던 경계를 없앤다 */
+  background: radial-gradient(ellipse 72% 130% at 50% 118%, #163565 0%, #06163a 46%, #000621 80%);
+}
+.jeonil-answer-sub { margin: 0 0 clamp(8px, 1.5vw, 16px); font-weight: 700; font-size: clamp(15px, 3.2vw, 36px); white-space: nowrap; }
+.jeonil-answer-title { margin: 0; font-weight: 700; font-size: clamp(23px, 5.4vw, 62px); letter-spacing: -0.02em; white-space: nowrap; }
+.jeonil-x { color: #e6c07a; margin: 0 0.12em; }
+.jeonil-answer-sec.is-visible .jeonil-htitle { opacity: 1; transform: translateY(0); }
+.jeonil-answer-sec.is-visible .jeonil-answer-title { transition-delay: 0.18s; }
+
+/* 이제는 클릭 (라벤더) — 타이틀 텍스트만 HTML 순차 등장 */
+.jeonil-click-head {
+  padding: clamp(40px, 6vw, 74px) 20px clamp(18px, 3vw, 34px);
+  text-align: center;
+  font-family: "Gmarket Sans", var(--public-font);
+}
+.jeonil-click-sub { margin: 0 0 clamp(6px, 1.2vw, 12px); font-weight: 700; color: #2a2a2a; font-size: clamp(15px, 3.2vw, 36px); white-space: nowrap; }
+.jeonil-click-title { margin: 0; font-weight: 700; color: #111111; font-size: clamp(21px, 5.2vw, 60px); letter-spacing: -0.02em; white-space: nowrap; }
+.jeonil-books-sec.is-visible .jeonil-htitle { opacity: 1; transform: translateY(0); }
+.jeonil-books-sec.is-visible .jeonil-click-title { transition-delay: 0.18s; }
+
+/* ── 리뷰 섹션 ── */
+.jeonil-reviews {
+  position: relative;
+  width: 100%;
+  max-width: 1920px;
+  box-sizing: border-box;
+  padding: 44px 20px 40px;
+  background: linear-gradient(180deg, #4943ff 0%, #7458ff 100%);
+  color: #ffffff;
+  text-align: center;
+  overflow: hidden;
+  font-size: 16px;
+  font-family: "Gmarket Sans", var(--public-font);
+}
+.jeonil-reviews__eyebrow { margin: 0 0 8px; font-size: clamp(15px, 2.2vw, 22px); font-weight: 500; opacity: 0.95; }
+.jeonil-reviews__title { margin: 0 0 28px; font-size: clamp(30px, 6vw, 56px); font-weight: 700; letter-spacing: -0.01em; }
+.jeonil-reviews__stage { position: relative; height: 230px; max-width: 820px; margin: 0 auto; }
+.jeonil-review {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(430px, 62%);
+  box-sizing: border-box;
+  padding: 30px 26px;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  border-radius: 21px;
+  background: rgba(217, 217, 217, 0.2);
+  backdrop-filter: blur(2px);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  transform: translate(-50%, -50%) scale(0.78);
+  opacity: 0;
+  transition: transform 0.55s ease, opacity 0.55s ease;
+  will-change: transform, opacity;
+}
+.jeonil-review__text { margin: 0; font-family: var(--public-font); font-size: clamp(13px, 1.5vw, 16px); line-height: 1.6; word-break: keep-all; }
+.jeonil-review__name { margin: 0; font-family: var(--public-font); font-weight: 700; font-size: clamp(13px, 1.5vw, 16px); }
+.jeonil-review--center { transform: translate(-50%, -50%) scale(1); opacity: 1; z-index: 2; }
+.jeonil-review--left { transform: translate(-166%, -50%) scale(0.76); opacity: 0.4; z-index: 1; }
+.jeonil-review--right { transform: translate(66%, -50%) scale(0.76); opacity: 0.4; z-index: 1; }
+.jeonil-review--hidden { transform: translate(-50%, -50%) scale(0.55); opacity: 0; z-index: 0; }
+
+.jeonil-emoji { position: absolute; font-size: clamp(38px, 6vw, 68px); line-height: 1; z-index: 3; will-change: transform; }
+.jeonil-emoji--1 { left: 4%; top: 40%; animation: jeonil-float-a 3s ease-in-out infinite; }
+.jeonil-emoji--2 { right: 4%; top: 34%; animation: jeonil-float-b 3.4s ease-in-out infinite; }
+@keyframes jeonil-float-a { 0%, 100% { transform: translateY(0) rotate(-6deg); } 50% { transform: translateY(-10px) rotate(4deg); } }
+@keyframes jeonil-float-b { 0%, 100% { transform: translateY(0) rotate(6deg); } 50% { transform: translateY(-9px) rotate(-5deg); } }
+
+/* ── 성과 섹션 (디자인 좌표 정밀 배치) ── */
+.jeonil-achieve {
+  position: relative;
+  width: 100%;
+  max-width: 1920px;
+  background-size: cover;
+  background-position: center;
+  overflow: hidden;
+  font-family: "Gmarket Sans", var(--public-font);
+}
+.jeonil-achieve__veil { position: absolute; inset: 0; background: rgba(255, 255, 255, 0.62); }
+.jeonil-achieve__stage {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  aspect-ratio: 1920 / 1124;
+  container-type: inline-size;
+  color: #111111;
+}
+.jeonil-achieve__sub { position: absolute; top: 13.5%; left: 0; right: 0; margin: 0; text-align: center; font-weight: 700; font-size: 3.1cqw; line-height: 1.2; }
+.jeonil-achieve__title { position: absolute; top: 21%; left: 0; right: 0; margin: 0; text-align: center; font-weight: 700; font-size: 5.2cqw; line-height: 1.2; letter-spacing: -0.01em; }
+.jeonil-achieve__title span { color: #ba2d0f; }
+.jeonil-achieve__logo { position: absolute; left: 34.5%; top: 30.8%; width: 23.75%; height: auto; z-index: 0; -webkit-user-drag: none; }
+.jeonil-pill {
+  position: absolute;
+  z-index: 1;
+  white-space: nowrap;
+  background: #ffffff;
+  border: 1.5px solid #5187ff;
+  border-radius: 100px;
+  font-weight: 700;
+  line-height: 1;
+  color: #111111;
+  opacity: 0;
+  transform: translateY(3.2cqw);
+  transition: opacity 0.5s ease-out, transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+/* Gmarket 글리프가 높게 앉아 위 padding을 더 줘 세로중심을 맞춘다 */
+.jeonil-pill--md { font-size: 2.1cqw; padding: 1.5cqw 2.6cqw 1.1cqw; }
+.jeonil-pill--lg { font-size: 2.6cqw; padding: 1.7cqw 2.9cqw 1.2cqw; }
+.jeonil-pill--accent { background: #f9f1ff; border-color: #5187ff; color: #6d12b8; font-size: 2.35cqw; }
+.jeonil-achieve__stage.is-visible .jeonil-pill { opacity: 1; transform: translateY(0); }
+
+/* ── 교재 섹션 (연라벤더 배경 · 배경은 안 자름) ── */
+.jeonil-books-sec {
+  width: 100%;
+  max-width: 1920px;
+  background: #d2e0ff;
+}
+.jeonil-books-sec .jeonil-band { margin: 0 auto; }
+/* 교재 3권 — 배경 위에 떠서 순차 등장 + 호버 확대 */
+.jeonil-books {
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(14px, 2.2vw, 26px);
+  padding: clamp(10px, 1.4vw, 18px) 0 clamp(32px, 4.5vw, 52px);
+}
+.jeonil-book {
+  display: block;
+  width: 78.5%;
+  height: auto;
+  -webkit-user-drag: none;
+  opacity: 0;
+  transform: translateY(36px);
+  transition: opacity 0.6s ease-out, transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+}
+.jeonil-books.is-visible .jeonil-book { opacity: 1; transform: translateY(0); }
+.jeonil-books.is-visible .jeonil-book:nth-child(2) { transition-delay: 0.15s; }
+.jeonil-books.is-visible .jeonil-book:nth-child(3) { transition-delay: 0.3s; }
+.jeonil-books.is-visible .jeonil-book:hover {
+  transform: scale(1.045);
+  transition: transform 0.22s ease;
+  transition-delay: 0s;
+  position: relative;
+  z-index: 2;
+}
+
+/* ── 쿠폰: 핫스팟 + 티켓 확대 + 블루 커서 (sec-coupon 밴드 기준) ── */
+.jeonil-coupon-hotspot { position: absolute; left: 0; right: 0; top: 17.4%; height: 58.3%; border: 0; padding: 0; background: transparent; cursor: pointer; z-index: 3; }
+.jeonil-coupon-ticket {
+  position: absolute;
+  left: 30.6%;
+  top: 29.4%;
+  width: 38.9%;
+  height: auto;
+  z-index: 1;
+  pointer-events: none;
+  transform-origin: center;
+  animation: jeonil-coupon-grow 1.6s ease-in-out infinite;
+}
+.jeonil-cursor-img {
+  position: absolute;
+  left: 61.5%;
+  top: 49.1%;
+  width: 9.8%;
+  height: auto;
+  z-index: 2;
+  pointer-events: none;
+  filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.28));
+  transform-origin: 30% 30%;
+  animation: jeonil-cursor-tap 1.6s ease-in-out infinite;
+}
+@keyframes jeonil-coupon-grow { 0%, 38%, 70%, 100% { transform: scale(1); } 52% { transform: scale(1.05); } }
+@keyframes jeonil-cursor-tap { 0%, 38% { transform: translate(0, 0) scale(1); } 50% { transform: translate(0, 6%) scale(0.9); } 64%, 100% { transform: translate(0, 0) scale(1); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .jeonil-band, .reveal-up { opacity: 1; transform: none; transition: none; }
+  .jeonil-pill { opacity: 1; transform: none; }
+  .jeonil-hero__line, .jeonil-hero__cta { opacity: 1; animation: none; transform: translateX(-50%); }
+  .jeonil-hero__title { opacity: 1; animation: none; transform: none; }
+  .jeonil-hero__bookmark { opacity: 1; animation: none; transform: none; }
+  .jeonil-dday__count, .jeonil-emoji, .jeonil-cursor-img, .jeonil-coupon-ticket, .jeonil-review, .jeonil-openbar, .jeonil-openbar__shine { animation: none; }
+}
+
+@media (max-width: 767px) {
+  /* D-day 바: 상하 여백·라벨↔D-N 간격 축소 */
+  .jeonil-dday { padding: 9px 12px 7px; gap: 10px; }
+  .jeonil-dday__label { font-size: clamp(11px, 3vw, 15px); }
+  .jeonil-dday__count { font-size: clamp(14px, 3.6vw, 18px); }
+
+  /* 히어로: 상위 텍스트 축소, 버튼 테두리·크기 축소 */
+  .jeonil-hero__line--1 { font-size: clamp(8px, 2.4vw, 15px); top: 25%; }
+  .jeonil-hero__line--2 { font-size: clamp(10px, 3vw, 18px); top: 32%; }
+  .jeonil-hero__cta { border-width: 1.5px; padding: 6px 14px; font-size: clamp(10px, 2.6vw, 15px); }
+
+  /* 리뷰: 모바일에서 타이틀·내용 축소 + 카드 상하 여백 축소 */
+  .jeonil-reviews { padding: 26px 18px 28px; }
+  .jeonil-reviews__eyebrow { font-size: clamp(11px, 3.2vw, 15px); margin-bottom: 6px; }
+  .jeonil-reviews__title { font-size: clamp(20px, 5.4vw, 32px); margin-bottom: 16px; }
+  .jeonil-reviews__stage { height: 184px; }
+  .jeonil-review { width: min(272px, 76%); padding: 20px 18px; gap: 14px; }
+  .jeonil-review__text { font-size: clamp(11px, 3.2vw, 14px); line-height: 1.55; }
+  .jeonil-review__name { font-size: clamp(11px, 3.2vw, 14px); }
+  .jeonil-review--left { transform: translate(-150%, -50%) scale(0.72); }
+  .jeonil-review--right { transform: translate(50%, -50%) scale(0.72); }
+  .jeonil-emoji--1 { left: 1%; font-size: clamp(30px, 8vw, 50px); }
+  .jeonil-emoji--2 { right: 1%; font-size: clamp(30px, 8vw, 50px); }
+}

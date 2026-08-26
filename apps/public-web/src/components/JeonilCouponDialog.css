@@ -1,0 +1,195 @@
+.jeonil-coupon {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.62);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: jeonil-coupon-fade 0.18s ease;
+}
+@keyframes jeonil-coupon-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.jeonil-coupon__panel {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  box-sizing: border-box;
+  border-radius: 18px;
+  background: #ffffff;
+  padding: 34px 30px 28px;
+  box-shadow: 0 24px 60px rgba(8, 15, 71, 0.28);
+}
+
+.jeonil-coupon__close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: #222222;
+  cursor: pointer;
+}
+.jeonil-coupon__close:hover { background: rgba(0, 0, 0, 0.06); }
+
+.jeonil-coupon__form,
+.jeonil-coupon__done {
+  display: flex;
+  flex-direction: column;
+}
+
+.jeonil-coupon__title {
+  margin: 0 0 20px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #1a1a1a;
+  text-align: center;
+  letter-spacing: -0.02em;
+  word-break: keep-all;
+}
+
+.jeonil-coupon__input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 0;
+  border-bottom: 2px solid #e3e3e8;
+  padding: 6px 4px 10px;
+  font-size: 30px;
+  font-weight: 700;
+  text-align: center;
+  color: #1a1a1a;
+  letter-spacing: 0.01em;
+}
+.jeonil-coupon__input::placeholder { color: #cbcbd3; }
+.jeonil-coupon__input:focus { outline: none; border-bottom-color: #5b7cfa; }
+
+.jeonil-coupon__consent {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 18px;
+}
+.jeonil-coupon__check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #2a2a2a;
+  cursor: pointer;
+}
+.jeonil-coupon__check input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.jeonil-coupon__check-box {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  border: 1.5px solid #c9c9d2;
+  background: #ffffff;
+  flex-shrink: 0;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.jeonil-coupon__check input:checked + .jeonil-coupon__check-box {
+  background: #5b7cfa
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'><path d='M20 6L9 17l-5-5'/></svg>")
+    center / 13px 13px no-repeat;
+  border-color: #5b7cfa;
+}
+.jeonil-coupon__terms {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  border: 0;
+  background: none;
+  padding: 0;
+  font-size: 12px;
+  color: #9a9aa2;
+  cursor: pointer;
+}
+.jeonil-coupon__terms-arrow {
+  transition: transform 0.2s ease;
+}
+.jeonil-coupon__terms-arrow.is-open {
+  transform: rotate(180deg);
+}
+.jeonil-coupon__terms-body {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #f5f6f9;
+  animation: jeonil-terms-open 0.2s ease;
+}
+@keyframes jeonil-terms-open {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.jeonil-coupon__terms-title {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #4a4a52;
+}
+.jeonil-coupon__terms-body ul {
+  margin: 0;
+  padding-left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.jeonil-coupon__terms-body li {
+  font-size: 11px;
+  line-height: 1.5;
+  color: #8a8a92;
+  word-break: keep-all;
+}
+
+.jeonil-coupon__note {
+  margin: 16px 0 0;
+  font-size: 11px;
+  line-height: 1.55;
+  color: #9a9aa2;
+  word-break: keep-all;
+}
+
+.jeonil-coupon__error {
+  margin: 12px 0 0;
+  font-size: 12.5px;
+  color: #d64545;
+  text-align: center;
+}
+
+.jeonil-coupon__submit {
+  width: 100%;
+  min-height: 52px;
+  margin-top: 22px;
+  border: 0;
+  border-radius: 26px;
+  background: #5b7cfa;
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.jeonil-coupon__submit:hover:not(:disabled) { background: #4c6bf0; }
+.jeonil-coupon__submit:disabled { opacity: 0.6; cursor: default; }
+
+.jeonil-coupon__done { text-align: center; gap: 12px; }
+.jeonil-coupon__done-title { margin: 0; font-size: 19px; font-weight: 800; color: #1a1a1a; }
+.jeonil-coupon__done-desc { margin: 0; font-size: 14px; line-height: 1.6; color: #6a6a72; }

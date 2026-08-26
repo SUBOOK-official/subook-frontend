@@ -1,29 +1,37 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { usePublicAuth } from "../contexts/PublicAuthContext";
-import { trackSelectPromotion, trackViewPromotion } from "../lib/analytics";
-import popupBannerImg from "../assets/popup-banner.webp";
+import { trackViewPromotion } from "../lib/analytics";
 import "./PublicPopupBanner.css";
 
-const STORAGE_KEY = "subook.public.popup-banner.dismissed.v1";
+const STORAGE_KEY = "subook.public.popup-banner.dismissed.v2";
+const EVENT_PATH = "/event/jeon-il";
 
-// GA4 프로모션 파라미터 — 배너 교체 시 promotion_id도 함께 갱신할 것.
+// 홈 팝업 이미지 — apps/public-web/src/assets/home-popup/ 에 넣으면 파일명 순서대로
+// 순차 노출된다 (popup-1 먼저, popup-2 그 다음).
+const popupModules = import.meta.glob("../assets/home-popup/*.{png,jpg,jpeg,webp}", {
+  eager: true,
+  query: "?url",
+  import: "default",
+});
+const POPUPS = Object.entries(popupModules)
+  .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
+  .map(([, url]) => url);
+
 const POPUP_PROMOTION = {
-  promotionId: "popup_first_purchase_coupon",
-  promotionName: "첫구매 3,000원 할인 쿠폰",
+  promotionId: "home_popup_jeonil",
+  promotionName: "전일학원 × 수북 홈 팝업",
   creativeSlot: "home_popup",
 };
 
-// 홈페이지 첫 진입 시 노출되는 팝업 배너.
-// 세션 동안 X로 닫으면 다시 뜨지 않음.
+// 홈페이지 첫 진입 시 순차 노출되는 팝업. 세션 동안 닫으면 다시 뜨지 않음.
 function PublicPopupBanner() {
-  const [open, setOpen] = useState(false);
+  const [index, setIndex] = useState(-1); // -1 = 미노출
   const navigate = useNavigate();
-  const { isAuthenticated } = usePublicAuth();
-  // view_promotion 마운트당 1회 (StrictMode 이중 effect 방어)
-  const viewTrackedRef = useRef(false);
 
   useEffect(() => {
+    if (POPUPS.length === 0) {
+      return;
+    }
     let dismissed = false;
     try {
       dismissed = sessionStorage.getItem(STORAGE_KEY) === "1";
@@ -31,16 +39,13 @@ function PublicPopupBanner() {
       dismissed = false;
     }
     if (!dismissed) {
-      setOpen(true);
-      if (!viewTrackedRef.current) {
-        viewTrackedRef.current = true;
-        trackViewPromotion(POPUP_PROMOTION);
-      }
+      setIndex(0);
+      trackViewPromotion(POPUP_PROMOTION);
     }
   }, []);
 
-  const dismiss = () => {
-    setOpen(false);
+  const finish = () => {
+    setIndex(-1);
     try {
       sessionStorage.setItem(STORAGE_KEY, "1");
     } catch {
@@ -48,18 +53,21 @@ function PublicPopupBanner() {
     }
   };
 
+  // 닫기: 다음 팝업이 있으면 다음으로, 없으면 종료
   const handleClose = () => {
-    dismiss();
+    if (index < POPUPS.length - 1) {
+      setIndex((prev) => prev + 1);
+    } else {
+      finish();
+    }
   };
 
-  // 배너 클릭: 회원이면 마이페이지 쿠폰함, 비회원이면 회원가입 페이지로 이동.
-  const handleBannerClick = () => {
-    trackSelectPromotion(POPUP_PROMOTION);
-    dismiss();
-    navigate(isAuthenticated ? "/mypage#coupons" : "/signup");
+  const handleClick = () => {
+    finish();
+    navigate(EVENT_PATH);
   };
 
-  if (!open) {
+  if (index < 0 || !POPUPS[index]) {
     return null;
   }
 
@@ -72,7 +80,7 @@ function PublicPopupBanner() {
       onClick={handleClose}
     >
       <div
-        className="public-popup-banner__panel"
+        className={`public-popup-banner__panel${index === 0 ? " public-popup-banner__panel--large" : ""}`}
         onClick={(event) => event.stopPropagation()}
       >
         <button
@@ -82,23 +90,14 @@ function PublicPopupBanner() {
           aria-label="닫기"
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-            <path
-              d="M4 4l8 8M12 4l-8 8"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-            />
+            <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
           </svg>
         </button>
-        <button
-          type="button"
-          className="public-popup-banner__link"
-          onClick={handleBannerClick}
-        >
+        <button type="button" className="public-popup-banner__link" onClick={handleClick}>
           <img
             className="public-popup-banner__image"
-            src={popupBannerImg}
-            alt="첫구매 3,000원 할인 쿠폰 받기"
+            src={POPUPS[index]}
+            alt={`전일학원 × 수북 이벤트 안내 ${index + 1}`}
           />
         </button>
       </div>
