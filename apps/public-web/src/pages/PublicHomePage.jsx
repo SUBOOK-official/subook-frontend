@@ -24,8 +24,8 @@ const HOME_HERO_SLIDES = [
     id: "banner-4",
     actionType: "jeonil",
     href: "/event/jeon-il",
-    imageDesktop: "/banners/hero-banner-4-desktop.png",
-    imageMobile: "/banners/hero-banner-4-mobile.png",
+    imageDesktop: "/banners/hero-banner-4-desktop.webp",
+    imageMobile: "/banners/hero-banner-4-mobile.webp",
     imageAlt: "전일학원 × 수북 콜라보 한정판 교재 - 전일학원 이벤트 바로가기",
   },
   {

@@ -1,10 +1,15 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { isSupabaseConfigured, supabase } from "@shared-supabase/publicSupabaseClient";
+import { trackJeonilLaunchAlert } from "../lib/analytics";
 import {
   formatPhoneNumber,
   isValidKoreanMobile,
 } from "../lib/publicAuthFormUtils";
 import "./JeonilCouponDialog.css";
+
+// submit_event_subscription RPC의 이벤트 키 allowlist와 동일해야 함
+const EVENT_KEY = "jeonil-2026-09";
 
 // 전일학원 이벤트 출시 알림 신청 팝업 — 전화번호 + 마케팅 수신 동의.
 function JeonilCouponDialog({ open, onClose }) {
@@ -64,11 +69,32 @@ function JeonilCouponDialog({ open, onClose }) {
       setError("개인정보 마케팅 수신에 동의해 주세요.");
       return;
     }
+    if (!isSupabaseConfigured || !supabase) {
+      setError("신청에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      return;
+    }
     setSubmitting(true);
     try {
-      // TODO(backend): 전화번호 저장 연동 (Supabase 테이블 / RPC 등).
-      await new Promise((resolve) => setTimeout(resolve, 400));
+      const { data, error: rpcError } = await supabase.rpc("submit_event_subscription", {
+        p_event_key: EVENT_KEY,
+        p_phone: phone,
+        p_marketing_consent: agree,
+      });
+      if (rpcError || !data?.success) {
+        setError(
+          data?.code === "INVALID_PHONE"
+            ? "올바른 휴대전화 번호를 입력해 주세요."
+            : "신청에 실패했습니다. 잠시 후 다시 시도해 주세요.",
+        );
+        return;
+      }
+      // 재신청(ALREADY)도 완료 화면은 보여주되 리드 이벤트는 최초 신청만 집계
+      if (data.code === "SUBSCRIBED") {
+        trackJeonilLaunchAlert();
+      }
       setDone(true);
+    } catch {
+      setError("신청에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
       setSubmitting(false);
     }

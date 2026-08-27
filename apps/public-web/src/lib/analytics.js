@@ -357,6 +357,12 @@ function trackGenerateLead({ boxCount, expectedBookCount }) {
   fbqEvent("Lead", {});
 }
 
+// 전일학원 출시 알림 신청 성공 = 이벤트 리드 확보. GA4 generate_lead + Meta Lead.
+function trackJeonilLaunchAlert() {
+  gtagEvent("generate_lead", { lead_type: "jeonil_launch_alert" });
+  fbqEvent("Lead", {});
+}
+
 // 카카오톡 채널 친구추가 쿠폰 발급 성공 = 채널 리드 확보. GA4 generate_lead + Meta Lead.
 function trackKakaoCouponClaim() {
   gtagEvent("generate_lead", { lead_type: "kakao_channel_coupon" });
@@ -487,6 +493,7 @@ export {
   trackGenerateLead,
   trackGuestOrderLookup,
   trackImageZoom,
+  trackJeonilLaunchAlert,
   trackKakaoCouponClaim,
   trackLogin,
   trackLoginGateCta,
