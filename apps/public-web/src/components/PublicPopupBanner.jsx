@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { trackViewPromotion } from "../lib/analytics";
+import { KAKAO_CHANNEL_URL } from "../lib/supportChannels";
 import "./PublicPopupBanner.css";
 
 const STORAGE_KEY = "subook.public.popup-banner.dismissed.v2";
@@ -15,7 +16,11 @@ const popupModules = import.meta.glob("../assets/home-popup/*.{png,jpg,jpeg,webp
 });
 const POPUPS = Object.entries(popupModules)
   .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
-  .map(([, url]) => url);
+  .map(([path, url]) => ({ path, url }));
+
+// 카카오채널 친구추가 쿠폰 팝업(POP-UP2)은 이벤트가 아니라 카카오 문의 채널로 연결한다.
+// 파일명에 kakao/카카오 또는 (pop-up)2가 들어가면 카카오 팝업으로 본다.
+const isKakaoPopup = (path) => /kakao|카카오|pop-?up-?0*2\b/i.test(path);
 
 const POPUP_PROMOTION = {
   promotionId: "home_popup_jeonil",
@@ -63,13 +68,22 @@ function PublicPopupBanner() {
   };
 
   const handleClick = () => {
+    const current = POPUPS[index];
     finish();
+    if (current && isKakaoPopup(current.path)) {
+      // 카카오채널 친구추가 쿠폰 팝업 → 우리 카카오 문의 채널로 이동(새 탭)
+      window.open(KAKAO_CHANNEL_URL, "_blank", "noopener,noreferrer");
+      return;
+    }
     navigate(EVENT_PATH);
   };
 
   if (index < 0 || !POPUPS[index]) {
     return null;
   }
+
+  const current = POPUPS[index];
+  const kakao = isKakaoPopup(current.path);
 
   return (
     <div
@@ -96,8 +110,8 @@ function PublicPopupBanner() {
         <button type="button" className="public-popup-banner__link" onClick={handleClick}>
           <img
             className="public-popup-banner__image"
-            src={POPUPS[index]}
-            alt={`전일학원 × 수북 이벤트 안내 ${index + 1}`}
+            src={current.url}
+            alt={kakao ? "카카오채널 친구추가 3,000원 할인 쿠폰 받기" : `전일학원 × 수북 이벤트 안내 ${index + 1}`}
           />
         </button>
       </div>

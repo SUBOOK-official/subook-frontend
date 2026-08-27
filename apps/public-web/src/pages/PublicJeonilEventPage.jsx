@@ -19,10 +19,10 @@ import cursorImg from "../assets/jeonil/cursor.webp";
 import couponTicket from "../assets/jeonil/coupon-ticket.webp";
 import "./PublicJeonilEventPage.css";
 
-const JEONGWON_RATIO = "1600 / 362";
-const R_GANGSA_C = "1493 / 653";
-const R_ANS_C = "1493 / 629";
-const R_CARD = "1508 / 715";
+const JEONGWON_RATIO = "3840 / 883";
+const R_GANGSA_C = "3840 / 1780";
+const R_ANS_C = "3840 / 1605";
+const R_CARD = "3009 / 1430";
 const R_COUPON = "1493 / 976";
 
 const OPEN_YEAR = 2026;
@@ -293,7 +293,32 @@ function PublicJeonilEventPage() {
               <p className="jeonil-htitle jeonil-gangsa-sub">수험생들을 1등급으로 이끌어줄</p>
               <h2 className="jeonil-htitle jeonil-gangsa-title">초호화 라인업 강사진 14인</h2>
             </div>
-            <img className="jeonil-band jeonil-gangsa-collage" src={gangsaCollage} alt="전일학원 강사진" draggable={false} style={{ aspectRatio: R_GANGSA_C }} />
+            <div className="jeonil-gangsa-collage-wrap" style={{ aspectRatio: R_GANGSA_C }}>
+              <img className="jeonil-band jeonil-gangsa-collage" src={gangsaCollage} alt="전일학원 강사진" draggable={false} />
+              <figcaption className="jeonil-glabel jeonil-glabel--1">
+                <b>이재호 선생님</b>
+                <span>서울대 국어교육과</span>
+                <span>前 강남 대성학원 강사</span>
+                <span>前 대치 세정학원사 강사</span>
+              </figcaption>
+              <figcaption className="jeonil-glabel jeonil-glabel--2">
+                <b>조승현 선생님</b>
+                <span>서울대 영어교육과</span>
+                <span>前 강남 대성학원 강사</span>
+                <span>前 평가원/수능문제 개발</span>
+              </figcaption>
+              <figcaption className="jeonil-glabel jeonil-glabel--3">
+                <b>허호승 선생님</b>
+                <span>서울대 수학교육과</span>
+                <span>前 강남대성 기숙(의대관) 강사</span>
+              </figcaption>
+              <figcaption className="jeonil-glabel jeonil-glabel--4">
+                <b>권태진 선생님</b>
+                <span>서울대 국어국문학과</span>
+                <span>前 강남 대성학원 강사</span>
+                <span>前 종로학원 본원 강사</span>
+              </figcaption>
+            </div>
           </div>
           {/* 해답은 전일 X 수북에서 (남색 · 타이틀 텍스트만 HTML 순차 rise-up) */}
           <div className="jeonil-answer-sec">

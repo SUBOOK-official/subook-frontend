@@ -146,12 +146,16 @@
   position: absolute;
   top: 0;
   right: 4%;
-  width: clamp(52px, 10%, 118px);
+  width: clamp(36px, 7%, 83px);
   height: auto;
   -webkit-user-drag: none;
   opacity: 0;
   animation: jeonil-drop 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) both;
   animation-delay: 1.5s;
+}
+/* 웹(데스크탑) 책갈피 — 기존 대비 0.7배로 축소 */
+@media (min-width: 768px) {
+  .jeonil-hero__bookmark { width: clamp(83px, 14%, 165px); }
 }
 @keyframes jeonil-rise-c { from { opacity: 0; transform: translate(-50%, 40px); } to { opacity: 1; transform: translate(-50%, 0); } }
 @keyframes jeonil-rise { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: translateY(0); } }
@@ -214,7 +218,9 @@
 .jeonil-gangsa-head {
   position: relative;
   padding: clamp(40px, 7vw, 82px) 20px clamp(20px, 3.5vw, 40px);
-  background: radial-gradient(ellipse 62% 90% at 50% 42%, rgba(213, 209, 255, 0.75) 0%, rgba(230, 233, 255, 0.35) 42%, #ffffff 78%);
+  /* 글로우는 타이틀 주변(상단)에만, 하단 가장자리는 완전한 흰색이 되게 하여
+     아래 콜라주 이미지(흰 배경)와 경계선이 보이지 않도록 함 */
+  background: radial-gradient(ellipse 58% 64% at 50% 34%, rgba(213, 209, 255, 0.72) 0%, rgba(230, 233, 255, 0.3) 44%, #ffffff 70%);
   text-align: center;
   font-family: "Gmarket Sans", var(--public-font);
   font-size: 16px;
@@ -242,9 +248,66 @@
   transition-delay: 0.45s;
 }
 
+/* 강사진 콜라주 + 강사 설명 라벨 오버레이 */
+.jeonil-gangsa-collage-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 1920px;
+  margin: 0 auto;
+  container-type: inline-size;
+}
+.jeonil-gangsa-collage-wrap .jeonil-gangsa-collage {
+  width: 100%;
+  height: auto;
+  display: block;
+  max-width: none;
+}
+/* 강사 라벨 (이미지 상단 여백 위에 얹힘) — 폰트는 컨테이너 폭 기준 cqw */
+.jeonil-glabel {
+  position: absolute;
+  z-index: 2;
+  text-align: center;
+  transform: translateX(-50%) translateY(16px);
+  font-family: "Pretendard", var(--public-font);
+  color: #10163f;
+  line-height: 1.32;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.55s ease-out, transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.jeonil-glabel b {
+  display: block;
+  font-weight: 700;
+  font-size: 1.7cqw;
+  margin-bottom: 0.5cqw;
+  letter-spacing: -0.01em;
+}
+.jeonil-glabel span {
+  display: block;
+  font-weight: 500;
+  font-size: 1.28cqw;
+  color: #3a3f63;
+}
+/* 4명 위치 (조승현 중앙 최상단, 이재호 좌측, 허호승 우중앙, 권태진 우측 하단) */
+.jeonil-glabel--1 { left: 18%; top: 11%; }
+.jeonil-glabel--2 { left: 40%; top: 3%; }
+.jeonil-glabel--3 { left: 68%; top: 12%; }
+.jeonil-glabel--4 { left: 89%; top: 14%; }
+.jeonil-gangsa-sec.is-visible .jeonil-glabel {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+.jeonil-gangsa-sec.is-visible .jeonil-glabel--1 { transition-delay: 0.6s; }
+.jeonil-gangsa-sec.is-visible .jeonil-glabel--2 { transition-delay: 0.7s; }
+.jeonil-gangsa-sec.is-visible .jeonil-glabel--3 { transition-delay: 0.8s; }
+.jeonil-gangsa-sec.is-visible .jeonil-glabel--4 { transition-delay: 0.9s; }
+
 .jeonil-gangsa-pill {
-  display: inline-block;
-  padding: 0.55em 1.4em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* Gmarket 글리프가 위로 붙어 보여 상단 패딩을 더 줘 세로 중앙 정렬 보정 */
+  padding: 0.72em 1.5em 0.5em;
   border-radius: 999px;
   background: #ffffff;
   box-shadow: 0 6px 18px rgba(101, 25, 200, 0.14);
@@ -286,9 +349,21 @@
   text-align: center;
   font-family: "Gmarket Sans", var(--public-font);
   color: #ffffff;
-  /* 그라데이션 중심을 head 하단(=이미지 상단 접점)에 정확히 두어 이음새 제거.
-     이미지 상단 프로필: 중앙 좁은 글로우 #163565, 나머지 어두운 남색 #000621 */
-  background: radial-gradient(ellipse 30% 92% at 50% 100%, #163565 0%, #05153f 22%, #01082c 50%, #000621 85%);
+  /* head 하단 행이 이미지 최상단 행 프로필과 픽셀 단위로 일치하도록 stop을 실측값으로 구성
+     (head·이미지 폭이 같으므로 수평 falloff가 그대로 맞아 경계선이 사라진다).
+     위로 갈수록 어두운 남색으로 사라지는 하단 그라데이션 */
+  background: radial-gradient(
+    ellipse 50% 130% at 50% 100%,
+    rgb(17, 52, 104) 0%,
+    rgb(5, 21, 75) 10%,
+    rgb(2, 15, 70) 20%,
+    rgb(3, 15, 66) 30%,
+    rgb(1, 13, 62) 40%,
+    rgb(1, 11, 60) 50%,
+    rgb(3, 11, 58) 60%,
+    rgb(2, 9, 50) 80%,
+    rgb(1, 7, 42) 100%
+  );
 }
 .jeonil-answer-sub { margin: 0 0 clamp(2px, 0.5vw, 7px); font-weight: 700; font-size: clamp(15px, 3.2vw, 36px); white-space: nowrap; }
 .jeonil-answer-title { margin: 0; font-weight: 700; font-size: clamp(23px, 5.4vw, 62px); letter-spacing: -0.02em; white-space: nowrap; }
