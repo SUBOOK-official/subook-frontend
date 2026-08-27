@@ -21,6 +21,14 @@ const PICKUP_REQUEST_PATH = "/pickup/new";
 // 기존 중고 재고는 재고 소진까지 함께 노출. 슬라이드 카피도 새 책 톤으로.
 const HOME_HERO_SLIDES = [
   {
+    id: "banner-4",
+    actionType: "jeonil",
+    href: "/event/jeon-il",
+    imageDesktop: "/banners/hero-banner-4-desktop.png",
+    imageMobile: "/banners/hero-banner-4-mobile.png",
+    imageAlt: "전일학원 × 수북 콜라보 한정판 교재 - 전일학원 이벤트 바로가기",
+  },
+  {
     id: "shop-textbooks",
     eyebrow: "미사용 교재 구매",
     titleLines: ["수능 끝, 안 쓴 교재를", "합리적인 가격에"],
@@ -106,6 +114,11 @@ function PublicHomePage() {
 
     if (slide.actionType === "faq") {
       navigate("/faq");
+      return;
+    }
+
+    if (slide.actionType === "jeonil") {
+      navigate(slide.href ?? "/event/jeon-il");
       return;
     }
 

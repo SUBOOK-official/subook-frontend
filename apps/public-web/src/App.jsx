@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useRef } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate, useNavigationType } from "react-router-dom";
 import { usePublicAuth } from "./contexts/PublicAuthContext";
+import JeonilMiniPopup from "./components/JeonilMiniPopup";
 // PG 심사 모드 파라미터(?pg=toss)는 부트 시점에 캡처해야 한다 — 페이지 모듈이 lazy라
 // 주문서 도착 시점엔 진입 파라미터가 이미 사라져 있기 때문 (side-effect import).
 import "./lib/pgReviewMode";
@@ -11,6 +12,7 @@ const PublicFaqPage = lazy(() => import("./pages/PublicFaqPage"));
 const PublicForgotPasswordPage = lazy(() => import("./pages/PublicForgotPasswordPage"));
 const PublicGuestOrderLookupPage = lazy(() => import("./pages/PublicGuestOrderLookupPage"));
 const PublicHomePage = lazy(() => import("./pages/PublicHomePage"));
+const PublicJeonilEventPage = lazy(() => import("./pages/PublicJeonilEventPage"));
 const PublicKakaoCouponPage = lazy(() => import("./pages/PublicKakaoCouponPage"));
 const PublicLoginPage = lazy(() => import("./pages/PublicLoginPage"));
 const PublicMypagePage = lazy(() => import("./pages/PublicMypagePage"));
@@ -107,6 +109,7 @@ function App() {
           <Route element={<PublicFaqPage />} path="/faq" />
           <Route element={<PublicForgotPasswordPage />} path="/forgot-password" />
           <Route element={<PublicHomePage />} path="/" />
+          <Route element={<PublicJeonilEventPage />} path="/event/jeon-il" />
           <Route element={<PublicLoginPage />} path="/login" />
           <Route element={<PublicMypagePage />} path="/mypage" />
           <Route element={<PublicNoticesPage />} path="/notices" />
@@ -130,6 +133,7 @@ function App() {
           <Route element={<PublicNotFoundPage />} path="*" />
         </Routes>
       </Suspense>
+      <JeonilMiniPopup />
     </>
   );
 }

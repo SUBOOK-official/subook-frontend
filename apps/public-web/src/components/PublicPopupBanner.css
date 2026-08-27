@@ -28,6 +28,10 @@
   background: #ffffff;
   box-shadow: 0 24px 60px rgba(8, 15, 71, 0.28);
 }
+/* POP-UP1 은 1.6배 크게 */
+.public-popup-banner__panel--large {
+  max-width: 736px;
+}
 
 .public-popup-banner__link {
   display: block;
@@ -72,5 +76,8 @@
 
   .public-popup-banner__panel {
     max-width: 380px;
+  }
+  .public-popup-banner__panel--large {
+    max-width: min(608px, calc(100vw - 32px));
   }
 }

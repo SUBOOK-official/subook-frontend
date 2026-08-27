@@ -1,0 +1,48 @@
+.jeonil-mini {
+  position: fixed;
+  right: 24px;
+  bottom: 150px;
+  z-index: 45;
+  width: 236px;
+  animation: jeonil-mini-in 0.35s ease both;
+}
+
+@keyframes jeonil-mini-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.jeonil-mini__img-btn {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.jeonil-mini__img-btn img {
+  display: block;
+  width: 100%;
+  height: auto;
+  filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.28));
+}
+
+/* 이미지 속 X 위에 얹는 투명 닫기 버튼 (우측 상단) */
+.jeonil-mini__close {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 22%;
+  height: 30%;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+@media (max-width: 767px) {
+  .jeonil-mini {
+    right: 14px;
+    bottom: 140px;
+    width: 127px; /* 기존 190px의 약 2/3 */
+  }
+}
