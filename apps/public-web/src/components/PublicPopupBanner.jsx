@@ -82,15 +82,18 @@ function PublicPopupBanner() {
     }
   };
 
+  // 내부 경로 이동 (외부 href 팝업은 네이티브 앵커가 새 탭을 연다 — window.open은
+  // 팝업 차단기에 걸릴 수 있어 쓰지 않음)
   const handleClick = () => {
     const popup = POPUPS[index];
     trackSelectPromotion(popup.promotion);
     finish();
-    if (popup.href) {
-      window.open(popup.href, "_blank", "noopener,noreferrer");
-      return;
-    }
     navigate(popup.to);
+  };
+
+  const handleExternalClick = () => {
+    trackSelectPromotion(POPUPS[index].promotion);
+    finish();
   };
 
   if (index < 0 || !POPUPS[index]) {
@@ -121,9 +124,21 @@ function PublicPopupBanner() {
             <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
           </svg>
         </button>
-        <button type="button" className="public-popup-banner__link" onClick={handleClick}>
-          <img className="public-popup-banner__image" src={popup.src} alt={popup.alt} />
-        </button>
+        {popup.href ? (
+          <a
+            className="public-popup-banner__link"
+            href={popup.href}
+            target="_blank"
+            rel="noreferrer"
+            onClick={handleExternalClick}
+          >
+            <img className="public-popup-banner__image" src={popup.src} alt={popup.alt} />
+          </a>
+        ) : (
+          <button type="button" className="public-popup-banner__link" onClick={handleClick}>
+            <img className="public-popup-banner__image" src={popup.src} alt={popup.alt} />
+          </button>
+        )}
       </div>
     </div>
   );
