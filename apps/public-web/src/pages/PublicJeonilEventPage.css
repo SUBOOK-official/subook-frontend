@@ -120,12 +120,12 @@
 .jeonil-hero__title i { color: #ffd45e; font-style: normal; font-weight: 700; }
 .jeonil-hero__cta {
   position: absolute;
-  top: 74%;
+  top: 68%;
   left: 50%;
   display: inline-flex;
   align-items: center;
   gap: clamp(8px, 1.6vw, 20px);
-  padding: clamp(8px, 1.4vw, 18px) clamp(18px, 3vw, 44px);
+  padding: clamp(6px, 1.05vw, 13px) clamp(16px, 2.7vw, 40px);
   border: 2px solid #cda16b;
   border-radius: 100px;
   background: #000000;
@@ -142,11 +142,13 @@
   transition: background 0.15s ease;
 }
 .jeonil-hero__cta:hover { background: #1a1a1a; }
+/* 삐용삐용(🚨) 아이콘만 살짝 더 크게 */
+.jeonil-hero__cta > span { font-size: 1.18em; line-height: 1; }
 .jeonil-hero__bookmark {
   position: absolute;
   top: 0;
   right: 4%;
-  width: clamp(36px, 7%, 83px);
+  width: clamp(48px, 12%, 92px);
   height: auto;
   -webkit-user-drag: none;
   opacity: 0;
@@ -192,6 +194,108 @@
   /* 이미지 섹션은 항상 표시 — 페이드/이동 없이 경계를 완전히 밀착 */
 }
 .jeonil-band--flush { margin-top: -1px; margin-bottom: -1px; }
+
+/* ── 원장님 소개 — 데스크탑=이미지 / 모바일=HTML ── */
+.jeonil-jeongwon {
+  display: none; /* 데스크탑은 이미지(.jeonil-jeongwon-img) 사용 */
+  width: 100%;
+  max-width: 1920px;
+  margin: 0 auto;
+  background: linear-gradient(96deg, #331f0b 0%, #5c3d1c 46%, #9a6c34 82%, #b78141 100%);
+  font-family: "Pretendard", var(--public-font);
+  color: #f4e8d5;
+}
+.jeonil-jeongwon__inner {
+  display: flex;
+  align-items: center;
+  gap: clamp(20px, 3vw, 64px);
+  padding: clamp(30px, 3.2vw, 60px) clamp(20px, 4.5vw, 96px);
+  box-sizing: border-box;
+}
+.jeonil-jeongwon__lead { flex: 1 1 auto; min-width: 0; }
+.jeonil-jeongwon__l1,
+.jeonil-jeongwon__l2,
+.jeonil-jeongwon__l3 { margin: 0; word-break: keep-all; }
+.jeonil-jeongwon__l1 { font-size: clamp(14px, 1.4vw, 27px); font-weight: 500; }
+.jeonil-jeongwon__l2 {
+  margin: clamp(14px, 1.6vw, 28px) 0;
+  font-size: clamp(15px, 1.45vw, 28px);
+  font-weight: 700;
+  line-height: 1.5;
+  color: #ffffff;
+}
+.jeonil-jeongwon__l3 { font-size: clamp(14px, 1.4vw, 27px); font-weight: 500; }
+.jeonil-jeongwon__profile {
+  flex: none;
+  display: flex;
+  align-items: flex-end;
+  width: clamp(360px, 45vw, 840px);
+}
+/* ── 데스크탑(기본): 인물 왼쪽 · 정보 오른쪽, 크롭/오버랩 없음 ── */
+.jeonil-jeongwon__photo {
+  flex: none;
+  width: clamp(170px, 20vw, 420px);
+  height: auto;
+  align-self: flex-end;
+  -webkit-user-drag: none;
+}
+.jeonil-jeongwon__info {
+  align-self: center;
+  min-width: 0;
+}
+.jeonil-jeongwon__name {
+  margin: 0 0 clamp(8px, 1vw, 16px);
+  font-size: clamp(16px, 1.5vw, 30px);
+  font-weight: 700;
+  color: #ffffff;
+  white-space: nowrap;
+}
+.jeonil-jeongwon__name span {
+  margin-left: 0.5em;
+  font-size: 0.62em;
+  font-weight: 500;
+  color: #ecd9bd;
+}
+.jeonil-jeongwon__info ul { list-style: none; margin: 0; padding: 0; }
+.jeonil-jeongwon__edu li {
+  font-size: clamp(12px, 1.05vw, 19px);
+  line-height: 1.55;
+  color: #f2e5d1;
+  word-break: keep-all;
+}
+.jeonil-jeongwon__career { margin-top: clamp(9px, 1.1vw, 16px); }
+.jeonil-jeongwon__career li {
+  font-size: clamp(11px, 0.95vw, 17px);
+  line-height: 1.5;
+  color: #dcc6a2;
+  word-break: keep-all;
+}
+@media (max-width: 767px) {
+  .jeonil-jeongwon__inner { flex-direction: column; align-items: stretch; gap: 5px; padding: 14px 14px 0; }
+  /* 사진 위 리드 텍스트: 오른쪽 정렬 + 좌우 동일 여백 */
+  .jeonil-jeongwon__lead { margin: 8px 10px 0; text-align: right; }
+  .jeonil-jeongwon__l1, .jeonil-jeongwon__l3 { font-size: 10.5px; }
+  .jeonil-jeongwon__l2 { font-size: 11px; margin: 8px 0; }
+  .jeonil-jeongwon__profile { width: 100%; align-items: flex-end; }
+  /* 모바일 전용: 인물 상단 크롭 + 인물/텍스트 겹침 */
+  .jeonil-jeongwon__photo {
+    width: 220px;
+    margin-left: -36px;
+    aspect-ratio: 1.02;
+    object-fit: cover;
+    object-position: center bottom;
+  }
+  .jeonil-jeongwon__info {
+    align-self: flex-end;
+    position: relative;
+    z-index: 2;
+    margin-left: -30px;
+    padding-bottom: 26px;
+  }
+  .jeonil-jeongwon__name { font-size: 15px; }
+  .jeonil-jeongwon__edu li { font-size: 10px; white-space: normal; }
+  .jeonil-jeongwon__career li { font-size: 9.5px; white-space: normal; }
+}
 
 /* 타이틀 순차 rise-up 밴드 — 섹션 배경색 컨테이너 안에서 이동해 틈이 안 보임 */
 .jeonil-riseband {
@@ -278,14 +382,14 @@
 .jeonil-glabel b {
   display: block;
   font-weight: 700;
-  font-size: 1.7cqw;
-  margin-bottom: 0.5cqw;
+  font-size: clamp(7.5px, 1.7cqw, 34px);
+  margin-bottom: 0.35em;
   letter-spacing: -0.01em;
 }
 .jeonil-glabel span {
   display: block;
   font-weight: 500;
-  font-size: 1.28cqw;
+  font-size: clamp(6px, 1.28cqw, 25px);
   color: #3a3f63;
 }
 /* 4명 위치 (조승현 중앙 최상단, 이재호 좌측, 허호승 우중앙, 권태진 우측 하단) */
@@ -293,6 +397,14 @@
 .jeonil-glabel--2 { left: 40%; top: 3%; }
 .jeonil-glabel--3 { left: 68%; top: 12%; }
 .jeonil-glabel--4 { left: 89%; top: 14%; }
+/* 모바일: 상단 여백으로 올려 사진과 겹치지 않게 */
+@media (max-width: 767px) {
+  .jeonil-glabel { line-height: 1.18; }
+  .jeonil-glabel--1 { left: 15%; top: 2%; }
+  .jeonil-glabel--2 { left: 40%; top: 0%; }
+  .jeonil-glabel--3 { left: 66%; top: 2%; }
+  .jeonil-glabel--4 { left: 86%; top: 5%; }
+}
 .jeonil-gangsa-sec.is-visible .jeonil-glabel {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
@@ -341,35 +453,145 @@
   width: 100%;
   max-width: 1920px;
   margin: 0 auto;
-  background: #000621;
-  font-size: 0;
+  background: #000621; /* 데스크탑: 남색 (이미지가 글로우 포함) */
+  font-family: "Pretendard", var(--public-font);
 }
 .jeonil-answer-head {
-  padding: clamp(40px, 6vw, 72px) 20px clamp(22px, 3.5vw, 42px);
+  padding: clamp(40px, 6vw, 72px) 20px clamp(16px, 2.6vw, 30px);
   text-align: center;
   font-family: "Gmarket Sans", var(--public-font);
   color: #ffffff;
-  /* head 하단 행이 이미지 최상단 행 프로필과 픽셀 단위로 일치하도록 stop을 실측값으로 구성
-     (head·이미지 폭이 같으므로 수평 falloff가 그대로 맞아 경계선이 사라진다).
-     위로 갈수록 어두운 남색으로 사라지는 하단 그라데이션 */
+  /* 데스크탑: 이미지 상단 픽셀과 매칭되는 그라데이션 (경계선 없음) */
   background: radial-gradient(
     ellipse 50% 130% at 50% 100%,
-    rgb(17, 52, 104) 0%,
-    rgb(5, 21, 75) 10%,
-    rgb(2, 15, 70) 20%,
-    rgb(3, 15, 66) 30%,
-    rgb(1, 13, 62) 40%,
-    rgb(1, 11, 60) 50%,
-    rgb(3, 11, 58) 60%,
-    rgb(2, 9, 50) 80%,
-    rgb(1, 7, 42) 100%
+    rgb(17, 52, 104) 0%, rgb(5, 21, 75) 10%, rgb(2, 15, 70) 20%, rgb(3, 15, 66) 30%,
+    rgb(1, 13, 62) 40%, rgb(1, 11, 60) 50%, rgb(3, 11, 58) 60%, rgb(2, 9, 50) 80%, rgb(1, 7, 42) 100%
   );
 }
+/* 데스크탑=이미지 / 모바일=HTML 전환 */
+.jeonil-answer-img { display: block; margin: 0 auto; }
+.jeonil-jeongwon-img { display: block; }
 .jeonil-answer-sub { margin: 0 0 clamp(2px, 0.5vw, 7px); font-weight: 700; font-size: clamp(15px, 3.2vw, 36px); white-space: nowrap; }
 .jeonil-answer-title { margin: 0; font-weight: 700; font-size: clamp(23px, 5.4vw, 62px); letter-spacing: -0.02em; white-space: nowrap; }
 .jeonil-x { color: #e6c07a; margin: 0 0.12em; }
 .jeonil-answer-sec.is-visible .jeonil-htitle { opacity: 1; transform: translateY(0); }
 .jeonil-answer-sec.is-visible .jeonil-answer-title { transition-delay: 0.18s; }
+
+/* 전일학원 × 수북 비교 — 모바일 전용 반응형 HTML (데스크탑은 이미지) */
+.jeonil-compare {
+  width: 100%;
+  box-sizing: border-box;
+  display: none;
+  align-items: stretch;
+  gap: clamp(16px, 3vw, 46px);
+  padding: clamp(26px, 3vw, 40px) clamp(16px, 3.5vw, 70px) clamp(44px, 6vw, 96px);
+  font-family: "Pretendard", var(--public-font);
+}
+.jeonil-compare__col {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  margin-top: clamp(14px, 1.6vw, 24px);
+  padding: clamp(30px, 3.2vw, 54px) clamp(16px, 2vw, 34px) clamp(24px, 3vw, 40px);
+  border-radius: clamp(14px, 1.4vw, 22px);
+  background: rgba(9, 20, 52, 0.55);
+  text-align: center;
+}
+.jeonil-compare__col--jeonil {
+  border: 2px solid rgba(90, 130, 255, 0.75);
+  box-shadow: 0 0 22px rgba(74, 123, 255, 0.4), inset 0 0 34px rgba(74, 123, 255, 0.14);
+}
+.jeonil-compare__col--subook {
+  border: 2px solid rgba(58, 208, 224, 0.8);
+  box-shadow: 0 0 22px rgba(58, 208, 224, 0.4), inset 0 0 34px rgba(58, 208, 224, 0.14);
+}
+.jeonil-compare__pill {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 0.5em 1.5em;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #10163f;
+  font-weight: 700;
+  font-size: clamp(15px, 1.5vw, 30px);
+  white-space: nowrap;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+}
+.jeonil-compare__desc {
+  margin: 0 0 clamp(18px, 2.2vw, 32px);
+  color: #b9c4ea;
+  font-weight: 500;
+  font-size: clamp(12.5px, 1.1vw, 20px);
+  line-height: 1.55;
+  word-break: keep-all;
+}
+.jeonil-compare__desc b {
+  display: block;
+  margin-top: 0.35em;
+  color: #ffffff;
+  font-weight: 700;
+}
+.jeonil-compare__cards {
+  display: flex;
+  gap: clamp(9px, 1.1vw, 18px);
+}
+.jeonil-compare__card {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: #ffffff;
+  border-radius: clamp(12px, 1.1vw, 18px);
+  padding: clamp(15px, 1.7vw, 24px) clamp(6px, 0.8vw, 12px) clamp(14px, 1.6vw, 22px);
+}
+/* 아이콘은 작은 원형 배지 (색 잘림 없이 훨씬 작게) */
+.jeonil-compare__ic {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: clamp(42px, 4.2vw, 68px);
+  aspect-ratio: 1;
+  border-radius: 30%;
+  margin-bottom: clamp(8px, 1vw, 14px);
+}
+.jeonil-compare__ic svg { width: 56%; height: 56%; }
+.jeonil-compare__ic--jeonil { background: #ece8fb; color: #6a3fe0; }
+.jeonil-compare__ic--subook { background: #bcecdb; color: #12a488; }
+.jeonil-compare__card b {
+  color: #10163f;
+  font-weight: 700;
+  font-size: clamp(12.5px, 1.15vw, 22px);
+  white-space: nowrap;
+}
+.jeonil-compare__card span {
+  margin-top: 0.25em;
+  color: #6a7092;
+  font-size: clamp(10.5px, 0.92vw, 16px);
+  white-space: nowrap;
+}
+@media (max-width: 767px) {
+  /* 모바일: 이미지 숨기고 HTML 표시 */
+  .jeonil-answer-img, .jeonil-jeongwon-img { display: none; }
+  .jeonil-jeongwon { display: block; }
+  .jeonil-answer-sec {
+    background:
+      radial-gradient(ellipse 66% 56% at 50% 60%, rgba(34, 74, 140, 0.5) 0%, rgba(12, 28, 62, 0.24) 42%, rgba(0, 6, 33, 0) 72%),
+      #000621;
+  }
+  .jeonil-answer-head { background: transparent; }
+  .jeonil-compare { display: flex; flex-direction: column; gap: 26px; padding: 24px 12px 36px; }
+  .jeonil-compare__col { margin-top: 14px; padding: 32px 10px 16px; }
+  .jeonil-compare__desc { font-size: 11.5px; margin-bottom: 14px; white-space: nowrap; }
+  .jeonil-compare__cards { gap: 8px; }
+  .jeonil-compare__card { padding: 12px 6px 12px; }
+  .jeonil-compare__ic { width: 40px; margin-bottom: 8px; }
+  .jeonil-compare__card b { font-size: 13.5px; }
+  .jeonil-compare__card span { font-size: 11.5px; }
+}
 
 /* 이제는 클릭 (라벤더) — 타이틀 텍스트만 HTML 순차 등장 */
 .jeonil-click-head {
@@ -450,8 +672,8 @@
   container-type: inline-size;
   color: #111111;
 }
-.jeonil-achieve__sub { position: absolute; top: 13.5%; left: 0; right: 0; margin: 0; text-align: center; font-weight: 700; font-size: 3.1cqw; line-height: 1.2; }
-.jeonil-achieve__title { position: absolute; top: 21%; left: 0; right: 0; margin: 0; text-align: center; font-weight: 700; font-size: 5.2cqw; line-height: 1.2; letter-spacing: -0.01em; }
+.jeonil-achieve__sub { position: absolute; top: 12.5%; left: 0; right: 0; margin: 0; text-align: center; font-weight: 700; font-size: 3.7cqw; line-height: 1.2; }
+.jeonil-achieve__title { position: absolute; top: 20%; left: 0; right: 0; margin: 0; text-align: center; font-weight: 700; font-size: 6.2cqw; line-height: 1.2; letter-spacing: -0.01em; }
 .jeonil-achieve__title span { color: #ba2d0f; }
 .jeonil-achieve__logo { position: absolute; left: 34.5%; top: 30.8%; width: 23.75%; height: auto; z-index: 0; -webkit-user-drag: none; }
 .jeonil-pill {
@@ -469,9 +691,19 @@
   transition: opacity 0.5s ease-out, transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
 }
 /* Gmarket 글리프가 높게 앉아 위 padding을 더 줘 세로중심을 맞춘다 */
-.jeonil-pill--md { font-size: 2.1cqw; padding: 1.5cqw 2.6cqw 1.1cqw; }
-.jeonil-pill--lg { font-size: 2.6cqw; padding: 1.7cqw 2.9cqw 1.2cqw; }
-.jeonil-pill--accent { background: #f9f1ff; border-color: #5187ff; color: #6d12b8; font-size: 2.35cqw; }
+.jeonil-pill--md { font-size: 2.5cqw; padding: 1.6cqw 2.8cqw 1.2cqw; }
+.jeonil-pill--lg { font-size: 3.05cqw; padding: 1.8cqw 3.1cqw 1.3cqw; }
+.jeonil-pill--accent {
+  background: #f9f1ff;
+  border-color: #5187ff;
+  color: #6d12b8;
+  font-size: 2.8cqw;
+  /* 라벨의 줄바꿈(\A) 지점(중간점)에서 두 줄로 */
+  white-space: pre-line;
+  max-width: 46cqw;
+  text-align: center;
+  line-height: 1.2;
+}
 .jeonil-achieve__stage.is-visible .jeonil-pill { opacity: 1; transform: translateY(0); }
 
 /* ── 교재 섹션 (연라벤더 배경 · 배경은 안 자름) ── */
@@ -493,7 +725,7 @@
 }
 .jeonil-book {
   display: block;
-  width: 78.5%;
+  width: 86%;
   height: auto;
   -webkit-user-drag: none;
   opacity: 0;
@@ -514,11 +746,27 @@
 
 /* ── 쿠폰: 핫스팟 + 티켓 확대 + 블루 커서 (sec-coupon 밴드 기준) ── */
 .jeonil-coupon-hotspot { position: absolute; left: 0; right: 0; top: 17.4%; height: 58.3%; border: 0; padding: 0; background: transparent; cursor: pointer; z-index: 3; }
+/* 구워진 "지금 바로 신청하세요" 제거 → 선명한 HTML 타이틀 오버레이 */
+.jeonil-coupon-title {
+  position: absolute;
+  top: 12.5%;
+  left: 0;
+  right: 0;
+  margin: 0;
+  text-align: center;
+  font-family: "Gmarket Sans", var(--public-font);
+  font-weight: 700;
+  font-size: clamp(20px, 4vw, 58px);
+  color: #0b1a3c;
+  white-space: nowrap;
+  z-index: 2;
+  pointer-events: none;
+}
 .jeonil-coupon-ticket {
   position: absolute;
-  left: 30.6%;
-  top: 29.4%;
-  width: 38.9%;
+  left: 23%;
+  top: 26%;
+  width: 54%;
   height: auto;
   z-index: 1;
   pointer-events: none;
@@ -527,9 +775,9 @@
 }
 .jeonil-cursor-img {
   position: absolute;
-  left: 61.5%;
-  top: 49.1%;
-  width: 9.8%;
+  left: 63%;
+  top: 54%;
+  width: 13.5%;
   height: auto;
   z-index: 2;
   pointer-events: none;
@@ -558,7 +806,7 @@
   /* 히어로: 상위 텍스트 축소, 버튼 테두리·크기 축소 */
   .jeonil-hero__line--1 { font-size: clamp(8px, 2.4vw, 15px); top: 25%; }
   .jeonil-hero__line--2 { font-size: clamp(10px, 3vw, 18px); top: 32%; }
-  .jeonil-hero__cta { border-width: 1.5px; padding: 6px 14px; font-size: clamp(10px, 2.6vw, 15px); }
+  .jeonil-hero__cta { border-width: 1.5px; padding: 6px 20px; font-size: clamp(12px, 3.7vw, 19px); }
 
   /* 리뷰: 모바일에서 타이틀·내용 축소 + 카드 상하 여백 축소 */
   .jeonil-reviews { padding: 26px 18px 28px; }

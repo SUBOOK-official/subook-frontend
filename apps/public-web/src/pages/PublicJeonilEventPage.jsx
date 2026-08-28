@@ -6,8 +6,8 @@ import { usePageMeta } from "../lib/usePageMeta";
 import JeonilCouponDialog from "../components/JeonilCouponDialog";
 import heroBg from "../assets/jeonil/hero-bg.webp";
 import bookmarkImg from "../assets/jeonil/bookmark.webp";
-import jeongwonImg from "../assets/jeonil/jeongwon.webp";
 import gangsaCollage from "../assets/jeonil/gangsa-collage.webp";
+import jeongwonImg from "../assets/jeonil/jeongwon.webp";
 import ansContent from "../assets/jeonil/ans-content.webp";
 import card1Img from "../assets/jeonil/card-1.webp";
 import card2Img from "../assets/jeonil/card-2.webp";
@@ -19,9 +19,20 @@ import cursorImg from "../assets/jeonil/cursor.webp";
 import couponTicket from "../assets/jeonil/coupon-ticket.webp";
 import "./PublicJeonilEventPage.css";
 
-const JEONGWON_RATIO = "3840 / 883";
+// 원장 사진 — 투명 배경 png 를 넣으면 자동으로 우선 사용 (없으면 webp 크롭 사용)
+const wonjangModules = import.meta.glob("../assets/jeonil/wonjang.{png,webp}", {
+  eager: true,
+  query: "?url",
+  import: "default",
+});
+const wonjangPhoto =
+  Object.entries(wonjangModules).sort(
+    ([a], [b]) => (b.endsWith(".png") ? 1 : 0) - (a.endsWith(".png") ? 1 : 0),
+  )[0]?.[1] ?? null;
+
 const R_GANGSA_C = "3840 / 1780";
 const R_ANS_C = "3840 / 1605";
+const JEONGWON_RATIO = "3840 / 883";
 const R_CARD = "3009 / 1430";
 const R_COUPON = "1493 / 976";
 
@@ -64,7 +75,7 @@ const ACHIEVEMENTS = [
   { label: "토마토스쿨", size: "md", left: "6.7%", top: "59.9%" },
   { label: "고퀄리티 자체제작 교재", size: "lg", left: "8.2%", top: "77.3%" },
   { label: "재원생 약 140명", size: "md", left: "58.4%", top: "42.4%" },
-  { label: "2026 SKY 46명·의치한약수 21명", size: "lg", accent: true, left: "52%", top: "54.2%" },
+  { label: "2026 SKY 46명\n의치한약수 21명", size: "lg", accent: true, left: "58%", top: "54.2%" },
   { label: "강남대성 출신 강사팀", size: "lg", left: "65.3%", top: "73.2%" },
 ];
 
@@ -275,13 +286,44 @@ function PublicJeonilEventPage() {
             <span className="jeonil-openbar__shine" aria-hidden="true" />
           </div>
 
+          {/* 데스크탑: Figma 원본 이미지 그대로 */}
           <img
-            className="jeonil-band jeonil-band--flush"
+            className="jeonil-band jeonil-band--flush jeonil-jeongwon-img"
             src={jeongwonImg}
             alt="지역이 달라도 좋은 교재를 만날 수 있도록 — 전일학원"
             draggable={false}
             style={{ aspectRatio: JEONGWON_RATIO }}
           />
+          {/* 모바일: 반응형 HTML */}
+          <section className="jeonil-jeongwon">
+            <div className="jeonil-jeongwon__inner">
+              <div className="jeonil-jeongwon__lead">
+                <p className="jeonil-jeongwon__l1">지역이 달라도, 좋은 교재를 만날 수 있도록.</p>
+                <p className="jeonil-jeongwon__l2">
+                  대치동과 유명 학원가에서만 접할 수 있었던 교재들을<br />
+                  이제 수북이 전국의 학생들에게 연결합니다.
+                </p>
+                <p className="jeonil-jeongwon__l3">그 첫 번째 시작, 전일학원.</p>
+              </div>
+              <div className="jeonil-jeongwon__profile">
+                <img className="jeonil-jeongwon__photo" src={wonjangPhoto} alt="전일권 전일학원 대표 원장" draggable={false} />
+                <div className="jeonil-jeongwon__info">
+                  <p className="jeonil-jeongwon__name">전일권<span>전일학원 대표 원장</span></p>
+                  <ul className="jeonil-jeongwon__edu">
+                    <li>고려대 교육대학원 국어교육학과</li>
+                    <li>채널A &lsquo;성적을 부탁해 티처스&rsquo; 멘토 출연</li>
+                    <li>117개 고등학교 특강 (포항제철고, 혜화여고, 부산외고 등)</li>
+                  </ul>
+                  <ul className="jeonil-jeongwon__career">
+                    <li>전) 경향신문사 교육연구원장</li>
+                    <li>전) 유웨이중앙교육 대표강사</li>
+                    <li>전) 서초대일학원 공동원장</li>
+                    <li>전) 박학천논술 대표강사</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </section>
 
           <ReviewsSection />
           <AchieveSection />
@@ -328,7 +370,77 @@ function PublicJeonilEventPage() {
                 해답은 전일 <span className="jeonil-x">×</span> 수북에서
               </h2>
             </div>
-            <img className="jeonil-band" src={ansContent} alt="전일학원 × 수북 특장점" draggable={false} style={{ aspectRatio: R_ANS_C }} />
+            {/* 데스크탑: Figma 원본 이미지 */}
+            <img className="jeonil-band jeonil-answer-img" src={ansContent} alt="전일학원 × 수북 특장점" draggable={false} style={{ aspectRatio: R_ANS_C }} />
+            {/* 모바일: 반응형 HTML */}
+            <div className="jeonil-compare">
+              <div className="jeonil-compare__col jeonil-compare__col--jeonil">
+                <span className="jeonil-compare__pill">전일학원</span>
+                <p className="jeonil-compare__desc">
+                  깊이 있는 교육 철학과 고퀄리티 자체 교재로
+                  <b>상위권 학생들의 실력을 완성하는 대치동 재수 학원</b>
+                </p>
+                <div className="jeonil-compare__cards">
+                  <div className="jeonil-compare__card">
+                    <span className="jeonil-compare__ic jeonil-compare__ic--jeonil" aria-hidden="true">
+                      <svg viewBox="0 0 48 48" fill="none">
+                        <circle cx="24" cy="15" r="6" stroke="currentColor" strokeWidth="3" />
+                        <circle cx="11" cy="19" r="4.5" stroke="currentColor" strokeWidth="3" />
+                        <circle cx="37" cy="19" r="4.5" stroke="currentColor" strokeWidth="3" />
+                        <path d="M13 37c0-6 5-10 11-10s11 4 11 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                        <path d="M4 35c0-4 3-7 7-7M44 35c0-4-3-7-7-7" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                      </svg>
+                    </span>
+                    <b>검증된 강사진</b>
+                    <span>상위권 전문 강사진</span>
+                  </div>
+                  <div className="jeonil-compare__card">
+                    <span className="jeonil-compare__ic jeonil-compare__ic--jeonil" aria-hidden="true">
+                      <svg viewBox="0 0 48 48" fill="none">
+                        <rect x="7" y="8" width="34" height="23" rx="2.5" stroke="currentColor" strokeWidth="3" />
+                        <path d="M14 16h13M14 22h9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                        <circle cx="24" cy="38" r="3.5" stroke="currentColor" strokeWidth="3" />
+                        <path d="M18 31v-4M30 31v-4" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                      </svg>
+                    </span>
+                    <b>학생 중심 철학</b>
+                    <span>&lsquo;토마토스쿨&rsquo; 운영</span>
+                  </div>
+                </div>
+              </div>
+              <div className="jeonil-compare__col jeonil-compare__col--subook">
+                <span className="jeonil-compare__pill">수북</span>
+                <p className="jeonil-compare__desc">
+                  좋은 교재는 더 많은 학생들이 함께해야 한다는 믿음으로
+                  <b>프리미엄 대치동 교재들을 전국으로 유통하는 수험서 전문 플랫폼</b>
+                </p>
+                <div className="jeonil-compare__cards">
+                  <div className="jeonil-compare__card">
+                    <span className="jeonil-compare__ic jeonil-compare__ic--subook" aria-hidden="true">
+                      <svg viewBox="0 0 48 48" fill="none">
+                        <circle cx="11" cy="24" r="5" stroke="currentColor" strokeWidth="3" />
+                        <circle cx="36" cy="12" r="5" stroke="currentColor" strokeWidth="3" />
+                        <circle cx="36" cy="36" r="5" stroke="currentColor" strokeWidth="3" />
+                        <path d="M15.5 21.5 31.5 14M15.5 26.5 31.5 34" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                      </svg>
+                    </span>
+                    <b>전국 유통</b>
+                    <span>지역의 한계를 넘어</span>
+                  </div>
+                  <div className="jeonil-compare__card">
+                    <span className="jeonil-compare__ic jeonil-compare__ic--subook" aria-hidden="true">
+                      <svg viewBox="0 0 48 48" fill="none">
+                        <path d="M24 10 44 18 24 26 4 18 24 10Z" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" />
+                        <path d="M12 22v9c0 3 5.5 6 12 6s12-3 12-6v-9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                        <path d="M44 18v9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                      </svg>
+                    </span>
+                    <b>더 많은 기회</b>
+                    <span>모두에게 열린 교육</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
           {/* 이제는 클릭 + 교재 (연라벤더 배경 · 타이틀 텍스트만 HTML 순차 rise-up) */}
           <section className="jeonil-books-sec">
@@ -348,7 +460,8 @@ function PublicJeonilEventPage() {
 
           {/* 쿠폰 + 마무리 (핫스팟/티켓/커서) */}
           <div className="jeonil-canvas jeonil-coupon-sec">
-            <img className="jeonil-band" src={secCoupon} alt="지금 바로 신청하세요" draggable={false} style={{ aspectRatio: R_COUPON }} />
+            <img className="jeonil-band" src={secCoupon} alt="" draggable={false} style={{ aspectRatio: R_COUPON }} />
+            <h2 className="jeonil-coupon-title">지금 바로 신청하세요</h2>
             <button
               ref={couponRef}
               type="button"
