@@ -6,18 +6,12 @@ import { InlineLoading } from "../components/Loading";
 
 // 이벤트 출시 알림 신청 현황 (전일학원 콜라보)
 // event_subscriptions를 어드민 SELECT 정책(event_subscriptions_admin_read)으로 직접 조회.
-// 9/3 문자 블라스트 대상 명단 확인·추출(CSV)이 1차 목적이라 전량 로드 후 클라이언트 집계.
+// 발송 방식은 미정이라 발송 상태 UI는 두지 않는다 — 명단 확인·CSV 추출이 목적.
 
 const EVENT_KEY = "jeonil-2026-09";
 const PAGE_SIZE = 50;
 // 이벤트 단위 명단이라 전량 로드 (초과 시 하단에 잘림 안내 — 조용한 상한 금지)
 const LOAD_LIMIT = 2000;
-
-const NOTIFIED_FILTERS = [
-  { value: "", label: "전체" },
-  { value: "pending", label: "발송 대기" },
-  { value: "notified", label: "발송 완료" },
-];
 
 function formatPhone(value) {
   const digits = String(value ?? "").replace(/\D/g, "");
@@ -52,7 +46,6 @@ function toKstDateKey(value) {
 function AdminEventSubscriptionsPage() {
   const [rows, setRows] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
-  const [notifiedFilter, setNotifiedFilter] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
@@ -69,7 +62,7 @@ function AdminEventSubscriptionsPage() {
 
     const { data, count, error } = await supabase
       .from("event_subscriptions")
-      .select("id,phone,user_id,marketing_consent_at,notified_at,created_at", { count: "exact" })
+      .select("id,phone,user_id,created_at", { count: "exact" })
       .eq("event_key", EVENT_KEY)
       .order("created_at", { ascending: false })
       .range(0, LOAD_LIMIT - 1);
@@ -89,15 +82,9 @@ function AdminEventSubscriptionsPage() {
     void loadSubscriptions();
   }, [loadSubscriptions]);
 
-  const filteredRows = useMemo(() => {
-    if (notifiedFilter === "pending") return rows.filter((row) => !row.notified_at);
-    if (notifiedFilter === "notified") return rows.filter((row) => row.notified_at);
-    return rows;
-  }, [rows, notifiedFilter]);
-
   const pageRows = useMemo(
-    () => filteredRows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
-    [filteredRows, currentPage],
+    () => rows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
+    [rows, currentPage],
   );
 
   const summary = useMemo(() => {
@@ -106,7 +93,6 @@ function AdminEventSubscriptionsPage() {
       total: totalCount,
       today: rows.filter((row) => toKstDateKey(row.created_at) === todayKey).length,
       members: rows.filter((row) => row.user_id).length,
-      notified: rows.filter((row) => row.notified_at).length,
     };
   }, [rows, totalCount]);
 
@@ -123,14 +109,14 @@ function AdminEventSubscriptionsPage() {
   }, [rows]);
 
   const handleCsvDownload = () => {
-    const header = "전화번호,신청시각(KST),회원여부,발송여부";
-    const lines = filteredRows.map((row) => {
+    const header = "전화번호,신청시각(KST),회원여부";
+    const lines = rows.map((row) => {
       const at = new Intl.DateTimeFormat("sv-SE", {
         timeZone: "Asia/Seoul",
         dateStyle: "short",
         timeStyle: "short",
       }).format(new Date(row.created_at));
-      return [formatPhone(row.phone), at, row.user_id ? "회원" : "비회원", row.notified_at ? "발송완료" : "대기"].join(",");
+      return [formatPhone(row.phone), at, row.user_id ? "회원" : "비회원"].join(",");
     });
     // BOM — 엑셀 한글 인코딩
     const blob = new Blob([`﻿${header}\n${lines.join("\n")}`], { type: "text/csv;charset=utf-8" });
@@ -145,7 +131,7 @@ function AdminEventSubscriptionsPage() {
   return (
     <AdminShell
       activeModule="event-subscriptions"
-      description="전일학원 콜라보 출시 알림 신청 명단 — 9/3 문자 발송 대상을 확인하고 추출합니다"
+      description="전일학원 콜라보 출시 알림 신청 명단 — 발송 대상을 확인하고 추출합니다"
       summaryCards={[]}
       title="이벤트 알림 신청"
     >
@@ -154,12 +140,11 @@ function AdminEventSubscriptionsPage() {
       ) : null}
       {errorMessage ? <p className="notice-error">{errorMessage}</p> : null}
 
-      <section className="grid gap-3 sm:grid-cols-4">
+      <section className="grid gap-3 sm:grid-cols-3">
         {[
           { label: "총 신청", value: summary.total },
           { label: "오늘 신청", value: summary.today },
           { label: "회원 신청", value: summary.members },
-          { label: "알림 발송 완료", value: summary.notified },
         ].map((card) => (
           <div className="card" key={card.label}>
             <p className="text-xs font-semibold text-slate-500">{card.label}</p>
@@ -191,34 +176,14 @@ function AdminEventSubscriptionsPage() {
       </section>
 
       <section className="card space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap gap-2">
-            {NOTIFIED_FILTERS.map((option) => (
-              <button
-                aria-pressed={notifiedFilter === option.value}
-                className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
-                  notifiedFilter === option.value
-                    ? "bg-slate-950 text-white"
-                    : "border border-slate-300 bg-white text-slate-600 hover:bg-slate-100"
-                }`}
-                key={option.value || "all"}
-                onClick={() => {
-                  setCurrentPage(1);
-                  setNotifiedFilter(option.value);
-                }}
-                type="button"
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
+        <div className="flex items-center justify-end">
           <button
             className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100"
-            disabled={filteredRows.length === 0}
+            disabled={rows.length === 0}
             onClick={handleCsvDownload}
             type="button"
           >
-            CSV 다운로드 ({filteredRows.length}건)
+            CSV 다운로드 ({rows.length}건)
           </button>
         </div>
 
@@ -232,14 +197,13 @@ function AdminEventSubscriptionsPage() {
                   <th className="px-3 py-2 text-left font-semibold text-slate-600">신청 시각</th>
                   <th className="px-3 py-2 text-left font-semibold text-slate-600">전화번호</th>
                   <th className="px-3 py-2 text-left font-semibold text-slate-600">회원 여부</th>
-                  <th className="px-3 py-2 text-left font-semibold text-slate-600">알림 발송</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {pageRows.length === 0 ? (
                   <tr>
-                    <td className="px-3 py-6 text-center text-slate-500" colSpan={4}>
-                      조건에 맞는 신청이 없습니다.
+                    <td className="px-3 py-6 text-center text-slate-500" colSpan={3}>
+                      아직 신청이 없습니다.
                     </td>
                   </tr>
                 ) : (
@@ -248,17 +212,6 @@ function AdminEventSubscriptionsPage() {
                       <td className="px-3 py-2 text-slate-700">{formatDateTime(row.created_at)}</td>
                       <td className="px-3 py-2 font-medium text-slate-900">{formatPhone(row.phone)}</td>
                       <td className="px-3 py-2 text-slate-700">{row.user_id ? "회원" : "비회원"}</td>
-                      <td className="px-3 py-2">
-                        {row.notified_at ? (
-                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-800">
-                            발송완료
-                          </span>
-                        ) : (
-                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-600">
-                            대기
-                          </span>
-                        )}
-                      </td>
                     </tr>
                   ))
                 )}
@@ -278,7 +231,7 @@ function AdminEventSubscriptionsPage() {
           isLoading={isLoading}
           onPageChange={setCurrentPage}
           pageSize={PAGE_SIZE}
-          totalCount={filteredRows.length}
+          totalCount={rows.length}
         />
       </section>
     </AdminShell>
