@@ -55,6 +55,7 @@ export const adminNavigationGroups = [
     items: [
       { key: "members", label: "회원", to: "/admin/members", icon: UserIcon },
       { key: "coupons", label: "쿠폰", to: "/admin/coupons", icon: TicketIcon },
+      { key: "event-subscriptions", label: "이벤트 알림 신청", to: "/admin/event-subscriptions", icon: BellIcon },
     ],
   },
   {
@@ -83,6 +84,10 @@ export function resolveActiveAdminModule({ pathname, explicitModule }) {
 
   if (pathname.startsWith("/admin/studio")) {
     return "studio";
+  }
+
+  if (pathname.startsWith("/admin/event-subscriptions")) {
+    return "event-subscriptions";
   }
 
   if (pathname.startsWith("/admin/notification-logs")) {
