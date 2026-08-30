@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { trackSelectPromotion, trackViewPromotion } from "../lib/analytics";
-import { KAKAO_CHANNEL_URL } from "../lib/supportChannels";
 import popupJeonilImg from "../assets/home-popup/POP-UP1.webp";
 import popupKakaoImg from "../assets/home-popup/POP-UP2.webp";
 import "./PublicPopupBanner.css";
@@ -24,8 +23,10 @@ const POPUPS = [
   },
   {
     src: popupKakaoImg,
-    alt: "카카오톡 채널 친구추가 시 3,000원 할인 쿠폰 증정 — 채널 추가하러 가기",
-    href: KAKAO_CHANNEL_URL,
+    alt: "카카오톡 채널 친구추가 시 3,000원 할인 쿠폰 증정 — 쿠폰 받으러 가기",
+    // 채널 추가 페이지로 직행시키면 복귀 경로가 웰컴메시지뿐이라(야간엔 익일 지연)
+    // 친추→발급을 한 화면에서 끝내는 쿠폰 페이지로 보낸다 (2026-08-30 CS 재발 방지)
+    to: "/event/kakao-coupon",
     promotion: {
       promotionId: "home_popup_kakao_channel",
       promotionName: "카카오채널 친구추가 3,000원 쿠폰",
