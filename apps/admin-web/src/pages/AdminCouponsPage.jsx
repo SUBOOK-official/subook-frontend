@@ -7,6 +7,7 @@ import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseCl
 import { formatCurrency } from "@shared-domain/format";
 import { CloseIcon } from "../components/icons";
 import { BusyText, InlineLoading } from "../components/Loading";
+import { BRAND_OPTIONS } from "../lib/productCategories";
 
 const ISSUANCE_TYPE_LABEL = {
   admin_assigned: "어드민 발급",
@@ -35,6 +36,7 @@ const initialForm = {
   code: "",
   issue_on_signup: false,
   is_active: true,
+  scope_brand: "",
 };
 
 // 폼 → API payload (빈 문자열은 null로 전달)
@@ -62,6 +64,8 @@ function buildPayload(form) {
     code: form.issuance_type === "code" ? form.code.trim() || null : null,
     issue_on_signup: Boolean(form.issue_on_signup),
     is_active: Boolean(form.is_active),
+    // 항상 키를 포함 — update RPC는 키가 있어야 null로 지운다 (스코프 해제)
+    scope_brand: form.scope_brand || null,
   };
   return payload;
 }
@@ -86,6 +90,7 @@ function rowToForm(row) {
     code: row.code || "",
     issue_on_signup: Boolean(row.issue_on_signup),
     is_active: Boolean(row.is_active),
+    scope_brand: row.scope_brand || "",
   };
 }
 
@@ -519,6 +524,11 @@ function AdminCouponsPage() {
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-slate-700">{describeDiscount(coupon)}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-slate-700">
+                      {coupon.scope_brand ? (
+                        <span className="mr-1 rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-bold text-indigo-700">
+                          {coupon.scope_brand} 전용
+                        </span>
+                      ) : null}
                       {coupon.min_order_amount > 0 ? formatCurrency(coupon.min_order_amount) : "조건 없음"}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-600">{describeValidity(coupon)}</td>
@@ -712,6 +722,26 @@ function AdminCouponsPage() {
                   onChange={handleField("min_order_amount")}
                   className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
                 />
+              </label>
+
+              <label>
+                <span className="text-xs font-bold text-slate-700">사용 가능 브랜드 (선택)</span>
+                <select
+                  value={form.scope_brand}
+                  onChange={handleField("scope_brand")}
+                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                >
+                  <option value="">전체 주문 (제한 없음)</option>
+                  {BRAND_OPTIONS.map((brand) => (
+                    <option key={brand} value={brand}>
+                      {brand} 교재 한정
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-slate-500">
+                  지정하면 해당 브랜드 교재가 담긴 주문에서만 쓸 수 있고, 최소 주문
+                  금액·할인액도 그 브랜드 품목 합계 기준으로 계산돼요.
+                </p>
               </label>
 
               <label>

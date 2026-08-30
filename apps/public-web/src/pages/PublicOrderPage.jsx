@@ -893,6 +893,8 @@ function PublicOrderPage() {
     const loadCoupons = async () => {
       const { data, error } = await publicSupabase.rpc("get_applicable_coupons", {
         p_subtotal: subtotalForFetch,
+        // 브랜드 한정 쿠폰(scope_brand) 적용 판정용 — 서버가 품목 브랜드 소계로 필터
+        p_book_ids: orderItems.map((i) => i.bookId).filter(Boolean),
       });
       if (!error && Array.isArray(data)) {
         setApplicableCoupons(data);
@@ -1921,8 +1923,13 @@ function PublicOrderPage() {
                               ) : null}
                             </div>
                             <strong>{c.title}</strong>
-                            {c.min_order_amount > 0 ? (
-                              <span>{formatCurrency(c.min_order_amount)} 이상 주문 시</span>
+                            {c.scope_brand || c.min_order_amount > 0 ? (
+                              <span>
+                                {c.scope_brand ? `${c.scope_brand} 교재 ` : ""}
+                                {c.min_order_amount > 0
+                                  ? `${formatCurrency(c.min_order_amount)} 이상 주문 시`
+                                  : "전용"}
+                              </span>
                             ) : null}
                             <span className="order-coupon-modal__item-expiry">
                               {c.expires_at

@@ -44,6 +44,7 @@ export const STORE_FILTER_GROUPS = [
       "메가스터디",
       "이감",
       { value: "상상국어평가연구소", label: "상상" },
+      "전일학원",
       "기타",
     ],
   },
