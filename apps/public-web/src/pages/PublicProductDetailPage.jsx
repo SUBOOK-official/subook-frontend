@@ -970,6 +970,12 @@ function PublicProductDetailPage() {
   // 판매 완료(숨김)·미존재 상품 — 죽은 링크로 들어온 방문자를 인기 교재로 연결.
   // usePageMeta에서 참조하므로 반드시 메타 블록보다 위에 선언되어야 한다.
   const [notFound, setNotFound] = useState(false);
+  // 콜라보 전용 상세페이지(전일학원 J1) 대상 여부. JSON-LD(itemCondition)에서도
+  // 참조하므로 메타 블록보다 위에 선언한다.
+  const featuredDetailKey = useMemo(() => {
+    const entry = findFeaturedProductEntry(product);
+    return hasFeaturedProductDetail(entry?.key) ? entry.key : null;
+  }, [product]);
   // 상품명·과목 동적 title + description + canonical/og:image + Product JSON-LD
   // (카톡/SNS 공유 미리보기에 교재 표지·가격이 정확히 뜨고, 검색 리치스니펫 대응)
   const metaCoverImage = product?.coverImageUrl ?? product?.cover_image_url ?? null;
@@ -977,8 +983,14 @@ function PublicProductDetailPage() {
   // offers.price는 품절이어도 필수라, 양수 가격이 아예 없으면 잘못된 offers를 내보내는
   // 대신 JSON-LD 자체를 생략한다.
   const metaPrice = Number(product?.price);
+  // 콜라보 교재는 위탁받은 중고가 아니라 출판사 신품이라 '위탁판매·검수 완료' 문구를 쓰지 않는다.
+  // ⚠ 봇 프리렌더(api/prerender-product.js)의 description과 같은 문구를 유지할 것.
   const metaDescription = product?.title
-    ? `${product.title}${product.instructor_name ? ` (${product.instructor_name})` : ""} ${product.subject ?? ""} 위탁판매 — 검수 완료된 새 책 수준의 교재를 합리적인 가격에.`
+    ? `${product.title}${product.instructor_name ? ` (${product.instructor_name})` : ""} ${product.subject ?? ""} ${
+        featuredDetailKey
+          ? `— ${product.brand ? `${product.brand} × 수북 ` : ""}단독 판매 새 교재.`
+          : "위탁판매 — 검수 완료된 새 책 수준의 교재를 합리적인 가격에."
+      }`
     : undefined;
   // 빵부스러기 — 과목 랜딩(/store/subject/:subject)이 있는 과목이면 2단계를 링크로 연결.
   // ⚠ 봇 프리렌더(api/prerender-product.js)의 breadcrumbJsonLd와 구조 동일 유지.
@@ -1018,7 +1030,10 @@ function PublicProductDetailPage() {
           "@context": "https://schema.org",
           "@type": "Product",
           name: product.title,
-          description: aiSummaryToPlainText(aiSummary) || metaDescription,
+          // 콜라보 교재는 AI 요약을 화면에서 빼므로 JSON-LD에서도 쓰지 않는다
+          // (봇/사람이 보는 내용을 어긋나게 두지 않는다)
+          description:
+            (featuredDetailKey ? "" : aiSummaryToPlainText(aiSummary)) || metaDescription,
           ...(metaCoverImage ? { image: [metaCoverImage] } : {}),
           ...(product.brand ? { brand: { "@type": "Brand", name: product.brand } } : {}),
           ...(product.subject ? { category: product.subject } : {}),
@@ -1026,7 +1041,10 @@ function PublicProductDetailPage() {
             "@type": "Offer",
             priceCurrency: "KRW",
             price: metaPrice,
-            itemCondition: "https://schema.org/UsedCondition",
+            // 콜라보 교재는 출판사 신품이라 New. 그 외 위탁 재고는 중고(Used).
+            itemCondition: featuredDetailKey
+              ? "https://schema.org/NewCondition"
+              : "https://schema.org/UsedCondition",
             availability: product.isSoldOut
               ? "https://schema.org/OutOfStock"
               : "https://schema.org/InStock",
@@ -1075,12 +1093,15 @@ function PublicProductDetailPage() {
     }
     return links;
   }, [product]);
-  // 콜라보 전용 상세페이지(전일학원 J1) — 해당 상품이면 일반 상세 정보 대신
-  // 디자인 상세페이지 이미지를 노출한다. 이미지가 없는 상품은 null이라 기존 포맷 유지.
-  const featuredDetailKey = useMemo(() => {
-    const entry = findFeaturedProductEntry(product);
-    return hasFeaturedProductDetail(entry?.key) ? entry.key : null;
-  }, [product]);
+  // 콜라보 교재는 출판사가 새로 만든 신품이라 중고 검수 등급(S/A+/A) 개념이 없다.
+  // → '수북 검수 정책' 섹션과 등급 칩을 통째로 뺀다 (2026-08-31 사용자 결정).
+  const detailSections = useMemo(
+    () =>
+      featuredDetailKey
+        ? DETAIL_SECTIONS.filter((section) => section.key !== "grade")
+        : DETAIL_SECTIONS,
+    [featuredDetailKey],
+  );
   // 다중 옵션 선택: [{ key: 회차, quantity }]. 단일재고 모델이라 회차별 수량은 그 회차의
   // 남은 책 수로 캡되고, 담기/구매 시 회차별로 distinct한 book_id가 할당된다.
   const [selections, setSelections] = useState([]);
@@ -1321,7 +1342,7 @@ function PublicProductDetailPage() {
   // 추천 상품 fetch를 기다리는 중간 렌더에 걸려 리스너가 영영 안 붙는다.)
   useEffect(() => {
     if (isLoading || !product) return undefined;
-    const keys = DETAIL_SECTIONS.map((section) => section.key);
+    const keys = detailSections.map((section) => section.key);
     if (keys.every((key) => !sectionRefs.current[key])) return undefined;
 
     let rafId = null;
@@ -1360,7 +1381,7 @@ function PublicProductDetailPage() {
       window.removeEventListener("resize", scheduleUpdate);
       if (rafId !== null) window.cancelAnimationFrame(rafId);
     };
-  }, [isLoading, product]);
+  }, [isLoading, product, detailSections]);
 
   // nav 클릭 시 헤더 + sticky nav 높이만큼 오프셋을 빼고 해당 섹션으로 스크롤.
   const scrollToSection = useCallback((key) => {
@@ -1822,7 +1843,9 @@ function PublicProductDetailPage() {
                 <ProductChips
                   brand={product.brand}
                   bookType={product.bookType}
-                  conditionGradeLabel={product.conditionGradeLabel}
+                  conditionGradeLabel={
+                    featuredDetailKey ? null : product.conditionGradeLabel
+                  }
                   subject={product.subject}
                 />
 
@@ -1951,7 +1974,7 @@ function PublicProductDetailPage() {
               className="public-detail-tabs"
               ref={sectionNavRef}
             >
-              {DETAIL_SECTIONS.map((section) => (
+              {detailSections.map((section) => (
                 <button
                   aria-current={
                     activeSectionKey === section.key ? "true" : undefined
@@ -1988,16 +2011,18 @@ function PublicProductDetailPage() {
               )}
             </section>
 
-            <section
-              aria-label="수북 검수 정책"
-              className="public-detail-tab-content"
-              id="detail-section-grade"
-              ref={(element) => {
-                sectionRefs.current.grade = element;
-              }}
-            >
-              <DetailGradeContent />
-            </section>
+            {featuredDetailKey ? null : (
+              <section
+                aria-label="수북 검수 정책"
+                className="public-detail-tab-content"
+                id="detail-section-grade"
+                ref={(element) => {
+                  sectionRefs.current.grade = element;
+                }}
+              >
+                <DetailGradeContent />
+              </section>
+            )}
 
             <section
               aria-label="배송 및 교환 반품 안내"

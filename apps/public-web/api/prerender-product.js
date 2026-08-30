@@ -14,6 +14,25 @@
 const SITE_ORIGIN = "https://subook.kr";
 const REQUEST_TIMEOUT_MS = 8_000;
 
+// 전일학원 콜라보 교재 — 출판사 신품이라 중고 검수 등급이 없고, 상세는 디자인
+// 이미지로만 구성된다(AI 요약 미노출). SPA는 src/lib/publicFeaturedProducts.js가
+// 원본이지만 이 파일은 의존성 없음 제약이 있어 제목만 복제한다.
+// ⚠ 레지스트리의 title을 바꾸면 여기도 함께 고칠 것.
+const FEATURED_NEW_BOOK_TITLES = [
+  "2027 J1 원트 FULL 모의고사 국어",
+  "2027 J1 원트 미니 모의고사 국어",
+];
+
+function isFeaturedNewBook(title) {
+  const normalized = String(title ?? "")
+    .toLowerCase()
+    .replace(/\s+/gu, "");
+  if (normalized === "") return false;
+  return FEATURED_NEW_BOOK_TITLES.some(
+    (featured) => featured.toLowerCase().replace(/\s+/gu, "") === normalized,
+  );
+}
+
 function resolveSupabaseEnv() {
   const url =
     process.env.SUPABASE_URL ||
@@ -232,9 +251,15 @@ function aiSummaryToPlainText(text) {
 function buildHtml({ product, stock, relatedBooks }) {
   // SPA(usePageMeta 호출부)와 동일한 타이틀·설명 패턴
   const pageTitle = `${product.title}${product.subject ? ` · ${product.subject}` : ""} | 수북 SUBOOK`;
+  // 콜라보 교재는 출판사 신품이라 '위탁판매·검수 완료' 문구를 쓰지 않는다 (SPA와 동일 유지).
+  const isNewCollabBook = isFeaturedNewBook(product.title);
   const description = `${product.title}${
     product.instructor_name ? ` (${product.instructor_name})` : ""
-  } ${product.subject ?? ""} 위탁판매 — 검수 완료된 새 책 수준의 교재를 합리적인 가격에.`;
+  } ${product.subject ?? ""} ${
+    isNewCollabBook
+      ? `— ${product.brand ? `${product.brand} × 수북 ` : ""}단독 판매 새 교재.`
+      : "위탁판매 — 검수 완료된 새 책 수준의 교재를 합리적인 가격에."
+  }`;
   const canonicalUrl = `${SITE_ORIGIN}/store/${product.id}`;
   const coverUrl = product.cover_image_url
     ? toRenderImageUrl(product.cover_image_url, 1200, 80)
@@ -287,7 +312,9 @@ function buildHtml({ product, stock, relatedBooks }) {
           "@context": "https://schema.org",
           "@type": "Product",
           name: product.title,
-          description: aiSummaryToPlainText(product.ai_summary) || description,
+          // 콜라보 교재는 AI 요약을 화면에서 빼므로 JSON-LD에서도 쓰지 않는다
+          description:
+            (isNewCollabBook ? "" : aiSummaryToPlainText(product.ai_summary)) || description,
           image: [coverUrl],
           ...(product.brand ? { brand: { "@type": "Brand", name: product.brand } } : {}),
           ...(product.subject ? { category: product.subject } : {}),
@@ -295,7 +322,10 @@ function buildHtml({ product, stock, relatedBooks }) {
             "@type": "Offer",
             priceCurrency: "KRW",
             price: displayPrice,
-            itemCondition: "https://schema.org/UsedCondition",
+            // 콜라보 교재는 출판사 신품이라 New. 그 외 위탁 재고는 중고(Used).
+            itemCondition: isNewCollabBook
+              ? "https://schema.org/NewCondition"
+              : "https://schema.org/UsedCondition",
             availability: isSoldOut
               ? "https://schema.org/OutOfStock"
               : "https://schema.org/InStock",
@@ -315,8 +345,10 @@ function buildHtml({ product, stock, relatedBooks }) {
     ["연도", product.published_year],
     ["강사", product.instructor_name],
     ["구성·옵션", stock.optionLabels.join(", ")],
-    ["검수 등급 재고", stock.gradeSummary],
+    // 콜라보 신품 교재는 등급 개념이 없어 행 자체를 뺀다
+    isNewCollabBook ? null : ["검수 등급 재고", stock.gradeSummary],
   ]
+    .filter(Boolean)
     .filter(([, value]) => value != null && value !== "")
     .map(
       ([label, value]) =>
@@ -360,12 +392,12 @@ function buildHtml({ product, stock, relatedBooks }) {
         ${infoRows}
         </table>
         ${
-          product.ai_summary
+          product.ai_summary && !isNewCollabBook
             ? `<section><h2>교재 소개</h2><p>${aiSummaryToHtml(product.ai_summary)}</p></section>`
             : ""
         }
         <p>
-          모든 교재는 전문 검수를 거친 새 책 수준의 상품입니다.
+          ${isNewCollabBook ? "" : "모든 교재는 전문 검수를 거친 새 책 수준의 상품입니다."}
           <a href="${canonicalUrl}">상품 페이지에서 구매하기</a>
         </p>
         ${
