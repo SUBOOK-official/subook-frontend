@@ -115,9 +115,23 @@ const NEXT_STATUS_ACTIONS = {
   confirmed: [
     { action: "refund", label: "환불처리", style: "btn-danger" },
   ],
-  cancelled: [],
+  // 취소 주문 복원 (2026-08-31) — 입금 확인이 늦어 24시간 자동취소된 무통장 주문을 되살린다.
+  //   결제·환불 이력이 남은 취소 주문(레거시)은 제외(unpaidOnly) — 되살리면 PG·입금 정합이 깨진다.
+  cancelled: [
+    { action: "restore", label: "주문 복원", style: "btn-secondary", unpaidOnly: true },
+  ],
   refunded: [],
 };
+
+// 복원 가능 후보 — 결제/환불 스탬프가 하나도 없는 취소 주문만. (최종 판정은 RPC가 한다)
+function isRestoreCandidate(order) {
+  return (
+    !order.paid_at &&
+    !order.pg_approved_at &&
+    !order.refunded_at &&
+    !(Number(order.refunded_amount) > 0)
+  );
+}
 
 function getStatusLabel(status) {
   return (
@@ -128,10 +142,13 @@ function getStatusLabel(status) {
   );
 }
 
-// 주문별 가능한 액션 — bankTransferOnly 액션(입금확인)은 무통장 주문에만 노출
+// 주문별 가능한 액션 — bankTransferOnly 액션(입금확인)은 무통장 주문에만,
+// unpaidOnly 액션(주문 복원)은 결제 이력이 없는 주문에만 노출
 function getOrderActions(order) {
   return (NEXT_STATUS_ACTIONS[order.status] ?? []).filter(
-    (action) => !action.bankTransferOnly || order.payment_method === "bank_transfer",
+    (action) =>
+      (!action.bankTransferOnly || order.payment_method === "bank_transfer") &&
+      (!action.unpaidOnly || isRestoreCandidate(order)),
   );
 }
 
@@ -218,6 +235,11 @@ function AdminOrdersPage() {
   const [paymentModal, setPaymentModal] = useState(null);
   const [paymentDepositorInput, setPaymentDepositorInput] = useState("");
   const [paymentInput, setPaymentInput] = useState("");
+
+  // 주문 복원 모달 (자동취소 되돌리기 — 2026-08-31)
+  //   열자마자 p_validate_only로 사전 검증해 "복원 못 하는 사유"를 먼저 보여준다.
+  const [restoreModal, setRestoreModal] = useState(null);
+  const [restoreCheck, setRestoreCheck] = useState(null); // { loading, blocked: [], error }
 
   // CSV 일괄 송장 입력 모달
   const [csvModalOpen, setCsvModalOpen] = useState(false);
@@ -812,6 +834,64 @@ function AdminOrdersPage() {
 
     closePaymentModal();
     setSelectedOrderId(null);
+    await loadOrders();
+  };
+
+  // ── 주문 복원 (자동취소 되돌리기 — 2026-08-31) ─────────────────────────────
+  // 입금이 실제로 들어왔는데 24시간 안에 입금확인을 못 눌러 자동취소된 무통장 주문용.
+  // 복원은 '입금대기'까지만 되돌린다 — 결제 확정은 기존 입금확인 버튼(금액 검증 + 알림톡)이 맡는다.
+  const openRestoreModal = async (order) => {
+    setRestoreModal(order);
+    setRestoreCheck({ loading: true, blocked: [], error: "" });
+
+    const { data, error } = await supabase.rpc("admin_restore_cancelled_order", {
+      p_order_id: order.id,
+      p_validate_only: true,
+    });
+
+    if (error) {
+      setRestoreCheck({ loading: false, blocked: [], error: error.message || "복원 가능 여부를 확인하지 못했습니다." });
+      return;
+    }
+
+    setRestoreCheck({
+      loading: false,
+      blocked: data?.success ? [] : (data?.blocked ?? []),
+      error: "",
+    });
+  };
+
+  const closeRestoreModal = () => {
+    setRestoreModal(null);
+    setRestoreCheck(null);
+  };
+
+  const handleRestoreOrder = async () => {
+    if (!restoreModal) return;
+
+    setBusyOrderId(restoreModal.id);
+    const { data, error } = await supabase.rpc("admin_restore_cancelled_order", {
+      p_order_id: restoreModal.id,
+    });
+    setBusyOrderId(null);
+
+    if (error) {
+      showToast(error.message || "주문 복원에 실패했습니다.", "error");
+      return;
+    }
+
+    // 검증 통과 후에도 그 사이 책이 팔릴 수 있어 실행 시점 blocked를 다시 반영한다.
+    if (!data?.success) {
+      setRestoreCheck({ loading: false, blocked: data?.blocked ?? [], error: "" });
+      showToast("복원할 수 없는 주문입니다. 사유를 확인해 주세요.", "error");
+      return;
+    }
+
+    showToast(
+      `주문 ${restoreModal.order_number}을(를) 입금대기로 복원했습니다. 입금확인을 눌러 마무리하세요.`,
+      "success",
+    );
+    closeRestoreModal();
     await loadOrders();
   };
 
@@ -1502,6 +1582,12 @@ function AdminOrdersPage() {
               </p>
             );
           })()}
+          {/* 복원 이력 — 자동취소 후 되살린 주문임을 알려 "왜 옛날 주문이 입금대기지?" 혼선을 막는다 */}
+          {selectedOrder.restored_at && (
+            <p className="text-xs text-amber-700">
+              자동취소 후 복원됨 · {formatDateTime(selectedOrder.restored_at)}
+            </p>
+          )}
         </div>
       </div>
 
@@ -1756,6 +1842,20 @@ function AdminOrdersPage() {
                   disabled={busyOrderId === selectedOrder.id}
                   key="confirm_payment"
                   onClick={() => openPaymentModal(selectedOrder)}
+                  type="button"
+                >
+                  {action.label}
+                </button>
+              );
+            }
+
+            if (action.action === "restore") {
+              return (
+                <button
+                  className={`${action.style} !w-auto !px-4 !py-2 text-sm`}
+                  disabled={busyOrderId === selectedOrder.id}
+                  key="restore"
+                  onClick={() => openRestoreModal(selectedOrder)}
                   type="button"
                 >
                   {action.label}
@@ -2240,6 +2340,85 @@ function AdminOrdersPage() {
           </button>
         </div>
       )}
+
+      {/* 주문 복원 모달 — 자동취소된 미결제 주문을 입금대기로 되돌린다 (2026-08-31) */}
+      <AdminDialog
+        busy={busyOrderId === restoreModal?.id}
+        onClose={closeRestoreModal}
+        open={Boolean(restoreModal)}
+        size="md"
+        title={restoreModal ? `주문 복원 — ${restoreModal.order_number}` : ""}
+      >
+        {restoreModal && (
+          <div className="p-6 space-y-4">
+            <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm space-y-1">
+              <p className="font-semibold">
+                {restoreModal.shipping_recipient_name} · {formatCurrency(restoreModal.total_amount)} ·{" "}
+                {restoreModal.item_count}권
+              </p>
+              <p className="text-xs text-slate-500">주문일 {formatDateTime(restoreModal.created_at)}</p>
+            </div>
+
+            {restoreCheck?.loading && <InlineLoading label="복원 가능 여부 확인 중..." />}
+
+            {restoreCheck?.error && (
+              <p className="text-sm text-rose-600">{restoreCheck.error}</p>
+            )}
+
+            {!restoreCheck?.loading && restoreCheck?.blocked?.length > 0 && (
+              <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 space-y-1">
+                <p className="text-sm font-bold text-rose-700 flex items-center gap-1">
+                  <AlertTriangleIcon size={16} /> 복원할 수 없습니다
+                </p>
+                {restoreCheck.blocked.map((item, index) => (
+                  <p className="text-xs text-rose-700" key={item.order_item_id ?? `blocked-${index}`}>
+                    {item.title ? `${item.title} — ` : ""}
+                    {item.reason}
+                  </p>
+                ))}
+                <p className="text-xs text-rose-600 pt-1">
+                  구매자에게 재고 상황을 안내하고 새 주문으로 진행해 주세요.
+                </p>
+              </div>
+            )}
+
+            {!restoreCheck?.loading && !restoreCheck?.error && restoreCheck?.blocked?.length === 0 && (
+              <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 space-y-1">
+                <p className="text-sm text-slate-700">
+                  주문을 <strong>입금대기</strong>로 되돌리고 교재 {restoreModal.item_count}권을 다시
+                  선점합니다. 판매 페이지에서는 즉시 내려갑니다.
+                </p>
+                <p className="text-xs text-slate-500">
+                  결제 확정은 아직입니다 — 복원 후 <strong>입금확인</strong> 버튼으로 금액을 확인해야
+                  &lsquo;상품 준비 중&rsquo;으로 넘어가고 구매자 알림도 발송됩니다.
+                </p>
+                <p className="text-xs text-slate-500">
+                  자동취소 시계는 복원 시점부터 다시 24시간입니다.
+                </p>
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <button className="btn-ghost flex-1" onClick={closeRestoreModal} type="button">
+                닫기
+              </button>
+              <button
+                className="btn-primary flex-1"
+                disabled={
+                  busyOrderId === restoreModal.id ||
+                  restoreCheck?.loading ||
+                  Boolean(restoreCheck?.error) ||
+                  (restoreCheck?.blocked?.length ?? 0) > 0
+                }
+                onClick={handleRestoreOrder}
+                type="button"
+              >
+                {busyOrderId === restoreModal.id ? <BusyText>복원 중...</BusyText> : "입금대기로 복원"}
+              </button>
+            </div>
+          </div>
+        )}
+      </AdminDialog>
 
       {/* 일괄 입금확인 확인 모달 — 별도 입력 없이 대상 목록 확인 후 즉시 처리 */}
       <AdminDialog
