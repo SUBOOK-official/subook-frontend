@@ -51,6 +51,32 @@ test("normalizeHomeLatestBooks keeps products whose isPublic is unknown (null)",
   assert.deepEqual(normalized.map((product) => product.id), ["tri-null", "tri-true"]);
 });
 
+// 콜라보 고정 상품은 입고일이 오래돼도 '신규 입고' 맨 앞에 남아야 한다.
+// (캐시를 읽는 경로도 이 함수를 다시 타므로 여기서 순서가 정해진다)
+test("normalizeHomeLatestBooks pins the collab products ahead of newer arrivals", () => {
+  const normalized = normalizeHomeLatestBooks([
+    { id: "new-1", createdAt: "2026-08-30T09:00:00+09:00" },
+    {
+      id: "j1-full",
+      title: "2027 J1 원트 FULL 모의고사 국어",
+      createdAt: "2026-08-01T09:00:00+09:00",
+    },
+    { id: "new-2", createdAt: "2026-08-29T09:00:00+09:00" },
+    {
+      id: "j1-mini",
+      title: "2027 J1 원트 미니모의고사 국어",
+      createdAt: "2026-08-02T09:00:00+09:00",
+    },
+  ]);
+
+  assert.deepEqual(normalized.map((product) => product.id), [
+    "j1-full",
+    "j1-mini",
+    "new-1",
+    "new-2",
+  ]);
+});
+
 test("isHomeLatestBooksCacheStale expires entries after thirty minutes", () => {
   const now = 10_000_000;
   const freshTimestamp = now - HOME_LATEST_BOOKS_CACHE_TTL_MS + 1;

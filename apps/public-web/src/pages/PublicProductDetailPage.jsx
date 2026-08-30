@@ -5,6 +5,9 @@ import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
 import ContentContainer from "../components/ContentContainer";
 import brandLogoImage from "../assets/brand/logo-horizontal.png";
 import ProductCard, { HeartIcon } from "../components/ProductCard";
+import FeaturedProductDetail, {
+  hasFeaturedProductDetail,
+} from "../components/FeaturedProductDetail";
 import PublicFooter from "../components/PublicFooter";
 import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
@@ -25,6 +28,7 @@ import {
   readPendingMemberAction,
 } from "../lib/pendingMemberAction";
 import { usePageMeta } from "../lib/usePageMeta";
+import { findFeaturedProductEntry } from "../lib/publicFeaturedProducts";
 import {
   findInstructorCollectionByName,
   findSeriesForTitle,
@@ -1071,6 +1075,12 @@ function PublicProductDetailPage() {
     }
     return links;
   }, [product]);
+  // 콜라보 전용 상세페이지(전일학원 J1) — 해당 상품이면 일반 상세 정보 대신
+  // 디자인 상세페이지 이미지를 노출한다. 이미지가 없는 상품은 null이라 기존 포맷 유지.
+  const featuredDetailKey = useMemo(() => {
+    const entry = findFeaturedProductEntry(product);
+    return hasFeaturedProductDetail(entry?.key) ? entry.key : null;
+  }, [product]);
   // 다중 옵션 선택: [{ key: 회차, quantity }]. 단일재고 모델이라 회차별 수량은 그 회차의
   // 남은 책 수로 캡되고, 담기/구매 시 회차별로 distinct한 book_id가 할당된다.
   const [selections, setSelections] = useState([]);
@@ -1964,9 +1974,18 @@ function PublicProductDetailPage() {
                 sectionRefs.current.info = element;
               }}
             >
-              <AiSummarySection summary={aiSummary} />
-              <DetailPhotoSection images={product.inspectionImageUrls} />
-              <DetailInfoContent activeDisplay={product} />
+              {featuredDetailKey ? (
+                <FeaturedProductDetail
+                  detailKey={featuredDetailKey}
+                  title={product.title}
+                />
+              ) : (
+                <>
+                  <AiSummarySection summary={aiSummary} />
+                  <DetailPhotoSection images={product.inspectionImageUrls} />
+                  <DetailInfoContent activeDisplay={product} />
+                </>
+              )}
             </section>
 
             <section

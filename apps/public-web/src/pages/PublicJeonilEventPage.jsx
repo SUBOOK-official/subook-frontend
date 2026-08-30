@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import PublicFooter from "../components/PublicFooter";
 import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
+import { fetchFeaturedProductsByKey } from "../lib/publicFeaturedProductsApi";
 import { usePageMeta } from "../lib/usePageMeta";
 import JeonilCouponDialog from "../components/JeonilCouponDialog";
 import heroBg from "../assets/jeonil/hero-bg.webp";
@@ -35,6 +37,14 @@ const R_ANS_C = "3840 / 1605";
 const JEONGWON_RATIO = "3840 / 883";
 const R_CARD = "3009 / 1430";
 const R_COUPON = "1493 / 976";
+
+// 교재 카드 → 상품 상세 링크. key는 publicFeaturedProducts.js 레지스트리와 맞춘다.
+// 아직 등록 전인 상품은 id를 못 찾으므로 링크 없이 이미지만 보여준다(죽은 링크 방지).
+const BOOK_CARDS = [
+  { key: "j1-mini", src: card1Img, alt: "2027 J1 원트 미니모의고사 국어" },
+  { key: "j1-full", src: card2Img, alt: "2027 J1 원트 FULL 모의고사 국어" },
+  { key: "j1-tomato", src: card3Img, alt: "2027 J1 약술논술 토마토 모의고사" },
+];
 
 const OPEN_YEAR = 2026;
 const OPEN_MONTH = 9;
@@ -203,6 +213,22 @@ function PublicJeonilEventPage() {
   const [couponOpen, setCouponOpen] = useState(false);
   const [dday] = useState(getDDayLabel);
   const couponRef = useRef(null);
+  // 교재 카드 링크용 상품 id — 등록 전이면 빈 객체라 카드는 링크 없이 그대로 보인다.
+  const [featuredByKey, setFeaturedByKey] = useState({});
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    fetchFeaturedProductsByKey().then((byKey) => {
+      if (!isCancelled) {
+        setFeaturedByKey(byKey);
+      }
+    });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const selector =
@@ -452,9 +478,34 @@ function PublicJeonilEventPage() {
             </div>
             {/* 교재 3권 — 배경 위에 떠서 차례대로 등장 + 호버 확대 */}
             <div className="jeonil-books">
-              <img className="jeonil-book" src={card1Img} alt="2027 J1 원트 미니모의고사 국어" draggable={false} style={{ aspectRatio: R_CARD }} />
-              <img className="jeonil-book" src={card2Img} alt="2027 J1 원트 FULL 모의고사 국어" draggable={false} style={{ aspectRatio: R_CARD }} />
-              <img className="jeonil-book" src={card3Img} alt="2027 J1 약술논술 토마토 모의고사" draggable={false} style={{ aspectRatio: R_CARD }} />
+              {BOOK_CARDS.map((card) => {
+                const productId = featuredByKey[card.key]?.id ?? null;
+                const image = (
+                  <img
+                    className="jeonil-book"
+                    src={card.src}
+                    alt={card.alt}
+                    draggable={false}
+                    style={{ aspectRatio: R_CARD }}
+                  />
+                );
+
+                // 상품이 아직 등록되지 않았으면 링크 없이 이미지만 (죽은 링크 방지)
+                return productId === null ? (
+                  <span className="jeonil-book-link" key={card.key}>
+                    {image}
+                  </span>
+                ) : (
+                  <Link
+                    className="jeonil-book-link"
+                    key={card.key}
+                    to={`/store/${productId}`}
+                    aria-label={`${card.alt} 상품 보러가기`}
+                  >
+                    {image}
+                  </Link>
+                );
+              })}
             </div>
           </section>
 

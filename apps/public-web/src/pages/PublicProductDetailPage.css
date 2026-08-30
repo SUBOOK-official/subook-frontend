@@ -1652,3 +1652,25 @@
   }
 }
 
+
+/* ── 콜라보 전용 상세페이지 (전일학원 J1) ──────────────────────────────────────
+   Figma 상세페이지 한 장을 섹션 경계에서 9장으로 잘라 세로로 이어 붙인다.
+   조각 사이에 1px 틈도 생기면 안 되므로 display:block(인라인 여백 제거) +
+   vertical-align:top 을 반드시 유지할 것. margin/gap 을 주지 말 것. */
+.public-detail-featured {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  /* 조각 사이 인라인 공백이 1px 틈으로 보이는 것을 원천 차단 */
+  font-size: 0;
+  line-height: 0;
+}
+
+.public-detail-featured__slice {
+  display: block;
+  width: 100%;
+  height: auto;
+  vertical-align: top;
+  /* 배경이 흰색이 아닌 조각이 있어 로딩 중 깜빡임을 줄인다 */
+  background: #ffffff;
+}

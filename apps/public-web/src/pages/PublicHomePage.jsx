@@ -145,11 +145,12 @@ function PublicHomePage() {
       <HeroBanner onSlideAction={handleHeroAction} slides={HOME_HERO_SLIDES} />
       {/* 배너 클릭 스크롤 도착 지점. sticky 헤더에 가리지 않도록 scroll-margin-top 확보. */}
       <div aria-hidden="true" ref={productsRef} style={{ scrollMarginTop: "80px" }} />
-      <BestBooksSection
+      {/* 2026-08-31: 신규 입고를 BEST 위로 — 콜라보 신상품 노출을 최우선으로 */}
+      <LatestArrivalsSection
         favoriteIds={favoriteIds}
         onToggleFavorite={handleToggleFavorite}
       />
-      <LatestArrivalsSection
+      <BestBooksSection
         favoriteIds={favoriteIds}
         onToggleFavorite={handleToggleFavorite}
       />

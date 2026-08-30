@@ -1,3 +1,4 @@
+import { pinFeaturedProductsFirst } from "./publicFeaturedProducts.js";
 import { sortStorefrontProducts } from "./publicStoreSorting.js";
 
 export const HOME_LATEST_BOOKS_CACHE_TTL_MS = 30 * 60 * 1000;
@@ -53,7 +54,9 @@ export function normalizeHomeLatestBooks(products) {
       })
     : [];
 
-  return sortStorefrontProducts(safeProducts, "latest").slice(0, 8);
+  // 최신순 정렬 "뒤에" 콜라보 고정 상품을 앞으로 끌어올린다. 캐시를 읽는 경로도 이
+  // 함수를 다시 타므로, 고정 순서는 여기서 한 번만 정하면 두 경로 모두 일관된다.
+  return pinFeaturedProductsFirst(sortStorefrontProducts(safeProducts, "latest")).slice(0, 8);
 }
 
 export function isNewHomeArrivalBadgeVisible(productOrDateValue, now = Date.now()) {
