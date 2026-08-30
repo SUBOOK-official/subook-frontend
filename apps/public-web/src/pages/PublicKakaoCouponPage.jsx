@@ -294,7 +294,7 @@ function PublicKakaoCouponPage() {
               3,000원 쿠폰 받기
             </h1>
             <p className="kakao-coupon-subtitle">
-              발급된 쿠폰은 24시간 안에 주문할 때 사용할 수 있습니다. (최소 주문 금액 없음)
+              발급된 쿠폰은 24시간 안에, 2만원 이상 주문 시 사용할 수 있습니다.
             </p>
 
             <ol className="kakao-coupon-steps">
