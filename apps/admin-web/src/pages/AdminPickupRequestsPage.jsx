@@ -243,6 +243,22 @@ function canRegisterCjPickup(pickupRequest) {
   );
 }
 
+// CJ 재접수 가능 조건 — 이미 접수가 끝나(접수 버튼이 숨는) 상태에서 다시 접수해야 하는 경우.
+// 셀러가 신청과 다르게 포장해 기사가 수거를 거부한 사고(2박스 신청 → 1박스 몰아담기로
+// 20kg 초과, PU-2608-0020 / 2026-08-31) 복구용. 재포장 후 새 조건으로 다시 접수한다.
+// 서버가 기존 예약을 전량 취소한 뒤에만 재접수하므로 기사 이중 출동은 발생하지 않는다.
+// <input type="date">용 로컬(KST) 기준 YYYY-MM-DD. toISOString()은 UTC라 밤 시간대에 하루 밀린다.
+function toDateInputValue(date) {
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
+function canReregisterCjPickup(pickupRequest) {
+  const { registered } = getBoxWaybillProgress(pickupRequest);
+  return registered > 0 && ["pending", "pickup_scheduled"].includes(pickupRequest.status);
+}
+
 // 취소 가능 조건 — admin_bulk_cancel_pickup_requests RPC가 실제로 처리하는 범위와 동일.
 // (기존에는 선택 자체가 CJ 접수 가능 행으로 제한돼, 운송장이 발급된 pickup_scheduled 건을
 //  화면에서 영영 취소할 수 없는 버그가 있었다 — 2026-07-06 수거 사이클 검토에서 수정)
@@ -641,6 +657,10 @@ function AdminPickupRequestsPage() {
   const [mergeLoading, setMergeLoading] = useState(false);
   const [mergingId, setMergingId] = useState(null);
 
+  // CJ 재접수 — { pickupRequest, boxCount, desiredPickupDate } / 실행 중이면 reregisteringId
+  const [reregisterModal, setReregisterModal] = useState(null);
+  const [reregisteringId, setReregisteringId] = useState(null);
+
   // 알림톡/RPC 부분 실패를 전체 노출 — 이전엔 setError에 3건만 보여 4건 이후가 사라지는 P0 사고
   const [cjFailureModal, setCjFailureModal] = useState(null);
   const [notificationResult, setNotificationResult] = useState(null);
@@ -1002,6 +1022,104 @@ function AdminPickupRequestsPage() {
       setError(apiError instanceof Error ? apiError.message : "CJ 수거 접수에 실패했습니다.");
     } finally {
       setRegisteringIds([]);
+    }
+  };
+
+  const openReregisterModal = (pickupRequest) => {
+    setError("");
+    setNotice("");
+    setReregisterModal({
+      pickupRequest,
+      boxCount: String(Math.max(1, Number(pickupRequest.box_count) || 1)),
+      desiredPickupDate: toDateInputValue(new Date()),
+    });
+  };
+
+  // CJ 재접수 — 기존 예약을 전부 취소한 뒤 새 조건(박스 수·수거 예정일)으로 다시 접수한다.
+  // 취소가 하나라도 실패하면 서버가 재접수를 중단하므로 기사 이중 출동은 생기지 않는다.
+  const performReregisterPickup = async ({ skipCancel = false } = {}) => {
+    if (!reregisterModal) {
+      return;
+    }
+
+    const { pickupRequest, boxCount, desiredPickupDate } = reregisterModal;
+    const parsedBoxCount = Number.parseInt(String(boxCount), 10);
+
+    if (!Number.isInteger(parsedBoxCount) || parsedBoxCount < 1) {
+      setError("박스 개수를 1개 이상으로 입력해 주세요.");
+      return;
+    }
+    if (!desiredPickupDate) {
+      setError("수거 예정일을 선택해 주세요.");
+      return;
+    }
+
+    setError("");
+    setNotice("");
+    setReregisteringId(pickupRequest.id);
+    setReregisterModal((prev) => (prev ? { ...prev, failure: null } : prev));
+
+    try {
+      const payload = await callAdminApi("/api/admin/cj-pickup", {
+        method: "POST",
+        body: JSON.stringify({
+          action: "reregister",
+          pickupRequestIds: [pickupRequest.id],
+          boxCount: parsedBoxCount,
+          desiredPickupDate,
+          skipCancel,
+        }),
+      });
+
+      const result = Array.isArray(payload.results) ? payload.results[0] : null;
+
+      if (!result?.success) {
+        // 취소 단계 실패는 모달 안에서 사유를 보여주고 '취소 없이 재접수' 폴백을 제공한다.
+        setReregisterModal((prev) =>
+          prev
+            ? {
+                ...prev,
+                failure: {
+                  message: result?.error || "재접수에 실패했습니다.",
+                  canSkipCancel: Boolean(result?.canSkipCancel),
+                },
+              }
+            : prev,
+        );
+        return;
+      }
+
+      // 운송장이 새로 발급되므로 셀러에게 새 번호로 다시 안내한다(기존 번호는 취소됨).
+      let notificationFailed = false;
+      if (result.pickupRequest) {
+        try {
+          const notificationResult = await notifyPickupAccepted({
+            pickupRequest: result.pickupRequest,
+          });
+          if (!notificationResult?.success) {
+            notificationFailed = true;
+          }
+        } catch {
+          notificationFailed = true;
+        }
+      }
+
+      const parts = [
+        skipCancel
+          ? `${pickupRequest.request_number} 재접수 완료 — 기존 예약 취소 없이 ${result.registeredBoxes || 0}박스 새로 발급`
+          : `${pickupRequest.request_number} 재접수 완료 — 기존 예약 ${result.cancelledBoxes || 0}박스 취소 · ${result.registeredBoxes || 0}박스 새로 발급`,
+      ];
+      if (notificationFailed) {
+        parts.push("알림톡 확인 필요");
+      }
+
+      setNotice(parts.join(" · "));
+      setReregisterModal(null);
+      await loadPickupRequests();
+    } catch (apiError) {
+      setError(apiError instanceof Error ? apiError.message : "CJ 재접수에 실패했습니다.");
+    } finally {
+      setReregisteringId(null);
     }
   };
 
@@ -1540,6 +1658,22 @@ function AdminPickupRequestsPage() {
                               </button>
                             ) : null}
 
+                            {/* 재포장·박스 수 변경 등으로 다시 접수해야 할 때 (기존 예약 취소 후 재접수) */}
+                            {canReregisterCjPickup(pickupRequest) ? (
+                              <button
+                                className="btn-secondary !w-auto !px-3 !py-2 text-xs"
+                                disabled={reregisteringId !== null || registeringIds.length > 0}
+                                onClick={() => openReregisterModal(pickupRequest)}
+                                type="button"
+                              >
+                                {reregisteringId === pickupRequest.id ? (
+                                  <BusyText>재접수 중...</BusyText>
+                                ) : (
+                                  "CJ 재접수"
+                                )}
+                              </button>
+                            ) : null}
+
                             {boxProgress.registered > 0 ? (
                               <button
                                 className="btn-secondary !w-auto !px-3 !py-2 text-xs"
@@ -1790,6 +1924,127 @@ function AdminPickupRequestsPage() {
             <button className="btn-ghost w-full" onClick={() => setMergeModal(null)} type="button">
               닫기
             </button>
+          </div>
+        ) : null}
+      </AdminDialog>
+
+      {/* CJ 재접수 — 기존 예약 전량 취소 후 새 조건으로 다시 접수 */}
+      <AdminDialog
+        busy={reregisteringId !== null}
+        onClose={() => setReregisterModal(null)}
+        open={Boolean(reregisterModal)}
+        size="md"
+        title={reregisterModal ? `CJ 재접수 — ${reregisterModal.pickupRequest.request_number}` : ""}
+      >
+        {reregisterModal ? (
+          <div className="space-y-4 p-6">
+            <p className="text-sm text-slate-700">
+              기존 CJ 예약을 <strong>전부 취소한 뒤</strong> 아래 조건으로 다시 접수합니다.
+              셀러가 재포장했거나 박스 수가 달라진 경우에 쓰세요.
+            </p>
+            <ul className="list-inside list-disc space-y-1 rounded-lg bg-slate-50 px-4 py-3 text-xs text-slate-600">
+              <li>운송장 번호가 새로 발급되고, 셀러에게 새 번호로 알림톡이 다시 나갑니다.</li>
+              <li>기존 예약이 하나라도 취소되지 않으면 재접수하지 않습니다. (기사 이중 출동 방지)</li>
+              <li>기사 스캔·운송장 출력이 이미 진행됐다면 CJ가 취소를 거부할 수 있습니다.</li>
+            </ul>
+
+            <div className="rounded-lg border border-slate-200 px-4 py-3 text-xs text-slate-600">
+              <p>
+                현재 접수 상태:{" "}
+                <strong className="text-slate-900">
+                  {getBoxWaybillProgress(reregisterModal.pickupRequest).registered}박스
+                </strong>{" "}
+                · 신청 수거일{" "}
+                <strong className="text-slate-900">
+                  {reregisterModal.pickupRequest.desired_pickup_date || "미지정"}
+                </strong>
+              </p>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="block">
+                <span className="text-xs font-bold text-slate-700">박스 개수</span>
+                <input
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  disabled={reregisteringId !== null}
+                  inputMode="numeric"
+                  min="1"
+                  onChange={(event) =>
+                    setReregisterModal((prev) =>
+                      prev ? { ...prev, boxCount: event.target.value.replace(/\D/g, "") } : prev,
+                    )
+                  }
+                  type="number"
+                  value={reregisterModal.boxCount}
+                />
+                <span className="mt-1 block text-[11px] text-slate-500">
+                  실제 포장된 박스 수. 박스마다 운송장 1장이 발급됩니다.
+                </span>
+              </label>
+
+              <label className="block">
+                <span className="text-xs font-bold text-slate-700">수거 예정일</span>
+                <input
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  disabled={reregisteringId !== null}
+                  onChange={(event) =>
+                    setReregisterModal((prev) =>
+                      prev ? { ...prev, desiredPickupDate: event.target.value } : prev,
+                    )
+                  }
+                  type="date"
+                  value={reregisterModal.desiredPickupDate}
+                />
+                <span className="mt-1 block text-[11px] text-slate-500">
+                  지난 날짜로 접수되지 않도록 새 날짜를 지정하세요.
+                </span>
+              </label>
+            </div>
+
+            {reregisterModal.failure ? (
+              <div className="space-y-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3">
+                <p className="text-xs font-bold text-rose-900">재접수하지 않았습니다</p>
+                <p className="whitespace-pre-wrap break-words text-xs text-rose-800">
+                  {reregisterModal.failure.message}
+                </p>
+                {reregisterModal.failure.canSkipCancel ? (
+                  <div className="space-y-2 border-t border-rose-200 pt-3">
+                    <p className="text-[11px] text-rose-800">
+                      추적 조회·CJ 지점 확인으로 <strong>기존 예약이 이미 없는 것</strong>을 확인했다면
+                      취소 없이 새로 접수할 수 있습니다. 기존 예약이 살아 있는 상태에서 누르면
+                      기사가 두 번 출동합니다.
+                    </p>
+                    <button
+                      className="w-full rounded-lg border border-rose-300 bg-white px-3 py-2 text-xs font-bold text-rose-900 hover:bg-rose-100 disabled:opacity-60"
+                      disabled={reregisteringId !== null}
+                      onClick={() => void performReregisterPickup({ skipCancel: true })}
+                      type="button"
+                    >
+                      기존 예약 없음 확인 — 취소 없이 재접수
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            <div className="flex gap-2">
+              <button
+                className="btn-ghost flex-1"
+                disabled={reregisteringId !== null}
+                onClick={() => setReregisterModal(null)}
+                type="button"
+              >
+                닫기
+              </button>
+              <button
+                className="btn-primary flex-1"
+                disabled={reregisteringId !== null}
+                onClick={() => void performReregisterPickup()}
+                type="button"
+              >
+                {reregisteringId !== null ? <BusyText>재접수 중...</BusyText> : "재접수 실행"}
+              </button>
+            </div>
           </div>
         ) : null}
       </AdminDialog>
