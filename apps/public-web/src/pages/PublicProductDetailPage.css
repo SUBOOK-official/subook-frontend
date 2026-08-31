@@ -1683,3 +1683,12 @@
   color: var(--public-ds-primary, #080f47);
   letter-spacing: -0.01em;
 }
+
+/* 버튼과 같은 자리에 놓는 링크(예: 출시 전 '알림 신청하러 가기').
+   <a>는 button과 달리 내부 정렬이 없어 flex 정렬·밑줄 제거를 직접 준다. */
+.public-detail-hero__btn--link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}

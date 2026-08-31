@@ -13,6 +13,8 @@
 //   · 상세페이지 이미지는 components/FeaturedProductDetail.jsx
 
 export const JEONIL_BRAND = "전일학원";
+// 출시 전 상품 상세에서 '알림 신청하러 가기'로 보낼 이벤트 랜딩.
+export const JEONIL_EVENT_PATH = "/event/jeon-il";
 
 // 콜라보 오픈 시각 — 2026-09-03 18:00 KST.
 // 이 시각이 지나면 배포 없이 자동으로 가격·구매가 열린다(아래 isPreReleaseProduct).
@@ -36,6 +38,7 @@ export const FEATURED_PRODUCTS = [
     // ⚠ UI 차단일 뿐이라 DB 가드(pre_release_products 테이블)와 짝으로 유지할 것.
     preRelease: true,
     releaseAt: COLLAB_OPEN_AT,
+    eventPath: JEONIL_EVENT_PATH,
   },
   {
     key: "j1-mini",
@@ -44,6 +47,7 @@ export const FEATURED_PRODUCTS = [
     pinToLatest: true,
     preRelease: true,
     releaseAt: COLLAB_OPEN_AT,
+    eventPath: JEONIL_EVENT_PATH,
   },
   {
     // 랜딩 카드 링크 대상이지만 고정·전용 상세페이지 대상은 아니다.
@@ -53,6 +57,7 @@ export const FEATURED_PRODUCTS = [
     pinToLatest: false,
     preRelease: true,
     releaseAt: COLLAB_OPEN_AT,
+    eventPath: JEONIL_EVENT_PATH,
   },
 ];
 

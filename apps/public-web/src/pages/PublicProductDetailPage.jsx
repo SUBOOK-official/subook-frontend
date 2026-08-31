@@ -976,10 +976,11 @@ function PublicProductDetailPage() {
   const [notFound, setNotFound] = useState(false);
   // 콜라보 전용 상세페이지(전일학원 J1) 대상 여부. JSON-LD(itemCondition)에서도
   // 참조하므로 메타 블록보다 위에 선언한다.
-  const featuredDetailKey = useMemo(() => {
-    const entry = findFeaturedProductEntry(product);
-    return hasFeaturedProductDetail(entry?.key) ? entry.key : null;
-  }, [product]);
+  const featuredEntry = useMemo(() => findFeaturedProductEntry(product), [product]);
+  const featuredDetailKey = useMemo(
+    () => (hasFeaturedProductDetail(featuredEntry?.key) ? featuredEntry.key : null),
+    [featuredEntry],
+  );
   // 출시 전 — 가격·구매를 모두 막는다 (오픈일에 레지스트리 preRelease만 끄면 열린다).
   const isPreRelease = useMemo(() => isPreReleaseProduct(product), [product]);
   // 상품명·과목 동적 title + description + canonical/og:image + Product JSON-LD
@@ -1949,15 +1950,25 @@ function PublicProductDetailPage() {
                     <HeartIcon filled={isProductFavorite} size={24} />
                   </button>
                   {isPreRelease ? (
-                    // 출시 전 — 품절이 아니므로 재입고 알림이 아니라 오픈 예정 안내를 둔다.
+                    // 출시 전 — 품절이 아니므로 재입고 알림이 아니라 이벤트 랜딩으로 보낸다.
                     // (찜하기는 그대로 살려 두어 관심 표시는 받을 수 있게 한다)
-                    <button
-                      className="public-detail-hero__btn public-detail-hero__btn--buy"
-                      disabled
-                      type="button"
-                    >
-                      {COLLAB_OPEN_TIME_LABEL} 오픈
-                    </button>
+                    // 이벤트 랜딩이 없는 출시 전 상품이면 안내만 남기고 비활성 버튼으로 둔다.
+                    featuredEntry?.eventPath ? (
+                      <Link
+                        className="public-detail-hero__btn public-detail-hero__btn--buy public-detail-hero__btn--link"
+                        to={featuredEntry.eventPath}
+                      >
+                        알림 신청하러 가기
+                      </Link>
+                    ) : (
+                      <button
+                        className="public-detail-hero__btn public-detail-hero__btn--buy"
+                        disabled
+                        type="button"
+                      >
+                        {COLLAB_OPEN_TIME_LABEL} 오픈
+                      </button>
+                    )
                   ) : canPurchase ? (
                     <>
                       <button
