@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { FEATURED_PRODUCTS } from "./publicFeaturedProducts.js";
 import {
   HOME_LATEST_BOOKS_BADGE_WINDOW_MS,
   HOME_LATEST_BOOKS_CACHE_TTL_MS,
@@ -54,24 +55,21 @@ test("normalizeHomeLatestBooks keeps products whose isPublic is unknown (null)",
 // 콜라보 고정 상품은 입고일이 오래돼도 '신규 입고' 맨 앞에 남아야 한다.
 // (캐시를 읽는 경로도 이 함수를 다시 타므로 여기서 순서가 정해진다)
 test("normalizeHomeLatestBooks pins the collab products ahead of newer arrivals", () => {
+  // 실제 레지스트리(FEATURED_PRODUCTS)에 등록된 id 기준으로 고정된다.
+  const fullId = FEATURED_PRODUCTS.find((entry) => entry.key === "j1-full").productId;
+  const miniId = FEATURED_PRODUCTS.find((entry) => entry.key === "j1-mini").productId;
+
   const normalized = normalizeHomeLatestBooks([
     { id: "new-1", createdAt: "2026-08-30T09:00:00+09:00" },
-    {
-      id: "j1-full",
-      title: "2027 J1 원트 FULL 모의고사 국어",
-      createdAt: "2026-08-01T09:00:00+09:00",
-    },
+    { id: miniId, createdAt: "2026-08-02T09:00:00+09:00" },
     { id: "new-2", createdAt: "2026-08-29T09:00:00+09:00" },
-    {
-      id: "j1-mini",
-      title: "2027 J1 원트 미니모의고사 국어",
-      createdAt: "2026-08-02T09:00:00+09:00",
-    },
+    { id: fullId, createdAt: "2026-08-01T09:00:00+09:00" },
   ]);
 
+  // 레지스트리 순서(FULL → 미니)를 따르고, 입고일이 더 최신인 상품보다 앞에 온다.
   assert.deepEqual(normalized.map((product) => product.id), [
-    "j1-full",
-    "j1-mini",
+    fullId,
+    miniId,
     "new-1",
     "new-2",
   ]);

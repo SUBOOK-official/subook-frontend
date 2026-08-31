@@ -3,11 +3,20 @@ import test from "node:test";
 import {
   FEATURED_PRODUCTS,
   findFeaturedProductEntry,
+  isPreReleaseProduct,
   mapFeaturedProductsByKey,
   matchesFeaturedEntry,
   normalizeFeaturedTitleKey,
   pinFeaturedProductsFirst,
 } from "./publicFeaturedProducts.js";
+
+// 로직 검증용 고정 레지스트리 — 실제 레지스트리는 등록된 productId가 박혀 있어
+// 제목 매칭 경로를 시험할 수 없다. 두 경로를 각각 확인하려고 픽스처를 쓴다.
+const REGISTRY = [
+  { key: "by-title-a", title: "2027 J1 원트 FULL 모의고사 국어", productId: null, pinToLatest: true, preRelease: true },
+  { key: "by-title-b", title: "2027 J1 원트 미니 모의고사 국어", productId: null, pinToLatest: true },
+  { key: "not-pinned", title: "2027 J1 약술논술 토마토 모의고사", productId: null, pinToLatest: false },
+];
 
 test("normalizeFeaturedTitleKey absorbs spacing and case differences", () => {
   assert.equal(
@@ -23,18 +32,18 @@ test("normalizeFeaturedTitleKey absorbs spacing and case differences", () => {
 
 test("findFeaturedProductEntry matches by title and ignores unrelated products", () => {
   assert.equal(
-    findFeaturedProductEntry({ id: 1, title: "2027 J1 원트 FULL 모의고사 국어" })?.key,
-    "j1-full",
+    findFeaturedProductEntry({ id: 1, title: "2027 J1 원트 FULL 모의고사 국어" }, REGISTRY)?.key,
+    "by-title-a",
   );
   // 등록 시 띄어쓰기가 달라져도 같은 상품으로 인식해야 한다.
   assert.equal(
-    findFeaturedProductEntry({ id: 2, title: "2027 J1 원트 미니모의고사 국어" })?.key,
-    "j1-mini",
+    findFeaturedProductEntry({ id: 2, title: "2027 J1 원트 미니모의고사 국어" }, REGISTRY)?.key,
+    "by-title-b",
   );
-  assert.equal(findFeaturedProductEntry({ id: 3, title: "시대인재 서바이벌 국어" }), null);
-  assert.equal(findFeaturedProductEntry(null), null);
+  assert.equal(findFeaturedProductEntry({ id: 3, title: "시대인재 서바이벌 국어" }, REGISTRY), null);
+  assert.equal(findFeaturedProductEntry(null, REGISTRY), null);
   // 제목이 비어 있는 상품이 전부 매칭되어 버리는 사고 방지
-  assert.equal(findFeaturedProductEntry({ id: 4, title: "" }), null);
+  assert.equal(findFeaturedProductEntry({ id: 4, title: "" }, REGISTRY), null);
 });
 
 test("matchesFeaturedEntry prefers an explicit productId over the title", () => {
@@ -49,6 +58,19 @@ test("matchesFeaturedEntry prefers an explicit productId over the title", () => 
   );
   // bigint id가 문자열로 오는 경로(RPC 응답)도 같은 상품으로 본다.
   assert.equal(matchesFeaturedEntry(entry, { id: "4242", title: "" }), true);
+});
+
+// 실제 레지스트리 회귀 방지 — 등록된 콜라보 상품은 id로 걸리고 출시 전 상태여야 한다.
+test("registry resolves the registered collab products by id", () => {
+  const full = FEATURED_PRODUCTS.find((entry) => entry.key === "j1-full");
+  const mini = FEATURED_PRODUCTS.find((entry) => entry.key === "j1-mini");
+
+  assert.equal(findFeaturedProductEntry({ id: full.productId, title: "" })?.key, "j1-full");
+  assert.equal(findFeaturedProductEntry({ id: mini.productId, title: "" })?.key, "j1-mini");
+  assert.equal(isPreReleaseProduct({ id: full.productId }), true);
+  assert.equal(isPreReleaseProduct({ id: mini.productId }), true);
+  // 무관한 상품은 출시 전 취급되면 안 된다 (전 상품 가격이 가려지는 사고 방지).
+  assert.equal(isPreReleaseProduct({ id: 1, title: "시대인재 서바이벌 국어" }), false);
 });
 
 test("every registry entry carries a key and a title", () => {
@@ -68,7 +90,7 @@ test("pinFeaturedProductsFirst hoists pinned products in registry order", () => 
 
   // 레지스트리 순서가 FULL → 미니 이므로 목록 순서와 무관하게 FULL이 먼저 온다.
   assert.deepEqual(
-    pinFeaturedProductsFirst(products).map((product) => product.id),
+    pinFeaturedProductsFirst(products, REGISTRY).map((product) => product.id),
     [13, 11, 10, 12],
   );
 });
@@ -82,7 +104,7 @@ test("pinFeaturedProductsFirst leaves non-pinned featured products in place", ()
   ];
 
   assert.deepEqual(
-    pinFeaturedProductsFirst(products).map((product) => product.id),
+    pinFeaturedProductsFirst(products, REGISTRY).map((product) => product.id),
     [22, 20, 21],
   );
 });
@@ -91,22 +113,25 @@ test("pinFeaturedProductsFirst keeps order when nothing matches", () => {
   const products = [{ id: 30, title: "이감 국어" }, { id: 31, title: "EBS 수능특강" }];
 
   assert.deepEqual(
-    pinFeaturedProductsFirst(products).map((product) => product.id),
+    pinFeaturedProductsFirst(products, REGISTRY).map((product) => product.id),
     [30, 31],
   );
-  assert.deepEqual(pinFeaturedProductsFirst([]), []);
-  assert.deepEqual(pinFeaturedProductsFirst(null), []);
+  assert.deepEqual(pinFeaturedProductsFirst([], REGISTRY), []);
+  assert.deepEqual(pinFeaturedProductsFirst(null, REGISTRY), []);
 });
 
 test("mapFeaturedProductsByKey keeps the first match per key", () => {
-  const byKey = mapFeaturedProductsByKey([
-    { id: 40, title: "2027 J1 원트 FULL 모의고사 국어" },
-    { id: 41, title: "2027 J1 원트 FULL 모의고사 국어" },
-    { id: 42, title: "2027 J1 약술논술 토마토 모의고사" },
-    { id: 43, title: "시대인재 서바이벌" },
-  ]);
+  const byKey = mapFeaturedProductsByKey(
+    [
+      { id: 40, title: "2027 J1 원트 FULL 모의고사 국어" },
+      { id: 41, title: "2027 J1 원트 FULL 모의고사 국어" },
+      { id: 42, title: "2027 J1 약술논술 토마토 모의고사" },
+      { id: 43, title: "시대인재 서바이벌" },
+    ],
+    REGISTRY,
+  );
 
-  assert.equal(byKey["j1-full"].id, 40);
-  assert.equal(byKey["j1-tomato"].id, 42);
-  assert.equal(byKey["j1-mini"], undefined);
+  assert.equal(byKey["by-title-a"].id, 40);
+  assert.equal(byKey["not-pinned"].id, 42);
+  assert.equal(byKey["by-title-b"], undefined);
 });

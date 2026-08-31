@@ -3,11 +3,9 @@
 // 한 곳에서 관리하는 것: ① 홈 '신규 입고' 최상단 고정 ② 전일학원 랜딩(/event/jeon-il)
 // 교재 카드 → 상품 상세 링크 ③ 상품 상세의 전용 상세페이지 이미지 사용 여부.
 //
-// ⚠ 매칭 키가 '상품명'인 이유 — 이 모듈을 만든 시점에 세 상품이 아직 admin에 등록되지
-//   않아 products.id가 존재하지 않았다. 공백을 모두 지우고 비교하므로
-//   "미니 모의고사" / "미니모의고사" 같은 띄어쓰기 차이는 흡수된다.
-//   상품 등록 후에는 각 항목의 productId에 실제 products.id를 적어 둘 것.
-//   productId가 있으면 제목 매칭보다 우선하므로, 나중에 상품명을 바꿔도 안전하다.
+// 매칭은 productId 우선, 없으면 상품명(공백 무시)으로 폴백한다.
+//   J1 FULL·미니는 2026-08-31에 등록돼 실제 id가 박혀 있어 상품명을 바꿔도 안전하다.
+//   아직 등록 전인 항목(토마토)만 제목 매칭으로 대기 중 — 등록되면 id를 채울 것.
 //
 // ⚠ 이 모듈은 Node 단위 테스트(publicHomeLatestBooksUtils)에서 전이 import 되므로
 //   이미지 에셋·supabase 클라이언트를 import 하지 않는다 (순수 로직만).
@@ -23,8 +21,8 @@ export const FEATURED_PRODUCTS = [
   {
     key: "j1-full",
     title: "2027 J1 원트 FULL 모의고사 국어",
-    // 등록 후 실제 products.id 를 넣으면 제목 매칭보다 우선한다.
-    productId: null,
+    // 실제 products.id — 지정돼 있으면 제목 매칭보다 우선한다(상품명을 바꿔도 안전).
+    productId: 2370,
     // 홈 '신규 입고' 캐러셀 최상단 고정 대상
     pinToLatest: true,
     // 출시 전 — 가격을 감추고 주문(장바구니·구매)을 막는다. 오픈일에 false로 바꾸면
@@ -35,7 +33,7 @@ export const FEATURED_PRODUCTS = [
   {
     key: "j1-mini",
     title: "2027 J1 원트 미니 모의고사 국어",
-    productId: null,
+    productId: 2371,
     pinToLatest: true,
     preRelease: true,
   },
@@ -72,21 +70,21 @@ export function matchesFeaturedEntry(entry, product) {
 }
 
 // 스토어 상품 → 레지스트리 항목. 매칭되는 콜라보 상품이 아니면 null.
-export function findFeaturedProductEntry(product) {
-  return FEATURED_PRODUCTS.find((entry) => matchesFeaturedEntry(entry, product)) ?? null;
+export function findFeaturedProductEntry(product, registry = FEATURED_PRODUCTS) {
+  return registry.find((entry) => matchesFeaturedEntry(entry, product)) ?? null;
 }
 
 // 출시 전 상품인가 — 가격 노출·장바구니·구매를 모두 막는 판단의 단일 기준.
-export function isPreReleaseProduct(product) {
-  return findFeaturedProductEntry(product)?.preRelease === true;
+export function isPreReleaseProduct(product, registry = FEATURED_PRODUCTS) {
+  return findFeaturedProductEntry(product, registry)?.preRelease === true;
 }
 
 // key → 상품 객체 맵. 랜딩 카드 링크·고정 대상 조회에 함께 쓴다.
-export function mapFeaturedProductsByKey(products) {
+export function mapFeaturedProductsByKey(products, registry = FEATURED_PRODUCTS) {
   const byKey = {};
 
   for (const product of Array.isArray(products) ? products : []) {
-    const entry = findFeaturedProductEntry(product);
+    const entry = findFeaturedProductEntry(product, registry);
 
     // 같은 key에 여러 상품이 걸리면 먼저 온 것(= 최신순 상위)을 유지한다.
     if (entry && !byKey[entry.key]) {
@@ -99,12 +97,12 @@ export function mapFeaturedProductsByKey(products) {
 
 // 정렬이 끝난 목록에서 고정 대상만 레지스트리 순서대로 앞으로 끌어올린다.
 // (나머지 상품의 상대 순서는 그대로 유지)
-export function pinFeaturedProductsFirst(products) {
+export function pinFeaturedProductsFirst(products, registry = FEATURED_PRODUCTS) {
   if (!Array.isArray(products) || products.length === 0) {
     return [];
   }
 
-  const pinnedEntries = FEATURED_PRODUCTS.filter((entry) => entry.pinToLatest);
+  const pinnedEntries = registry.filter((entry) => entry.pinToLatest);
   const pinned = [];
   const rest = [];
 
