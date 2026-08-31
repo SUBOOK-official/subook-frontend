@@ -14,8 +14,14 @@
 
 export const JEONIL_BRAND = "전일학원";
 
-// 콜라보 오픈일 — 전일학원 랜딩(PublicJeonilEventPage OPEN_*)과 같은 날짜를 유지할 것.
-export const COLLAB_OPEN_LABEL = "9월 3일";
+// 콜라보 오픈 시각 — 2026-09-03 18:00 KST.
+// 이 시각이 지나면 배포 없이 자동으로 가격·구매가 열린다(아래 isPreReleaseProduct).
+// ⚠ DB 가드(pre_release_products.release_at)에도 같은 시각이 들어가 있다 — 함께 유지할 것.
+// ⚠ 전일학원 랜딩(PublicJeonilEventPage OPEN_*)의 날짜와도 같이 맞출 것.
+export const COLLAB_OPEN_AT = "2026-09-03T18:00:00+09:00";
+// 카드 뱃지처럼 좁은 자리는 짧은 라벨, 문장 안에서는 시각까지 쓴다.
+export const COLLAB_OPEN_LABEL = "9월 3일 6시";
+export const COLLAB_OPEN_TIME_LABEL = "9월 3일 오후 6시";
 
 export const FEATURED_PRODUCTS = [
   {
@@ -29,6 +35,7 @@ export const FEATURED_PRODUCTS = [
     // 별도 배포 없이 가격·구매가 한 번에 열린다.
     // ⚠ UI 차단일 뿐이라 DB 가드(pre_release_products 테이블)와 짝으로 유지할 것.
     preRelease: true,
+    releaseAt: COLLAB_OPEN_AT,
   },
   {
     key: "j1-mini",
@@ -36,6 +43,7 @@ export const FEATURED_PRODUCTS = [
     productId: 2371,
     pinToLatest: true,
     preRelease: true,
+    releaseAt: COLLAB_OPEN_AT,
   },
   {
     // 랜딩 카드 링크 대상이지만 고정·전용 상세페이지 대상은 아니다.
@@ -44,6 +52,7 @@ export const FEATURED_PRODUCTS = [
     productId: null,
     pinToLatest: false,
     preRelease: true,
+    releaseAt: COLLAB_OPEN_AT,
   },
 ];
 
@@ -75,8 +84,18 @@ export function findFeaturedProductEntry(product, registry = FEATURED_PRODUCTS) 
 }
 
 // 출시 전 상품인가 — 가격 노출·장바구니·구매를 모두 막는 판단의 단일 기준.
-export function isPreReleaseProduct(product, registry = FEATURED_PRODUCTS) {
-  return findFeaturedProductEntry(product, registry)?.preRelease === true;
+// releaseAt 이 지나면 자동으로 false 가 된다(오픈 시각에 배포할 필요가 없다).
+// 브라우저 시계를 믿는 판단이라 어디까지나 화면용 — 실제 주문 차단은 DB 가드가 한다.
+export function isPreReleaseProduct(product, registry = FEATURED_PRODUCTS, now = Date.now()) {
+  const entry = findFeaturedProductEntry(product, registry);
+
+  if (entry?.preRelease !== true) {
+    return false;
+  }
+
+  const releaseAt = Date.parse(entry.releaseAt ?? "");
+  // releaseAt 이 없거나 이상하면 보수적으로 '출시 전'을 유지한다.
+  return !Number.isFinite(releaseAt) || now < releaseAt;
 }
 
 // key → 상품 객체 맵. 랜딩 카드 링크·고정 대상 조회에 함께 쓴다.

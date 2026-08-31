@@ -9880,7 +9880,15 @@ img {
 }
 
 
-/* 출시 전(콜라보) 카드 — 품절 오버레이와 같은 형태지만 톤만 브랜드 네이비로. */
+/* 출시 전(콜라보) 카드 오버레이.
+   표지 이미지 가운데에 이미 'COMING SOON'이 박혀 있어, 품절 오버레이처럼 가운데에 두면
+   글자끼리 겹친다. 흐리게 덮는 스크림도 빼고(표지에 이미 있음) 칩만 아래쪽에 붙인다. */
+.public-product-card__sold-out--upcoming {
+  background: transparent;
+  align-items: flex-end;
+  padding-bottom: 12px;
+}
+
 .public-product-card__sold-out--upcoming span {
   color: var(--public-ds-primary, #080f47);
 }

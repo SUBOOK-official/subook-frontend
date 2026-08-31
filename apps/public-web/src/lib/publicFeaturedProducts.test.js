@@ -73,6 +73,33 @@ test("registry resolves the registered collab products by id", () => {
   assert.equal(isPreReleaseProduct({ id: 1, title: "시대인재 서바이벌 국어" }), false);
 });
 
+test("isPreReleaseProduct opens by itself once releaseAt passes", () => {
+  const registry = [
+    { key: "timed", title: "예약 상품", productId: 900, preRelease: true, releaseAt: "2026-09-03T18:00:00+09:00" },
+    { key: "no-date", title: "무기한 상품", productId: 901, preRelease: true },
+  ];
+  const product = { id: 900 };
+  const openAt = Date.parse("2026-09-03T18:00:00+09:00");
+
+  // 1분 전 = 아직 잠김, 오픈 시각 정각부터 열림
+  assert.equal(isPreReleaseProduct(product, registry, openAt - 60_000), true);
+  assert.equal(isPreReleaseProduct(product, registry, openAt), false);
+  assert.equal(isPreReleaseProduct(product, registry, openAt + 60_000), false);
+
+  // releaseAt이 없으면 보수적으로 계속 잠긴 상태를 유지한다.
+  assert.equal(isPreReleaseProduct({ id: 901 }, registry, openAt + 60_000), true);
+});
+
+test("every registry entry marked preRelease carries a releaseAt", () => {
+  // releaseAt이 빠지면 오픈일이 지나도 영원히 잠긴 채로 남는다.
+  for (const entry of FEATURED_PRODUCTS.filter((item) => item.preRelease)) {
+    assert.ok(
+      Number.isFinite(Date.parse(entry.releaseAt ?? "")),
+      `${entry.key} releaseAt`,
+    );
+  }
+});
+
 test("every registry entry carries a key and a title", () => {
   for (const entry of FEATURED_PRODUCTS) {
     assert.ok(entry.key.trim().length > 0, "key");
