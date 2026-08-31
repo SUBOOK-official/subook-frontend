@@ -6917,6 +6917,10 @@ img {
   display: flex;
   align-items: center;
   justify-content: center;
+  /* 카드 전체를 덮는 __overlay-link(z-index 1)보다 위에 있어, 이게 클릭을 먹으면
+     표지를 눌러도 상세로 못 들어간다. 안내 표시일 뿐이라 클릭은 통과시킨다.
+     (찜하기 버튼은 z-index 3이라 영향 없음) */
+  pointer-events: none;
 }
 
 .public-product-card__sold-out span {

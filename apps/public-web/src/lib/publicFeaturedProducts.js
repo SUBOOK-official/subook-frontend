@@ -21,9 +21,8 @@ export const JEONIL_EVENT_PATH = "/event/jeon-il";
 // ⚠ DB 가드(pre_release_products.release_at)에도 같은 시각이 들어가 있다 — 함께 유지할 것.
 // ⚠ 전일학원 랜딩(PublicJeonilEventPage OPEN_*)의 날짜와도 같이 맞출 것.
 export const COLLAB_OPEN_AT = "2026-09-03T18:00:00+09:00";
-// 카드 뱃지처럼 좁은 자리는 짧은 라벨, 문장 안에서는 시각까지 쓴다.
-export const COLLAB_OPEN_LABEL = "9월 3일 6시";
-export const COLLAB_OPEN_TIME_LABEL = "9월 3일 오후 6시";
+// 오전/오후 혼동이 없도록 24시간 표기로 통일한다("6시"는 오전으로 읽힐 수 있다).
+export const COLLAB_OPEN_LABEL = "9월 3일 18시";
 
 export const FEATURED_PRODUCTS = [
   {

@@ -29,7 +29,7 @@ import {
 } from "../lib/pendingMemberAction";
 import { usePageMeta } from "../lib/usePageMeta";
 import {
-  COLLAB_OPEN_TIME_LABEL,
+  COLLAB_OPEN_LABEL,
   findFeaturedProductEntry,
   isPreReleaseProduct,
 } from "../lib/publicFeaturedProducts";
@@ -1863,7 +1863,7 @@ function PublicProductDetailPage() {
 
                 {isPreRelease ? (
                   <p className="public-detail-upcoming-price">
-                    {COLLAB_OPEN_TIME_LABEL} 판매 시작
+                    {COLLAB_OPEN_LABEL} 판매 시작
                   </p>
                 ) : (
                   <ProductPriceLine
@@ -1966,7 +1966,7 @@ function PublicProductDetailPage() {
                         disabled
                         type="button"
                       >
-                        {COLLAB_OPEN_TIME_LABEL} 오픈
+                        {COLLAB_OPEN_LABEL} 오픈
                       </button>
                     )
                   ) : canPurchase ? (
