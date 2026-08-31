@@ -2,7 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { formatCurrency } from "@shared-domain/format";
 import { trackSelectItem } from "../lib/analytics";
-import { COLLAB_OPEN_LABEL, isPreReleaseProduct } from "../lib/publicFeaturedProducts";
+import {
+  COLLAB_OPEN_LABEL,
+  findFeaturedProductEntry,
+  isPreReleaseProduct,
+} from "../lib/publicFeaturedProducts";
 import {
   getProductCardPlaceholderEyebrow,
   getProductCardPrice,
@@ -92,7 +96,11 @@ function ProductCard({
   // 쓴다. 카드 썸네일은 수 KB로 줄고 CDN 캐시되어 새로고침마다 재다운로드되지 않는다.
   const coverImageUrl = getThumbnailImageUrl(getStoreCardCoverImageUrl(product));
   const { discountRate, originalPrice, price } = getProductCardPrice(product);
-  const tags = getStoreCardTags(product);
+  // 콜라보 신품 교재는 중고 검수 등급 개념이 없어 등급 칩을 빼둔다 (상세 화면과 동일).
+  const isFeatured = Boolean(findFeaturedProductEntry(product));
+  const tags = getStoreCardTags(product).filter(
+    (tag) => !(isFeatured && tag.key === "condition"),
+  );
   const metaLine = getStoreCardMetaLine(product);
   // 출시 전 콜라보 교재는 가격·할인율을 감추고 오픈일만 알린다.
   const isPreRelease = isPreReleaseProduct(product);
