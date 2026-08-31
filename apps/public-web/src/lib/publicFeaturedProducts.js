@@ -16,6 +16,9 @@
 
 export const JEONIL_BRAND = "전일학원";
 
+// 콜라보 오픈일 — 전일학원 랜딩(PublicJeonilEventPage OPEN_*)과 같은 날짜를 유지할 것.
+export const COLLAB_OPEN_LABEL = "9월 3일";
+
 export const FEATURED_PRODUCTS = [
   {
     key: "j1-full",
@@ -24,12 +27,17 @@ export const FEATURED_PRODUCTS = [
     productId: null,
     // 홈 '신규 입고' 캐러셀 최상단 고정 대상
     pinToLatest: true,
+    // 출시 전 — 가격을 감추고 주문(장바구니·구매)을 막는다. 오픈일에 false로 바꾸면
+    // 별도 배포 없이 가격·구매가 한 번에 열린다.
+    // ⚠ UI 차단일 뿐이라 DB 가드(pre_release_products 테이블)와 짝으로 유지할 것.
+    preRelease: true,
   },
   {
     key: "j1-mini",
     title: "2027 J1 원트 미니 모의고사 국어",
     productId: null,
     pinToLatest: true,
+    preRelease: true,
   },
   {
     // 랜딩 카드 링크 대상이지만 고정·전용 상세페이지 대상은 아니다.
@@ -37,6 +45,7 @@ export const FEATURED_PRODUCTS = [
     title: "2027 J1 약술논술 토마토 모의고사",
     productId: null,
     pinToLatest: false,
+    preRelease: true,
   },
 ];
 
@@ -65,6 +74,11 @@ export function matchesFeaturedEntry(entry, product) {
 // 스토어 상품 → 레지스트리 항목. 매칭되는 콜라보 상품이 아니면 null.
 export function findFeaturedProductEntry(product) {
   return FEATURED_PRODUCTS.find((entry) => matchesFeaturedEntry(entry, product)) ?? null;
+}
+
+// 출시 전 상품인가 — 가격 노출·장바구니·구매를 모두 막는 판단의 단일 기준.
+export function isPreReleaseProduct(product) {
+  return findFeaturedProductEntry(product)?.preRelease === true;
 }
 
 // key → 상품 객체 맵. 랜딩 카드 링크·고정 대상 조회에 함께 쓴다.

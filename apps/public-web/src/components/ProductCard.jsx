@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { formatCurrency } from "@shared-domain/format";
 import { trackSelectItem } from "../lib/analytics";
+import { COLLAB_OPEN_LABEL, isPreReleaseProduct } from "../lib/publicFeaturedProducts";
 import {
   getProductCardPlaceholderEyebrow,
   getProductCardPrice,
@@ -93,6 +94,8 @@ function ProductCard({
   const { discountRate, originalPrice, price } = getProductCardPrice(product);
   const tags = getStoreCardTags(product);
   const metaLine = getStoreCardMetaLine(product);
+  // 출시 전 콜라보 교재는 가격·할인율을 감추고 오픈일만 알린다.
+  const isPreRelease = isPreReleaseProduct(product);
   const saleLabel = price !== null ? formatCurrency(price) : "가격 미정";
   const mediaRef = useRef(null);
   const [shouldLoad, setShouldLoad] = useState(false);
@@ -210,7 +213,11 @@ function ProductCard({
           </div>
         ) : null}
 
-        {product.isSoldOut ? (
+        {isPreRelease ? (
+          <div className="public-product-card__sold-out public-product-card__sold-out--upcoming">
+            <span>{COLLAB_OPEN_LABEL} 오픈</span>
+          </div>
+        ) : product.isSoldOut ? (
           <div className="public-product-card__sold-out">
             <span>품절</span>
           </div>
@@ -250,13 +257,21 @@ function ProductCard({
         ) : null}
 
         <div className="public-product-card__price-row">
-          {discountRate !== null ? (
-            <span className="public-product-card__discount">{discountRate}%</span>
-          ) : null}
-          {originalPrice !== null ? (
-            <span className="public-product-card__original-price">{formatCurrency(originalPrice)}</span>
-          ) : null}
-          <span className="public-product-card__sale-price">{saleLabel}</span>
+          {isPreRelease ? (
+            <span className="public-product-card__upcoming-price">출시 예정</span>
+          ) : (
+            <>
+              {discountRate !== null ? (
+                <span className="public-product-card__discount">{discountRate}%</span>
+              ) : null}
+              {originalPrice !== null ? (
+                <span className="public-product-card__original-price">
+                  {formatCurrency(originalPrice)}
+                </span>
+              ) : null}
+              <span className="public-product-card__sale-price">{saleLabel}</span>
+            </>
+          )}
         </div>
 
         {footer ? <div className="public-product-card__footer">{footer}</div> : null}

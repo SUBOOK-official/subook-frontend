@@ -28,7 +28,11 @@ import {
   readPendingMemberAction,
 } from "../lib/pendingMemberAction";
 import { usePageMeta } from "../lib/usePageMeta";
-import { findFeaturedProductEntry } from "../lib/publicFeaturedProducts";
+import {
+  COLLAB_OPEN_LABEL,
+  findFeaturedProductEntry,
+  isPreReleaseProduct,
+} from "../lib/publicFeaturedProducts";
 import {
   findInstructorCollectionByName,
   findSeriesForTitle,
@@ -976,6 +980,8 @@ function PublicProductDetailPage() {
     const entry = findFeaturedProductEntry(product);
     return hasFeaturedProductDetail(entry?.key) ? entry.key : null;
   }, [product]);
+  // 출시 전 — 가격·구매를 모두 막는다 (오픈일에 레지스트리 preRelease만 끄면 열린다).
+  const isPreRelease = useMemo(() => isPreReleaseProduct(product), [product]);
   // 상품명·과목 동적 title + description + canonical/og:image + Product JSON-LD
   // (카톡/SNS 공유 미리보기에 교재 표지·가격이 정확히 뜨고, 검색 리치스니펫 대응)
   const metaCoverImage = product?.coverImageUrl ?? product?.cover_image_url ?? null;
@@ -1024,8 +1030,10 @@ function PublicProductDetailPage() {
         ],
       }
     : null;
+  // 출시 전 상품은 가격을 공개하지 않으므로 offers를 실은 Product JSON-LD도 내보내지 않는다
+  // (화면엔 없는 가격이 검색 결과에만 뜨는 상황 방지). 빵부스러기는 그대로 유지.
   const metaProductJsonLd =
-    product?.title && Number.isFinite(metaPrice) && metaPrice > 0
+    product?.title && Number.isFinite(metaPrice) && metaPrice > 0 && !isPreRelease
       ? {
           "@context": "https://schema.org",
           "@type": "Product",
@@ -1540,7 +1548,8 @@ function PublicProductDetailPage() {
     ? isFavoritePending(product.id)
     : false;
   // 구매 가능 = 재고 있는 회차가 하나라도 있고, 구매 정보 로드 정상.
-  const canPurchase = productHasStock && !optionLoadError;
+  // 출시 전 상품은 재고가 있어도 구매 경로를 열지 않는다 (옵션 선택·금액 요약까지 함께 감춰짐).
+  const canPurchase = productHasStock && !optionLoadError && !isPreRelease;
 
   // ── 옵션 선택 핸들러 ──────────────────────────────────────────
   const handleAddVariant = useCallback(
@@ -1851,15 +1860,22 @@ function PublicProductDetailPage() {
 
                 <h1 className="public-detail-hero__title">{product.title}</h1>
 
-                <ProductPriceLine
-                  discountRate={product.discountRate}
-                  originalPriceValue={originalPriceValue}
-                  priceValue={priceValue}
-                />
+                {isPreRelease ? (
+                  <p className="public-detail-upcoming-price">
+                    {COLLAB_OPEN_LABEL} 판매 시작
+                  </p>
+                ) : (
+                  <ProductPriceLine
+                    discountRate={product.discountRate}
+                    originalPriceValue={originalPriceValue}
+                    priceValue={priceValue}
+                  />
+                )}
 
                 {/* 품절 상태만 명시 — 재고 있는 동안은 회차별 "N개 남음"이 선택 목록에서 안내한다.
-                    (모든 상품에 똑같은 "단 N권" 시급성을 붙이면 cried-wolf가 되어 학생들이 무시한다.) */}
-                {!productHasStock ? (
+                    (모든 상품에 똑같은 "단 N권" 시급성을 붙이면 cried-wolf가 되어 학생들이 무시한다.)
+                    출시 전 상품은 아직 재고 개념이 없어 품절 표시를 하지 않는다. */}
+                {!productHasStock && !isPreRelease ? (
                   justSoldOut ? (
                     <div className="public-detail-soldout-flash" role="status">
                       방금 다른 분이 구매했어요. 재입고 알림을 받아 보세요.
@@ -1898,23 +1914,26 @@ function PublicProductDetailPage() {
                   </>
                 ) : null}
 
-                <dl className="public-detail-hero__summary">
-                  <div>
-                    <dt>배송비</dt>
-                    <dd>
-                      {hasSelection &&
-                      selectionSubtotal >= FREE_SHIPPING_THRESHOLD
-                        ? "무료"
-                        : formatCurrency(SHIPPING_FEE)}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>총 상품 금액 ({selectionCount}개)</dt>
-                    <dd className="public-detail-hero__summary-total">
-                      {hasSelection ? formatCurrency(selectionSubtotal) : "-"}
-                    </dd>
-                  </div>
-                </dl>
+                {/* 출시 전에는 금액 자체를 공개하지 않으므로 요약도 감춘다 */}
+                {isPreRelease ? null : (
+                  <dl className="public-detail-hero__summary">
+                    <div>
+                      <dt>배송비</dt>
+                      <dd>
+                        {hasSelection &&
+                        selectionSubtotal >= FREE_SHIPPING_THRESHOLD
+                          ? "무료"
+                          : formatCurrency(SHIPPING_FEE)}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>총 상품 금액 ({selectionCount}개)</dt>
+                      <dd className="public-detail-hero__summary-total">
+                        {hasSelection ? formatCurrency(selectionSubtotal) : "-"}
+                      </dd>
+                    </div>
+                  </dl>
+                )}
 
                 <div className="public-detail-hero__actions">
                   <button
@@ -1929,7 +1948,17 @@ function PublicProductDetailPage() {
                   >
                     <HeartIcon filled={isProductFavorite} size={24} />
                   </button>
-                  {canPurchase ? (
+                  {isPreRelease ? (
+                    // 출시 전 — 품절이 아니므로 재입고 알림이 아니라 오픈 예정 안내를 둔다.
+                    // (찜하기는 그대로 살려 두어 관심 표시는 받을 수 있게 한다)
+                    <button
+                      className="public-detail-hero__btn public-detail-hero__btn--buy"
+                      disabled
+                      type="button"
+                    >
+                      {COLLAB_OPEN_LABEL} 판매 시작
+                    </button>
+                  ) : canPurchase ? (
                     <>
                       <button
                         className="public-detail-hero__btn public-detail-hero__btn--cart"

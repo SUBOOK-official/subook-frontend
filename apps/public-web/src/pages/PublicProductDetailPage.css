@@ -1674,3 +1674,12 @@
   /* 배경이 흰색이 아닌 조각이 있어 로딩 중 깜빡임을 줄인다 */
   background: #ffffff;
 }
+
+/* 출시 전(콜라보) — 가격 자리에 오픈일 안내 */
+.public-detail-upcoming-price {
+  margin: 0 0 4px;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--public-ds-primary, #080f47);
+  letter-spacing: -0.01em;
+}

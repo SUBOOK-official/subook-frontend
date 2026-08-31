@@ -9879,3 +9879,14 @@ img {
   line-height: 1;
 }
 
+
+/* 출시 전(콜라보) 카드 — 품절 오버레이와 같은 형태지만 톤만 브랜드 네이비로. */
+.public-product-card__sold-out--upcoming span {
+  color: var(--public-ds-primary, #080f47);
+}
+
+.public-product-card__upcoming-price {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--public-ds-primary, #080f47);
+}
