@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import AdminShell from "../components/AdminShell";
+import AdminDialog from "../components/AdminDialog";
 import AdminPageTabs from "../components/AdminPageTabs";
 import AdminPagination from "../components/AdminPagination";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
@@ -119,6 +120,10 @@ function AdminSettlementsPage() {
   const [isPayoutExporting, setIsPayoutExporting] = useState(false);
   // 완료 처리 확인 모달 — 이체 참조/메모를 받아 settlements.transfer_reference에 기록
   const [completeConfirm, setCompleteConfirm] = useState(null); // { ids: number[] } | null
+  // 비회원 셀러(식스샵 시절 셀러 등 회원 미가입) 정산계좌 입력 — 회원 셀러는 마이페이지
+  // 계좌가 단일 진실이라 이 모달을 열지 않는다. (2026-09-01)
+  const [accountModal, setAccountModal] = useState(null);
+  const [isSavingAccount, setIsSavingAccount] = useState(false);
   // 구 사이트(식스샵)·수동 정산 요약 — 이 페이지의 settlements(회원 주문 자동 정산)와는
   // 별개 트랙이지만, "기존 정산 내역이 안 보인다"는 혼선을 막기 위해 요약+진입점을
   // 함께 노출한다. (2026-07-06 운영 피드백)
@@ -468,6 +473,37 @@ function AdminSettlementsPage() {
       successCount: (notificationResult.successCount ?? 0) + extraSuccess,
       failures: remainingFailures,
     });
+  };
+
+  // 비회원 셀러 정산계좌 저장 — shipments에 스냅샷으로 보관하고, 이미 만들어진
+  // 미지급 정산의 계좌 스냅샷까지 RPC가 함께 갱신한다.
+  const saveShipmentAccount = async () => {
+    if (!accountModal || !isSupabaseConfigured || !supabase) return;
+
+    setIsSavingAccount(true);
+    const { data, error } = await supabase.rpc("admin_upsert_shipment_settlement_account", {
+      p_shipment_id: accountModal.shipmentId,
+      p_bank_name: accountModal.bankName,
+      p_account_number: accountModal.accountNumber,
+      p_account_holder: accountModal.accountHolder,
+    });
+    setIsSavingAccount(false);
+
+    if (error) {
+      showToast(error.message || "계좌를 저장하지 못했습니다.", "error");
+      return;
+    }
+
+    setAccountModal(null);
+    const synced = Number(data?.synced_settlement_count ?? 0);
+    showToast(
+      `${accountModal.sellerName} 정산계좌를 저장했습니다.${synced > 0 ? ` 미지급 정산 ${synced}건에 반영했습니다.` : ""}`,
+      "success",
+    );
+    await loadSettlements();
+    if (viewMode === "payout") {
+      await loadPayouts();
+    }
   };
 
   const exportCurrentRows = () => {
@@ -937,6 +973,24 @@ function AdminSettlementsPage() {
                       {row.account_holder ? (
                         <p className="mt-1 text-xs text-slate-400">{row.account_holder}</p>
                       ) : null}
+                      {/* 비회원 셀러(회원 미가입)는 마이페이지 계좌가 없으므로 여기서 직접 등록한다. */}
+                      {!row.seller_user_id && row.shipment_id ? (
+                        <button
+                          className="mt-2 rounded-md border border-slate-300 px-2 py-1 text-[11px] font-bold text-slate-600 transition hover:border-slate-500 hover:text-slate-900"
+                          onClick={() =>
+                            setAccountModal({
+                              shipmentId: row.shipment_id,
+                              sellerName: row.seller_name,
+                              bankName: row.bank_name ?? "",
+                              accountNumber: "",
+                              accountHolder: row.account_holder ?? row.seller_name ?? "",
+                            })
+                          }
+                          type="button"
+                        >
+                          {row.bank_name ? "계좌 수정" : "계좌 등록"}
+                        </button>
+                      ) : null}
                     </td>
                     <td className="px-4 py-3">
                       {PAYABLE_STATUSES.includes(row.status) ? (
@@ -1084,6 +1138,79 @@ function AdminSettlementsPage() {
         reasonRequired
         title="대량이체 엑셀 — 평문 계좌 포함"
       />
+      {/* 비회원 셀러 정산계좌 입력 (2026-09-01) */}
+      <AdminDialog
+        busy={isSavingAccount}
+        footer={
+          <div className="flex justify-end gap-2">
+            <button
+              className="btn-secondary !w-auto !px-4 !py-2 text-sm"
+              disabled={isSavingAccount}
+              onClick={() => setAccountModal(null)}
+              type="button"
+            >
+              취소
+            </button>
+            <button
+              className="btn-primary !w-auto !px-4 !py-2 text-sm"
+              disabled={isSavingAccount}
+              onClick={saveShipmentAccount}
+              type="button"
+            >
+              {isSavingAccount ? <BusyText>저장 중...</BusyText> : "저장"}
+            </button>
+          </div>
+        }
+        onClose={() => setAccountModal(null)}
+        open={Boolean(accountModal)}
+        size="md"
+        title="비회원 셀러 정산계좌"
+      >
+        <div className="space-y-4 px-6 py-5">
+          <p className="text-sm text-slate-600">
+            <strong className="text-slate-900">{accountModal?.sellerName}</strong> 님(수거 #
+            {accountModal?.shipmentId})은 회원 계정에 연결되지 않은 셀러입니다. 송금할 계좌를
+            직접 등록해 주세요. 이 수거 건의 미지급 정산에 함께 반영됩니다.
+          </p>
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-semibold text-slate-600">은행</span>
+            <input
+              className="input-base !w-full"
+              onChange={(event) =>
+                setAccountModal((current) => ({ ...current, bankName: event.target.value }))
+              }
+              placeholder="예) 신한"
+              type="text"
+              value={accountModal?.bankName ?? ""}
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-semibold text-slate-600">계좌번호</span>
+            <input
+              className="input-base !w-full"
+              onChange={(event) =>
+                setAccountModal((current) => ({ ...current, accountNumber: event.target.value }))
+              }
+              placeholder="숫자만 입력해도 됩니다"
+              type="text"
+              value={accountModal?.accountNumber ?? ""}
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-semibold text-slate-600">예금주</span>
+            <input
+              className="input-base !w-full"
+              onChange={(event) =>
+                setAccountModal((current) => ({ ...current, accountHolder: event.target.value }))
+              }
+              placeholder="예) 홍길동"
+              type="text"
+              value={accountModal?.accountHolder ?? ""}
+            />
+          </label>
+        </div>
+      </AdminDialog>
+
       <LoadingOverlay
         detail={isPayoutExporting ? "건수가 많으면 시간이 걸립니다" : "정산 건별로 순차 처리합니다"}
         message={isPayoutExporting ? "대량이체 엑셀을 만들고 있습니다" : "정산을 처리하고 있습니다"}
