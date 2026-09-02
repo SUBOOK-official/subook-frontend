@@ -13,35 +13,126 @@
   color: var(--public-ds-border);
 }
 
-/* ── 상세 히어로 요약 링크 ─────────────────────────── */
-.public-review-hero-line {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin: 4px 0 10px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--public-ds-text-secondary);
-  font: inherit;
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.public-review-hero-line:focus-visible {
-  outline: none;
-  box-shadow: var(--public-focus-ring);
-  border-radius: var(--public-radius-sm);
-}
-
-.public-review-hero-line__score {
-  font-weight: 800;
+/* ── 통합 후기 안내 콜아웃 ─────────────────────────── */
+.public-reviews__callout {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  border-radius: var(--public-radius-lg);
+  background: var(--public-ds-secondary);
   color: var(--public-ds-text);
 }
 
-.public-review-hero-line__count {
+.public-reviews__callout-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--public-ds-primary);
+}
+
+.public-reviews__callout-title {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--public-ds-primary);
+}
+
+.public-reviews__callout-body {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--public-ds-text-secondary);
+}
+
+.public-reviews__callout-body strong {
+  color: var(--public-ds-text);
+  font-weight: 700;
+}
+
+.public-reviews__callout-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--public-ds-card);
+  border: 1px solid var(--public-ds-border);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--public-ds-primary);
+}
+
+/* ── 구매 교재 목록 시트 ───────────────────────────── */
+.public-review-items {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.public-review-items__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--public-ds-border);
+  border-radius: var(--public-radius-md);
+  background: var(--public-ds-card);
+  color: var(--public-ds-text);
+  text-decoration: none;
+}
+
+a.public-review-items__row:hover {
+  border-color: var(--public-ds-primary);
+}
+
+.public-review-items__thumb {
+  width: 44px;
+  height: 56px;
+  flex-shrink: 0;
+  border-radius: var(--public-radius-sm);
+  background: var(--public-ds-divider);
+  overflow: hidden;
+}
+
+.public-review-items__thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.public-review-items__title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.public-review-items__meta {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--public-ds-text-muted);
+}
+
+.public-review-card__product--button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
   text-decoration: underline;
   text-underline-offset: 2px;
+}
+
+.public-review-card__product--button:focus-visible {
+  outline: none;
+  box-shadow: var(--public-focus-ring);
+  border-radius: var(--public-radius-sm);
 }
 
 /* ── 섹션 요약 ─────────────────────────────────────── */
@@ -113,12 +204,6 @@
   height: 100%;
   border-radius: 999px;
   background: var(--public-ds-primary);
-}
-
-.public-reviews__note {
-  margin: 0 0 16px;
-  font-size: 13px;
-  color: var(--public-ds-text-muted);
 }
 
 /* ── 목록 ──────────────────────────────────────────── */

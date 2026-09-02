@@ -12,10 +12,7 @@ import PublicFooter from "../components/PublicFooter";
 import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
 import { BellIcon, CloseIcon } from "../components/icons";
-import ProductReviewsSection, {
-  ReviewStars,
-  useProductReviews,
-} from "../components/ProductReviewsSection";
+import ProductReviewsSection, { useProductReviews } from "../components/ProductReviewsSection";
 import { usePublicWishlist } from "../contexts/PublicWishlistContext";
 import {
   trackAddToCart,
@@ -1869,23 +1866,6 @@ function PublicProductDetailPage() {
 
                 <h1 className="public-detail-hero__title">{product.title}</h1>
 
-                {productReviews.summary.total > 0 ? (
-                  <button
-                    className="public-review-hero-line"
-                    onClick={() => scrollToSection("reviews")}
-                    type="button"
-                  >
-                    <ReviewStars rating={Math.round(productReviews.summary.average ?? 0)} size={14} />
-                    <span className="public-review-hero-line__score">
-                      {productReviews.summary.average != null
-                        ? productReviews.summary.average.toFixed(1)
-                        : "-"}
-                    </span>
-                    <span className="public-review-hero-line__count">
-                      후기 {productReviews.summary.total}개
-                    </span>
-                  </button>
-                ) : null}
 
                 {isPreRelease ? (
                   <p className="public-detail-upcoming-price">

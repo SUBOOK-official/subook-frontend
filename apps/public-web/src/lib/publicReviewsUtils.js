@@ -89,6 +89,17 @@ export function normalizeReviewItem(row) {
     productTitle: typeof row.product_title === "string" ? row.product_title : "",
     itemCount: Math.max(1, toNonNegativeInteger(row.item_count) || 1),
     isSameProduct: Boolean(row.is_same_product),
+    // 구매 교재 목록 (상품 단위, 환불 품목 제외) — "외 N권" 클릭 시 전체 표시용
+    items: Array.isArray(row.items)
+      ? row.items
+          .filter((item) => item && typeof item === "object")
+          .map((item) => ({
+            productId: item.product_id != null ? Number(item.product_id) : null,
+            title: typeof item.title === "string" && item.title ? item.title : "교재",
+            coverImageUrl: typeof item.cover_image_url === "string" ? item.cover_image_url : null,
+            quantity: Math.max(1, toNonNegativeInteger(item.quantity) || 1),
+          }))
+      : [],
     isHidden: Boolean(row.is_hidden),
     createdAt: row.created_at ?? null,
     updatedAt: row.updated_at ?? null,

@@ -75,6 +75,30 @@ test("normalizeReviewSummary fills rating counts and normalizes items", () => {
   assert.equal(summary.items[0].isSameProduct, true);
 });
 
+test("normalizeReviewItem normalizes purchased item list", () => {
+  const summary = normalizeReviewSummary({
+    total: 1,
+    items: [
+      {
+        id: 3,
+        rating: 5,
+        content: "충분히 긴 후기 본문입니다",
+        item_count: 3,
+        items: [
+          { product_id: "10", title: "A 교재", cover_image_url: "https://a/c.jpg", quantity: "2" },
+          { product_id: null, title: "", cover_image_url: null, quantity: 0 },
+          null,
+        ],
+      },
+    ],
+  });
+  assert.deepEqual(summary.items[0].items, [
+    { productId: 10, title: "A 교재", coverImageUrl: "https://a/c.jpg", quantity: 2 },
+    { productId: null, title: "교재", coverImageUrl: null, quantity: 1 },
+  ]);
+  assert.deepEqual(normalizeReviewSummary({ items: [{ id: 1 }] }).items[0].items, []);
+});
+
 test("normalizeReviewSummary tolerates empty payloads", () => {
   const summary = normalizeReviewSummary(null);
   assert.equal(summary.total, 0);

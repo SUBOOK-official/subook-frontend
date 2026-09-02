@@ -3,7 +3,8 @@
 // productId를 주면 같은 상품이 포함된 주문의 후기가 위로 올라온다.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { StarIcon } from "./icons";
+import { InfoIcon, StarIcon } from "./icons";
+import { ResponsiveSheet } from "./PublicMypageUi.jsx";
 import { fetchPublicReviews } from "../lib/publicReviews";
 import {
   REVIEW_PAGE_SIZE,
@@ -109,8 +110,80 @@ function RatingBars({ ratingCounts, total }) {
   );
 }
 
-function ReviewCard({ review, onOpenPhoto }) {
+// 통합 후기임을 먼저 알려주는 콜아웃 — "이 책의 평점"으로 오해하지 않게.
+function UnifiedNotice({ sameProductCount }) {
+  return (
+    <div className="public-reviews__callout" role="note">
+      <InfoIcon className="public-reviews__callout-icon" size={18} />
+      <div>
+        <p className="public-reviews__callout-title">수북에서 교재를 구매한 모든 분들의 후기입니다</p>
+        <p className="public-reviews__callout-body">
+          이 교재 하나에 대한 후기가 아니라, <strong>수북 전체 구매 후기</strong>를 모아 보여드려요.
+          검수 상태·배송·포장이 어땠는지 참고해 주세요. 이 교재를 구매한 분의 후기는{" "}
+          <strong>이 교재 구매</strong> 표시와 함께 맨 위에 보여드립니다.
+        </p>
+        {sameProductCount > 0 ? (
+          <span className="public-reviews__callout-chip">
+            <StarIcon filled size={12} />이 교재 후기 {sameProductCount}개
+          </span>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+// "○○○ 외 N권" 후기의 구매 교재 전체 목록
+function ReviewItemsSheet({ review, onClose }) {
+  const items = review?.items ?? [];
+  return (
+    <ResponsiveSheet
+      eyebrow="구매 후기"
+      onClose={onClose}
+      open={Boolean(review)}
+      title={review ? `${review.author}님이 구매한 교재 ${review.itemCount}권` : ""}
+    >
+      <ul className="public-review-items">
+        {items.map((item) => {
+          const body = (
+            <>
+              <div aria-hidden="true" className="public-review-items__thumb">
+                {item.coverImageUrl ? (
+                  <img alt="" src={getThumbnailImageUrl(item.coverImageUrl)} />
+                ) : null}
+              </div>
+              <div>
+                <p className="public-review-items__title">{item.title}</p>
+                <p className="public-review-items__meta">
+                  {item.quantity > 1 ? `${item.quantity}권` : "1권"}
+                  {item.productId ? " · 상품 보기" : ""}
+                </p>
+              </div>
+            </>
+          );
+          return (
+            <li key={`${item.productId ?? "x"}-${item.title}`}>
+              {item.productId ? (
+                <Link
+                  className="public-review-items__row"
+                  onClick={onClose}
+                  to={`/store/${item.productId}`}
+                >
+                  {body}
+                </Link>
+              ) : (
+                <div className="public-review-items__row">{body}</div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </ResponsiveSheet>
+  );
+}
+
+function ReviewCard({ review, onOpenPhoto, onOpenItems }) {
   const productTitle = formatReviewProductTitle(review.productTitle, review.itemCount);
+  const hasMultiple = review.itemCount > 1 && review.items.length > 0;
   return (
     <li className="public-review-card">
       <div className="public-review-card__head">
@@ -121,7 +194,15 @@ function ReviewCard({ review, onOpenPhoto }) {
           <span className="public-review-card__same-badge">이 교재 구매</span>
         ) : null}
       </div>
-      {review.productId ? (
+      {hasMultiple ? (
+        <button
+          className="public-review-card__product public-review-card__product--button"
+          onClick={() => onOpenItems?.(review)}
+          type="button"
+        >
+          {productTitle}
+        </button>
+      ) : review.productId ? (
         <Link className="public-review-card__product" to={`/store/${review.productId}`}>
           {productTitle}
         </Link>
@@ -150,11 +231,12 @@ function ReviewCard({ review, onOpenPhoto }) {
 
 function ProductReviewsSection({ reviews, onOpenPhoto }) {
   const { summary, status, isLoadingMore, loadMore } = reviews;
+  const [itemsReview, setItemsReview] = useState(null);
   const hasMore = summary.items.length < summary.total;
 
   return (
     <>
-      <h3 className="public-detail-tab-content__heading">구매 후기</h3>
+      <h3 className="public-detail-tab-content__heading">수북 구매 후기</h3>
 
       {status === "loading" && summary.items.length === 0 ? (
         <>
@@ -167,20 +249,25 @@ function ProductReviewsSection({ reviews, onOpenPhoto }) {
         <p className="public-reviews__empty">아직 등록된 후기가 없어요.</p>
       ) : (
         <>
+          <UnifiedNotice sameProductCount={summary.sameProductCount} />
           <div className="public-reviews__summary">
             <div className="public-reviews__score">
               <span className="public-reviews__score-value">
                 {summary.average != null ? summary.average.toFixed(1) : "-"}
               </span>
               <ReviewStars rating={Math.round(summary.average ?? 0)} size={18} />
-              <span className="public-reviews__score-count">후기 {summary.total}개</span>
+              <span className="public-reviews__score-count">전체 후기 {summary.total}개</span>
             </div>
             <RatingBars ratingCounts={summary.ratingCounts} total={summary.total} />
           </div>
-          <p className="public-reviews__note">구매확정 회원의 후기이며, 전체 교재 후기를 함께 표시합니다.</p>
           <ul className="public-reviews__list">
             {summary.items.map((review) => (
-              <ReviewCard key={review.id} onOpenPhoto={onOpenPhoto} review={review} />
+              <ReviewCard
+                key={review.id}
+                onOpenItems={setItemsReview}
+                onOpenPhoto={onOpenPhoto}
+                review={review}
+              />
             ))}
           </ul>
           {hasMore ? (
@@ -197,6 +284,8 @@ function ProductReviewsSection({ reviews, onOpenPhoto }) {
           ) : null}
         </>
       )}
+
+      <ReviewItemsSheet onClose={() => setItemsReview(null)} review={itemsReview} />
     </>
   );
 }
