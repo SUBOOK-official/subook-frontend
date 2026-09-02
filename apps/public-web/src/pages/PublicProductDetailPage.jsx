@@ -33,6 +33,7 @@ import {
   COLLAB_OPEN_LABEL,
   findFeaturedProductEntry,
   isPreReleaseProduct,
+  resolveFeaturedCoverUrl,
 } from "../lib/publicFeaturedProducts";
 import {
   findInstructorCollectionByName,
@@ -990,7 +991,9 @@ function PublicProductDetailPage() {
   const isPreRelease = useMemo(() => isPreReleaseProduct(product), [product]);
   // 상품명·과목 동적 title + description + canonical/og:image + Product JSON-LD
   // (카톡/SNS 공유 미리보기에 교재 표지·가격이 정확히 뜨고, 검색 리치스니펫 대응)
-  const metaCoverImage = product?.coverImageUrl ?? product?.cover_image_url ?? null;
+  const metaCoverImage = product
+    ? resolveFeaturedCoverUrl(product, product.coverImageUrl ?? product.cover_image_url ?? null)
+    : null;
   // product.price는 대표가(품절 상품도 옵션의 마지막 판매가로 폴백) — 서치콘솔 요건상
   // offers.price는 품절이어도 필수라, 양수 가격이 아예 없으면 잘못된 offers를 내보내는
   // 대신 JSON-LD 자체를 생략한다.
@@ -1531,7 +1534,8 @@ function PublicProductDetailPage() {
   const galleryImages = useMemo(() => {
     if (!product) return [];
     const nextImages = [
-      product.coverImageUrl,
+      // 출시 전이면 COMING SOON 티저 표지를 대신 쓴다
+      resolveFeaturedCoverUrl(product, product.coverImageUrl),
       ...(product.inspectionImageUrls ?? []),
     ].filter(Boolean);
     return Array.from(new Set(nextImages));

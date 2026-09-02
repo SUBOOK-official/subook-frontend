@@ -15,6 +15,10 @@
 export const JEONIL_BRAND = "전일학원";
 // 출시 전 상품 상세에서 '알림 신청하러 가기'로 보낼 이벤트 랜딩.
 export const JEONIL_EVENT_PATH = "/event/jeon-il";
+// 출시 전에만 덮어씌우는 COMING SOON 티저 표지. 상품의 실제 표지는 DB에 그대로 있어
+// 오픈 시각이 지나면 덮어쓰기가 사라지면서 자동으로 실제 표지가 노출된다.
+const TEASER_COVER_BASE =
+  "https://affeayqergefwudytfop.supabase.co/storage/v1/object/public/product-covers/direct-sale";
 
 // 콜라보 오픈 시각 — 2026-09-03 18:00 KST.
 // 이 시각이 지나면 배포 없이 자동으로 가격·구매가 열린다(아래 isPreReleaseProduct).
@@ -38,6 +42,7 @@ export const FEATURED_PRODUCTS = [
     preRelease: true,
     releaseAt: COLLAB_OPEN_AT,
     eventPath: JEONIL_EVENT_PATH,
+    preReleaseCoverUrl: `${TEASER_COVER_BASE}/1787900000000-teaser-j1-full-v2.png`,
   },
   {
     key: "j1-mini",
@@ -47,6 +52,7 @@ export const FEATURED_PRODUCTS = [
     preRelease: true,
     releaseAt: COLLAB_OPEN_AT,
     eventPath: JEONIL_EVENT_PATH,
+    preReleaseCoverUrl: `${TEASER_COVER_BASE}/1787900000000-teaser-j1-mini-v2.png`,
   },
   {
     // 랜딩 카드 링크 대상이지만 고정·전용 상세페이지 대상은 아니다.
@@ -100,6 +106,16 @@ export function isPreReleaseProduct(product, registry = FEATURED_PRODUCTS, now =
   const releaseAt = Date.parse(entry.releaseAt ?? "");
   // releaseAt 이 없거나 이상하면 보수적으로 '출시 전'을 유지한다.
   return !Number.isFinite(releaseAt) || now < releaseAt;
+}
+
+// 표지 URL — 출시 전에는 COMING SOON 티저로 덮고, 오픈 시각이 지나면 원래 표지를 쓴다.
+// DB에는 항상 실제 표지가 들어 있어, 오픈 시각에 DB를 건드릴 필요가 없다.
+export function resolveFeaturedCoverUrl(product, coverUrl, now = Date.now()) {
+  if (!isPreReleaseProduct(product, FEATURED_PRODUCTS, now)) {
+    return coverUrl;
+  }
+
+  return findFeaturedProductEntry(product)?.preReleaseCoverUrl ?? coverUrl;
 }
 
 // key → 상품 객체 맵. 랜딩 카드 링크·고정 대상 조회에 함께 쓴다.

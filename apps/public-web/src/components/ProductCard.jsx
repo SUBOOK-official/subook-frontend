@@ -6,6 +6,7 @@ import {
   COLLAB_OPEN_LABEL,
   findFeaturedProductEntry,
   isPreReleaseProduct,
+  resolveFeaturedCoverUrl,
 } from "../lib/publicFeaturedProducts";
 import {
   getProductCardPlaceholderEyebrow,
@@ -94,7 +95,10 @@ function ProductCard({
   const placeholderEyebrow = getProductCardPlaceholderEyebrow(product);
   // 저장된 원본(/object/public, 최대 2MB, no-cache) 대신 리사이즈·WebP 변환 URL을
   // 쓴다. 카드 썸네일은 수 KB로 줄고 CDN 캐시되어 새로고침마다 재다운로드되지 않는다.
-  const coverImageUrl = getThumbnailImageUrl(getStoreCardCoverImageUrl(product));
+  // 출시 전이면 COMING SOON 티저로 덮는다 (오픈 시각이 지나면 실제 표지로 자동 복귀)
+  const coverImageUrl = getThumbnailImageUrl(
+    resolveFeaturedCoverUrl(product, getStoreCardCoverImageUrl(product)),
+  );
   const { discountRate, originalPrice, price } = getProductCardPrice(product);
   // 콜라보 신품 교재는 중고 검수 등급 개념이 없어 등급 칩을 빼둔다 (상세 화면과 동일).
   const isFeatured = Boolean(findFeaturedProductEntry(product));

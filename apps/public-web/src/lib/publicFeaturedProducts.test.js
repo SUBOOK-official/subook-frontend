@@ -8,6 +8,7 @@ import {
   matchesFeaturedEntry,
   normalizeFeaturedTitleKey,
   pinFeaturedProductsFirst,
+  resolveFeaturedCoverUrl,
 } from "./publicFeaturedProducts.js";
 
 // 로직 검증용 고정 레지스트리 — 실제 레지스트리는 등록된 productId가 박혀 있어
@@ -98,6 +99,27 @@ test("every registry entry marked preRelease carries a releaseAt", () => {
       `${entry.key} releaseAt`,
     );
   }
+});
+
+// 오픈 시각이 지나면 COMING SOON 티저가 사라지고 실제 표지로 돌아와야 한다.
+// (DB에는 항상 실제 표지가 들어 있고, 티저는 프론트가 덮어쓰는 구조)
+test("resolveFeaturedCoverUrl swaps back to the real cover after release", () => {
+  const full = FEATURED_PRODUCTS.find((entry) => entry.key === "j1-full");
+  const openAt = Date.parse(full.releaseAt);
+  const product = { id: full.productId };
+  const realCover = "https://cdn.example/real-cover.png";
+
+  assert.equal(
+    resolveFeaturedCoverUrl(product, realCover, openAt - 60_000),
+    full.preReleaseCoverUrl,
+  );
+  assert.equal(resolveFeaturedCoverUrl(product, realCover, openAt), realCover);
+
+  // 콜라보가 아닌 상품은 언제나 원래 표지 그대로.
+  assert.equal(
+    resolveFeaturedCoverUrl({ id: 1, title: "시대인재 서바이벌" }, realCover, openAt - 60_000),
+    realCover,
+  );
 });
 
 test("every registry entry carries a key and a title", () => {

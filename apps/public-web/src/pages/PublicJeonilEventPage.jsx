@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import PublicFooter from "../components/PublicFooter";
 import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
+import { COLLAB_OPEN_AT } from "../lib/publicFeaturedProducts";
 import { fetchFeaturedProductsByKey } from "../lib/publicFeaturedProductsApi";
 import { usePageMeta } from "../lib/usePageMeta";
 import JeonilCouponDialog from "../components/JeonilCouponDialog";
@@ -89,7 +90,7 @@ const ACHIEVEMENTS = [
   { label: "강남대성 출신 강사팀", size: "lg", left: "65.3%", top: "73.2%" },
 ];
 
-function HeroSection({ onNotify }) {
+function HeroSection({ isOpen, onNotify }) {
   return (
     <section className="jeonil-hero" style={{ backgroundImage: `url(${heroBg})` }}>
       <img
@@ -110,7 +111,8 @@ function HeroSection({ onNotify }) {
         <span>수북</span>
       </h1>
       <button type="button" className="jeonil-hero__cta" onClick={onNotify}>
-        <span aria-hidden="true">🚨</span> 지금 바로 알림 신청하러 가기{" "}
+        <span aria-hidden="true">🚨</span>{" "}
+        {isOpen ? "지금 바로 구매하러 가기" : "지금 바로 알림 신청하러 가기"}{" "}
         <span aria-hidden="true">🚨</span>
       </button>
     </section>
@@ -213,6 +215,10 @@ function PublicJeonilEventPage() {
   const [couponOpen, setCouponOpen] = useState(false);
   const [dday] = useState(getDDayLabel);
   const couponRef = useRef(null);
+  const booksRef = useRef(null);
+  // 판매 시작 여부 — 오픈 시각이 지나면 CTA가 '알림 신청'에서 '구매'로 바뀐다.
+  // 상품 레지스트리와 같은 시각을 쓰므로 상품 화면과 어긋나지 않는다.
+  const [isOpen] = useState(() => Date.now() >= Date.parse(COLLAB_OPEN_AT));
   // 교재 카드 링크용 상품 id — 등록 전이면 빈 객체라 카드는 링크 없이 그대로 보인다.
   const [featuredByKey, setFeaturedByKey] = useState({});
 
@@ -284,6 +290,11 @@ function PublicJeonilEventPage() {
   const scrollToCoupon = () => {
     couponRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
   };
+  // 오픈 후 CTA — 교재 카드로 보낸다 (카드마다 상품 상세로 이어진다).
+  // 카드 묶음이 화면보다 길어서 center로 맞추면 첫 카드를 지나쳐 버린다 → start.
+  const scrollToBooks = () => {
+    booksRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   return (
     <PublicPageFrame>
@@ -303,7 +314,7 @@ function PublicJeonilEventPage() {
             <span className="jeonil-dday__count">{dday}</span>
           </div>
 
-          <HeroSection onNotify={scrollToCoupon} />
+          <HeroSection isOpen={isOpen} onNotify={isOpen ? scrollToBooks : scrollToCoupon} />
 
           <div className="jeonil-openbar">
             <span className="jeonil-openbar__text">
@@ -477,7 +488,7 @@ function PublicJeonilEventPage() {
               </h2>
             </div>
             {/* 교재 3권 — 배경 위에 떠서 차례대로 등장 + 호버 확대 */}
-            <div className="jeonil-books">
+            <div className="jeonil-books" ref={booksRef}>
               {BOOK_CARDS.map((card) => {
                 const productId = featuredByKey[card.key]?.id ?? null;
                 const image = (
