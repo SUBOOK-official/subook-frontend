@@ -1052,12 +1052,21 @@ function AdminOrdersPage() {
       return;
     }
     const updated = data?.updated_books ?? 0;
+    // 이미 on_sale로 풀려 있던 책(과거 트리거 버그)은 복원 no-op이지만 결과는 재판매 상태와 동일
+    const alreadyOnSale = data?.already_on_sale ?? 0;
+    const skipped = Array.isArray(data?.skipped_book_ids) ? data.skipped_book_ids : [];
     showToast(
       outcome === "restock"
-        ? `회수 완료 — ${updated}권 재판매 복원(공개 전환).`
+        ? `회수 완료 — ${updated + alreadyOnSale}권 재판매 복원(공개 전환).`
         : `회수 완료 — ${updated}권 폐기 처리.`,
       "success",
     );
+    if (skipped.length > 0) {
+      showToast(
+        `책 #${skipped.join(", #")}은(는) 다른 주문에 잡혀 있거나 이미 판매/폐기 상태라 건드리지 않았습니다. 재고를 직접 확인해 주세요.`,
+        "error",
+      );
+    }
     await loadOrders();
   };
 
