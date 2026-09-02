@@ -132,34 +132,3 @@ export async function createReview({ orderId, rating, content, photoUrls }) {
   }
   return { review: normalizeReviewItem(data), error: null };
 }
-
-export async function updateReview({ reviewId, rating, content, photoUrls }) {
-  if (!isSupabaseConfigured || !supabase) {
-    return { review: null, error: new Error("후기 수정을 사용할 수 없어요.") };
-  }
-
-  const { data, error } = await supabase.rpc("update_review", {
-    p_review_id: reviewId,
-    p_rating: rating,
-    p_content: content,
-    p_photo_urls: photoUrls ?? [],
-  });
-
-  if (error) {
-    return { review: null, error: toError(error, "후기를 수정하지 못했어요.") };
-  }
-  return { review: normalizeReviewItem(data), error: null };
-}
-
-export async function deleteReview({ reviewId, photoUrls }) {
-  if (!isSupabaseConfigured || !supabase) {
-    return { error: new Error("후기 삭제를 사용할 수 없어요.") };
-  }
-
-  const { error } = await supabase.rpc("delete_review", { p_review_id: reviewId });
-  if (error) {
-    return { error: toError(error, "후기를 삭제하지 못했어요.") };
-  }
-  await removeReviewPhotos(photoUrls);
-  return { error: null };
-}

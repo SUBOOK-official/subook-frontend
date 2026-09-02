@@ -1827,19 +1827,10 @@ function PublicMypagePage() {
 
       <ReviewComposerSheet
         onClose={() => setReviewComposer(null)}
-        onDeleted={() => {
-          setReviewComposer(null);
-          void reloadMyReviews();
-          setToastState({ message: "후기가 삭제되었어요.", tone: "info" });
-        }}
         onSaved={() => {
-          const wasEditing = Boolean(reviewComposer?.review);
           setReviewComposer(null);
           void reloadMyReviews();
-          setToastState({
-            message: wasEditing ? "후기가 수정되었어요." : "후기가 등록되었어요. 감사합니다!",
-            tone: "success",
-          });
+          setToastState({ message: "후기가 등록되었어요. 감사합니다!", tone: "success" });
         }}
         open={Boolean(reviewComposer)}
         order={reviewComposer?.order ?? null}
@@ -2904,7 +2895,7 @@ function PurchasesView({
                           onClick={() => onWriteReview(order)}
                           type="button"
                         >
-                          {reviewsByOrderId?.[order.id] ? "후기 수정" : "후기 작성"}
+                          {reviewsByOrderId?.[order.id] ? "후기 보기" : "후기 작성"}
                         </button>
                       ) : null}
                       {!item.refundedAt && order.canRequestRefund ? (
