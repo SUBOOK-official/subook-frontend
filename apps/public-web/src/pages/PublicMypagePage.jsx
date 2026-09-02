@@ -27,9 +27,12 @@ import {
   HeartIcon,
   LockIcon,
   MapPinIcon,
+  StarIcon,
   UserIcon,
 } from "../components/icons";
 import { supabase as publicSupabase } from "@shared-supabase/publicSupabaseClient";
+import ReviewComposerSheet from "../components/ReviewComposerSheet";
+import { fetchMyReviews } from "../lib/publicReviews";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { usePublicWishlist } from "../contexts/PublicWishlistContext";
 import usePublicMemberGate from "../lib/publicMemberGate";
@@ -240,6 +243,9 @@ function PublicMypagePage() {
   const [busyAddressId, setBusyAddressId] = useState(null);
   const [busyAccountId, setBusyAccountId] = useState(null);
   const [busyOrderId, setBusyOrderId] = useState(null);
+  // 통합 후기 (2026-09-02): 주문별 작성 여부 → 카드 버튼 '후기 작성'/'후기 수정' 분기
+  const [myReviewsByOrderId, setMyReviewsByOrderId] = useState({});
+  const [reviewComposer, setReviewComposer] = useState(null); // { order, review }
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [confirmState, setConfirmState] = useState(initialConfirmState);
   const [confirmReason, setConfirmReason] = useState("");
@@ -404,6 +410,32 @@ function PublicMypagePage() {
       isCancelled = true;
     };
   }, [activeTabKey, effectiveUser, favoriteIds, isDemoPreview]);
+
+  // 내 후기 목록 — 구매현황 탭 진입 시 로드, 작성/수정/삭제 후 재로드
+  const reloadMyReviews = useCallback(async () => {
+    if (!effectiveUser || isDemoPreview) {
+      setMyReviewsByOrderId({});
+      return;
+    }
+    const result = await fetchMyReviews();
+    if (result.error) {
+      return;
+    }
+    const next = {};
+    for (const review of result.reviews) {
+      if (review.orderId != null) {
+        next[review.orderId] = review;
+      }
+    }
+    setMyReviewsByOrderId(next);
+  }, [effectiveUser, isDemoPreview]);
+
+  useEffect(() => {
+    if (activeTabKey !== "purchases") {
+      return;
+    }
+    void reloadMyReviews();
+  }, [activeTabKey, reloadMyReviews]);
 
   // 찜 목록 품절 카드의 재입고 알림 신청/해제 토글.
   const handleToggleRestockAlert = async (productId) => {
@@ -1527,7 +1559,11 @@ function PublicMypagePage() {
           onConfirmOrder={requestConfirmPurchase}
           onRequestReturn={handleReturnRequest}
           onTrackParcel={handleTrackParcel}
+          onWriteReview={(order) =>
+            setReviewComposer({ order, review: myReviewsByOrderId[order.id] ?? null })
+          }
           orders={portalState.orders}
+          reviewsByOrderId={myReviewsByOrderId}
         />
       );
     }
@@ -1789,6 +1825,28 @@ function PublicMypagePage() {
         title={confirmState.title}
       />
       {memberGateDialog}
+
+      <ReviewComposerSheet
+        onClose={() => setReviewComposer(null)}
+        onDeleted={() => {
+          setReviewComposer(null);
+          void reloadMyReviews();
+          setToastState({ message: "후기가 삭제되었어요.", tone: "info" });
+        }}
+        onSaved={() => {
+          const wasEditing = Boolean(reviewComposer?.review);
+          setReviewComposer(null);
+          void reloadMyReviews();
+          setToastState({
+            message: wasEditing ? "후기가 수정되었어요." : "후기가 등록되었어요. 감사합니다!",
+            tone: "success",
+          });
+        }}
+        open={Boolean(reviewComposer)}
+        order={reviewComposer?.order ?? null}
+        review={reviewComposer?.review ?? null}
+        user={effectiveUser}
+      />
     </>
   );
 }
@@ -2683,7 +2741,9 @@ function PurchasesView({
   onConfirmOrder,
   onRequestReturn,
   onTrackParcel,
+  onWriteReview,
   orders,
+  reviewsByOrderId,
 }) {
   const [detailOrder, setDetailOrder] = useState(null);
   const [activeFilter, setActiveFilter] = useState("all");
@@ -2836,6 +2896,19 @@ function PurchasesView({
                           type="button"
                         >
                           {busyOrderId === order.id ? "처리 중..." : "구매확정"}
+                        </button>
+                      ) : null}
+                      {/* 통합 후기: 구매확정 주문만, 주문 1건당 1개 (있으면 수정) */}
+                      {!item.refundedAt && order.status === "confirmed" && onWriteReview ? (
+                        <button
+                          className={`public-mypage-purchase-card__btn public-mypage-purchase-card__btn--review${
+                            reviewsByOrderId?.[order.id] ? "" : " public-mypage-purchase-card__btn--primary"
+                          }`}
+                          onClick={() => onWriteReview(order)}
+                          type="button"
+                        >
+                          <StarIcon filled={Boolean(reviewsByOrderId?.[order.id])} size={14} />
+                          {reviewsByOrderId?.[order.id] ? "후기 수정" : "후기 작성"}
                         </button>
                       ) : null}
                       {!item.refundedAt && order.canRequestRefund ? (

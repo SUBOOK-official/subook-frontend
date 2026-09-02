@@ -12,6 +12,10 @@ import PublicFooter from "../components/PublicFooter";
 import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
 import { BellIcon, CloseIcon } from "../components/icons";
+import ProductReviewsSection, {
+  ReviewStars,
+  useProductReviews,
+} from "../components/ProductReviewsSection";
 import { usePublicWishlist } from "../contexts/PublicWishlistContext";
 import {
   trackAddToCart,
@@ -111,6 +115,8 @@ const DETAIL_SECTIONS = [
       </>
     ),
   },
+  // 통합 구매 후기 (2026-09-02): 모든 상품 상세에 같은 후기 풀을 노출
+  { key: "reviews", label: "구매 후기" },
 ];
 
 // 등급 라벨 → CSS modifier(--grade-s/a-plus/a). 색상 변별력을 위해 등급별 다른 톤.
@@ -943,6 +949,8 @@ function RelatedProductsRail({
 function PublicProductDetailPage() {
   const { productId } = useParams();
   const navigate = useNavigate();
+  // 통합 후기 — 히어로 요약 줄과 하단 섹션이 같은 데이터를 공유
+  const productReviews = useProductReviews(productId);
 
   // AI 요약 — products.ai_summary 조회 (없으면 섹션 미노출)
   const [aiSummary, setAiSummary] = useState(null);
@@ -1861,6 +1869,24 @@ function PublicProductDetailPage() {
 
                 <h1 className="public-detail-hero__title">{product.title}</h1>
 
+                {productReviews.summary.total > 0 ? (
+                  <button
+                    className="public-review-hero-line"
+                    onClick={() => scrollToSection("reviews")}
+                    type="button"
+                  >
+                    <ReviewStars rating={Math.round(productReviews.summary.average ?? 0)} size={14} />
+                    <span className="public-review-hero-line__score">
+                      {productReviews.summary.average != null
+                        ? productReviews.summary.average.toFixed(1)
+                        : "-"}
+                    </span>
+                    <span className="public-review-hero-line__count">
+                      후기 {productReviews.summary.total}개
+                    </span>
+                  </button>
+                ) : null}
+
                 {isPreRelease ? (
                   <p className="public-detail-upcoming-price">
                     {COLLAB_OPEN_LABEL} 판매 시작
@@ -2073,6 +2099,22 @@ function PublicProductDetailPage() {
               }}
             >
               <DetailShippingContent />
+            </section>
+
+            <section
+              aria-label="구매 후기"
+              className="public-detail-tab-content"
+              id="detail-section-reviews"
+              ref={(element) => {
+                sectionRefs.current.reviews = element;
+              }}
+            >
+              <ProductReviewsSection
+                onOpenPhoto={(images, initialIndex, author) =>
+                  setLightboxState({ images, initialIndex, captionPrefix: `${author}님의 후기` })
+                }
+                reviews={productReviews}
+              />
             </section>
             </div>
 

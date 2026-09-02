@@ -1,0 +1,519 @@
+/* 통합 구매 후기 — 상세 섹션 + 작성 시트 공용 스타일 (토큰만 사용) */
+
+/* ── 별점 ─────────────────────────────────────────── */
+.public-review-stars {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--public-ds-primary);
+  line-height: 1;
+}
+
+.public-review-stars__star--empty {
+  color: var(--public-ds-border);
+}
+
+/* ── 상세 히어로 요약 링크 ─────────────────────────── */
+.public-review-hero-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--public-ds-text-secondary);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.public-review-hero-line:focus-visible {
+  outline: none;
+  box-shadow: var(--public-focus-ring);
+  border-radius: var(--public-radius-sm);
+}
+
+.public-review-hero-line__score {
+  font-weight: 800;
+  color: var(--public-ds-text);
+}
+
+.public-review-hero-line__count {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ── 섹션 요약 ─────────────────────────────────────── */
+.public-reviews__summary {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 20px 32px;
+  align-items: center;
+  padding: 20px;
+  margin-bottom: 20px;
+  border: 1px solid var(--public-ds-border);
+  border-radius: var(--public-radius-lg);
+  background: var(--public-ds-card);
+}
+
+.public-reviews__score {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 120px;
+}
+
+.public-reviews__score-value {
+  font-size: 36px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--public-ds-text);
+}
+
+.public-reviews__score-count {
+  font-size: 13px;
+  color: var(--public-ds-text-muted);
+}
+
+.public-reviews__bars {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+}
+
+.public-reviews__bar-row {
+  display: grid;
+  grid-template-columns: 28px 1fr 32px;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--public-ds-text-muted);
+}
+
+.public-reviews__bar-row dt {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.public-reviews__bar-row dd {
+  margin: 0;
+}
+
+.public-reviews__bar-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--public-ds-divider);
+  overflow: hidden;
+}
+
+.public-reviews__bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--public-ds-primary);
+}
+
+.public-reviews__note {
+  margin: 0 0 16px;
+  font-size: 13px;
+  color: var(--public-ds-text-muted);
+}
+
+/* ── 목록 ──────────────────────────────────────────── */
+.public-reviews__list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.public-review-card {
+  padding: 18px 0;
+  border-top: 1px solid var(--public-ds-divider);
+}
+
+.public-review-card:first-child {
+  border-top: 0;
+  padding-top: 4px;
+}
+
+.public-review-card__head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  margin-bottom: 8px;
+}
+
+.public-review-card__author {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--public-ds-text);
+}
+
+.public-review-card__date {
+  font-size: 12px;
+  color: var(--public-ds-text-muted);
+}
+
+.public-review-card__same-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--public-ds-secondary);
+  color: var(--public-ds-primary);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.public-review-card__product {
+  display: inline-block;
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--public-ds-text-secondary);
+  text-decoration: none;
+}
+
+a.public-review-card__product:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.public-review-card__content {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--public-ds-text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.public-review-card__photos {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.public-review-card__photo {
+  width: 88px;
+  height: 88px;
+  padding: 0;
+  border: 1px solid var(--public-ds-border);
+  border-radius: var(--public-radius-md);
+  background: var(--public-ds-divider);
+  overflow: hidden;
+  cursor: zoom-in;
+}
+
+.public-review-card__photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.public-review-card__photo:focus-visible {
+  outline: none;
+  box-shadow: var(--public-focus-ring);
+}
+
+.public-reviews__empty {
+  margin: 0;
+  padding: 28px 0;
+  text-align: center;
+  font-size: 14px;
+  color: var(--public-ds-text-muted);
+}
+
+.public-reviews__error {
+  margin: 0;
+  padding: 16px 0;
+  font-size: 13px;
+  color: var(--public-ds-danger);
+}
+
+.public-reviews__more {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 12px;
+  border: 1px solid var(--public-ds-border);
+  border-radius: var(--public-radius-md);
+  background: var(--public-ds-card);
+  color: var(--public-ds-text);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.public-reviews__more:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.public-reviews__more:focus-visible {
+  outline: none;
+  box-shadow: var(--public-focus-ring);
+}
+
+.public-reviews__skeleton {
+  height: 96px;
+  margin: 12px 0;
+  border-radius: var(--public-radius-md);
+  background: var(--public-ds-divider);
+}
+
+/* ── 작성 시트 ─────────────────────────────────────── */
+.public-review-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.public-review-form__order {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: var(--public-radius-md);
+  background: var(--public-ds-background);
+}
+
+.public-review-form__order-thumb {
+  width: 44px;
+  height: 56px;
+  flex-shrink: 0;
+  border-radius: var(--public-radius-sm);
+  background: var(--public-ds-divider);
+  overflow: hidden;
+}
+
+.public-review-form__order-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.public-review-form__order-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--public-ds-text);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.public-review-form__order-meta {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--public-ds-text-muted);
+}
+
+.public-review-form__label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--public-ds-text);
+}
+
+.public-review-form__rating {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.public-review-form__rating-stars {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.public-review-form__star {
+  padding: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--public-ds-border);
+  cursor: pointer;
+  line-height: 0;
+}
+
+.public-review-form__star.is-active {
+  color: var(--public-ds-primary);
+}
+
+.public-review-form__star:focus-visible {
+  outline: none;
+  border-radius: var(--public-radius-sm);
+  box-shadow: var(--public-focus-ring);
+}
+
+.public-review-form__rating-label {
+  font-size: 13px;
+  color: var(--public-ds-text-secondary);
+  min-width: 60px;
+}
+
+.public-review-form__textarea {
+  width: 100%;
+  min-height: 140px;
+  padding: 12px;
+  border: 1px solid var(--public-ds-border);
+  border-radius: var(--public-radius-md);
+  background: var(--public-ds-card);
+  color: var(--public-ds-text);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.6;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.public-review-form__textarea:focus {
+  outline: none;
+  border-color: var(--public-ds-primary);
+  box-shadow: var(--public-focus-ring);
+}
+
+.public-review-form__counter {
+  margin: 6px 0 0;
+  text-align: right;
+  font-size: 12px;
+  color: var(--public-ds-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.public-review-form__counter.is-over {
+  color: var(--public-ds-danger);
+}
+
+.public-review-form__photos {
+  display: flex;
+  gap: 8px;
+}
+
+.public-review-form__photo {
+  position: relative;
+  width: 84px;
+  height: 84px;
+  border: 1px solid var(--public-ds-border);
+  border-radius: var(--public-radius-md);
+  background: var(--public-ds-divider);
+  overflow: hidden;
+}
+
+.public-review-form__photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.public-review-form__photo-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(35, 35, 35, 0.72);
+  color: #ffffff;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.public-review-form__photo-add {
+  width: 84px;
+  height: 84px;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: 1px dashed var(--public-ds-border);
+  border-radius: var(--public-radius-md);
+  background: var(--public-ds-card);
+  color: var(--public-ds-text-muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.public-review-form__photo-add:focus-visible {
+  outline: none;
+  box-shadow: var(--public-focus-ring);
+}
+
+.public-review-form__photo-add:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.public-review-form__photo-input {
+  display: none;
+}
+
+.public-review-form__hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--public-ds-text-muted);
+}
+
+.public-review-form__error {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--public-radius-md);
+  background: rgba(208, 52, 44, 0.06);
+  color: var(--public-ds-danger);
+  font-size: 13px;
+}
+
+.public-review-form__delete {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--public-ds-text-muted);
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.public-review-form__delete:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ── 마이페이지 카드 버튼 변형 ────────────────────────── */
+.public-mypage-purchase-card__btn--review {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+@media (max-width: 640px) {
+  .public-reviews__summary {
+    grid-template-columns: 1fr;
+    gap: 16px;
+    padding: 16px;
+  }
+
+  .public-reviews__score {
+    min-width: 0;
+  }
+
+  .public-review-card__photo {
+    width: 72px;
+    height: 72px;
+  }
+}

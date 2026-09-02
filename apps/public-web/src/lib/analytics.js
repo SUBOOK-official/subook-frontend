@@ -307,6 +307,16 @@ function trackPurchaseConfirm(orderId) {
   });
 }
 
+// 후기 등록/수정 (2026-09-02 통합 후기)
+function trackReviewSubmit({ orderId, rating, photoCount = 0, mode = "create" } = {}) {
+  gtagEvent("review_submit", {
+    ...(orderId != null ? { order_id: String(orderId) } : {}),
+    ...(rating != null ? { rating: Number(rating) } : {}),
+    photo_count: Number(photoCount) || 0,
+    mode,
+  });
+}
+
 function trackRefundRequest(orderId) {
   gtagEvent("refund_request", {
     ...(orderId != null ? { order_id: String(orderId) } : {}),
@@ -509,6 +519,7 @@ export {
   trackRemoveFromCart,
   trackRemoveFromWishlist,
   trackRestockKeywordSubscribe,
+  trackReviewSubmit,
   trackRestockSubscribe,
   trackSearch,
   trackSelectItem,

@@ -330,3 +330,20 @@ export function PinIcon(props) {
     </IconBase>
   );
 }
+
+// 후기 별점 — filled 여부로 채운 별/빈 별
+export function StarIcon(props) {
+  return (
+    <IconBase {...props}>
+      <path d="M12 3.6l2.6 5.4 5.9.8-4.3 4.1 1.1 5.9L12 17l-5.3 2.8 1.1-5.9-4.3-4.1 5.9-.8L12 3.6z" />
+    </IconBase>
+  );
+}
+
+export function PlusIcon(props) {
+  return (
+    <IconBase {...props}>
+      <path d="M12 5v14M5 12h14" />
+    </IconBase>
+  );
+}

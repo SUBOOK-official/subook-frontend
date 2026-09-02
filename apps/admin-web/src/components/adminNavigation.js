@@ -14,6 +14,7 @@ import {
   InboxIcon,
   MegaphoneIcon,
   PlusIcon,
+  StarIcon,
   TicketIcon,
   TrendingUpIcon,
   UserIcon,
@@ -64,6 +65,7 @@ export const adminNavigationGroups = [
     items: [
       { key: "notices", label: "공지사항", to: "/admin/notices", icon: MegaphoneIcon },
       { key: "faqs", label: "FAQ", to: "/admin/faqs", icon: HelpCircleIcon },
+      { key: "reviews", label: "후기", to: "/admin/reviews", icon: StarIcon },
     ],
   },
   {
@@ -100,6 +102,10 @@ export function resolveActiveAdminModule({ pathname, explicitModule }) {
 
   if (pathname.startsWith("/admin/faqs")) {
     return "faqs";
+  }
+
+  if (pathname.startsWith("/admin/reviews")) {
+    return "reviews";
   }
 
   if (pathname.startsWith("/admin/notices")) {
