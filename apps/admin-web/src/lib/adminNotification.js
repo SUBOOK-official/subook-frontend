@@ -77,7 +77,63 @@ export async function notifyInspectionDone({ shipment }) {
   });
 }
 
-// 정산 완료 알림 (판매자)
+// 정산 완료 알림 대상을 셀러(수신번호+입금계좌) 단위로 묶는다.
+// admin_complete_settlements는 책 1권=settlement 1행을 돌려주므로 행마다 보내면
+// 같은 셀러가 권수만큼 같은 문자를 받는다(2026-09-02 알림톡 테러). 묶음 1건에
+// 총 정산액을 담고, 멱등키·인앱 알림 ref로는 묶음 내 최소 settlement id를 대표로 쓴다.
+export function groupSettlementNotificationTargets(rows) {
+  const groups = new Map();
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const phoneDigits = String(row?.seller_phone || "").replace(/\D/g, "");
+    if (!phoneDigits) continue;
+
+    const bankName = row.bank_name || "계좌";
+    const accountLast4 = row.account_last4 || "";
+    const key = `${phoneDigits}|${bankName}|${accountLast4}`;
+    const settlementId = Number(row.id);
+    const netAmount = Number(row.net_amount) || 0;
+
+    const existing = groups.get(key);
+    if (existing) {
+      existing.netAmount += netAmount;
+      existing.itemCount += 1;
+      existing.settlementIds.push(settlementId);
+      existing.representativeId = Math.min(existing.representativeId, settlementId);
+      if (!existing.sellerName && row.seller_name) existing.sellerName = row.seller_name;
+      if (!existing.sellerUserId && row.seller_user_id) existing.sellerUserId = row.seller_user_id;
+      continue;
+    }
+
+    groups.set(key, {
+      key,
+      sellerPhone: row.seller_phone,
+      sellerName: row.seller_name || "",
+      sellerUserId: row.seller_user_id ?? null,
+      bankName,
+      accountLast4,
+      netAmount,
+      itemCount: 1,
+      settlementIds: [settlementId],
+      representativeId: settlementId,
+    });
+  }
+  return [...groups.values()];
+}
+
+// 셀러 묶음 1건 발송 — groupSettlementNotificationTargets() 결과를 그대로 받는다.
+export function notifySettlementDoneGroup(target) {
+  return notifySettlementDone({
+    sellerPhone: target.sellerPhone,
+    sellerName: target.sellerName,
+    sellerUserId: target.sellerUserId,
+    amount: target.netAmount,
+    bankName: target.bankName,
+    accountLast4: target.accountLast4,
+    settlementId: target.representativeId,
+  });
+}
+
+// 정산 완료 알림 (판매자) — 셀러 단위 묶음 1건. amount=묶음 총 정산액, settlementId=대표 id.
 export async function notifySettlementDone({ sellerPhone, sellerName, sellerUserId, amount, bankName, accountLast4, settlementId }) {
   return callSendNotification({
     notificationType: "settlement_done",

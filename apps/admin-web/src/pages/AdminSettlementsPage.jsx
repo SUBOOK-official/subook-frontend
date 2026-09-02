@@ -7,7 +7,10 @@ import AdminPagination from "../components/AdminPagination";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import NotificationResultModal from "../components/NotificationResultModal";
 import StatusBadge from "@shared-domain/StatusBadge";
-import { notifySettlementDone } from "../lib/adminNotification";
+import {
+  groupSettlementNotificationTargets,
+  notifySettlementDoneGroup,
+} from "../lib/adminNotification";
 import { exportRowsToXlsx } from "../lib/excelFile";
 import { formatCurrency, formatDate } from "@shared-domain/format";
 import { settlementStatusLabel } from "@shared-domain/status";
@@ -383,19 +386,10 @@ function AdminSettlementsPage() {
     }
 
     const completedRows = Array.isArray(data?.settlements) ? data.settlements : [];
-    const notificationTargets = completedRows.filter((row) => row.seller_phone);
+    // 셀러(수신번호+계좌) 단위로 묶어 총 정산액 1건만 발송 — 건별 발송은 권수만큼 중복 수신
+    const notificationTargets = groupSettlementNotificationTargets(completedRows);
     const notificationOutcomes = await Promise.allSettled(
-      notificationTargets.map((row) =>
-        notifySettlementDone({
-          sellerPhone: row.seller_phone,
-          sellerName: row.seller_name,
-          sellerUserId: row.seller_user_id,
-          amount: row.net_amount,
-          bankName: row.bank_name || "계좌",
-          accountLast4: row.account_last4,
-          settlementId: row.id,
-        }),
-      ),
+      notificationTargets.map((target) => notifySettlementDoneGroup(target)),
     );
 
     setBusyAction("");
@@ -403,7 +397,7 @@ function AdminSettlementsPage() {
     const failures = [];
     let successCount = 0;
     notificationOutcomes.forEach((outcome, index) => {
-      const row = notificationTargets[index];
+      const target = notificationTargets[index];
       if (outcome.status === "fulfilled" && outcome.value?.success !== false) {
         successCount += 1;
         return;
@@ -413,10 +407,10 @@ function AdminSettlementsPage() {
           ? outcome.reason?.message ?? "알 수 없는 오류"
           : outcome.value?.error ?? "알 수 없는 오류";
       failures.push({
-        id: row.id,
-        label: `${row.seller_name || "이름 미상"} (${row.seller_phone}) — ${formatCurrency(row.net_amount)}`,
+        id: target.representativeId,
+        label: `${target.sellerName || "이름 미상"} (${target.sellerPhone}) — ${formatCurrency(target.netAmount)} · ${target.itemCount}건`,
         error,
-        row,
+        target,
       });
     });
 
@@ -440,17 +434,7 @@ function AdminSettlementsPage() {
     const targets = notificationResult.failures;
 
     const outcomes = await Promise.allSettled(
-      targets.map((failure) =>
-        notifySettlementDone({
-          sellerPhone: failure.row.seller_phone,
-          sellerName: failure.row.seller_name,
-          sellerUserId: failure.row.seller_user_id,
-          amount: failure.row.net_amount,
-          bankName: failure.row.bank_name || "계좌",
-          accountLast4: failure.row.account_last4,
-          settlementId: failure.row.id,
-        }),
-      ),
+      targets.map((failure) => notifySettlementDoneGroup(failure.target)),
     );
 
     const remainingFailures = [];
