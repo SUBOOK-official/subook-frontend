@@ -1960,15 +1960,15 @@ function PublicProductDetailPage() {
                     <HeartIcon filled={isProductFavorite} size={24} />
                   </button>
                   {isPreRelease ? (
-                    // 출시 전 — 품절이 아니므로 재입고 알림이 아니라 이벤트 랜딩으로 보낸다.
+                    // 출시 전 — 판매 대신 이벤트 랜딩의 알림 신청(쿠폰) 구역으로 보낸다.
                     // (찜하기는 그대로 살려 두어 관심 표시는 받을 수 있게 한다)
                     // 이벤트 랜딩이 없는 출시 전 상품이면 안내만 남기고 비활성 버튼으로 둔다.
                     featuredEntry?.eventPath ? (
                       <Link
                         className="public-detail-hero__btn public-detail-hero__btn--buy public-detail-hero__btn--link"
-                        to={featuredEntry.eventPath}
+                        to={`${featuredEntry.eventPath}#coupon`}
                       >
-                        알림 신청하러 가기
+                        {COLLAB_OPEN_LABEL} 알림 받기
                       </Link>
                     ) : (
                       <button
