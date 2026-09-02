@@ -520,20 +520,34 @@ function PublicJeonilEventPage() {
             </div>
           </section>
 
-          {/* 쿠폰 + 마무리 (핫스팟/티켓/커서) */}
-          <div className="jeonil-canvas jeonil-coupon-sec">
-            <img className="jeonil-band" src={secCoupon} alt="" draggable={false} style={{ aspectRatio: R_COUPON }} />
-            <h2 className="jeonil-coupon-title">지금 바로 신청하세요</h2>
-            <button
-              ref={couponRef}
-              type="button"
-              className="jeonil-coupon-hotspot"
-              onClick={openCoupon}
-              aria-label="출시 알림 신청하고 쿠폰 받기"
-            />
-            <img className="jeonil-coupon-ticket" src={couponTicket} alt="" aria-hidden="true" draggable={false} />
-            <img className="jeonil-cursor-img" src={cursorImg} alt="" aria-hidden="true" draggable={false} />
-          </div>
+          {/* 쿠폰 + 마무리 (핫스팟/티켓/커서).
+              판매가 시작되면 '출시 알림 신청' 자리는 통째로 걷어낸다. 다만 마무리 문구
+              띠가 같은 이미지 아래쪽에 구워져 있어, 그 부분만 남기고 위를 잘라낸다
+              (--closed). 잘라내는 높이는 CSS의 aspect-ratio로 맞춘다. */}
+          {isOpen ? (
+            <div className="jeonil-canvas jeonil-coupon-sec jeonil-coupon-sec--closed">
+              <img
+                className="jeonil-band"
+                src={secCoupon}
+                alt="여러분의 2027학년도 대입성공을 전일학원과 수북이 응원하겠습니다"
+                draggable={false}
+              />
+            </div>
+          ) : (
+            <div className="jeonil-canvas jeonil-coupon-sec">
+              <img className="jeonil-band" src={secCoupon} alt="" draggable={false} style={{ aspectRatio: R_COUPON }} />
+              <h2 className="jeonil-coupon-title">지금 바로 신청하세요</h2>
+              <button
+                ref={couponRef}
+                type="button"
+                className="jeonil-coupon-hotspot"
+                onClick={openCoupon}
+                aria-label="출시 알림 신청하고 쿠폰 받기"
+              />
+              <img className="jeonil-coupon-ticket" src={couponTicket} alt="" aria-hidden="true" draggable={false} />
+              <img className="jeonil-cursor-img" src={cursorImg} alt="" aria-hidden="true" draggable={false} />
+            </div>
+          )}
         </main>
 
         <PublicFooter />

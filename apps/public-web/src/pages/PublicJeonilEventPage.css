@@ -830,3 +830,16 @@
   .jeonil-emoji--1 { left: 1%; font-size: clamp(30px, 8vw, 50px); }
   .jeonil-emoji--2 { right: 1%; font-size: clamp(30px, 8vw, 50px); }
 }
+
+/* 오픈 후 마무리 띠만 남기기 — sec-coupon.webp(1493×976) 아래쪽 217px 이 마무리 문구
+   띠라, 컨테이너 비율을 그 띠에 맞추고 이미지를 아래 기준으로 잘라 보여준다.
+   (쿠폰 신청 영역은 JSX에서 아예 렌더하지 않는다) */
+.jeonil-coupon-sec--closed {
+  aspect-ratio: 1493 / 217;
+  overflow: hidden;
+}
+.jeonil-coupon-sec--closed .jeonil-band {
+  height: 100%;
+  object-fit: cover;
+  object-position: bottom;
+}
