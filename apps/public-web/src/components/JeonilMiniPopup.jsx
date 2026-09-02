@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { COLLAB_OPEN_AT } from "../lib/publicFeaturedProducts";
 import "./JeonilMiniPopup.css";
 
 const STORAGE_KEY = "subook.public.jeonil-mini.dismissed.v2";
@@ -31,8 +32,11 @@ function JeonilMiniPopup() {
     }
   }, []);
 
-  // 이미지가 없거나, 이벤트 페이지 자체에서는 노출하지 않음
-  if (!open || !MINI_IMG || location.pathname === EVENT_PATH) {
+  // 이미지가 없거나, 이벤트 페이지 자체에서는 노출하지 않음.
+  // 판매가 시작되면 '알림 신청' 팝업은 의미가 없어 더 띄우지 않는다
+  // (문구가 이미지에 구워져 있어 문구만 바꿀 수는 없다).
+  const isCollabOpen = Date.now() >= Date.parse(COLLAB_OPEN_AT);
+  if (!open || !MINI_IMG || isCollabOpen || location.pathname === EVENT_PATH) {
     return null;
   }
 
