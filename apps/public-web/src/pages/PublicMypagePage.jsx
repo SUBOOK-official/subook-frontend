@@ -27,7 +27,6 @@ import {
   HeartIcon,
   LockIcon,
   MapPinIcon,
-  StarIcon,
   UserIcon,
 } from "../components/icons";
 import { supabase as publicSupabase } from "@shared-supabase/publicSupabaseClient";
@@ -2901,13 +2900,10 @@ function PurchasesView({
                       {/* 통합 후기: 구매확정 주문만, 주문 1건당 1개 (있으면 수정) */}
                       {!item.refundedAt && order.status === "confirmed" && onWriteReview ? (
                         <button
-                          className={`public-mypage-purchase-card__btn public-mypage-purchase-card__btn--review${
-                            reviewsByOrderId?.[order.id] ? "" : " public-mypage-purchase-card__btn--primary"
-                          }`}
+                          className="public-mypage-purchase-card__btn"
                           onClick={() => onWriteReview(order)}
                           type="button"
                         >
-                          <StarIcon filled={Boolean(reviewsByOrderId?.[order.id])} size={14} />
                           {reviewsByOrderId?.[order.id] ? "후기 수정" : "후기 작성"}
                         </button>
                       ) : null}

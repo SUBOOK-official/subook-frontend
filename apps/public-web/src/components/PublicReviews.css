@@ -494,13 +494,6 @@ a.public-review-card__product:hover {
   cursor: default;
 }
 
-/* ── 마이페이지 카드 버튼 변형 ────────────────────────── */
-.public-mypage-purchase-card__btn--review {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
 @media (max-width: 640px) {
   .public-reviews__summary {
     grid-template-columns: 1fr;
