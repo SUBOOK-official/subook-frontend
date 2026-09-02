@@ -188,10 +188,10 @@ function PickupPasswordField({ value, onChange }) {
 
 // ─── Step 0: 판매 안내 (판매 과정 · 가능/불가 상품 · 박스 규정 · 유의사항) ───
 const PICKUP_INTRO_NOTES = [
-  "새 교재 + 현재 수능 기준 3개년 이내 교재만 접수해 주세요.",
+  "새 교재 + 현재 수능 기준 2개년 이내 교재만 접수해 주세요.",
   "검수 기준 미달 교재는 판매불가 → 자체 폐기되며 반송되지 않습니다.",
-  "교재 상태·수요에 따라 판매가 어려운 교재는 판매되지 않을 수 있어요.",
-  "모든 교재의 판매 여부·판매가는 수북의 검수 기준에 따라 결정됩니다.",
+  "교재가 웹사이트에 등록 되더라도 팔리지 않을 수 있어요.",
+  "모든 교재의 판매가는 수북 자체 가격 산출 알고리즘에 따라 결정됩니다.",
 ];
 
 function StepIntro({ onNext }) {
@@ -327,8 +327,8 @@ function StepIntro({ onNext }) {
               <ClockIcon size={18} />
             </span>
             <div className="pickup-guide-list__text">
-              <strong>최근 3개년 이내 교재만 확인해주세요</strong>
-              <span>현재 수능 기준 3개년 이내 교재만 접수 가능해요.</span>
+              <strong>최근 2개년 이내 교재만 확인해주세요</strong>
+              <span>현재 수능 기준 2개년(2026, 2027) 이내 교재만 접수 가능해요.</span>
             </div>
           </li>
         </ul>
@@ -378,7 +378,10 @@ function StepIntro({ onNext }) {
             </span>
             <div className="pickup-guide-list__text">
               <strong>딱 맞는 박스에 담아주세요</strong>
-              <span>빈 공간 없이 딱 맞는 박스에 담아주세요.</span>
+              <span>
+                빈 공간 없이 딱 맞는 박스에 담아주세요. 한 박스당 20kg 이하만
+                수거 가능해요.
+              </span>
             </div>
           </li>
           <li className="pickup-guide-list__item">
@@ -915,8 +918,8 @@ function StepExpectedCount({ address, setAddress, onNext, onPrev }) {
             않아도 돼요. 검수 과정에서 수북이 대신 등록해 드려요.
           </li>
           <li>
-            <strong>가격 책정</strong> 교재별 판매가는 검수 완료 후 운영팀이
-            산정하며, 마이페이지를 통해 안내해 드려요.
+            <strong>가격 책정</strong> 모든 교재의 판매가는 수북 자체 가격 산출
+            알고리즘에 따라 결정되며, 마이페이지를 통해 안내해 드려요.
           </li>
         </ul>
       </div>
@@ -986,6 +989,7 @@ function StepBoxCount({ address, setAddress, onNext, onPrev }) {
         <ul className="pickup-info-box__list">
           <li>빈 공간 없이 딱 맞는 박스에 담아주세요.</li>
           <li>교재가 흔들리지 않도록 포장해주세요.</li>
+          <li>한 박스당 20kg 이하까지 수거가 가능해요. (참고* 약 40~50권 이하)</li>
         </ul>
       </div>
 
@@ -1325,7 +1329,7 @@ function StepSettlement({
             <div className="pickup-policy-box__section">
               <p className="pickup-policy-box__heading">검수 안내</p>
               <ul className="pickup-policy-box__list">
-                <li>새 교재 + 현재 수능 기준 3개년 이내 교재만 접수</li>
+                <li>새 교재 + 현재 수능 기준 2개년 이내 교재만 접수</li>
                 <li>
                   새 책 기준: 비닐 개봉 OK, 필기·형광펜 0%, 표지·내지 양호
                 </li>
@@ -1391,7 +1395,7 @@ function StepDisposalNotice({ onNext, onPrev }) {
             확인하실 수 있어요.
           </li>
           <li>
-            반드시 <strong>새 교재 + 현재 수능 기준 3개년 이내</strong>의 교재만
+            반드시 <strong>새 교재 + 현재 수능 기준 2개년 이내</strong>의 교재만
             접수해 주세요.
           </li>
         </ul>
@@ -1553,6 +1557,9 @@ function StepConfirm({
           <p className="pickup-confirm-detail__memo">
             별도의 수거 비용은 없습니다. (무료 수거)
           </p>
+          <p className="pickup-confirm-detail__memo">
+            한 박스당 20kg 이하까지만 수거 가능해요.
+          </p>
         </div>
       </div>
 
@@ -1575,7 +1582,7 @@ function StepConfirm({
             <strong>반송은 진행되지 않습니다.</strong>
           </p>
           <p className="pickup-confirm-detail__memo">
-            반드시 <strong>새 교재 + 현재 수능 기준 3개년 이내</strong>의 교재만
+            반드시 <strong>새 교재 + 현재 수능 기준 2개년 이내</strong>의 교재만
             접수해 주세요.
           </p>
         </div>
