@@ -12,6 +12,8 @@ import { BusyText } from "./Loading";
  * - 성공 건수와 실패 건수를 분리해서 노출하고, 실패 건만 따로 확인·재전송할 수 있다.
  * - `retryLabel`로 onRetry 버튼 라벨을 바꿀 수 있다(재전송이 아닌 대체 액션 용도 —
  *   예: 수거 취소 실패 모달의 "DB만 취소"). 미지정 시 기존 재전송 카피 그대로.
+ * - `notes`는 성공/실패 집계 아래에 붙는 부가 안내 문장 목록(예: "0원 정산 N명 알림 생략").
+ *   비어 있으면 아무것도 그리지 않는다 — 기존 호출부 동작 불변.
  */
 function NotificationResultModal({
   open,
@@ -25,6 +27,7 @@ function NotificationResultModal({
   onClose,
   onRetry,
   retryLabel = "",
+  notes = [],
   busy = false,
 }) {
   const dialogRef = useRef(null);
@@ -74,6 +77,13 @@ function NotificationResultModal({
             </>
           ) : null}
         </p>
+        {notes.length > 0 ? (
+          <ul className="mt-2 space-y-1 text-xs font-medium text-slate-600">
+            {notes.map((note) => (
+              <li key={note}>{note}</li>
+            ))}
+          </ul>
+        ) : null}
 
         {hasFailures ? (
           <div className="mt-4 max-h-72 overflow-y-auto rounded-lg border border-rose-200 bg-rose-50/40 p-3">

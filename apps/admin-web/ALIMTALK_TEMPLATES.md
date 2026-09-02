@@ -168,6 +168,7 @@
   셀러(수신번호+입금계좌) 단위로 묶어 **총 정산액 1건**만 보낸다. 같은 셀러가 권수만큼 같은
   문자를 받던 "알림톡 테러"의 수리이며, 템플릿(v2)은 그대로 쓴다(재검수 불필요).
   코드: `adminNotification.js`의 `groupSettlementNotificationTargets`.
+  합계 0원 묶음(상품화 비용이 판매 순수익을 전부 차감)은 알림톡 생략, 완료 처리는 유지.
 
 #### 7-1. 정산 완료 v3 제안 (미등록 · 상품화 비용 차감 표기) — 제안 이름: `수북 정산완료 v3`
 
@@ -176,7 +177,7 @@
 안녕하세요, 수북(SUBOOK)입니다.
 판매하신 교재 #{itemCount}권에 대한 정산이 완료되어 안내드립니다.
 ► 판매 정산액 : #{grossAmount}원
-► 상품화 비용 차감 : #{boxCost}원
+► 상품화 비용 : #{boxCost}
 ► 입금 금액 : #{amount}원
 ► 입금 계좌 : #{bankName} ****#{accountLast4}
 입금 금액은 위 계좌로 입금 처리되었습니다.
@@ -185,10 +186,14 @@
 ```
 
 - 변수: `itemCount`(묶음 권수), `grossAmount`(수수료 차감 후·상품화 비용 차감 전 합계 =
-  net_amount + box_cost_deducted), `boxCost`(상품화 비용 합계, 없으면 "0"),
-  `amount`(실입금액 합계 = net_amount 합), `bankName`, `accountLast4`
-- 카카오 템플릿은 조건부 문장이 안 되므로 상품화 비용이 0원인 달에도 "0원"으로 찍힌다.
-  문장형("상품화 비용 n원이 차감된 …")이 아니라 항목형으로 둔 이유.
+  net_amount + box_cost_deducted), `boxCost`(**문구째 변수** — 차감 있으면 "5,000원 차감",
+  없으면 "차감 없음". 등록 시 예시값은 "5,000원 차감"), `amount`(실입금액 합계 = net_amount 합),
+  `bankName`, `accountLast4`
+- 상품화 비용은 수거 건(박스 수) 단위로 그 수거의 첫 판매 정산부터 차감·이월되므로 두 번째
+  달부터는 대개 0이고, 이월·2차 수거 달에는 다시 생긴다. 카카오 템플릿은 조건부 문장이 안 되고
+  빈 변수 값 허용 여부는 공식 문서에 명시가 없어, 값 자체에 문구를 넣어 항상 비어 있지 않게 한다.
+- **합계 0원 묶음은 v2·v3 모두 알림톡 생략**(2026-09-02) — "입금 처리되었습니다"가 0원과
+  맞지 않는다. 마이페이지 정산 목록의 "− 박스비" 표기와 FAQ가 셀러 측 근거.
 - 승인 후 개발 전환: ① `admin_complete_settlements` 결과 jsonb에 `box_cost_deducted`
   추가(RPC 재정의 — 환불신청 송금 차단·shipments 계좌 폴백 가드 유지) ②
   `groupSettlementNotificationTargets`에서 boxCost·grossAmount·itemCount 합산 ③

@@ -387,7 +387,11 @@ function AdminSettlementsPage() {
 
     const completedRows = Array.isArray(data?.settlements) ? data.settlements : [];
     // 셀러(수신번호+계좌) 단위로 묶어 총 정산액 1건만 발송 — 건별 발송은 권수만큼 중복 수신
-    const notificationTargets = groupSettlementNotificationTargets(completedRows);
+    const sellerGroups = groupSettlementNotificationTargets(completedRows);
+    // 합계 0원 묶음(상품화 비용이 판매 순수익을 전부 차감)은 "0원 입금" 문자가 되므로 알림 생략.
+    // 완료 처리 자체는 유지 — 책 settled 전환·박스비 차감 기록은 필요하고 송금액은 0이다.
+    const notificationTargets = sellerGroups.filter((target) => target.netAmount > 0);
+    const skippedZeroCount = sellerGroups.length - notificationTargets.length;
     const notificationOutcomes = await Promise.allSettled(
       notificationTargets.map((target) => notifySettlementDoneGroup(target)),
     );
@@ -418,10 +422,15 @@ function AdminSettlementsPage() {
       Number(data?.skipped_missing_account_count ?? 0) > 0
         ? ` 계좌 정보가 없는 ${data.skipped_missing_account_count}건은 제외했습니다.`
         : "";
-    showToast(`${data?.updated_count ?? 0}건을 정산 완료 처리했습니다.${skippedMessage}`, "success");
+    const zeroMessage =
+      skippedZeroCount > 0 ? ` 0원 정산 ${skippedZeroCount}명은 알림톡을 생략했습니다.` : "";
+    showToast(
+      `${data?.updated_count ?? 0}건을 정산 완료 처리했습니다.${skippedMessage}${zeroMessage}`,
+      "success",
+    );
 
-    if (failures.length > 0 || notificationTargets.length > 0) {
-      setNotificationResult({ successCount, failures });
+    if (failures.length > 0 || notificationTargets.length > 0 || skippedZeroCount > 0) {
+      setNotificationResult({ successCount, failures, skippedZeroCount });
     }
 
     await loadSettlements();
@@ -456,6 +465,7 @@ function AdminSettlementsPage() {
     setNotificationResult({
       successCount: (notificationResult.successCount ?? 0) + extraSuccess,
       failures: remainingFailures,
+      skippedZeroCount: notificationResult.skippedZeroCount ?? 0,
     });
   };
 
@@ -1023,6 +1033,13 @@ function AdminSettlementsPage() {
         onRetry={retryFailedSettlementNotifications}
         open={Boolean(notificationResult)}
         successCount={notificationResult?.successCount ?? 0}
+        notes={
+          Number(notificationResult?.skippedZeroCount ?? 0) > 0
+            ? [
+                `정산 합계 0원 ${notificationResult.skippedZeroCount}명은 알림톡을 생략했습니다. (상품화 비용이 판매 순수익을 전부 차감)`,
+              ]
+            : []
+        }
         title="정산 완료 알림톡 발송 결과"
       />
 
