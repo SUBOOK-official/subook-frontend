@@ -32,6 +32,7 @@ import { usePageMeta } from "../lib/usePageMeta";
 import {
   COLLAB_OPEN_LABEL,
   findFeaturedProductEntry,
+  getFeaturedDetailKey,
   isPreReleaseProduct,
   resolveFeaturedCoverUrl,
 } from "../lib/publicFeaturedProducts";
@@ -984,7 +985,10 @@ function PublicProductDetailPage() {
   // 참조하므로 메타 블록보다 위에 선언한다.
   const featuredEntry = useMemo(() => findFeaturedProductEntry(product), [product]);
   const featuredDetailKey = useMemo(
-    () => (hasFeaturedProductDetail(featuredEntry?.key) ? featuredEntry.key : null),
+    () => {
+      const detailKey = getFeaturedDetailKey(featuredEntry);
+      return hasFeaturedProductDetail(detailKey) ? detailKey : null;
+    },
     [featuredEntry],
   );
   // 출시 전 — 가격·구매를 모두 막는다 (오픈일에 레지스트리 preRelease만 끄면 열린다).

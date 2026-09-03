@@ -4,8 +4,12 @@
 // 교재 카드 → 상품 상세 링크 ③ 상품 상세의 전용 상세페이지 이미지 사용 여부.
 //
 // 매칭은 productId 우선, 없으면 상품명(공백 무시)으로 폴백한다.
-//   J1 FULL·미니는 2026-08-31에 등록돼 실제 id가 박혀 있어 상품명을 바꿔도 안전하다.
+//   J1 FULL·미니(30일분)는 2026-08-31, 미니(10회분)는 2026-09-03에 등록돼 실제 id가
+//   박혀 있어 상품명을 바꿔도 안전하다(9/3 상품명 개편도 id 덕에 무배포로 안전했다).
 //   아직 등록 전인 항목(토마토)만 제목 매칭으로 대기 중 — 등록되면 id를 채울 것.
+//
+// ⚠ 제목을 바꾸면 api/prerender-product.js 의 FEATURED_NEW_BOOK_TITLES 도 같이 고칠 것
+//   (서버리스는 의존성 제로 제약이라 이 모듈을 import 하지 못하고 제목을 복제해 둔다).
 //
 // ⚠ 이 모듈은 Node 단위 테스트(publicHomeLatestBooksUtils)에서 전이 import 되므로
 //   이미지 에셋·supabase 클라이언트를 import 하지 않는다 (순수 로직만).
@@ -31,7 +35,7 @@ export const COLLAB_OPEN_LABEL = "9월 3일 18시";
 export const FEATURED_PRODUCTS = [
   {
     key: "j1-full",
-    title: "2027 J1 원트 FULL 모의고사 국어",
+    title: "[수능 직전 최종점검] 2027 J1 원트 FULL 모의고사 국어(7회분)",
     // 실제 products.id — 지정돼 있으면 제목 매칭보다 우선한다(상품명을 바꿔도 안전).
     productId: 2370,
     // 홈 '신규 입고' 캐러셀 최상단 고정 대상
@@ -46,8 +50,22 @@ export const FEATURED_PRODUCTS = [
   },
   {
     key: "j1-mini",
-    title: "2027 J1 원트 미니 모의고사 국어",
+    title: "[수능 직전 일일점검] 2027 J1 원트 미니모의고사 국어(30일분)",
     productId: 2371,
+    pinToLatest: true,
+    preRelease: true,
+    releaseAt: COLLAB_OPEN_AT,
+    eventPath: JEONIL_EVENT_PATH,
+    preReleaseCoverUrl: `${TEASER_COVER_BASE}/1787900000000-teaser-j1-mini-v2.png`,
+  },
+  {
+    // 미니모의고사 10회분 SET A/B/C — 2026-09-03 에 30일분에서 분리한 상품.
+    // 썸네일·상세페이지는 미니(30일분)와 같아서 detailKey 로 j1-mini 의 이미지를 재사용한다.
+    key: "j1-mini-10",
+    title: "2027 J1 원트 미니모의고사 국어(10회분)",
+    productId: 2437,
+    // 전용 상세페이지 이미지 폴더(assets/product-detail/<detailKey>) — 없으면 key 를 쓴다.
+    detailKey: "j1-mini",
     pinToLatest: true,
     preRelease: true,
     releaseAt: COLLAB_OPEN_AT,
@@ -116,6 +134,12 @@ export function resolveFeaturedCoverUrl(product, coverUrl, now = Date.now()) {
   }
 
   return findFeaturedProductEntry(product)?.preReleaseCoverUrl ?? coverUrl;
+}
+
+// 전용 상세페이지 이미지 키 — 다른 상품의 이미지를 그대로 쓰는 항목(10회분 → 미니)은
+// detailKey 로 가리킨다. 없으면 자기 key.
+export function getFeaturedDetailKey(entry) {
+  return entry?.detailKey ?? entry?.key ?? null;
 }
 
 // key → 상품 객체 맵. 랜딩 카드 링크·고정 대상 조회에 함께 쓴다.

@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   FEATURED_PRODUCTS,
   findFeaturedProductEntry,
+  getFeaturedDetailKey,
   isPreReleaseProduct,
   mapFeaturedProductsByKey,
   matchesFeaturedEntry,
@@ -65,11 +66,18 @@ test("matchesFeaturedEntry prefers an explicit productId over the title", () => 
 test("registry resolves the registered collab products by id", () => {
   const full = FEATURED_PRODUCTS.find((entry) => entry.key === "j1-full");
   const mini = FEATURED_PRODUCTS.find((entry) => entry.key === "j1-mini");
+  const mini10 = FEATURED_PRODUCTS.find((entry) => entry.key === "j1-mini-10");
 
   assert.equal(findFeaturedProductEntry({ id: full.productId, title: "" })?.key, "j1-full");
   assert.equal(findFeaturedProductEntry({ id: mini.productId, title: "" })?.key, "j1-mini");
+  assert.equal(findFeaturedProductEntry({ id: mini10.productId, title: "" })?.key, "j1-mini-10");
   assert.equal(isPreReleaseProduct({ id: full.productId }), true);
   assert.equal(isPreReleaseProduct({ id: mini.productId }), true);
+  assert.equal(isPreReleaseProduct({ id: mini10.productId }), true);
+  // 10회분은 미니(30일분)의 상세페이지 이미지를 그대로 쓴다.
+  assert.equal(getFeaturedDetailKey(mini10), "j1-mini");
+  assert.equal(getFeaturedDetailKey(mini), "j1-mini");
+  assert.equal(getFeaturedDetailKey(null), null);
   // 무관한 상품은 출시 전 취급되면 안 된다 (전 상품 가격이 가려지는 사고 방지).
   assert.equal(isPreReleaseProduct({ id: 1, title: "시대인재 서바이벌 국어" }), false);
 });

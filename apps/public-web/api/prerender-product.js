@@ -18,9 +18,11 @@ const REQUEST_TIMEOUT_MS = 8_000;
 // 이미지로만 구성된다(AI 요약 미노출). SPA는 src/lib/publicFeaturedProducts.js가
 // 원본이지만 이 파일은 의존성 없음 제약이 있어 제목만 복제한다.
 // ⚠ 레지스트리의 title을 바꾸면 여기도 함께 고칠 것.
+// ⚠ src/lib/publicFeaturedProducts.js 레지스트리 title 과 동기 유지 (2026-09-03 상품명 개편 반영)
 const FEATURED_NEW_BOOK_TITLES = [
-  "2027 J1 원트 FULL 모의고사 국어",
-  "2027 J1 원트 미니 모의고사 국어",
+  "[수능 직전 최종점검] 2027 J1 원트 FULL 모의고사 국어(7회분)",
+  "[수능 직전 일일점검] 2027 J1 원트 미니모의고사 국어(30일분)",
+  "2027 J1 원트 미니모의고사 국어(10회분)",
 ];
 
 function isFeaturedNewBook(title) {
