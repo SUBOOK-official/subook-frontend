@@ -825,6 +825,72 @@
   font-weight: 600;
 }
 
+/* 포인트 사용 (2026-09-02) */
+.order-sidebar__points {
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px dashed var(--public-ds-border);
+  border-radius: var(--public-radius-sm);
+  background: var(--public-ds-background);
+}
+
+.order-sidebar__points-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--public-ds-text);
+}
+
+.order-sidebar__points-balance {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--public-ds-primary);
+}
+
+.order-sidebar__points-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.order-sidebar__points-input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--public-ds-border);
+  border-radius: var(--public-radius-sm);
+  background: var(--public-ds-card);
+  font: inherit;
+  font-size: 14px;
+  text-align: right;
+  color: var(--public-ds-text);
+}
+
+.order-sidebar__points-input:focus {
+  outline: none;
+  border-color: var(--public-ds-primary);
+  box-shadow: var(--public-focus-ring);
+}
+
+.order-sidebar__points-max {
+  padding: 0 12px;
+  border: 1px solid var(--public-ds-border);
+  border-radius: var(--public-radius-sm);
+  background: var(--public-ds-card);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--public-ds-text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.order-sidebar__points-max:hover {
+  border-color: var(--public-ds-primary);
+  color: var(--public-ds-primary);
+}
+
 .order-coupon-modal {
   position: fixed;
   inset: 0;

@@ -31,7 +31,10 @@ import {
 } from "../components/icons";
 import { supabase as publicSupabase } from "@shared-supabase/publicSupabaseClient";
 import ReviewComposerSheet from "../components/ReviewComposerSheet";
+import { MypagePointsCard, PointsHistorySheet } from "../components/MypagePoints";
 import { fetchMyReviews } from "../lib/publicReviews";
+import { fetchMyPoints } from "../lib/publicPoints";
+import { formatPoints, normalizeMyPoints } from "../lib/publicPointsUtils";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { usePublicWishlist } from "../contexts/PublicWishlistContext";
 import usePublicMemberGate from "../lib/publicMemberGate";
@@ -245,6 +248,9 @@ function PublicMypagePage() {
   // 통합 후기 (2026-09-02): 주문별 작성 여부 → 카드 버튼 '후기 작성'/'후기 수정' 분기
   const [myReviewsByOrderId, setMyReviewsByOrderId] = useState({});
   const [reviewComposer, setReviewComposer] = useState(null); // { order, review }
+  // 포인트 (2026-09-02) — 후기 목록과 같은 타이밍에 로드
+  const [myPoints, setMyPoints] = useState(() => normalizeMyPoints(null));
+  const [isPointsSheetOpen, setIsPointsSheetOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [confirmState, setConfirmState] = useState(initialConfirmState);
   const [confirmReason, setConfirmReason] = useState("");
@@ -414,9 +420,13 @@ function PublicMypagePage() {
   const reloadMyReviews = useCallback(async () => {
     if (!effectiveUser || isDemoPreview) {
       setMyReviewsByOrderId({});
+      setMyPoints(normalizeMyPoints(null));
       return;
     }
-    const result = await fetchMyReviews();
+    const [result, pointsResult] = await Promise.all([fetchMyReviews(), fetchMyPoints()]);
+    if (!pointsResult.error) {
+      setMyPoints(pointsResult.points);
+    }
     if (result.error) {
       return;
     }
@@ -1558,10 +1568,12 @@ function PublicMypagePage() {
           onConfirmOrder={requestConfirmPurchase}
           onRequestReturn={handleReturnRequest}
           onTrackParcel={handleTrackParcel}
+          onOpenPoints={() => setIsPointsSheetOpen(true)}
           onWriteReview={(order) =>
             setReviewComposer({ order, review: myReviewsByOrderId[order.id] ?? null })
           }
           orders={portalState.orders}
+          points={myPoints}
           reviewsByOrderId={myReviewsByOrderId}
         />
       );
@@ -1827,15 +1839,26 @@ function PublicMypagePage() {
 
       <ReviewComposerSheet
         onClose={() => setReviewComposer(null)}
-        onSaved={() => {
+        onSaved={(review) => {
           setReviewComposer(null);
           void reloadMyReviews();
-          setToastState({ message: "후기가 등록되었어요. 감사합니다!", tone: "success" });
+          setToastState({
+            message:
+              review?.earnedPoints > 0
+                ? `후기가 등록되었어요. ${formatPoints(review.earnedPoints)} 적립!`
+                : "후기가 등록되었어요. 감사합니다!",
+            tone: "success",
+          });
         }}
         open={Boolean(reviewComposer)}
         order={reviewComposer?.order ?? null}
         review={reviewComposer?.review ?? null}
         user={effectiveUser}
+      />
+      <PointsHistorySheet
+        onClose={() => setIsPointsSheetOpen(false)}
+        open={isPointsSheetOpen}
+        points={myPoints}
       />
     </>
   );
@@ -2649,13 +2672,14 @@ function OrderDetailSheet({ order, onClose }) {
   }
 
   const couponDiscount = Number(order.couponDiscountAmount) || 0;
+  const pointsUsed = Number(order.pointsUsed) || 0;
   const shippingFee = Number(order.shippingFee) || 0;
   const totalAmount = Number(order.totalAmount) || 0;
   // 환불 누계 (품목별 부분환불 포함) — 0이면 환불 행 자체를 숨긴다
   const refundedAmount = Number(order.refundedAmount) || 0;
   // 총 상품금액: subtotal 컬럼 우선, 없으면 합산금액에서 역산(결제금액 + 쿠폰할인 − 배송비).
   const productTotal =
-    Number(order.subtotal) || Math.max(0, totalAmount + couponDiscount - shippingFee);
+    Number(order.subtotal) || Math.max(0, totalAmount + couponDiscount + pointsUsed - shippingFee);
   // paid_at은 2026-07-13부터 입금확인·PG 승인 시 트리거로 기록된다. 그 이전의
   // 무통장 주문은 결제 시각이 어디에도 없으므로 '주문일시'로 라벨링해 허위 시각을 피한다.
   const paidAt = order.paidAt || null;
@@ -2693,6 +2717,12 @@ function OrderDetailSheet({ order, onClose }) {
           <dt>쿠폰할인</dt>
           <dd>{couponDiscount > 0 ? `−${formatCurrency(couponDiscount)}` : formatCurrency(0)}</dd>
         </div>
+        {pointsUsed > 0 ? (
+          <div className="public-mypage-order-detail__row">
+            <dt>포인트 사용</dt>
+            <dd>−{formatCurrency(pointsUsed)}</dd>
+          </div>
+        ) : null}
         <div className="public-mypage-order-detail__row">
           <dt>배송비</dt>
           <dd>{shippingFee > 0 ? formatCurrency(shippingFee) : "무료"}</dd>
@@ -2731,8 +2761,10 @@ function PurchasesView({
   onConfirmOrder,
   onRequestReturn,
   onTrackParcel,
+  onOpenPoints,
   onWriteReview,
   orders,
+  points,
   reviewsByOrderId,
 }) {
   const [detailOrder, setDetailOrder] = useState(null);
@@ -2760,6 +2792,7 @@ function PurchasesView({
 
   return (
     <div className="public-mypage-stack">
+      {points ? <MypagePointsCard onOpenHistory={onOpenPoints} points={points} /> : null}
       <div className="public-mypage-stat-row" role="tablist" aria-label="구매 상태 필터">
         {PURCHASE_SUMMARY_CARDS.map((card) => {
           const count = countOrdersByStatuses(orders, card.statuses);

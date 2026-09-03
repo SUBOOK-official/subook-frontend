@@ -266,6 +266,7 @@ async function createOrder({
   refundBank = null,
   refundAccountNumber = null,
   refundAccountHolder = null,
+  pointsAmount = 0,
 }) {
   if (!isSupabaseConfigured || !supabase) {
     return { data: null, error: new Error("서비스에 연결할 수 없습니다.") };
@@ -282,6 +283,8 @@ async function createOrder({
     p_shipping_memo: shippingMemo || null,
     p_payment_method: paymentMethod,
     p_member_coupon_id: memberCouponId,
+    // 포인트 사용액 (2026-09-02) — 서버가 잔액·상한(상품금액 20%)·최소주문을 재검증
+    p_points_amount: Math.max(0, Number(pointsAmount) || 0),
   };
 
   const hasRefundAccount = Boolean(refundBank || refundAccountNumber || refundAccountHolder);
@@ -327,6 +330,7 @@ async function createPgCheckoutSession({
   shippingMemo,
   paymentMethod = "card",
   memberCouponId = null,
+  pointsAmount = 0,
 }) {
   if (!isSupabaseConfigured || !supabase) {
     return { data: null, error: new Error("서비스에 연결할 수 없습니다.") };
@@ -347,6 +351,8 @@ async function createPgCheckoutSession({
     p_refund_bank: null,
     p_refund_account_number: null,
     p_refund_account_holder: null,
+    // 포인트는 세션에 스냅샷되고 finalize(주문 실체화) 시점에 실제 차감된다
+    p_points_amount: Math.max(0, Number(pointsAmount) || 0),
   });
 
   return { data: data ?? null, error: error ?? null };

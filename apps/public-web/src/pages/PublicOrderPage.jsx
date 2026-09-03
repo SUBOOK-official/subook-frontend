@@ -7,6 +7,13 @@ import PublicFooter from "../components/PublicFooter";
 import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
 import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, CloseIcon, TicketIcon } from "../components/icons";
+import { fetchMyPoints } from "../lib/publicPoints";
+import {
+  clampPointsInput,
+  computeMaxUsablePoints,
+  formatPoints,
+  getPointsUnavailableReason,
+} from "../lib/publicPointsUtils";
 import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { supabase as publicSupabase } from "@shared-supabase/publicSupabaseClient";
@@ -123,12 +130,19 @@ function previewCouponDiscount(coupon, subtotal, shippingFee) {
 
 // 결제위젯에 넘길 최종 결제금액 — 화면 표시용 totalAmount와 동일 공식.
 // (create_order가 서버에서 다시 계산하므로 제출 직전 setAmount(data.total_amount)로 한 번 더 맞춘다)
-function computePayableTotal(items, coupons, selectedCouponId) {
+function computePayableTotal(items, coupons, selectedCouponId, pointsToUse = 0, pointBalance = 0) {
   const subtotal = (items || []).reduce((sum, i) => sum + (i.price ?? 0) * (i.quantity ?? 1), 0);
   const baseShipping = calculateShippingFee(subtotal);
   const coupon = (coupons || []).find((c) => c.id === selectedCouponId) ?? null;
   const preview = previewCouponDiscount(coupon, subtotal, baseShipping);
-  return Math.max(0, subtotal + preview.shippingFeeAfter - preview.subtotalDiscount);
+  // 포인트(2026-09-02)는 서버와 같은 규칙으로 상한 클램프 — 화면 totalAmount와 동일 공식
+  const usablePoints = computeMaxUsablePoints({
+    balance: pointBalance,
+    subtotal,
+    couponDiscount: preview.subtotalDiscount,
+  });
+  const points = Math.min(Math.max(0, Number(pointsToUse) || 0), usablePoints);
+  return Math.max(0, subtotal + preview.shippingFeeAfter - preview.subtotalDiscount - points);
 }
 
 const PAYMENT_METHODS = [
@@ -737,6 +751,9 @@ function PublicOrderPage() {
   const [applicableCoupons, setApplicableCoupons] = useState([]);
   const [selectedCouponId, setSelectedCouponId] = useState(null);
   const [isCouponPickerOpen, setIsCouponPickerOpen] = useState(false);
+  // 포인트 (2026-09-02) — 잔액은 서버 조회, 사용액은 입력. 실제 검증·차감은 create_order/finalize.
+  const [pointBalance, setPointBalance] = useState(0);
+  const [pointsToUse, setPointsToUse] = useState(0);
 
   const showToast = useCallback((message, type = "info") => {
     setToast({ message, type });
@@ -903,10 +920,28 @@ function PublicOrderPage() {
     void loadCoupons();
   }, [user, orderItems]);
 
+  // 포인트 잔액 — 회원만 (게스트 주문은 사용 불가)
+  useEffect(() => {
+    if (!user || isGuestCheckout) {
+      setPointBalance(0);
+      setPointsToUse(0);
+      return undefined;
+    }
+    let cancelled = false;
+    void fetchMyPoints({ limit: 1 }).then((result) => {
+      if (!cancelled) {
+        setPointBalance(result.points.balance);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [user, isGuestCheckout]);
+
   // pricingRef를 최신 상태로 유지 — init effect가 deps 없이 초기 금액을 읽기 위함.
   useEffect(() => {
-    pricingRef.current = { orderItems, applicableCoupons, selectedCouponId };
-  }, [orderItems, applicableCoupons, selectedCouponId]);
+    pricingRef.current = { orderItems, applicableCoupons, selectedCouponId, pointsToUse, pointBalance };
+  }, [orderItems, applicableCoupons, selectedCouponId, pointsToUse, pointBalance]);
 
   // ── 토스 결제위젯 초기화 — user 준비 시 "딱 1회"만 ───────────────────────────
   // ⚠ deps에 orderItems/쿠폰을 넣으면 마운트 직후 값이 바뀌며 effect가 재실행되어
@@ -927,7 +962,7 @@ function PublicOrderPage() {
         // setAmount는 render보다 먼저 호출해야 한다. 정확한 금액은 sync effect가 유지.
         await widgets.setAmount({
           currency: "KRW",
-          value: computePayableTotal(p.orderItems, p.applicableCoupons, p.selectedCouponId),
+          value: computePayableTotal(p.orderItems, p.applicableCoupons, p.selectedCouponId, p.pointsToUse, p.pointBalance),
         });
         await Promise.all([
           widgets.renderPaymentMethods({ selector: "#toss-payment-method", variantKey: "DEFAULT" }),
@@ -950,9 +985,9 @@ function PublicOrderPage() {
     if (!tossWidgetReady || !tossWidgetsRef.current) return;
     tossWidgetsRef.current.setAmount({
       currency: "KRW",
-      value: computePayableTotal(orderItems, applicableCoupons, selectedCouponId),
+      value: computePayableTotal(orderItems, applicableCoupons, selectedCouponId, pointsToUse, pointBalance),
     });
-  }, [tossWidgetReady, orderItems, applicableCoupons, selectedCouponId]);
+  }, [tossWidgetReady, orderItems, applicableCoupons, selectedCouponId, pointsToUse, pointBalance]);
 
   // ── 나이스페이 SDK 사전 로드 — 제출 시점 지연을 줄인다 (실패해도 제출 시 재시도) ──
   useEffect(() => {
@@ -1111,6 +1146,8 @@ function PublicOrderPage() {
       shippingMemo: shipping.memo.trim() || null,
       paymentMethod,
       memberCouponId: selectedCouponId,
+      // 포인트 사용액 — 서버가 잔액·상한을 재검증 (게스트 0)
+      pointsAmount: isGuestCheckout ? 0 : effectivePoints,
     };
 
     // 비회원은 전용 anon RPC로 — 쿠폰 없음 + 약관 동의를 서버에 명시 전달(동의 시각 기록).
@@ -1334,7 +1371,15 @@ function PublicOrderPage() {
   const remoteSurcharge = remoteAreaInfo?.surcharge ?? 0;
   const shippingFee = couponPreview.shippingFeeAfter + remoteSurcharge;
   const couponDiscount = couponPreview.subtotalDiscount;
-  const totalAmount = Math.max(0, subtotal + shippingFee - couponDiscount);
+  // 포인트 (2026-09-02): 1,000P 이상 보유 · 상품금액 15,000원 이상 · 상품금액 20%까지 (서버와 동일 규칙)
+  const maxUsablePoints = isGuestCheckout
+    ? 0
+    : computeMaxUsablePoints({ balance: pointBalance, subtotal, couponDiscount });
+  const effectivePoints = Math.min(Math.max(0, pointsToUse), maxUsablePoints);
+  const pointsUnavailableReason = isGuestCheckout
+    ? ""
+    : getPointsUnavailableReason({ balance: pointBalance, subtotal });
+  const totalAmount = Math.max(0, subtotal + shippingFee - couponDiscount - effectivePoints);
 
   // P1-7: 쿠폰 정렬 — 만료 임박(<24h) 우선 + 큰 할인 순.
   // 가장 큰 이득이 되는 쿠폰을 위로 올리고, 추천/만료 임박 라벨로 시각 가이드.
@@ -1719,6 +1764,52 @@ function PublicOrderPage() {
                         ? "배송비 무료"
                         : `-${formatCurrency(couponDiscount)}`}
                     </span>
+                  </div>
+                ) : null}
+
+                {/* 포인트 사용 (2026-09-02) — 회원 + 잔액 있을 때만 노출 */}
+                {!isGuestCheckout && pointBalance > 0 ? (
+                  <div className="order-sidebar__points">
+                    <div className="order-sidebar__points-head">
+                      <span>포인트 사용</span>
+                      <span className="order-sidebar__points-balance">보유 {formatPoints(pointBalance)}</span>
+                    </div>
+                    {maxUsablePoints > 0 ? (
+                      <>
+                        <div className="order-sidebar__points-row">
+                          <input
+                            aria-label="사용할 포인트"
+                            className="order-sidebar__points-input"
+                            inputMode="numeric"
+                            onChange={(e) => setPointsToUse(clampPointsInput(e.target.value, maxUsablePoints))}
+                            placeholder="0"
+                            type="text"
+                            value={effectivePoints > 0 ? String(effectivePoints) : ""}
+                          />
+                          <button
+                            className="order-sidebar__points-max"
+                            onClick={() =>
+                              setPointsToUse(effectivePoints === maxUsablePoints ? 0 : maxUsablePoints)
+                            }
+                            type="button"
+                          >
+                            {effectivePoints === maxUsablePoints ? "해제" : "전액 사용"}
+                          </button>
+                        </div>
+                        <p className="order-sidebar__hint">
+                          이 주문에서 최대 {formatPoints(maxUsablePoints)} (상품금액의 20%)
+                        </p>
+                      </>
+                    ) : (
+                      <p className="order-sidebar__hint">{pointsUnavailableReason}</p>
+                    )}
+                  </div>
+                ) : null}
+
+                {effectivePoints > 0 ? (
+                  <div className="order-sidebar__row order-sidebar__row--discount">
+                    <span>포인트 사용</span>
+                    <span>-{formatCurrency(effectivePoints)}</span>
                   </div>
                 ) : null}
 

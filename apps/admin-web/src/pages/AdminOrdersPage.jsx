@@ -1527,19 +1527,26 @@ function AdminOrdersPage() {
           const couponDiscount = Number(
             selectedOrder.coupon_discount_amount ?? selectedOrder.discount_amount ?? 0,
           );
+          // 포인트 사용액 (2026-09-02) — total_amount에 이미 차감 반영
+          const pointsUsed = Number(selectedOrder.points_used ?? 0);
+          const hasDiscount = couponDiscount > 0 || pointsUsed > 0;
           return (
             <div className="mt-2 pt-2 border-t border-slate-100 text-sm space-y-1">
               <div className="flex justify-between">
                 <span>상품 {formatCurrency(selectedOrder.subtotal)} + 배송비 {selectedOrder.shipping_fee === 0 ? "무료" : formatCurrency(selectedOrder.shipping_fee)}</span>
-                {couponDiscount > 0 ? (
-                  <span className="font-semibold text-rose-600">쿠폰 −{formatCurrency(couponDiscount)}</span>
+                {hasDiscount ? (
+                  <span className="font-semibold text-rose-600">
+                    {couponDiscount > 0 ? `쿠폰 −${formatCurrency(couponDiscount)}` : ""}
+                    {couponDiscount > 0 && pointsUsed > 0 ? " · " : ""}
+                    {pointsUsed > 0 ? `포인트 −${formatCurrency(pointsUsed)}` : ""}
+                  </span>
                 ) : (
                   <span className="font-black text-lg">{formatCurrency(selectedOrder.total_amount)}</span>
                 )}
               </div>
-              {couponDiscount > 0 && (
+              {hasDiscount && (
                 <div className="flex justify-between items-center">
-                  <span className="text-xs text-slate-400">쿠폰 할인 적용 후 결제 금액</span>
+                  <span className="text-xs text-slate-400">할인 적용 후 결제 금액</span>
                   <span className="font-black text-lg">{formatCurrency(selectedOrder.total_amount)}</span>
                 </div>
               )}
@@ -2605,11 +2612,13 @@ function AdminOrdersPage() {
                 <span className="text-slate-500">주문 금액</span>
                 <span className="font-bold">{formatCurrency(paymentModal.total_amount)}</span>
               </div>
-              {Number(paymentModal.coupon_discount_amount ?? 0) > 0 && (
+              {(Number(paymentModal.coupon_discount_amount ?? 0) > 0 || Number(paymentModal.points_used ?? 0) > 0) && (
                 <div className="flex justify-between text-xs text-slate-400">
                   <span>구성</span>
                   <span>
-                    상품 {formatCurrency(paymentModal.subtotal)} + 배송비 {formatCurrency(paymentModal.shipping_fee)} − 쿠폰 {formatCurrency(paymentModal.coupon_discount_amount)}
+                    상품 {formatCurrency(paymentModal.subtotal)} + 배송비 {formatCurrency(paymentModal.shipping_fee)}
+                    {Number(paymentModal.coupon_discount_amount ?? 0) > 0 ? ` − 쿠폰 ${formatCurrency(paymentModal.coupon_discount_amount)}` : ""}
+                    {Number(paymentModal.points_used ?? 0) > 0 ? ` − 포인트 ${formatCurrency(paymentModal.points_used)}` : ""}
                   </span>
                 </div>
               )}

@@ -101,6 +101,8 @@ export function normalizeReviewItem(row) {
           }))
       : [],
     isHidden: Boolean(row.is_hidden),
+    // create_review 응답에만 실림 — 작성 직후 토스트용
+    earnedPoints: toNonNegativeInteger(row.earned_points),
     createdAt: row.created_at ?? null,
     updatedAt: row.updated_at ?? null,
   };

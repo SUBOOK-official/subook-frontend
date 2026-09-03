@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import AdminDialog from "../components/AdminDialog";
 import AdminShell from "../components/AdminShell";
+import MemberPointsPanel from "../components/MemberPointsPanel";
 import AdminPageTabs from "../components/AdminPageTabs";
 import AdminPagination from "../components/AdminPagination";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
@@ -880,6 +881,10 @@ function AdminMembersPage() {
                     )}
                   </DetailSection>
                 </div>
+
+                <DetailSection title="포인트">
+                  <MemberPointsPanel userId={detailMember?.user_id} />
+                </DetailSection>
 
                 <DetailSection title="수거 이력" right={<span className="text-xs font-bold text-slate-400">{formatCount(pickups.length)}</span>}>
                   {pickups.length === 0 ? (

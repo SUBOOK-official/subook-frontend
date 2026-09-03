@@ -934,6 +934,8 @@ export function mapOrderToDisplayOrder(order) {
     shippingFee: order.shipping_fee ?? 0,
     couponDiscountAmount: order.coupon_discount_amount ?? 0,
     appliedMemberCouponId: order.applied_member_coupon_id ?? null,
+    // 포인트 사용액 (2026-09-02) — 결제금액에 이미 차감 반영됨
+    pointsUsed: order.points_used ?? 0,
     trackingNumber: order.tracking_number ?? null,
     trackingCompany: order.tracking_carrier ?? "CJ대한통운",
     autoConfirmDaysRemaining,

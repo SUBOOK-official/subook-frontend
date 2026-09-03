@@ -1,0 +1,150 @@
+/* 마이페이지 포인트 카드 + 내역 시트 (토큰만 사용) */
+
+.public-mypage-points-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid var(--public-ds-border);
+  border-radius: var(--public-radius-lg);
+  background: var(--public-ds-secondary);
+  color: var(--public-ds-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.public-mypage-points-card:focus-visible {
+  outline: none;
+  box-shadow: var(--public-focus-ring);
+}
+
+.public-mypage-points-card__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: var(--public-ds-card);
+  color: var(--public-ds-primary);
+}
+
+.public-mypage-points-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.public-mypage-points-card__label {
+  font-size: 12px;
+  color: var(--public-ds-text-muted);
+}
+
+.public-mypage-points-card__value {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--public-ds-primary);
+}
+
+.public-mypage-points-card__hint {
+  font-size: 12px;
+  color: var(--public-ds-text-secondary);
+}
+
+.public-mypage-points-card__more {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--public-ds-text-secondary);
+}
+
+.public-mypage-points-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 14px 16px;
+  border-radius: var(--public-radius-md);
+  background: var(--public-ds-secondary);
+  font-size: 14px;
+  color: var(--public-ds-text);
+}
+
+.public-mypage-points-summary strong {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--public-ds-primary);
+}
+
+.public-mypage-points-policy {
+  margin: 12px 0 16px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--public-ds-text-muted);
+}
+
+.public-mypage-points-empty {
+  margin: 0;
+  padding: 24px 0;
+  text-align: center;
+  font-size: 14px;
+  color: var(--public-ds-text-muted);
+}
+
+.public-mypage-points-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.public-mypage-points-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--public-ds-divider);
+}
+
+.public-mypage-points-item:first-child {
+  border-top: 0;
+}
+
+.public-mypage-points-item__title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--public-ds-text);
+}
+
+.public-mypage-points-item__note {
+  font-weight: 400;
+  color: var(--public-ds-text-secondary);
+}
+
+.public-mypage-points-item__meta {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--public-ds-text-muted);
+}
+
+.public-mypage-points-item__amount {
+  flex-shrink: 0;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--public-ds-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.public-mypage-points-item__amount--minus {
+  color: var(--public-ds-text-secondary);
+}

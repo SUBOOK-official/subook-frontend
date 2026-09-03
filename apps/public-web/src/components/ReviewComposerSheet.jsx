@@ -15,6 +15,7 @@ import {
   getReviewRatingLabel,
   validateReviewDraft,
 } from "../lib/publicReviewsUtils";
+import { POINT_POLICY, formatPoints } from "../lib/publicPointsUtils";
 import { getThumbnailImageUrl } from "../lib/storageImage";
 import "./PublicReviews.css";
 
@@ -354,7 +355,10 @@ function ReviewComposerSheet({ open, order, review, user, onClose, onSaved }) {
           />
         </div>
 
-        <p className="public-review-form__hint">등록한 후기는 수정하거나 삭제할 수 없으니 한 번 더 확인해 주세요.</p>
+        <p className="public-review-form__hint">
+          글 후기 {formatPoints(POINT_POLICY.earnText)} · 사진 후기 {formatPoints(POINT_POLICY.earnPhoto)} 적립.
+          등록한 후기는 수정하거나 삭제할 수 없으니 한 번 더 확인해 주세요.
+        </p>
 
         {errorMessage ? (
           <p className="public-review-form__error" role="alert">

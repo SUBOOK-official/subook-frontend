@@ -134,7 +134,9 @@ function buildSalesRow(order, item) {
   row["배송 방식 이름"] = "일반택배";
   row["배송비"] = order.shipping_fee ?? "";
   row["상품 합계 금액"] = order.subtotal ?? "";
-  row["주문 할인 합계 금액"] = (order.discount_amount ?? 0) + (order.coupon_discount_amount ?? 0);
+  // 포인트(2026-09-02)도 수북 부담 할인 — 시트의 할인 합계에 포함
+  row["주문 할인 합계 금액"] =
+    (order.discount_amount ?? 0) + (order.coupon_discount_amount ?? 0) + (order.points_used ?? 0);
   row["주문 금액"] = order.total_amount ?? "";
   row["결제 상태"] = isPaid ? "결제 완료" : "입금 대기";
   row["결제 완료 금액"] = isPaid ? order.total_amount ?? "" : "";
