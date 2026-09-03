@@ -62,18 +62,19 @@ test("matchesFeaturedEntry prefers an explicit productId over the title", () => 
   assert.equal(matchesFeaturedEntry(entry, { id: "4242", title: "" }), true);
 });
 
-// 실제 레지스트리 회귀 방지 — 등록된 콜라보 상품은 id로 걸리고 출시 전 상태여야 한다.
+// 실제 레지스트리 회귀 방지 — 등록된 콜라보 상품은 id로 걸리고 출시 전 고정 시각에는 잠겨야 한다.
 test("registry resolves the registered collab products by id", () => {
   const full = FEATURED_PRODUCTS.find((entry) => entry.key === "j1-full");
   const mini = FEATURED_PRODUCTS.find((entry) => entry.key === "j1-mini");
   const mini10 = FEATURED_PRODUCTS.find((entry) => entry.key === "j1-mini-10");
+  const beforeRelease = Date.parse("2026-09-03T17:59:00+09:00");
 
   assert.equal(findFeaturedProductEntry({ id: full.productId, title: "" })?.key, "j1-full");
   assert.equal(findFeaturedProductEntry({ id: mini.productId, title: "" })?.key, "j1-mini");
   assert.equal(findFeaturedProductEntry({ id: mini10.productId, title: "" })?.key, "j1-mini-10");
-  assert.equal(isPreReleaseProduct({ id: full.productId }), true);
-  assert.equal(isPreReleaseProduct({ id: mini.productId }), true);
-  assert.equal(isPreReleaseProduct({ id: mini10.productId }), true);
+  assert.equal(isPreReleaseProduct({ id: full.productId }, FEATURED_PRODUCTS, beforeRelease), true);
+  assert.equal(isPreReleaseProduct({ id: mini.productId }, FEATURED_PRODUCTS, beforeRelease), true);
+  assert.equal(isPreReleaseProduct({ id: mini10.productId }, FEATURED_PRODUCTS, beforeRelease), true);
   // 10회분은 미니(30일분)의 상세페이지 이미지를 그대로 쓴다.
   assert.equal(getFeaturedDetailKey(mini10), "j1-mini");
   assert.equal(getFeaturedDetailKey(mini), "j1-mini");
