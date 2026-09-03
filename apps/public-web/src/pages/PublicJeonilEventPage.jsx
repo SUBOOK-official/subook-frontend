@@ -285,6 +285,20 @@ function PublicJeonilEventPage() {
     };
   }, [couponOpen]);
 
+  // 상품 상세의 '알림 받기' 버튼 등에서 #coupon 으로 진입하면 쿠폰 신청 구역으로 스크롤.
+  // 이미지 로드 후 레이아웃이 확정되도록 두 번(초기·지연) 스크롤한다.
+  useEffect(() => {
+    if (window.location.hash !== "#coupon") return undefined;
+    const doScroll = () =>
+      couponRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    const t1 = setTimeout(doScroll, 400);
+    const t2 = setTimeout(doScroll, 1100);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, []);
+
   const blockCopy = (event) => event.preventDefault();
   const openCoupon = () => setCouponOpen(true);
   const scrollToCoupon = () => {
