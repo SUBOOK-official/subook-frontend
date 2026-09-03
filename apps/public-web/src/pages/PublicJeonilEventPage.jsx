@@ -7,6 +7,7 @@ import { COLLAB_OPEN_AT } from "../lib/publicFeaturedProducts";
 import { fetchFeaturedProductsByKey } from "../lib/publicFeaturedProductsApi";
 import { usePageMeta } from "../lib/usePageMeta";
 import JeonilCouponDialog from "../components/JeonilCouponDialog";
+import JeonilProductChooserDialog from "../components/JeonilProductChooserDialog";
 import heroBg from "../assets/jeonil/hero-bg.webp";
 import bookmarkImg from "../assets/jeonil/bookmark.webp";
 import gangsaCollage from "../assets/jeonil/gangsa-collage.webp";
@@ -41,8 +42,18 @@ const R_COUPON = "1493 / 976";
 
 // 교재 카드 → 상품 상세 링크. key는 publicFeaturedProducts.js 레지스트리와 맞춘다.
 // 아직 등록 전인 상품은 id를 못 찾으므로 링크 없이 이미지만 보여준다(죽은 링크 방지).
+// choices: 카드 하나가 상품 여럿을 대표하면(미니 10회분/30일분) 링크 대신 선택 모달을 연다.
+//   둘 중 하나만 등록돼 있으면 모달 없이 key 상품으로 바로 간다.
 const BOOK_CARDS = [
-  { key: "j1-mini", src: card1Img, alt: "2027 J1 원트 미니모의고사 국어" },
+  {
+    key: "j1-mini",
+    src: card1Img,
+    alt: "2027 J1 원트 미니모의고사 국어",
+    choices: [
+      { key: "j1-mini-10", label: "10회분", desc: "SET A · SET B · SET C 중 선택" },
+      { key: "j1-mini", label: "30일분", desc: "1-30회 전체 SET" },
+    ],
+  },
   { key: "j1-full", src: card2Img, alt: "2027 J1 원트 FULL 모의고사 국어" },
   { key: "j1-tomato", src: card3Img, alt: "2027 J1 약술논술 토마토 모의고사" },
 ];
@@ -213,6 +224,8 @@ function PublicJeonilEventPage() {
   });
 
   const [couponOpen, setCouponOpen] = useState(false);
+  // 교재 카드 구성 선택 모달 — 열려 있으면 해당 카드(choices에 productId가 채워진 상태)
+  const [chooserCard, setChooserCard] = useState(null);
   const [dday] = useState(getDDayLabel);
   const couponRef = useRef(null);
   const booksRef = useRef(null);
@@ -515,6 +528,25 @@ function PublicJeonilEventPage() {
                   />
                 );
 
+                // 카드가 상품 여럿을 대표하고 둘 이상 등록돼 있으면 링크 대신 선택 모달
+                const choices = (card.choices ?? [])
+                  .map((choice) => ({ ...choice, productId: featuredByKey[choice.key]?.id ?? null }))
+                  .filter((choice) => choice.productId !== null);
+                if (choices.length > 1) {
+                  return (
+                    <button
+                      className="jeonil-book-link jeonil-book-link--button"
+                      key={card.key}
+                      type="button"
+                      onClick={() => setChooserCard({ ...card, choices })}
+                      aria-haspopup="dialog"
+                      aria-label={`${card.alt} 구성 선택`}
+                    >
+                      {image}
+                    </button>
+                  );
+                }
+
                 // 상품이 아직 등록되지 않았으면 링크 없이 이미지만 (죽은 링크 방지)
                 return productId === null ? (
                   <span className="jeonil-book-link" key={card.key}>
@@ -568,6 +600,7 @@ function PublicJeonilEventPage() {
       </div>
 
       <JeonilCouponDialog open={couponOpen} onClose={() => setCouponOpen(false)} />
+      <JeonilProductChooserDialog card={chooserCard} onClose={() => setChooserCard(null)} />
     </PublicPageFrame>
   );
 }

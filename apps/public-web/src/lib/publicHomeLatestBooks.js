@@ -8,7 +8,8 @@ import {
 
 // v2: isPublic 강제 false 버그로 빈 배열이 캐시된 이력이 있어 키를 올려 즉시 무효화
 // v3: 콜라보 고정 상품 도입 — 기존 캐시(고정 전 순서)를 즉시 버리기 위해 키를 올림
-const HOME_LATEST_BOOKS_CACHE_KEY = "subook.public.home.latest-books.v3";
+// v4: 9/3 콜라보 상품명 개편 + 미니 10회분 추가 — 옛 제목·2개 고정으로 굳은 캐시를 즉시 폐기
+const HOME_LATEST_BOOKS_CACHE_KEY = "subook.public.home.latest-books.v4";
 const HOME_LATEST_BOOK_LIMIT = 8;
 
 function hasWindowStorage() {

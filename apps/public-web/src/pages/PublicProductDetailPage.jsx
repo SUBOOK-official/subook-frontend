@@ -335,11 +335,13 @@ function VariantSelect({ groups, onAdd, disabled }) {
 
 // 선택된 회차 한 줄 — "라벨 + N개 남음" + 수량 stepper(재고로 캡) + 라인 합계 + 제거(✕).
 // label: 표시 라벨(무옵션 단일상품은 상품명). removable: 단일옵션이면 false로 ✕ 숨김.
+// showStock: 콜라보(레지스트리 hideStockCount) 상품은 "N개 남음"을 숨긴다(재고 캡은 그대로).
 function SelectedOptionRow({
   group,
   label,
   quantity,
   removable = true,
+  showStock = true,
   onDecrease,
   onIncrease,
   onRemove,
@@ -353,9 +355,11 @@ function SelectedOptionRow({
       <div className="public-detail-selected-option__head">
         <span className="public-detail-selected-option__name">
           {displayLabel}
-          <span className="public-detail-selected-option__stock">
-            {group.availableCount}개 남음
-          </span>
+          {showStock ? (
+            <span className="public-detail-selected-option__stock">
+              {group.availableCount}개 남음
+            </span>
+          ) : null}
         </span>
         {removable ? (
           <button
@@ -1722,6 +1726,7 @@ function PublicProductDetailPage() {
     if (selections.length === 0) return null;
     // 옵션이 하나뿐(무옵션 단일상품/단일회차)이면 제거(✕)를 숨기고, 무옵션 그룹은 상품명을 라벨로.
     const isSingleOption = variantGroups.length === 1;
+    const showStock = featuredEntry?.hideStockCount !== true;
     return (
       <div className="public-detail-selected-options">
         {selections.map((selection) => {
@@ -1740,6 +1745,7 @@ function PublicProductDetailPage() {
               onRemove={() => handleRemoveVariant(selection.key)}
               quantity={selection.quantity}
               removable={!isSingleOption}
+              showStock={showStock}
             />
           );
         })}

@@ -741,6 +741,18 @@
   width: 100%;
   text-decoration: none;
 }
+/* 선택 모달을 여는 카드는 <button> — 링크 래퍼와 같은 레이아웃이 되도록 버튼 기본 스타일만 걷어낸다 */
+.jeonil-book-link--button {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 0;
+  background: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
 .jeonil-books.is-visible .jeonil-book { opacity: 1; transform: translateY(0); }
 /* 순차 등장 딜레이는 래퍼 기준으로 센다 (.jeonil-book 은 래퍼 안 유일 자식이라 항상 1번째) */
 .jeonil-books.is-visible .jeonil-book-link:nth-child(2) .jeonil-book { transition-delay: 0.15s; }

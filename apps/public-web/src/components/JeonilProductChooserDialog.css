@@ -1,0 +1,120 @@
+/* 전일학원 랜딩 교재 카드 → 상품 구성 선택 모달 (출시 알림 팝업 JeonilCouponDialog 와 같은 톤) */
+.jeonil-chooser {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.62);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: jeonil-chooser-fade 0.18s ease;
+}
+@keyframes jeonil-chooser-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.jeonil-chooser__panel {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  box-sizing: border-box;
+  border-radius: 18px;
+  background: #ffffff;
+  padding: 34px 30px 28px;
+  box-shadow: 0 24px 60px rgba(8, 15, 71, 0.28);
+}
+
+.jeonil-chooser__close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: #222222;
+  cursor: pointer;
+}
+.jeonil-chooser__close:hover { background: rgba(0, 0, 0, 0.06); }
+
+.jeonil-chooser__eyebrow {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b6b76;
+  text-align: center;
+  letter-spacing: -0.01em;
+  word-break: keep-all;
+}
+
+.jeonil-chooser__title {
+  margin: 0 0 20px;
+  font-size: 18px;
+  font-weight: 800;
+  color: #1a1a1a;
+  text-align: center;
+  letter-spacing: -0.02em;
+  word-break: keep-all;
+}
+
+.jeonil-chooser__list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.jeonil-chooser__choice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 16px 18px;
+  border: 1.5px solid #e3e3e8;
+  border-radius: 14px;
+  background: #ffffff;
+  color: #1a1a1a;
+  text-decoration: none;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.jeonil-chooser__choice:hover,
+.jeonil-chooser__choice:focus-visible {
+  border-color: #5b7cfa;
+  background: #f5f6f9;
+  outline: none;
+}
+
+.jeonil-chooser__choice-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.jeonil-chooser__choice-label {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.jeonil-chooser__choice-desc {
+  font-size: 13px;
+  font-weight: 500;
+  color: #6b6b76;
+  word-break: keep-all;
+}
+.jeonil-chooser__choice-arrow {
+  flex-shrink: 0;
+  color: #9a9aa2;
+}
+.jeonil-chooser__choice:hover .jeonil-chooser__choice-arrow { color: #5b7cfa; }

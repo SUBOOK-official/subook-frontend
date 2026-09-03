@@ -44,6 +44,8 @@ export const FEATURED_PRODUCTS = [
     // 별도 배포 없이 가격·구매가 한 번에 열린다.
     // ⚠ UI 차단일 뿐이라 DB 가드(pre_release_products 테이블)와 짝으로 유지할 것.
     preRelease: true,
+    // 남은 수량("N개 남음") 숨김 — 콜라보 재고(옵션당 100권)는 운영상 숫자라 시급성 신호가 아니다.
+    hideStockCount: true,
     releaseAt: COLLAB_OPEN_AT,
     eventPath: JEONIL_EVENT_PATH,
     preReleaseCoverUrl: `${TEASER_COVER_BASE}/1787900000000-teaser-j1-full-v2.png`,
@@ -54,6 +56,8 @@ export const FEATURED_PRODUCTS = [
     productId: 2371,
     pinToLatest: true,
     preRelease: true,
+    // 남은 수량("N개 남음") 숨김 — 콜라보 재고(옵션당 100권)는 운영상 숫자라 시급성 신호가 아니다.
+    hideStockCount: true,
     releaseAt: COLLAB_OPEN_AT,
     eventPath: JEONIL_EVENT_PATH,
     preReleaseCoverUrl: `${TEASER_COVER_BASE}/1787900000000-teaser-j1-mini-v2.png`,
@@ -68,6 +72,8 @@ export const FEATURED_PRODUCTS = [
     detailKey: "j1-mini",
     pinToLatest: true,
     preRelease: true,
+    // 남은 수량("N개 남음") 숨김 — 콜라보 재고(옵션당 100권)는 운영상 숫자라 시급성 신호가 아니다.
+    hideStockCount: true,
     releaseAt: COLLAB_OPEN_AT,
     eventPath: JEONIL_EVENT_PATH,
     preReleaseCoverUrl: `${TEASER_COVER_BASE}/1787900000000-teaser-j1-mini-v2.png`,
@@ -79,6 +85,8 @@ export const FEATURED_PRODUCTS = [
     productId: null,
     pinToLatest: false,
     preRelease: true,
+    // 남은 수량("N개 남음") 숨김 — 콜라보 재고(옵션당 100권)는 운영상 숫자라 시급성 신호가 아니다.
+    hideStockCount: true,
     releaseAt: COLLAB_OPEN_AT,
     eventPath: JEONIL_EVENT_PATH,
   },
