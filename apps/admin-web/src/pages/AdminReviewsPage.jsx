@@ -5,8 +5,8 @@ import { StarIcon } from "../components/icons";
 import { InlineLoading } from "../components/Loading";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 
-// 통합 구매 후기 관리 (2026-09-02) — 후기는 주문 1건당 1개, subook.kr 모든 상품 상세에 공통 노출.
-// 운영자는 숨김/해제만 한다 (수정·삭제는 작성자 본인 몫).
+// 통합 구매 후기 관리 (2026-09-02) — 신규 주문 후기와 식스샵 이전 후기를 함께 관리한다.
+// 운영자는 숨김/해제만 한다. 회원이 작성한 후기도 등록 후 수정·삭제할 수 없다.
 
 const FILTERS = [
   { key: "all", label: "전체" },
@@ -106,7 +106,7 @@ function AdminReviewsPage() {
   return (
     <AdminShell
       activeModule="reviews"
-      description="구매확정 회원이 남긴 통합 후기 — subook.kr 모든 상품 상세에 공통으로 보입니다"
+      description="신규 구매확정 후기와 식스샵 이전 후기 — subook.kr 모든 상품 상세에 공통으로 보입니다"
       title="후기 관리"
     >
       <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
@@ -165,6 +165,11 @@ function AdminReviewsPage() {
                   {row.member_email ? (
                     <span className="text-xs text-slate-400">{row.member_email}</span>
                   ) : null}
+                  {row.source === "sixshop" ? (
+                    <span className="text-xs font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded">
+                      식스샵 이전
+                    </span>
+                  ) : null}
                   {row.is_hidden ? (
                     <span className="text-xs font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded">
                       숨김
@@ -172,7 +177,9 @@ function AdminReviewsPage() {
                   ) : null}
                 </div>
                 <p className="text-xs text-slate-500 mb-2">
-                  {row.order_number ? (
+                  {row.source === "sixshop" ? (
+                    "식스샵 이전 후기"
+                  ) : row.order_number ? (
                     <a
                       className="text-blue-700 hover:underline"
                       href={`/admin/orders?q=${encodeURIComponent(row.order_number)}`}
