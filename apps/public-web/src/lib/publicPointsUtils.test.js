@@ -6,15 +6,22 @@ import {
   computeMaxUsablePoints,
   formatPoints,
   getPointsUnavailableReason,
+  isReviewRewardEligible,
   normalizeMyPoints,
 } from "./publicPointsUtils.js";
 
 test("POINT_POLICY matches the agreed policy values", () => {
   assert.equal(POINT_POLICY.earnText, 500);
   assert.equal(POINT_POLICY.earnPhoto, 1000);
+  assert.equal(POINT_POLICY.minReviewOrderSubtotal, 10000);
   assert.equal(POINT_POLICY.minBalanceToUse, 1000);
   assert.equal(POINT_POLICY.minOrderSubtotal, 15000);
   assert.equal(POINT_POLICY.maxUseRatio, 0.2);
+});
+
+test("review rewards require at least 10,000 won in product subtotal", () => {
+  assert.equal(isReviewRewardEligible(9999), false);
+  assert.equal(isReviewRewardEligible(10000), true);
 });
 
 test("computeMaxUsablePoints caps at 20% of subtotal", () => {

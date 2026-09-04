@@ -20,7 +20,11 @@ import {
   getReviewRatingLabel,
   validateReviewDraft,
 } from "../lib/publicReviewsUtils";
-import { POINT_POLICY, formatPoints } from "../lib/publicPointsUtils";
+import {
+  POINT_POLICY,
+  formatPoints,
+  isReviewRewardEligible,
+} from "../lib/publicPointsUtils";
 import { getThumbnailImageUrl } from "../lib/storageImage";
 import "./PublicReviews.css";
 
@@ -161,9 +165,18 @@ function ReviewComposerSheet({ open, order, review, user, onClose, onSaved }) {
 
   const contentLength = draft.content.trim().length;
   const displayRating = hoverRating || draft.rating;
-  const orderItemCount = (order?.items ?? [])
-    .filter((item) => !item.refundedAt)
-    .reduce((sum, item) => sum + (Number(item.quantity) || 1), 0);
+  let orderItemCount = 0;
+  let activeItemCount = 0;
+  let activeItemSubtotal = 0;
+  for (const item of order?.items ?? []) {
+    if (item.refundedAt) continue;
+    orderItemCount += Number(item.quantity) || 1;
+    activeItemCount += 1;
+    // 마이페이지 주문 정규화에서 price는 order_items.total_price다.
+    activeItemSubtotal += Number(item.price) || 0;
+  }
+  const rewardSubtotal = activeItemCount > 0 ? activeItemSubtotal : Number(order?.subtotal) || 0;
+  const isRewardEligible = isReviewRewardEligible(rewardSubtotal);
 
   // GA4 dialog_close에 실을 작성 진행도 — 닫는 시점 값이 필요해 함수로 넘긴다.
   const getAnalyticsCloseExtra = () => ({
@@ -464,7 +477,9 @@ function ReviewComposerSheet({ open, order, review, user, onClose, onSaved }) {
         </div>
 
         <p className="public-review-form__hint">
-          글 후기 {formatPoints(POINT_POLICY.earnText)} · 사진 후기 {formatPoints(POINT_POLICY.earnPhoto)} 적립.
+          {isRewardEligible
+            ? `글 후기 ${formatPoints(POINT_POLICY.earnText)} · 사진 후기 ${formatPoints(POINT_POLICY.earnPhoto)} 적립. `
+            : `상품금액 ${POINT_POLICY.minReviewOrderSubtotal.toLocaleString("ko-KR")}원 이상 주문부터 후기 포인트가 적립돼요. `}
           등록한 후기는 수정하거나 삭제할 수 없으니 한 번 더 확인해 주세요.
         </p>
 

@@ -1,9 +1,10 @@
 // 회원 포인트 — 순수 헬퍼 (브라우저·Supabase 의존 없음, 단위 테스트 대상)
-// ⚠ 서버 point_policy()와 같은 값 유지 (backend 20260902111905_member_points.sql)
+// ⚠ 서버 point_policy()와 같은 값 유지 (backend 최신 member points migration)
 
 export const POINT_POLICY = Object.freeze({
   earnText: 500,
   earnPhoto: 1000,
+  minReviewOrderSubtotal: 10000,
   minBalanceToUse: 1000,
   minOrderSubtotal: 15000,
   maxUseRatio: 0.2,
@@ -17,6 +18,10 @@ function toInteger(value) {
 
 export function formatPoints(value) {
   return `${toInteger(value).toLocaleString("ko-KR")}P`;
+}
+
+export function isReviewRewardEligible(subtotal, policy = POINT_POLICY) {
+  return Math.max(0, toInteger(subtotal)) >= policy.minReviewOrderSubtotal;
 }
 
 // 이 주문에서 쓸 수 있는 최대 포인트. 0이면 사용 불가.
