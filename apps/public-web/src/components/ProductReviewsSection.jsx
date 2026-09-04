@@ -5,6 +5,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { InfoIcon, StarIcon } from "./icons";
 import { ResponsiveSheet } from "./PublicMypageUi.jsx";
+import {
+  trackEmptyState,
+  trackEvent,
+  trackException,
+  trackImageZoom,
+  trackSelectItem,
+} from "../lib/analytics";
+import { useInViewOnce } from "../lib/useInViewOnce";
 import { fetchPublicReviews } from "../lib/publicReviews";
 import {
   REVIEW_PAGE_SIZE,
@@ -53,6 +61,12 @@ export function useProductReviews(productId) {
     }
     setSummary(result.summary);
     setStatus(result.error ? "error" : "ready");
+    // GA4 exception — 후기 목록 로드 실패(빈 후기와 구분)
+    if (result.error) {
+      trackException("reviews_load_failed", {
+        ...(productId != null ? { itemId: String(productId) } : {}),
+      });
+    }
   }, [productId]);
 
   useEffect(() => {
@@ -81,6 +95,11 @@ export function useProductReviews(productId) {
         ratingCounts: result.summary.ratingCounts,
         items: mergeReviewItems(previous.items, result.summary.items),
       }));
+    } else {
+      // GA4 exception — 더보기 실패는 화면에 아무 표시가 없어 계측으로만 보인다
+      trackException("reviews_load_more_failed", {
+        ...(productId != null ? { itemId: String(productId) } : {}),
+      });
     }
     setIsLoadingMore(false);
   }, [isLoadingMore, productId, summary.items.length]);
@@ -165,7 +184,15 @@ function ReviewItemsSheet({ review, onClose }) {
               {item.productId ? (
                 <Link
                   className="public-review-items__row"
-                  onClick={onClose}
+                  onClick={() => {
+                    // GA4 select_item — 후기 시트에서 구매 교재로 이동
+                    trackSelectItem("후기 구매 교재", {
+                      productId: item.productId,
+                      title: item.title,
+                      quantity: item.quantity ?? 1,
+                    });
+                    onClose?.();
+                  }}
                   to={`/store/${item.productId}`}
                 >
                   {body}
@@ -181,7 +208,7 @@ function ReviewItemsSheet({ review, onClose }) {
   );
 }
 
-function ReviewCard({ review, onOpenPhoto, onOpenItems }) {
+function ReviewCard({ review, onOpenPhoto, onOpenItems, productId }) {
   const productTitle = formatReviewProductTitle(review.productTitle, review.itemCount);
   const hasMultiple = review.itemCount > 1 && review.items.length > 0;
   return (
@@ -197,13 +224,32 @@ function ReviewCard({ review, onOpenPhoto, onOpenItems }) {
       {hasMultiple ? (
         <button
           className="public-review-card__product public-review-card__product--button"
-          onClick={() => onOpenItems?.(review)}
+          onClick={() => {
+            // GA4 — "외 N권" 구매 교재 목록 열기
+            trackEvent("review_items_open", {
+              reviewId: String(review.id),
+              itemCount: review.itemCount,
+              ...(productId != null ? { itemId: String(productId) } : {}),
+            });
+            onOpenItems?.(review);
+          }}
           type="button"
         >
           {productTitle}
         </button>
       ) : review.productId ? (
-        <Link className="public-review-card__product" to={`/store/${review.productId}`}>
+        <Link
+          className="public-review-card__product"
+          onClick={() => {
+            // GA4 select_item — 후기 카드에서 그 교재 상세로 이동
+            trackSelectItem("구매 후기", {
+              productId: review.productId,
+              title: review.productTitle,
+              quantity: 1,
+            });
+          }}
+          to={`/store/${review.productId}`}
+        >
           {productTitle}
         </Link>
       ) : (
@@ -217,7 +263,17 @@ function ReviewCard({ review, onOpenPhoto, onOpenItems }) {
               aria-label={`후기 사진 ${index + 1} 크게 보기`}
               className="public-review-card__photo"
               key={url}
-              onClick={() => onOpenPhoto?.(review.photoUrls, index, review.author)}
+              onClick={() => {
+                // GA4 product_image_zoom — 히어로 확대와 같은 이벤트를 zoom_source로 가른다
+                trackImageZoom(productId, {
+                  zoomSource: "review",
+                  reviewId: String(review.id),
+                  photoIndex: index,
+                  photoCount: review.photoUrls.length,
+                  isSameProduct: Boolean(review.isSameProduct),
+                });
+                onOpenPhoto?.(review.photoUrls, index, review.author);
+              }}
               type="button"
             >
               <img alt="" loading="lazy" src={getThumbnailImageUrl(url)} />
@@ -229,14 +285,39 @@ function ReviewCard({ review, onOpenPhoto, onOpenItems }) {
   );
 }
 
-function ProductReviewsSection({ reviews, onOpenPhoto }) {
+function ProductReviewsSection({ reviews, onOpenPhoto, productId }) {
   const { summary, status, isLoadingMore, loadMore } = reviews;
   const [itemsReview, setItemsReview] = useState(null);
   const hasMore = summary.items.length < summary.total;
+  const headingRef = useRef(null);
+
+  // GA4 view_review_list / empty_state_view — 후기 섹션이 실제로 화면에 들어온 순간 1회.
+  // (상세페이지 최하단이라 마운트 기준으로 세면 대부분 안 본 노출이 섞인다)
+  useInViewOnce(
+    headingRef,
+    () => {
+      const itemIdParam = productId != null ? { itemId: String(productId) } : {};
+      if (summary.total === 0) {
+        trackEmptyState("reviews", itemIdParam);
+        return;
+      }
+      trackEvent("view_review_list", {
+        reviewCount: summary.total,
+        ...(summary.average != null
+          ? { averageRating: Number(summary.average.toFixed(1)) }
+          : {}),
+        sameProductCount: summary.sameProductCount ?? 0,
+        ...itemIdParam,
+      });
+    },
+    { enabled: status === "ready", resetKey: productId },
+  );
 
   return (
     <>
-      <h3 className="public-detail-tab-content__heading">수북 구매 후기</h3>
+      <h3 className="public-detail-tab-content__heading" ref={headingRef}>
+        수북 구매 후기
+      </h3>
 
       {status === "loading" && summary.items.length === 0 ? (
         <>
@@ -266,6 +347,7 @@ function ProductReviewsSection({ reviews, onOpenPhoto }) {
                 key={review.id}
                 onOpenItems={setItemsReview}
                 onOpenPhoto={onOpenPhoto}
+                productId={productId}
                 review={review}
               />
             ))}
@@ -275,6 +357,12 @@ function ProductReviewsSection({ reviews, onOpenPhoto }) {
               className="public-reviews__more"
               disabled={isLoadingMore}
               onClick={() => {
+                // GA4 — 후기 더보기(현재 노출 수 = offset)
+                trackEvent("review_load_more", {
+                  offset: summary.items.length,
+                  totalCount: summary.total,
+                  ...(productId != null ? { itemId: String(productId) } : {}),
+                });
                 void loadMore();
               }}
               type="button"

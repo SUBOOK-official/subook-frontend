@@ -33,7 +33,8 @@ function PublicMemberGateDialog({ gateReason = "", onClose, onGuestCheckout, onL
 
     const handleKeyDown = (event) => {
       if (event.key === "Escape") {
-        trackLoginGateCta("dismiss", gateReason);
+        // GA4 login_gate_cta — 닫기 제스처별로 가른다(escape/backdrop/later_button/swipe)
+        trackLoginGateCta("dismiss", gateReason, { closeMethod: "escape" });
         onClose();
       }
     };
@@ -53,8 +54,8 @@ function PublicMemberGateDialog({ gateReason = "", onClose, onGuestCheckout, onL
 
   // 사용자 주도 닫기(나중에/배경/ESC)만 dismiss로 계측 — 로그인·게스트 진행 후
   // 프로그램적 닫힘은 훅의 closeMemberGate 경로라 여길 지나지 않는다.
-  const handleDismiss = () => {
-    trackLoginGateCta("dismiss", gateReason);
+  const handleDismiss = (closeMethod = "unknown") => {
+    trackLoginGateCta("dismiss", gateReason, { closeMethod });
     onClose();
   };
 
@@ -98,7 +99,7 @@ function PublicMemberGateDialog({ gateReason = "", onClose, onGuestCheckout, onL
     // 작은 화면(예: iPhone SE)에서도 동작이 자연스럽다.
     const closeThreshold = window.innerHeight * 0.25;
     if (offsetY > closeThreshold) {
-      handleDismiss();
+      handleDismiss("swipe");
       return;
     }
 
@@ -107,7 +108,10 @@ function PublicMemberGateDialog({ gateReason = "", onClose, onGuestCheckout, onL
   };
 
   return createPortal(
-    <div className="public-sheet-backdrop public-sheet-backdrop--centered" onClick={handleDismiss}>
+    <div
+      className="public-sheet-backdrop public-sheet-backdrop--centered"
+      onClick={() => handleDismiss("backdrop")}
+    >
       <section
         aria-labelledby="public-member-gate-title"
         aria-modal="true"
@@ -143,6 +147,7 @@ function PublicMemberGateDialog({ gateReason = "", onClose, onGuestCheckout, onL
         <div className="public-member-gate__actions">
           {/* 카카오 히어로 (로그인의 64%) — 크기 위계는 index.css 게이트 스코프 규칙 */}
           <PublicOAuthButtons
+            analyticsSurface="member_gate"
             contextLabel="카카오 로그인"
             dividerPosition="none"
             onProviderClick={(provider) => trackLoginGateCta(provider, gateReason)}
@@ -157,6 +162,7 @@ function PublicMemberGateDialog({ gateReason = "", onClose, onGuestCheckout, onL
             </button>
           ) : null}
           <PublicOAuthButtons
+            analyticsSurface="member_gate"
             contextLabel="Google 로그인"
             dividerPosition="none"
             onProviderClick={(provider) => trackLoginGateCta(provider, gateReason)}
@@ -169,7 +175,11 @@ function PublicMemberGateDialog({ gateReason = "", onClose, onGuestCheckout, onL
           </button>
         </div>
 
-        <button className="public-member-gate__dismiss" onClick={handleDismiss} type="button">
+        <button
+          className="public-member-gate__dismiss"
+          onClick={() => handleDismiss("later_button")}
+          type="button"
+        >
           나중에 할게요
         </button>
       </section>

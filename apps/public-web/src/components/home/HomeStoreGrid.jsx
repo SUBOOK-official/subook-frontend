@@ -23,12 +23,20 @@ import {
 import usePublicMemberGate from "../../lib/publicMemberGate";
 import { subscribeRestockKeyword } from "../../lib/publicRestock";
 import {
+  trackDialogClose,
+  trackDialogOpen,
+  trackEmptyState,
+  trackEvent,
+  trackException,
+  trackListPagination,
   trackRestockKeywordSubscribe,
   trackSearch,
+  trackSelectContent,
   trackStoreFilter,
   trackStoreSort,
   trackViewItemList,
 } from "../../lib/analytics";
+import { useInViewOnce } from "../../lib/useInViewOnce";
 
 const HOME_SIDEBAR_FILTER_GROUPS = STORE_FILTER_GROUPS.filter((group) =>
   HOME_SIDEBAR_FILTER_GROUP_KEYS.includes(group.key),
@@ -117,7 +125,9 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
   useEffect(() => {
     if (!isFilterSheetOpen) return undefined;
     const handler = (e) => {
-      if (e.key === "Escape") setIsFilterSheetOpen(false);
+      if (e.key !== "Escape") return;
+      trackDialogClose("store_filter_sheet", "escape");
+      setIsFilterSheetOpen(false);
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
@@ -166,18 +176,8 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
         setProducts(rows);
         setHasFatalError(false);
 
-        // GA4 view_item_list — 결과 세트가 화면에 실제로 노출되는 시점마다 (조건·페이지 단위)
-        trackViewItemList(
-          "스토어 그리드",
-          rows.map((product) => ({
-            productId: product.id,
-            title: product.title,
-            brand: product.brand,
-            subject: product.subject,
-            price: product.price,
-            quantity: 1,
-          })),
-        );
+        // GA4 view_item_list는 "그리드가 실제로 보일 때" 아래 useInViewOnce가 발화한다
+        // (fetch 시점 발화는 화면 밖 조건 변경까지 노출로 세던 문제가 있었다).
 
         // GA4 search — 새 검색어의 첫 결과 도착 시 1회 (결과 수 포함, 0건이면 no_results 추가)
         const keyword = searchKeyword.trim();
@@ -187,8 +187,15 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
         } else if (!keyword) {
           lastTrackedSearchRef.current = "";
         }
-      } catch {
+      } catch (error) {
         if (!cancelled && seq === requestSeqRef.current) {
+          // GA4 exception — 스토어 그리드 전면 실패(빈 결과와 구분되는 진짜 사고)
+          trackException("storefront_fetch_failed", {
+            ...(searchKeyword.trim() ? { searchTerm: searchKeyword.trim() } : {}),
+            filterCount: countSelectedStoreFilters(selectedFilters),
+            pageNumber: Math.max(1, currentPage),
+            errorMessage: error?.message,
+          });
           setProducts([]);
           setTotalCount(0);
           setHasFatalError(true);
@@ -358,23 +365,39 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
   };
 
   const handleClearGroup = (groupKey) => {
+    trackStoreFilter(groupKey, null, "clear_group");
     setSelectedFilters((current) => clearStoreFilterGroup(current, groupKey));
     setCurrentPage(1);
   };
 
-  const handleResetAllFilters = () => {
+  // uiSurface: active_bar / empty_state / filter_sheet
+  const handleResetAllFilters = (uiSurface = "active_bar") => {
+    trackEvent("store_filter_reset", {
+      resetScope: "filters",
+      filterCount: countSelectedStoreFilters(selectedFilters),
+      uiSurface,
+    });
     setSelectedFilters(createStoreInitialFilters());
     setCurrentPage(1);
   };
 
   // 사이드바 '선택 초기화하기' — 과목 + 필터(유형·브랜드 등)를 모두 초기 상태로.
   const handleResetAllSelections = () => {
+    trackEvent("store_filter_reset", {
+      resetScope: "all",
+      filterCount: countSelectedStoreFilters(selectedFilters),
+      uiSurface: "sidebar",
+    });
     setSelectedSubject(STORE_DEFAULT_SUBJECT);
     setSelectedFilters(createStoreInitialFilters());
     setCurrentPage(1);
   };
 
-  const handleClearSearchKeyword = () => {
+  // uiSurface: search_chip / empty_state
+  const handleClearSearchKeyword = (uiSurface = "search_chip") => {
+    if (searchKeyword.trim()) {
+      trackEvent("search_clear", { searchTerm: searchKeyword.trim(), uiSurface });
+    }
     setSearchKeyword("");
     // 검색 전용 정렬(관련도순)은 검색 해제와 함께 평시 기본(인기순)으로 복원
     if (sortOption === STORE_SEARCH_SORT_OPTION.value) {
@@ -398,8 +421,15 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
     }
   };
 
-  const handleChangePage = (nextPage) => {
+  const handleChangePage = (nextPage, navMethod = "page") => {
     if (nextPage < 1 || nextPage > totalPages || nextPage === safeCurrentPage) return;
+    // GA4 list_pagination — 몇 페이지까지 탐색하는지(카탈로그 깊이)
+    trackListPagination("스토어 그리드", {
+      pageNumber: nextPage,
+      previousPage: safeCurrentPage,
+      totalPages,
+      navMethod,
+    });
     setCurrentPage(nextPage);
     // 모바일: smooth 스크롤은 스켈레톤 전환으로 문서 높이가 줄면 중간에 끊긴다.
     // 필터 앵커링과 동일하게 즉시 스크롤로 스티키 헤더 바로 아래(배너 가려지는 위치)에 붙인다.
@@ -430,6 +460,8 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
         key: `subject:${selectedSubject}`,
         label: selectedSubject,
         onRemove: () => {
+          // 요약 칩 해제는 handleToggleFilter를 거치지 않으므로 여기서 직접 계측한다.
+          trackStoreFilter("subject", selectedSubject, "remove", { uiSurface: "summary_chip" });
           setSelectedSubject(STORE_DEFAULT_SUBJECT);
           setCurrentPage(1);
         },
@@ -444,6 +476,7 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
           key: `${group.key}:${value}`,
           label: option ? getFilterOptionLabel(option) : value,
           onRemove: () => {
+            trackStoreFilter(group.key, value, "remove", { uiSurface: "summary_chip" });
             setSelectedFilters((current) =>
               toggleStoreFilterSelection(current, group.key, value),
             );
@@ -469,17 +502,27 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
     setRestockKeywordInput(searchKeyword.trim());
     setRestockSubmitState({ busy: false, done: false, error: "" });
     setRestockModal({ keyword: searchKeyword.trim() });
+    // GA4 dialog_open — 빈 상태 → 입고 알림 모달 진입(구독 완료의 분모)
+    trackDialogOpen("restock_keyword", {
+      ...(searchKeyword.trim() ? { searchTerm: searchKeyword.trim() } : {}),
+    });
   };
 
   const handleSubmitRestockKeyword = async () => {
     const keyword = restockKeywordInput.trim();
     if (keyword.length < 2) {
+      // GA4 — 입고 알림 등록 실패 원인 분포(검증 vs RPC)
+      trackEvent("restock_keyword_error", { errorReason: "too_short" });
       setRestockSubmitState({ busy: false, done: false, error: "키워드는 2자 이상 입력해 주세요." });
       return;
     }
     setRestockSubmitState({ busy: true, done: false, error: "" });
     const result = await subscribeRestockKeyword(keyword);
     if (result.success === false) {
+      trackEvent("restock_keyword_error", {
+        errorReason: "rpc_failed",
+        errorMessage: result.error,
+      });
       setRestockSubmitState({ busy: false, done: false, error: result.error || "등록에 실패했어요." });
       return;
     }
@@ -488,6 +531,53 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
   };
 
   const isEmpty = !isLoading && !hasFatalError && displayedProducts.length === 0;
+
+  // GA4 view_item_list — 그리드가 실제로 화면에 들어온 시점 1회. 조건(필터·검색·정렬)이나
+  // 페이지가 바뀌면 resetKey로 다시 1회 발화한다. index는 전체 목록 기준 순번.
+  const gridRef = useRef(null);
+  useInViewOnce(
+    gridRef,
+    () => {
+      trackViewItemList(
+        "스토어 그리드",
+        displayedProducts.map((product, index) => ({
+          productId: product.id,
+          title: product.title,
+          brand: product.brand,
+          subject: product.subject,
+          price: product.price,
+          quantity: 1,
+          index: (safeCurrentPage - 1) * pageSize + index,
+        })),
+        {
+          resultCount: totalCount,
+          filterCount: selectedFilterCount,
+          pageNumber: safeCurrentPage,
+          ...(searchKeyword.trim() ? { searchTerm: searchKeyword.trim() } : {}),
+        },
+      );
+    },
+    {
+      enabled: !isLoading && !hasFatalError && displayedProducts.length > 0,
+      resetKey: `${conditionKey}|${safeCurrentPage}`,
+    },
+  );
+
+  // GA4 empty_state_view — 결과 0건(검색 실패인지 필터 과다인지 구분). 조건·페이지당 1회.
+  const emptyStateTrackedRef = useRef("");
+  useEffect(() => {
+    if (!isEmpty) return;
+    const key = `${conditionKey}|${safeCurrentPage}`;
+    if (emptyStateTrackedRef.current === key) return;
+    emptyStateTrackedRef.current = key;
+    const keyword = searchKeyword.trim();
+    trackEmptyState("store_grid", {
+      errorReason: keyword ? "search" : "filters",
+      ...(keyword ? { searchTerm: keyword } : {}),
+      filterCount: selectedFilterCount,
+      subject: selectedSubject,
+    });
+  }, [conditionKey, isEmpty, safeCurrentPage, searchKeyword, selectedFilterCount, selectedSubject]);
 
   // 검색 중일 때만 관련도순 노출 (기본 목록에선 의미 없는 정렬이라 숨김)
   const sortMenuOptions = searchKeyword
@@ -604,7 +694,11 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
           <button
             aria-haspopup="dialog"
             className="public-home-store-grid__mobile-filter-trigger"
-            onClick={() => setIsFilterSheetOpen(true)}
+            onClick={() => {
+              // GA4 dialog_open — 모바일 필터 시트 사용률
+              trackDialogOpen("store_filter_sheet", { filterCount: selectedFilterCount });
+              setIsFilterSheetOpen(true);
+            }}
             type="button"
           >
             <svg
@@ -625,7 +719,12 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
                 aria-expanded={isSortMenuOpen}
                 aria-haspopup="menu"
                 className="public-home-store-grid__sort-button"
-                onClick={() => setIsSortMenuOpen((open) => !open)}
+                onClick={() => {
+                  if (!isSortMenuOpen) {
+                    trackEvent("store_sort_open", { sortOption });
+                  }
+                  setIsSortMenuOpen((open) => !open);
+                }}
                 type="button"
               >
                 <span>{getSortOptionLabel(sortOption)}</span>
@@ -661,7 +760,7 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
                 <button
                   aria-label="검색 해제"
                   className="public-home-store-grid__search-chip-remove"
-                  onClick={handleClearSearchKeyword}
+                  onClick={() => handleClearSearchKeyword("search_chip")}
                   type="button"
                 >
                   ×
@@ -673,7 +772,7 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
                 <span className="public-home-store-grid__active-label">적용 필터 {selectedFilterCount}개</span>
                 <button
                   className="public-home-store-grid__reset"
-                  onClick={handleResetAllFilters}
+                  onClick={() => handleResetAllFilters("active_bar")}
                   type="button"
                 >
                   전체 초기화
@@ -696,7 +795,10 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
             <strong>교재를 불러오지 못했습니다</strong>
             <button
               className="public-home-store-grid__empty-button"
-              onClick={() => setRetryNonce((nonce) => nonce + 1)}
+              onClick={() => {
+                trackSelectContent("retry", "store_grid");
+                setRetryNonce((nonce) => nonce + 1);
+              }}
               type="button"
             >
               다시 시도
@@ -711,7 +813,7 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
                 <div className="public-home-store-grid__empty-actions">
                   <button
                     className="public-home-store-grid__empty-button"
-                    onClick={handleClearSearchKeyword}
+                    onClick={() => handleClearSearchKeyword("empty_state")}
                     type="button"
                   >
                     검색 해제
@@ -719,7 +821,7 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
                   {selectedFilterCount > 0 ? (
                     <button
                       className="public-home-store-grid__empty-button"
-                      onClick={handleResetAllFilters}
+                      onClick={() => handleResetAllFilters("empty_state")}
                       type="button"
                     >
                       필터 초기화
@@ -752,7 +854,7 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
                     ))}
                     <button
                       className="public-home-store-grid__empty-button"
-                      onClick={handleResetAllFilters}
+                      onClick={() => handleResetAllFilters("empty_state")}
                       type="button"
                     >
                       필터 초기화
@@ -778,9 +880,10 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
             )}
           </div>
         ) : (
-          <div className="public-home-store-grid__list">
-            {displayedProducts.map((product) => (
+          <div className="public-home-store-grid__list" ref={gridRef}>
+            {displayedProducts.map((product, index) => (
               <ProductCard
+                analyticsIndex={(safeCurrentPage - 1) * pageSize + index}
                 analyticsListName="스토어 그리드"
                 isFavorite={favoriteIds.includes(product.id)}
                 key={product.id}
@@ -798,7 +901,7 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
               aria-label="이전 페이지"
               className="public-home-store-grid__pagination-arrow"
               disabled={safeCurrentPage === 1}
-              onClick={() => handleChangePage(safeCurrentPage - 1)}
+              onClick={() => handleChangePage(safeCurrentPage - 1, "prev")}
               type="button"
             >
               <ChevronLeftIcon size={18} />
@@ -828,7 +931,7 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
               aria-label="다음 페이지"
               className="public-home-store-grid__pagination-arrow"
               disabled={safeCurrentPage === totalPages}
-              onClick={() => handleChangePage(safeCurrentPage + 1)}
+              onClick={() => handleChangePage(safeCurrentPage + 1, "next")}
               type="button"
             >
               <ChevronRightIcon size={18} />
@@ -940,7 +1043,13 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
       {isFilterSheetOpen ? (
         <div
           className="public-home-store-grid__filter-sheet-backdrop"
-          onClick={() => setIsFilterSheetOpen(false)}
+          onClick={() => {
+            trackDialogClose("store_filter_sheet", "backdrop", {
+              filterCount: selectedFilterCount,
+              resultCount: totalCount,
+            });
+            setIsFilterSheetOpen(false);
+          }}
           role="presentation"
         >
           <div
@@ -957,7 +1066,13 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
               <button
                 aria-label="닫기"
                 className="public-home-store-grid__filter-sheet-close"
-                onClick={() => setIsFilterSheetOpen(false)}
+                onClick={() => {
+                  trackDialogClose("store_filter_sheet", "close_button", {
+                    filterCount: selectedFilterCount,
+                    resultCount: totalCount,
+                  });
+                  setIsFilterSheetOpen(false);
+                }}
                 type="button"
               >
                 <CloseIcon size={18} />
@@ -971,14 +1086,20 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
               <button
                 className="public-home-store-grid__filter-sheet-reset"
                 disabled={selectedFilterCount === 0}
-                onClick={handleResetAllFilters}
+                onClick={() => handleResetAllFilters("filter_sheet")}
                 type="button"
               >
                 전체 초기화
               </button>
               <button
                 className="public-home-store-grid__filter-sheet-apply"
-                onClick={() => setIsFilterSheetOpen(false)}
+                onClick={() => {
+                  trackDialogClose("store_filter_sheet", "submit", {
+                    filterCount: selectedFilterCount,
+                    resultCount: totalCount,
+                  });
+                  setIsFilterSheetOpen(false);
+                }}
                 type="button"
               >
                 {isLoading ? "불러오는 중..." : `${totalCount.toLocaleString("ko-KR")}권 보기`}

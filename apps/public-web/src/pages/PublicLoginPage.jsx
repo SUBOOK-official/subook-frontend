@@ -15,10 +15,17 @@ import {
   EyeOffIcon,
 } from "../components/icons";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
+import {
+  trackEvent,
+  trackFormError,
+  trackLoginFailure,
+  trackSelectContent,
+} from "../lib/analytics";
 import { getPublicAccountAccessState } from "../lib/publicAuthAccess";
 import { isValidEmailFormat, normalizeEmail } from "../lib/publicAuthFormUtils";
 import {
   buildSocialOnlyLoginMessage,
+  getSocialProviderLabels,
   isSocialOnlyAccount,
 } from "../lib/publicAuthProviders";
 import { saveSignupSuccessState } from "../lib/publicSignupSuccessState";
@@ -103,7 +110,7 @@ function PublicLoginPage() {
   const handleClearSession = async () => {
     setPageError("");
     setPageNotice("");
-    await signOut();
+    await signOut("login_admin_banner");
   };
 
   const handleEmailChange = (event) => {
@@ -133,11 +140,14 @@ function PublicLoginPage() {
       password: "",
     };
     const normalized = normalizeEmail(email);
+    let emailErrorReason = "";
 
     if (!normalized) {
       nextErrors.email = "필수 항목입니다.";
+      emailErrorReason = "required";
     } else if (!isValidEmailFormat(normalized)) {
       nextErrors.email = "이메일 형식을 확인해주세요.";
+      emailErrorReason = "format";
     }
 
     if (!password) {
@@ -145,6 +155,15 @@ function PublicLoginPage() {
     }
 
     setFieldErrors(nextErrors);
+
+    // GA4 form_validation_error — 제출 전 검증에서 막히는 필드 분포
+    if (emailErrorReason) {
+      trackFormError("login", "email", emailErrorReason);
+    }
+    if (nextErrors.password) {
+      trackFormError("login", "password", "required");
+    }
+
     return !nextErrors.email && !nextErrors.password;
   };
 
@@ -166,6 +185,16 @@ function PublicLoginPage() {
     setPublicAuthSessionPersistence(rememberMe);
     setIsSubmitting(true);
 
+    // GA4 login_submit — 로그인 시도(분모). login/login_failure와 짝을 이룬다.
+    // gate_action: 로그인 관문에서 넘어온 경우 어떤 행동이 막혔는지(담기/바로구매/찜 …).
+    trackEvent("login_submit", {
+      method: "email",
+      rememberMe,
+      ...(location.state?.memberGateAction
+        ? { gateAction: location.state.memberGateAction }
+        : {}),
+    });
+
     const normalized = normalizeEmail(email);
     const { error: loginError } = await supabase.auth.signInWithPassword({
       email: normalized,
@@ -176,6 +205,8 @@ function PublicLoginPage() {
       const rawMessage = loginError.message?.toLowerCase() ?? "";
 
       if (rawMessage.includes("email not confirmed")) {
+        // GA4 login_failure — 인증 미완료 계정(가입 마무리 화면으로 유도)
+        trackLoginFailure("email_not_confirmed", { method: "email" });
         setIsSubmitting(false);
         redirectToVerification(
           normalized,
@@ -186,6 +217,8 @@ function PublicLoginPage() {
 
       // 차단 계정 — GoTrue가 auth 레벨 밴(user_banned)으로 로그인 자체를 거부한 경우
       if (rawMessage.includes("banned")) {
+        // GA4 login_failure — auth 레벨 밴
+        trackLoginFailure("banned", { method: "email" });
         setPageError(BLOCKED_ACCOUNT_NOTICE);
         setIsSubmitting(false);
         return;
@@ -203,12 +236,20 @@ function PublicLoginPage() {
           if (isSocialOnlyAccount(providerData)) {
             setSocialOnlyHint(buildSocialOnlyLoginMessage(providerData));
             handledAsSocialOnly = true;
+            // GA4 login_failure — 소셜로만 가입한 계정이 비밀번호 로그인을 시도.
+            // available_methods는 provider 라벨만이라 PII가 아니다.
+            trackLoginFailure("social_only_account", {
+              method: "email",
+              availableMethods: getSocialProviderLabels(providerData).join("|"),
+            });
           }
         } catch {
           /* RPC 실패는 무시 — 아래 일반 안내로 진행 */
         }
 
         if (!handledAsSocialOnly) {
+          // GA4 login_failure — 비밀번호 불일치(또는 미가입 이메일)
+          trackLoginFailure("invalid_credentials", { method: "email" });
           setFieldErrors((currentValue) => ({
             ...currentValue,
             password: "이메일 또는 비밀번호가 일치하지 않습니다.",
@@ -223,12 +264,19 @@ function PublicLoginPage() {
             );
             if (isLegacy) {
               setLegacyHint(normalized);
+              // GA4 — 구 수북(식스샵) 회원 안내 노출. 재설정 CTA 클릭률의 분모.
+              trackEvent("legacy_member_hint_shown", { uiSurface: "login" });
             }
           } catch {
             /* RPC 실패는 무시 — 일반 안내만 노출 */
           }
         }
       } else {
+        // GA4 login_failure — 그 외(레이트리밋 포함). 원문 메시지는 error_message로.
+        trackLoginFailure(/rate|limit/i.test(loginError.message ?? "") ? "rate_limit" : "other", {
+          method: "email",
+          errorMessage: loginError.message ?? "",
+        });
         setPageError(
           loginError.message ||
             "로그인에 실패했습니다. 잠시 후 다시 시도해주세요.",
@@ -246,6 +294,8 @@ function PublicLoginPage() {
 
     // 밴 반영 전(액세스 토큰이 아직 유효한 창구)에도 role RPC의 blocked로 차단
     if (accessState.accountRole === "blocked") {
+      // GA4 login_failure — 인증은 통과했지만 역할 심사에서 거절된 케이스(stage: post_auth)
+      trackLoginFailure("blocked_role", { method: "email", stage: "post_auth" });
       await supabase.auth.signOut();
       setPageError(BLOCKED_ACCOUNT_NOTICE);
       setIsSubmitting(false);
@@ -253,6 +303,8 @@ function PublicLoginPage() {
     }
 
     if (accessState.accountRole === "admin") {
+      // GA4 login_failure — 운영자 계정의 공개 도메인 로그인 시도
+      trackLoginFailure("admin_account", { method: "email", stage: "post_auth" });
       await supabase.auth.signOut();
       setPageError(
         "관리자 계정은 공개 사용자 페이지에서 로그인할 수 없습니다. 관리자 페이지에서 로그인해주세요.",
@@ -265,6 +317,8 @@ function PublicLoginPage() {
       accessState.accountRole === "withdrawal_pending" ||
       accessState.accountRole === "withdrawn"
     ) {
+      // GA4 login_failure — 탈퇴 대기/완료 계정(복구 문의 동선의 분모)
+      trackLoginFailure(accessState.accountRole, { method: "email", stage: "post_auth" });
       await supabase.auth.signOut();
       setWithdrawalRecoveryEmail(normalized);
       setPageError(
@@ -275,6 +329,12 @@ function PublicLoginPage() {
     }
 
     if (accessState.accountRole !== "member") {
+      // GA4 login_failure — 역할 판정 실패(RPC 응답 이상 등)
+      trackLoginFailure("role_unresolved", {
+        method: "email",
+        stage: "post_auth",
+        accountRole: accessState.accountRole ?? "unknown",
+      });
       await supabase.auth.signOut();
       setPageError(
         "회원 계정 정보를 확인하지 못했습니다. 잠시 후 다시 시도해주세요.",
@@ -284,6 +344,11 @@ function PublicLoginPage() {
     }
 
     if (!accessState.profile?.email_verified_at) {
+      // GA4 login_failure — 프로필의 이메일 인증이 비어 있어 가입 마무리로 되돌리는 케이스
+      trackLoginFailure("email_unverified_profile", {
+        method: "email",
+        stage: "post_auth",
+      });
       await supabase.auth.signOut();
       setIsSubmitting(false);
       redirectToVerification(
@@ -367,6 +432,7 @@ function PublicLoginPage() {
             ) : null}
 
             <PublicOAuthButtons
+              analyticsSurface="login_page"
               contextLabel="로그인"
               dividerLabel="또는 이메일로 계속"
               dividerPosition="bottom"
@@ -505,6 +571,12 @@ function PublicLoginPage() {
                   <div className="public-auth-alert__actions">
                     <Link
                       className="public-auth-inline-button public-auth-inline-button--cta"
+                      onClick={() =>
+                        // GA4 select_content — 구 회원 안내에서 재설정으로 넘어간 비율
+                        trackSelectContent("auth_entry", "legacy_reset", {
+                          uiSurface: "login",
+                        })
+                      }
                       state={{ prefillEmail: legacyHint }}
                       to="/forgot-password"
                     >
@@ -542,9 +614,15 @@ function PublicLoginPage() {
               </button>
             </form>
 
+            {/* GA4 select_content(auth_entry) — 로그인에서 빠져나가는 3갈래 비교 */}
             <div className="public-auth-link-row">
               <Link
                 className="public-auth-link-row__link"
+                onClick={() =>
+                  trackSelectContent("auth_entry", "forgot_password", {
+                    uiSurface: "login",
+                  })
+                }
                 to="/forgot-password"
               >
                 비밀번호 찾기
@@ -553,14 +631,28 @@ function PublicLoginPage() {
                 aria-hidden="true"
                 className="public-auth-link-row__separator"
               />
-              <Link className="public-auth-link-row__link" to="/signup">
+              <Link
+                className="public-auth-link-row__link"
+                onClick={() =>
+                  trackSelectContent("auth_entry", "signup", { uiSurface: "login" })
+                }
+                to="/signup"
+              >
                 회원가입
               </Link>
               <span
                 aria-hidden="true"
                 className="public-auth-link-row__separator"
               />
-              <Link className="public-auth-link-row__link" to="/order/lookup">
+              <Link
+                className="public-auth-link-row__link"
+                onClick={() =>
+                  trackSelectContent("auth_entry", "guest_order_lookup", {
+                    uiSurface: "login",
+                  })
+                }
+                to="/order/lookup"
+              >
                 비회원 주문 조회
               </Link>
             </div>

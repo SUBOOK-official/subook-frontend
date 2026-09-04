@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { trackSelectPromotion, trackViewPromotion } from "../../lib/analytics";
+import {
+  trackCarouselNavigate,
+  trackSelectPromotion,
+  trackViewPromotion,
+} from "../../lib/analytics";
 import ContentContainer from "../ContentContainer";
+
+// GA4 캐러셀 조작(carousel_navigate)의 list_name
+const HERO_LIST_NAME = "홈 히어로 배너";
 
 // GA4 프로모션 파라미터 — 슬라이드 id 그대로 promotion_id, 노출 위치는 hero_N.
 function toPromotionParams(slide, slideIndex) {
@@ -8,6 +15,8 @@ function toPromotionParams(slide, slideIndex) {
     promotionId: slide.id,
     promotionName: slide.eyebrow ?? slide.imageAlt ?? slide.id,
     creativeSlot: `hero_${slideIndex + 1}`,
+    // 슬라이드가 어떤 동선을 여는지(shop/pickup/faq/jeonil) — 배너별 목적 비교용
+    promotionAction: slide.actionType ?? "none",
   };
 }
 
@@ -101,14 +110,35 @@ function HeroBanner({ onSlideAction, slides = [] }) {
   const leadingCloneCount = hasLoop ? 1 : 0;
   const activeIndex = getWrappedIndex(trackState.virtualIndex, slideCount);
 
-  // GA4 view_promotion — 활성 슬라이드가 바뀔 때, 슬라이드별 마운트당 1회만.
+  // 배너가 실제로 화면에 있는지 — 자동 회전은 아무도 보지 않는 동안에도 돌기 때문에
+  // 노출(view_promotion)을 가시성으로 게이팅한다.
+  const [isBannerInView, setIsBannerInView] = useState(false);
+  useEffect(() => {
+    const node = viewportRef.current;
+    if (!node) return undefined;
+    if (typeof IntersectionObserver === "undefined") {
+      setIsBannerInView(true);
+      return undefined;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        setIsBannerInView(entries.some((entry) => entry.isIntersecting));
+      },
+      { threshold: 0.25 },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  // GA4 view_promotion — 배너가 보이는 동안 활성 슬라이드가 바뀔 때, 슬라이드별 마운트당 1회만.
   const viewedPromotionIdsRef = useRef(new Set());
   useEffect(() => {
+    if (!isBannerInView) return;
     const slide = slides[activeIndex];
     if (!slide || viewedPromotionIdsRef.current.has(slide.id)) return;
     viewedPromotionIdsRef.current.add(slide.id);
     trackViewPromotion(toPromotionParams(slide, activeIndex));
-  }, [activeIndex, slides]);
+  }, [activeIndex, isBannerInView, slides]);
 
   useEffect(() => {
     setTrackState((state) => {
@@ -219,10 +249,21 @@ function HeroBanner({ onSlideAction, slides = [] }) {
     });
   };
 
+  // GA4 carousel_navigate — 사용자가 직접 넘긴 것만(자동 회전 제외) 계측.
+  const trackNavigate = (navMethod, direction) => {
+    trackCarouselNavigate(HERO_LIST_NAME, navMethod, direction, {
+      fromPromotionId: slides[activeIndex]?.id,
+    });
+  };
+
   const showSlide = (index) => {
     pauseAfterInteraction();
+    const targetIndex = getWrappedIndex(index, slideCount);
+    if (targetIndex !== activeIndex) {
+      trackNavigate("dot", targetIndex > activeIndex ? "next" : "prev");
+    }
     setTrackState({
-      virtualIndex: getWrappedIndex(index, slideCount),
+      virtualIndex: targetIndex,
       animated: !prefersReducedMotion,
       dragOffset: 0,
     });
@@ -230,11 +271,13 @@ function HeroBanner({ onSlideAction, slides = [] }) {
 
   const showPreviousSlide = () => {
     pauseAfterInteraction();
+    trackNavigate("arrow", "prev");
     goToNeighbor(-1);
   };
 
   const showNextSlide = () => {
     pauseAfterInteraction();
+    trackNavigate("arrow", "next");
     goToNeighbor(1);
   };
 
@@ -366,6 +409,7 @@ function HeroBanner({ onSlideAction, slides = [] }) {
     const totalOffset = drag.baseOffset + (touch.clientX - drag.startX);
 
     if (!cancelled && Math.abs(totalOffset) >= SWIPE_THRESHOLD_PX) {
+      trackNavigate("swipe", totalOffset < 0 ? "next" : "prev");
       goToNeighbor(totalOffset < 0 ? 1 : -1);
       return;
     }

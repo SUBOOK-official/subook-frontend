@@ -1,7 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/publicSupabaseClient";
 import { AlertTriangleIcon, CheckIcon, EyeIcon, EyeOffIcon } from "../components/icons";
+import {
+  makeOnceGuard,
+  trackEvent,
+  trackFormError,
+  trackSelectContent,
+} from "../lib/analytics";
 import {
   getPasswordStrengthState,
   hasOnlyAllowedPasswordCharacters,
@@ -50,6 +56,8 @@ function PublicResetPasswordPage() {
     password: "",
     passwordConfirm: "",
   });
+  // 링크 판정 결과는 마운트당 1건만 (initialize effect가 재실행돼도 중복 계측 방지)
+  const trackOnceRef = useRef(makeOnceGuard());
 
   const handlePasswordKeyEvent = (event) => {
     if (typeof event.getModifierState === "function") {
@@ -111,20 +119,39 @@ function PublicResetPasswordPage() {
       setPageError("");
       setPhase("checking");
 
+      // GA4 password_reset_link_open — 메일 링크가 실제로 열렸을 때의 판정 결과.
+      // link_type: pkce(?code=) / implicit(#access_token=) / none(파라미터 없음).
+      const linkType = urlInfo.code ? "pkce" : urlInfo.accessToken ? "implicit" : "none";
+      const trackLinkOpen = (result, stage, extra) => {
+        if (!trackOnceRef.current("link_open")) {
+          return;
+        }
+        trackEvent("password_reset_link_open", {
+          result,
+          linkType,
+          ...(stage ? { stage } : {}),
+          ...extra,
+        });
+      };
+
       if (!isSupabaseConfigured || !supabase) {
         if (isMounted) {
           setPageError("비밀번호 재설정 기능을 사용하려면 Supabase 환경 변수가 필요합니다.");
           setPhase("error");
         }
+        trackLinkOpen("error", "not_configured");
         return;
       }
 
       if (urlInfo.error) {
+        const nextState = buildResetLinkErrorState(urlInfo);
         if (isMounted) {
-          const nextState = buildResetLinkErrorState(urlInfo);
           setPageError(nextState.message);
           setPhase(nextState.phase);
         }
+        trackLinkOpen(nextState.phase === "expired" ? "expired" : "error", "url_error", {
+          errorCode: urlInfo.errorCode || urlInfo.error || "",
+        });
         return;
       }
 
@@ -139,6 +166,9 @@ function PublicResetPasswordPage() {
               setPageError("링크가 만료되었습니다. 비밀번호 재설정을 다시 요청해주세요.");
               setPhase("expired");
             }
+            trackLinkOpen("expired", "exchange_code", {
+              errorCode: exchangeError.code ?? "",
+            });
             return;
           }
         } else if (urlInfo.accessToken && urlInfo.refreshToken) {
@@ -152,6 +182,9 @@ function PublicResetPasswordPage() {
               setPageError("링크가 만료되었습니다. 비밀번호 재설정을 다시 요청해주세요.");
               setPhase("expired");
             }
+            trackLinkOpen("expired", "set_session", {
+              errorCode: setSessionError.code ?? "",
+            });
             return;
           }
         }
@@ -164,6 +197,7 @@ function PublicResetPasswordPage() {
           setPageError("링크가 만료되었습니다. 비밀번호 재설정을 다시 요청해주세요.");
           setPhase("expired");
         }
+        trackLinkOpen("expired", "no_session");
         return;
       }
 
@@ -174,6 +208,7 @@ function PublicResetPasswordPage() {
       if (isMounted) {
         setPhase("ready");
       }
+      trackLinkOpen("valid");
     };
 
     void initialize();
@@ -206,22 +241,36 @@ function PublicResetPasswordPage() {
       password: "",
       passwordConfirm: "",
     };
+    const errorReasons = { password: "", passwordConfirm: "" };
 
     if (!formValues.password) {
       nextErrors.password = "필수 항목입니다.";
+      errorReasons.password = "required";
     } else if (!hasOnlyAllowedPasswordCharacters(formValues.password)) {
       nextErrors.password = "비밀번호에 한글·공백은 사용할 수 없어요. 영문, 숫자, 특수문자만 사용해 주세요.";
+      errorReasons.password = "format";
     } else if (!hasRequiredPasswordConditions(formValues.password)) {
       nextErrors.password = "영문과 숫자를 포함한 8자 이상으로 입력해주세요.";
+      errorReasons.password = "too_short";
     }
 
     if (!formValues.passwordConfirm) {
       nextErrors.passwordConfirm = "필수 항목입니다.";
+      errorReasons.passwordConfirm = "required";
     } else if (formValues.password !== formValues.passwordConfirm) {
       nextErrors.passwordConfirm = "비밀번호가 일치하지 않습니다.";
+      errorReasons.passwordConfirm = "mismatch";
     }
 
     setFieldErrors(nextErrors);
+
+    // GA4 form_validation_error — 재설정 폼에서 막히는 사유
+    for (const fieldName of ["password", "passwordConfirm"]) {
+      if (errorReasons[fieldName]) {
+        trackFormError("reset_password", fieldName, errorReasons[fieldName]);
+      }
+    }
+
     return !nextErrors.password && !nextErrors.passwordConfirm;
   };
 
@@ -245,11 +294,18 @@ function PublicResetPasswordPage() {
     });
 
     if (updateError) {
+      // GA4 password_reset_complete — 링크는 유효했는데 변경에서 실패
+      trackEvent("password_reset_complete", {
+        result: "fail",
+        errorMessage: updateError.message ?? "",
+      });
       setPageError(updateError.message || "비밀번호 변경에 실패했습니다. 다시 시도해 주세요.");
       setPhase("ready");
       return;
     }
 
+    // GA4 password_reset_complete — 비밀번호 변경 성공(재설정 퍼널의 최종 전환)
+    trackEvent("password_reset_complete", { result: "ok" });
     await supabase.auth.signOut();
     setPhase("success");
   };
@@ -430,14 +486,19 @@ function PublicResetPasswordPage() {
                 <div className="public-auth-state-card__actions">
                   <button
                     className="public-auth-button public-auth-button--primary"
-                    onClick={() =>
+                    onClick={() => {
+                      // GA4 select_content — 변경 완료 후 로그인으로 이어진 비율
+                      trackSelectContent("auth_entry", "login", {
+                        uiSurface: "reset_password",
+                        fromPhase: "success",
+                      });
                       navigate("/login", {
                         replace: true,
                         state: {
                           notice: "비밀번호가 변경되었습니다. 새 비밀번호로 로그인해 주세요.",
                         },
-                      })
-                    }
+                      });
+                    }}
                     type="button"
                   >
                     로그인하기
@@ -461,7 +522,17 @@ function PublicResetPasswordPage() {
                 </div>
 
                 <div className="public-auth-state-card__actions">
-                  <Link className="public-auth-button public-auth-button--primary" to="/forgot-password">
+                  <Link
+                    className="public-auth-button public-auth-button--primary"
+                    onClick={() =>
+                      // GA4 select_content — 만료 링크에서 재요청으로 살아난 비율
+                      trackSelectContent("auth_entry", "request_again", {
+                        uiSurface: "reset_password",
+                        fromPhase: "expired",
+                      })
+                    }
+                    to="/forgot-password"
+                  >
                     재발송 요청
                   </Link>
                 </div>
@@ -470,7 +541,16 @@ function PublicResetPasswordPage() {
 
             {phase === "checking" || phase === "ready" || phase === "saving" || phase === "error" ? (
               <div className="public-auth-link-row public-auth-link-row--single">
-                <Link className="public-auth-link-row__link" to="/forgot-password">
+                <Link
+                  className="public-auth-link-row__link"
+                  onClick={() =>
+                    trackSelectContent("auth_entry", "forgot_password", {
+                      uiSurface: "reset_password",
+                      fromPhase: phase,
+                    })
+                  }
+                  to="/forgot-password"
+                >
                   비밀번호 찾기로 돌아가기
                 </Link>
               </div>

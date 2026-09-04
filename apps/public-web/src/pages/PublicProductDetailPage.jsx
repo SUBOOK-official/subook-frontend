@@ -15,13 +15,21 @@ import { BellIcon, CloseIcon } from "../components/icons";
 import ProductReviewsSection, { useProductReviews } from "../components/ProductReviewsSection";
 import { usePublicWishlist } from "../contexts/PublicWishlistContext";
 import {
+  makeOnceGuard,
   trackAddToCart,
   trackBuyClick,
+  trackCarouselNavigate,
+  trackEmptyState,
+  trackEvent,
+  trackException,
   trackImageZoom,
   trackRestockSubscribe,
+  trackSelectContent,
+  trackSelectPromotion,
   trackViewItem,
   trackViewItemList,
 } from "../lib/analytics";
+import { useInViewOnce } from "../lib/useInViewOnce";
 import { FREE_SHIPPING_THRESHOLD, SHIPPING_FEE, addToCart } from "../lib/cart";
 import usePublicMemberGate from "../lib/publicMemberGate";
 import {
@@ -232,10 +240,11 @@ function OptionChevronIcon() {
 // 라벨에서 등급('S (새 책)')은 빼고 회차명만 노출. 전량 품절 회차는 비활성화.
 // 네이티브 <select>는 OS 다크모드 등 환경에 따라 팝업 배색을 브라우저가 강제해 디자인을
 // 완전히 통제할 수 없어, 버튼 + listbox 조합의 커스텀 드롭다운으로 직접 구현한다.
-function VariantSelect({ groups, onAdd, disabled }) {
+function VariantSelect({ groups, onAdd, disabled, productId }) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef(null);
   const labelId = "public-detail-option-label";
+  const soldOutCount = groups.filter((group) => group.soldOut).length;
 
   useEffect(() => {
     if (!isOpen) return undefined;
@@ -292,7 +301,17 @@ function VariantSelect({ groups, onAdd, disabled }) {
           className={`public-detail-option-row__trigger${isOpen ? " is-open" : ""}`}
           disabled={disabled}
           id="public-detail-option-trigger"
-          onClick={() => setIsOpen((prev) => !prev)}
+          onClick={() => {
+            const next = !isOpen;
+            // GA4 — 옵션 드롭다운 열림/닫힘 (선택까지 못 간 이탈 관찰용)
+            trackEvent("product_option_open", {
+              ...(productId != null ? { itemId: String(productId) } : {}),
+              uiAction: next ? "open" : "close",
+              optionCount: groups.length,
+              soldoutCount: soldOutCount,
+            });
+            setIsOpen(next);
+          }}
           type="button"
         >
           <span className="public-detail-option-row__trigger-label">
@@ -502,7 +521,20 @@ function renderEmphasis(text) {
 
 // AI 요약 — products.ai_summary (배치 사전 생성 + 검색 그라운딩).
 // 요약이 없는 상품은 섹션 자체를 숨긴다 (영원히 도는 skeleton 노출 방지).
-function AiSummarySection({ summary }) {
+function AiSummarySection({ summary, productId }) {
+  const containerRef = useRef(null);
+
+  // GA4 — AI 요약이 실제로 화면에 들어온 시점 1회(생성 비용 대비 열람 여부 확인용)
+  useInViewOnce(
+    containerRef,
+    () => {
+      trackEvent("ai_summary_view", {
+        ...(productId != null ? { itemId: String(productId) } : {}),
+      });
+    },
+    { enabled: Boolean(summary), resetKey: productId },
+  );
+
   if (!summary) {
     return null;
   }
@@ -513,7 +545,7 @@ function AiSummarySection({ summary }) {
     .filter(Boolean);
 
   return (
-    <div aria-label="AI 요약" className="public-detail-ai-summary">
+    <div aria-label="AI 요약" className="public-detail-ai-summary" ref={containerRef}>
       <div className="public-detail-ai-summary__header">
         <AiSummaryIcon />
         <span>AI 요약</span>
@@ -535,12 +567,26 @@ function AiSummarySection({ summary }) {
 // 상품 상세 사진 — admin에서 올린 상세페이지 사진(inspection_image_urls)을 최대 2장까지 노출.
 // 1장뿐이면 데스크톱 2열 균형을 위해 오른쪽 칸을 은은한 수북 로고 워터마크로 채운다
 // (모바일은 1열이라 빈 칸이 없어 로고 필러는 생략). 상세 사진이 없으면 섹션 자체를 감춘다.
-function DetailPhotoSection({ images }) {
+function DetailPhotoSection({ images, productId }) {
+  const containerRef = useRef(null);
   const photos = (images ?? []).filter(Boolean).slice(0, 2);
+
+  // GA4 — 상세 사진이 화면에 들어온 시점 1회(사진 유무별 전환 비교용)
+  useInViewOnce(
+    containerRef,
+    () => {
+      trackEvent("detail_photo_view", {
+        ...(productId != null ? { itemId: String(productId) } : {}),
+        photoCount: photos.length,
+      });
+    },
+    { enabled: photos.length > 0, resetKey: productId },
+  );
+
   if (photos.length === 0) return null;
 
   return (
-    <div className="public-detail-photo-section">
+    <div className="public-detail-photo-section" ref={containerRef}>
       <h3 className="public-detail-tab-content__heading">상품 상세 사진</h3>
       <div aria-label="상품 상세 사진" className="public-detail-photo-grid">
         {photos.map((url, index) => (
@@ -711,6 +757,7 @@ function ProductImageLightbox({
   initialIndex,
   captionPrefix,
   onClose,
+  productId,
 }) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const overlayRef = useRef(null);
@@ -770,7 +817,16 @@ function ProductImageLightbox({
         <button
           aria-label="이전 이미지"
           className="public-detail-lightbox__nav public-detail-lightbox__nav--prev"
-          onClick={() => setCurrentIndex((idx) => Math.max(0, idx - 1))}
+          onClick={() => {
+            // GA4 — 확대 상태에서 이미지 넘김(상태 확인 행동 깊이)
+            trackEvent("product_image_navigate", {
+              ...(productId != null ? { itemId: String(productId) } : {}),
+              direction: "prev",
+              imageIndex: Math.max(0, currentIndex - 1),
+              imageCount: total,
+            });
+            setCurrentIndex((idx) => Math.max(0, idx - 1));
+          }}
           type="button"
         >
           ‹
@@ -791,7 +847,16 @@ function ProductImageLightbox({
         <button
           aria-label="다음 이미지"
           className="public-detail-lightbox__nav public-detail-lightbox__nav--next"
-          onClick={() => setCurrentIndex((idx) => Math.min(total - 1, idx + 1))}
+          onClick={() => {
+            // GA4 — 확대 상태에서 이미지 넘김(상태 확인 행동 깊이)
+            trackEvent("product_image_navigate", {
+              ...(productId != null ? { itemId: String(productId) } : {}),
+              direction: "next",
+              imageIndex: Math.min(total - 1, currentIndex + 1),
+              imageCount: total,
+            });
+            setCurrentIndex((idx) => Math.min(total - 1, idx + 1));
+          }}
           type="button"
         >
           ›
@@ -809,29 +874,40 @@ function RelatedProductsRail({
   onToggleFavorite,
   collectionLinks = [],
   title = RELATED_RAIL_LIST_NAME,
+  productId,
 }) {
   const railRef = useRef(null);
+  const sectionRef = useRef(null);
   const [canScrollPrev, setCanScrollPrev] = useState(false);
   const [canScrollNext, setCanScrollNext] = useState(false);
   const [hasOverflow, setHasOverflow] = useState(false);
-  // GA4 view_item_list — 추천 목록이 채워진 첫 시점 1회 (상품 이동 시 리마운트되어 재발화)
-  const viewListTrackedRef = useRef(false);
+  const itemIdParam = productId != null ? { itemId: String(productId) } : {};
 
-  useEffect(() => {
-    if (viewListTrackedRef.current || products.length === 0) return;
-    viewListTrackedRef.current = true;
-    trackViewItemList(
-      title,
-      products.map((item) => ({
-        productId: item.id,
-        title: item.title,
-        brand: item.brand,
-        subject: item.subject,
-        price: item.price,
-        quantity: 1,
-      })),
-    );
-  }, [products, title]);
+  // GA4 view_item_list / empty_state_view — 레일은 화면 아래쪽이라 마운트가 아니라
+  // 실제로 뷰포트에 들어온 시점 1회. (상품 이동 시 resetKey로 다시 발화)
+  useInViewOnce(
+    sectionRef,
+    () => {
+      if (products.length === 0) {
+        trackEmptyState("related_rail", { ...itemIdParam, listName: title });
+        return;
+      }
+      trackViewItemList(
+        title,
+        products.map((item, index) => ({
+          productId: item.id,
+          title: item.title,
+          brand: item.brand,
+          subject: item.subject,
+          price: item.price,
+          quantity: 1,
+          index,
+        })),
+        itemIdParam,
+      );
+    },
+    { resetKey: `${productId ?? ""}:${title}` },
+  );
 
   useEffect(() => {
     const rail = railRef.current;
@@ -870,6 +946,8 @@ function RelatedProductsRail({
   const handleScroll = (direction) => {
     const rail = railRef.current;
     if (!rail) return;
+    // GA4 — 추천 레일 화살표 넘김
+    trackCarouselNavigate(title, "arrow", direction > 0 ? "next" : "prev", itemIdParam);
     const firstCard = rail.querySelector(".public-detail-related-rail__item");
     const cardWidth = firstCard ? firstCard.getBoundingClientRect().width : 220;
     const visibleCards = Math.max(
@@ -883,11 +961,17 @@ function RelatedProductsRail({
   };
 
   return (
-    <section aria-label={title} className="public-detail-related">
+    <section aria-label={title} className="public-detail-related" ref={sectionRef}>
       {collectionLinks.length > 0 ? (
         <nav aria-label="시리즈·강사별 교재" className="public-detail-collections">
           {collectionLinks.map((link) => (
-            <Link className="public-detail-collections__link" key={link.to} to={link.to}>
+            <Link
+              className="public-detail-collections__link"
+              key={link.to}
+              // GA4 — 시리즈·강사 랜딩으로 빠지는 교차링크 클릭
+              onClick={() => trackSelectContent("collection_link", link.to, itemIdParam)}
+              to={link.to}
+            >
               {link.label} 전체보기
             </Link>
           ))}
@@ -1140,6 +1224,8 @@ function PublicProductDetailPage() {
   );
   const sectionRefs = useRef({});
   const sectionNavRef = useRef(null);
+  // GA4 노출·1회성 이벤트 가드 — key별 1회 (섹션 도달·품절 노출·옵션 누락 등)
+  const impressionGuardRef = useRef(makeOnceGuard());
   // P0: 옵션을 못 불러오면 사용자 책임으로 둔갑하는 토스트 대신 explicit error state.
   const [optionLoadError, setOptionLoadError] = useState(false);
   // P1: lightbox 상태 — 메인 이미지 클릭, 검수 사진 클릭 모두 이 모달로 통합.
@@ -1208,6 +1294,14 @@ function PublicProductDetailPage() {
           quantity: args.quantity ?? 1,
         })),
       );
+      // GA4 — 일부/전부 담기 실패(재고 경합). 실패 건수만큼 구매 의도가 샌다.
+      if (fail > 0) {
+        trackEvent("add_to_cart_error", {
+          ...(list[0]?.productId != null ? { itemId: String(list[0].productId) } : {}),
+          successCount: ok,
+          failCount: fail,
+        });
+      }
       if (ok > 0 && fail === 0) {
         showCartToast(
           demo
@@ -1255,24 +1349,38 @@ function PublicProductDetailPage() {
         setSelectedImageIndex(0);
         // GA4 view_item — 상세 로드 성공 시 1회 (대표가 기준)
         if (detailResult.product?.title) {
-          trackViewItem({
-            productId:
-              detailResult.product.productId ?? detailResult.product.id ?? productId,
-            title: detailResult.product.title,
-            brand: detailResult.product.brand,
-            subject: detailResult.product.subject,
-            price: detailResult.product.price,
-            quantity: 1,
-          });
+          const preRelease = isPreReleaseProduct(detailResult.product);
+          trackViewItem(
+            {
+              productId:
+                detailResult.product.productId ?? detailResult.product.id ?? productId,
+              title: detailResult.product.title,
+              brand: detailResult.product.brand,
+              subject: detailResult.product.subject,
+              conditionGrade: detailResult.product.conditionGradeLabel,
+              price: detailResult.product.price,
+              quantity: 1,
+            },
+            preRelease ? { isPrerelease: true } : undefined,
+          );
         }
 
         if (!detailResult.product) {
           if (detailResult.error) {
             setError("교재 상세 정보를 불러오지 못했습니다.");
+            // GA4 exception — 상세 로드 실패(화면 전체가 에러)
+            trackException("product_detail_load_failed", {
+              fatal: true,
+              itemId: String(productId ?? ""),
+            });
             return;
           }
           // 판매 완료·미존재 상품: 빈 에러 대신 인기 교재 레일로 대체 경로 제공
           setNotFound(true);
+          // GA4 exception — 죽은 링크(판매 완료·삭제) 유입량 관찰
+          trackException("product_not_found", {
+            itemId: String(productId ?? ""),
+          });
           const popularResult = await fetchStorefrontProducts({
             limit: 12,
             sort: "popular",
@@ -1349,6 +1457,12 @@ function PublicProductDetailPage() {
           setProduct(null);
           setRelatedProducts([]);
           setError("교재 상세 정보를 불러오지 못했습니다.");
+          // GA4 exception — 상세 로드 예외(네트워크·파싱 등)
+          trackException("product_detail_load_failed", {
+            fatal: true,
+            itemId: String(productId ?? ""),
+            errorReason: "exception",
+          });
         }
       } finally {
         if (isActive) setIsLoading(false);
@@ -1390,6 +1504,13 @@ function PublicProductDetailPage() {
       ) {
         nextKey = keys[keys.length - 1];
       }
+      // GA4 — 실제로 도달한 섹션(상품·섹션당 1회). 어디까지 읽고 이탈하는지.
+      if (impressionGuardRef.current(`section:${product.id}:${nextKey}`)) {
+        trackEvent("detail_section_view", {
+          contentId: nextKey,
+          itemId: String(product.id),
+        });
+      }
       setActiveSectionKey(nextKey);
     };
 
@@ -1412,6 +1533,10 @@ function PublicProductDetailPage() {
   const scrollToSection = useCallback((key) => {
     const element = sectionRefs.current[key];
     if (!element) return;
+    // GA4 — 섹션 nav 클릭(어떤 정보를 먼저 찾는지)
+    trackSelectContent("detail_section", key, {
+      ...(productId != null ? { itemId: String(productId) } : {}),
+    });
     const navHeight = sectionNavRef.current?.offsetHeight ?? 52;
     const top =
       element.getBoundingClientRect().top +
@@ -1419,7 +1544,7 @@ function PublicProductDetailPage() {
       (HEADER_OFFSET_PX + navHeight + 16);
     window.scrollTo({ top, behavior: "smooth" });
     setActiveSectionKey(key);
-  }, []);
+  }, [productId]);
 
   // 옵션 그룹이 비어 있으면(구매 정보 누락) explicit error 표시.
   useEffect(() => {
@@ -1427,7 +1552,14 @@ function PublicProductDetailPage() {
       setOptionLoadError(false);
       return;
     }
-    setOptionLoadError(variantGroups.length === 0);
+    const missing = variantGroups.length === 0;
+    setOptionLoadError(missing);
+    // GA4 exception — 구매 정보(옵션) 누락. 상품당 1회.
+    if (missing && impressionGuardRef.current(`options_missing:${product.id}`)) {
+      trackException("product_options_missing", {
+        itemId: String(product.id),
+      });
+    }
   }, [product, variantGroups]);
 
   // 더 이상 존재하지 않는(품절·삭제) 회차가 선택목록에 남지 않도록 정리.
@@ -1461,14 +1593,23 @@ function PublicProductDetailPage() {
       return;
     }
     const soldOut = !productHasStock;
-    if (wasInStockRef.current && soldOut) {
+    const becameSoldOut = wasInStockRef.current && soldOut;
+    if (becameSoldOut) {
       setJustSoldOut(true);
+    }
+    // GA4 — 품절 화면 노출(수요 대비 재고 공백). 상품당 1회.
+    if (soldOut && !isPreRelease && impressionGuardRef.current(`soldout:${product.id}`)) {
+      trackEvent("product_soldout_view", {
+        itemId: String(product.id),
+        soldoutType: becameSoldOut ? "during_session" : "on_load",
+        value: Number(product.price) || 0,
+      });
     }
     if (!soldOut) {
       wasInStockRef.current = true;
       setJustSoldOut(false);
     }
-  }, [product, productHasStock]);
+  }, [product, productHasStock, isPreRelease]);
 
   // 재입고 알림 구독 상태
   const [isSubscribedRestock, setIsSubscribedRestock] = useState(false);
@@ -1501,7 +1642,8 @@ function PublicProductDetailPage() {
     };
   }, [product?.id]);
 
-  const handleToggleRestockSubscribe = async () => {
+  // surface: hero(본문 버튼) / sticky_bar(모바일 하단 고정 바)
+  const handleToggleRestockSubscribe = async (surface = "hero") => {
     if (!product?.id) return;
     if (!requireMember("restockSubscribe")) return;
     const { supabase: sb } =
@@ -1517,8 +1659,15 @@ function PublicProductDetailPage() {
         });
         if (error) {
           showCartToast(error.message || "구독 취소에 실패했어요.", "error");
+          // GA4 exception — 재입고 알림 해제 실패
+          trackException("restock_toggle_failed", {
+            itemId: String(product.id),
+            uiAction: "unsubscribe",
+            uiSurface: surface,
+            errorMessage: error.message,
+          });
         } else {
-          trackRestockSubscribe(product.id, false);
+          trackRestockSubscribe(product.id, false, { uiSurface: surface });
           setIsSubscribedRestock(false);
           showCartToast("재입고 알림을 해제했어요.");
         }
@@ -1528,8 +1677,15 @@ function PublicProductDetailPage() {
         });
         if (error) {
           showCartToast(error.message || "구독에 실패했어요.", "error");
+          // GA4 exception — 재입고 알림 신청 실패
+          trackException("restock_toggle_failed", {
+            itemId: String(product.id),
+            uiAction: "subscribe",
+            uiSurface: surface,
+            errorMessage: error.message,
+          });
         } else {
-          trackRestockSubscribe(product.id, true);
+          trackRestockSubscribe(product.id, true, { uiSurface: surface });
           setIsSubscribedRestock(true);
           showCartToast("재입고되면 알림을 보내드릴게요.");
         }
@@ -1572,6 +1728,30 @@ function PublicProductDetailPage() {
   // ── 옵션 선택 핸들러 ──────────────────────────────────────────
   const handleAddVariant = useCallback(
     (key) => {
+      // GA4 — 옵션(회차) 선택. 이미 담은 회차를 또 고르면 repeat, 재고를 다 채웠으면 limit.
+      const trackedGroup = variantGroups.find((item) => item.key === key);
+      if (trackedGroup && !trackedGroup.soldOut) {
+        const existingSelection = selections.find((selection) => selection.key === key);
+        const optionLabelParam = trackedGroup.label ? { optionLabel: trackedGroup.label } : {};
+        trackEvent("product_option_select", {
+          ...(product?.id != null ? { itemId: String(product.id) } : {}),
+          ...optionLabelParam,
+          optionIndex: variantGroups.indexOf(trackedGroup),
+          availableCount: trackedGroup.availableCount,
+          ...(trackedGroup.unitPrice != null ? { unitPrice: trackedGroup.unitPrice } : {}),
+          uiAction: existingSelection ? "repeat" : "select",
+        });
+        if (
+          existingSelection &&
+          existingSelection.quantity >= trackedGroup.availableCount
+        ) {
+          trackEvent("product_option_limit", {
+            ...(product?.id != null ? { itemId: String(product.id) } : {}),
+            ...optionLabelParam,
+            availableCount: trackedGroup.availableCount,
+          });
+        }
+      }
       setSelections((prev) => {
         const group = variantGroups.find((item) => item.key === key);
         if (!group || group.soldOut) return prev;
@@ -1591,11 +1771,30 @@ function PublicProductDetailPage() {
         return [...prev, { key, quantity: 1 }];
       });
     },
-    [variantGroups, showCartToast],
+    [variantGroups, selections, product?.id, showCartToast],
   );
 
   const handleChangeQuantity = useCallback(
     (key, delta) => {
+      // GA4 — 수량 −/+ (선택 후 실제 구매 수량 조정 폭)
+      const trackedGroup = variantGroups.find((item) => item.key === key);
+      const trackedSelection = selections.find((selection) => selection.key === key);
+      if (trackedGroup && trackedSelection) {
+        const max = trackedGroup.availableCount ?? 1;
+        const quantityAfter = Math.max(
+          1,
+          Math.min(trackedSelection.quantity + delta, max),
+        );
+        if (quantityAfter !== trackedSelection.quantity) {
+          trackEvent("quantity_change", {
+            ...(product?.id != null ? { itemId: String(product.id) } : {}),
+            ...(trackedGroup.label ? { optionLabel: trackedGroup.label } : {}),
+            direction: delta > 0 ? "increase" : "decrease",
+            quantityAfter,
+            maxQuantity: max,
+          });
+        }
+      }
       setSelections((prev) =>
         prev.map((selection) => {
           if (selection.key !== key) return selection;
@@ -1606,25 +1805,44 @@ function PublicProductDetailPage() {
         }),
       );
     },
-    [variantGroups],
+    [variantGroups, selections, product?.id],
   );
 
-  const handleRemoveVariant = useCallback((key) => {
-    setSelections((prev) => prev.filter((selection) => selection.key !== key));
-  }, []);
+  const handleRemoveVariant = useCallback(
+    (key) => {
+      // GA4 — 선택했던 옵션을 다시 뺀 경우(선택 취소율)
+      const trackedGroup = variantGroups.find((item) => item.key === key);
+      const trackedSelection = selections.find((selection) => selection.key === key);
+      trackEvent("product_option_remove", {
+        ...(product?.id != null ? { itemId: String(product.id) } : {}),
+        ...(trackedGroup?.label ? { optionLabel: trackedGroup.label } : {}),
+        quantityRemoved: trackedSelection?.quantity ?? 0,
+      });
+      setSelections((prev) => prev.filter((selection) => selection.key !== key));
+    },
+    [variantGroups, selections, product?.id],
+  );
 
-  const handleAddToCart = async () => {
+  // surface: hero(본문 구매 박스) / sticky_bar(모바일 하단 고정 바)
+  const handleAddToCart = async (surface = "hero") => {
     if (!canPurchase || !hasSelection) return;
     // GA4 buy_click — 로그인 관문 "앞"에서 발화 (비로그인 구매 의도까지 계측)
     trackBuyClick("add_to_cart", {
       productId: product?.productId ?? product?.id,
       itemCount: selectionCount,
       value: selectionSubtotal,
+      uiSurface: surface,
     });
     const cartArgsList = buildCartArgsFromBooks(product, allocatedBooks);
     if (cartArgsList.length === 0) {
       // 안전망: 할당 실패는 비정상 상태 → explicit error 후 새로고침 유도.
       setOptionLoadError(true);
+      // GA4 exception — 담기 인자 생성 실패(구매 의도가 조용히 죽는 경로)
+      trackException("cart_args_empty", {
+        ...(product?.id != null ? { itemId: String(product.id) } : {}),
+        uiSurface: surface,
+        itemCount: selectionCount,
+      });
       return;
     }
     if (
@@ -1638,17 +1856,25 @@ function PublicProductDetailPage() {
     await runAddToCartBatch(cartArgsList);
   };
 
-  const handleBuyNow = async () => {
+  // surface: hero(본문 구매 박스) / sticky_bar(모바일 하단 고정 바)
+  const handleBuyNow = async (surface = "hero") => {
     if (!canPurchase || !hasSelection) return;
     // GA4 buy_click — 로그인 관문 "앞"에서 발화 (비로그인 구매 의도까지 계측)
     trackBuyClick("buy_now", {
       productId: product?.productId ?? product?.id,
       itemCount: selectionCount,
       value: selectionSubtotal,
+      uiSurface: surface,
     });
     const orderItems = buildOrderItemsFromBooks(product, allocatedBooks);
     if (orderItems.length === 0) {
       setOptionLoadError(true);
+      // GA4 exception — 주문 항목 생성 실패(구매 의도가 조용히 죽는 경로)
+      trackException("order_items_empty", {
+        ...(product?.id != null ? { itemId: String(product.id) } : {}),
+        uiSurface: surface,
+        itemCount: selectionCount,
+      });
       return;
     }
     if (
@@ -1662,7 +1888,9 @@ function PublicProductDetailPage() {
     navigate("/order", { state: { items: orderItems } });
   };
 
-  const handleToggleFavorite = async (targetProductId) => {
+  // surface: detail_hero(본문 하트) / detail_sticky_bar(모바일 하단 바 하트).
+  // 추천 레일 카드는 ProductCard가 이 함수를 productId만 넘겨 호출한다(메타 없음).
+  const handleToggleFavorite = async (targetProductId, surface) => {
     if (!targetProductId) return;
     if (
       !requireMember("favorite", null, {
@@ -1671,7 +1899,20 @@ function PublicProductDetailPage() {
       })
     )
       return;
-    const result = await toggleFavorite(targetProductId);
+    // GA4 메타 — 상세 상품 본인일 때만 items 정보를 채운다(레일 카드는 id만).
+    const isCurrentProduct = String(targetProductId) === String(product?.id ?? "");
+    const result = await toggleFavorite(targetProductId, {
+      ...(isCurrentProduct
+        ? {
+            title: product?.title,
+            price: product?.price,
+            brand: product?.brand,
+            subject: product?.subject,
+          }
+        : {}),
+      // 레일 카드(ProductCard)는 2번째 인자로 이벤트 객체를 넘기므로 문자열일 때만 신뢰한다.
+      uiSurface: typeof surface === "string" ? surface : "detail_related_rail",
+    });
     if (result.error) {
       showCartToast("찜 상태를 변경하지 못했어요.", "error");
       return;
@@ -1688,7 +1929,19 @@ function PublicProductDetailPage() {
     if (resumeHandledRef.current) return;
     if (!isAuthenticated || !product) return;
     const pending = readPendingMemberAction();
-    if (!pending || String(pending.productId) !== String(product.id)) return;
+    if (!pending) return;
+    if (String(pending.productId) !== String(product.id)) {
+      // GA4 — 로그인하고 돌아왔는데 다른 상품이라 이어서 실행하지 못한 경우(의도 유실).
+      // 이 effect는 여러 번 재실행되므로 상품당 1회로 묶는다.
+      if (impressionGuardRef.current(`pending_dropped:${product.id}`)) {
+        trackEvent("pending_action_dropped", {
+          actionType: pending.type ?? "unknown",
+          errorReason: "product_mismatch",
+          itemId: String(product.id),
+        });
+      }
+      return;
+    }
     resumeHandledRef.current = true;
     clearPendingMemberAction();
     if (pending.type === "addToCart") {
@@ -1698,11 +1951,33 @@ function PublicProductDetailPage() {
         : pending.cartArgs
           ? [pending.cartArgs]
           : [];
+      // GA4 — 로그인 후 저장해 둔 행동을 이어서 실행 (관문 통과 후 회수율)
+      trackEvent("pending_action_resume", {
+        actionType: "addToCart",
+        itemId: String(product.id),
+        itemCount: list.length,
+      });
       if (list.length > 0) void runAddToCartBatch(list);
     } else if (pending.type === "buyNow" && Array.isArray(pending.orderItems)) {
+      trackEvent("pending_action_resume", {
+        actionType: "buyNow",
+        itemId: String(product.id),
+        itemCount: pending.orderItems.length,
+      });
       navigate("/order", { state: { items: pending.orderItems } });
     } else if (pending.type === "favorite") {
-      void toggleFavorite(product.id).then((result) => {
+      trackEvent("pending_action_resume", {
+        actionType: "favorite",
+        itemId: String(product.id),
+        itemCount: 1,
+      });
+      void toggleFavorite(product.id, {
+        title: product.title,
+        price: product.price,
+        brand: product.brand,
+        subject: product.subject,
+        uiSurface: "detail_resume",
+      }).then((result) => {
         if (result?.error) {
           showCartToast("찜 상태를 변경하지 못했어요.", "error");
           return;
@@ -1763,7 +2038,16 @@ function PublicProductDetailPage() {
         aria-label="상품 경로"
       >
         <div className="public-detail-route__crumbs">
-          <Link className="public-detail-route__crumb-link" to="/">
+          <Link
+            className="public-detail-route__crumb-link"
+            // GA4 — 빵부스러기로 홈 이탈
+            onClick={() =>
+              trackSelectContent("breadcrumb", "home", {
+                ...(productId != null ? { itemId: String(productId) } : {}),
+              })
+            }
+            to="/"
+          >
             홈
           </Link>
           <span aria-hidden="true">›</span>
@@ -1796,7 +2080,16 @@ function PublicProductDetailPage() {
               <p className="public-detail-notfound__desc">
                 판매가 완료되었거나 더 이상 판매하지 않는 교재예요.
               </p>
-              <Link className="public-detail-notfound__cta" to="/">
+              <Link
+                className="public-detail-notfound__cta"
+                // GA4 — 죽은 링크에서 살아 있는 목록으로 되살아난 비율
+                onClick={() =>
+                  trackSelectContent("notfound_cta", "store", {
+                    ...(productId != null ? { itemId: String(productId) } : {}),
+                  })
+                }
+                to="/"
+              >
                 판매 중인 교재 둘러보기
               </Link>
             </div>
@@ -1804,6 +2097,7 @@ function PublicProductDetailPage() {
               <RelatedProductsRail
                 favoriteIds={favoriteIds}
                 onToggleFavorite={handleToggleFavorite}
+                productId={productId}
                 products={relatedProducts}
                 title="지금 인기 있는 교재"
               />
@@ -1822,7 +2116,12 @@ function PublicProductDetailPage() {
                   disabled={!selectedImageUrl}
                   onClick={() => {
                     if (!selectedImageUrl) return;
-                    trackImageZoom(product.id);
+                    // GA4 — 후기 사진 확대(zoom_source: review)와 가르기 위해 hero 명시
+                    trackImageZoom(product.id, {
+                      zoomSource: "hero",
+                      imageIndex: selectedImageIndex,
+                      imageCount: galleryImages.length,
+                    });
                     setLightboxState({
                       images: galleryImages,
                       initialIndex: selectedImageIndex,
@@ -1853,7 +2152,15 @@ function PublicProductDetailPage() {
                         aria-label={`${index + 1}번 이미지 보기`}
                         className={`public-detail-hero__thumb${index === selectedImageIndex ? " is-active" : ""}`}
                         key={`${imageUrl}-${index}`}
-                        onClick={() => setSelectedImageIndex(index)}
+                        onClick={() => {
+                          // GA4 — 썸네일로 다른 사진 확인
+                          trackEvent("product_image_switch", {
+                            itemId: String(product.id),
+                            imageIndex: index,
+                            imageCount: galleryImages.length,
+                          });
+                          setSelectedImageIndex(index);
+                        }}
                         type="button"
                       >
                         <img
@@ -1929,6 +2236,7 @@ function PublicProductDetailPage() {
                         disabled={!productHasStock}
                         groups={variantGroups}
                         onAdd={handleAddVariant}
+                        productId={product.id}
                       />
                     ) : null}
                     {renderSelectedOptions()}
@@ -1963,7 +2271,7 @@ function PublicProductDetailPage() {
                     className={`public-detail-hero__favorite${isProductFavorite ? " is-active" : ""}`}
                     disabled={isProductFavoritePending}
                     onClick={() => {
-                      void handleToggleFavorite(product.id);
+                      void handleToggleFavorite(product.id, "detail_hero");
                     }}
                     type="button"
                   >
@@ -1976,6 +2284,15 @@ function PublicProductDetailPage() {
                     featuredEntry?.eventPath ? (
                       <Link
                         className="public-detail-hero__btn public-detail-hero__btn--buy public-detail-hero__btn--link"
+                        // GA4 — 출시 전 상품에서 이벤트 랜딩(알림 신청)으로 보낸 클릭
+                        onClick={() =>
+                          trackSelectPromotion({
+                            promotionId: featuredEntry.key,
+                            promotionName: product.title,
+                            creativeSlot: "detail_prerelease_cta",
+                            itemId: String(product.id),
+                          })
+                        }
                         to={`${featuredEntry.eventPath}#coupon`}
                       >
                         {COLLAB_OPEN_LABEL} 알림 받기
@@ -1994,7 +2311,9 @@ function PublicProductDetailPage() {
                       <button
                         className="public-detail-hero__btn public-detail-hero__btn--cart"
                         disabled={!hasSelection}
-                        onClick={handleAddToCart}
+                        onClick={() => {
+                          void handleAddToCart("hero");
+                        }}
                         type="button"
                       >
                         장바구니 담기
@@ -2002,7 +2321,9 @@ function PublicProductDetailPage() {
                       <button
                         className="public-detail-hero__btn public-detail-hero__btn--buy"
                         disabled={!hasSelection}
-                        onClick={handleBuyNow}
+                        onClick={() => {
+                          void handleBuyNow("hero");
+                        }}
                         type="button"
                       >
                         바로 구매하기
@@ -2012,7 +2333,9 @@ function PublicProductDetailPage() {
                     <button
                       className="public-detail-hero__btn public-detail-hero__btn--buy"
                       disabled={restockBusy}
-                      onClick={handleToggleRestockSubscribe}
+                      onClick={() => {
+                        void handleToggleRestockSubscribe("hero");
+                      }}
                       type="button"
                     >
                       {restockBusy
@@ -2060,12 +2383,16 @@ function PublicProductDetailPage() {
               {featuredDetailKey ? (
                 <FeaturedProductDetail
                   detailKey={featuredDetailKey}
+                  productId={product.id}
                   title={product.title}
                 />
               ) : (
                 <>
-                  <AiSummarySection summary={aiSummary} />
-                  <DetailPhotoSection images={product.inspectionImageUrls} />
+                  <AiSummarySection productId={product.id} summary={aiSummary} />
+                  <DetailPhotoSection
+                    images={product.inspectionImageUrls}
+                    productId={product.id}
+                  />
                   <DetailInfoContent activeDisplay={product} />
                 </>
               )}
@@ -2107,6 +2434,7 @@ function PublicProductDetailPage() {
                 onOpenPhoto={(images, initialIndex, author) =>
                   setLightboxState({ images, initialIndex, captionPrefix: `${author}님의 후기` })
                 }
+                productId={product.id}
                 reviews={productReviews}
               />
             </section>
@@ -2117,6 +2445,7 @@ function PublicProductDetailPage() {
               collectionLinks={collectionLinks}
               favoriteIds={favoriteIds}
               onToggleFavorite={handleToggleFavorite}
+              productId={product.id}
               products={relatedProducts}
             />
           </>
@@ -2142,6 +2471,7 @@ function PublicProductDetailPage() {
           images={lightboxState.images}
           initialIndex={lightboxState.initialIndex}
           onClose={() => setLightboxState(null)}
+          productId={product?.id}
         />
       ) : null}
 
@@ -2157,7 +2487,7 @@ function PublicProductDetailPage() {
           className={`public-detail-sticky-bar__favorite${isProductFavorite ? " is-active" : ""}`}
           disabled={isProductFavoritePending}
           onClick={() => {
-            void handleToggleFavorite(product.id);
+            void handleToggleFavorite(product.id, "detail_sticky_bar");
           }}
           type="button"
         >
@@ -2176,7 +2506,9 @@ function PublicProductDetailPage() {
             <button
               className="public-detail-sticky-bar__btn public-detail-sticky-bar__btn--cart"
               disabled={!hasSelection}
-              onClick={handleAddToCart}
+              onClick={() => {
+                void handleAddToCart("sticky_bar");
+              }}
               type="button"
             >
               장바구니
@@ -2184,7 +2516,9 @@ function PublicProductDetailPage() {
             <button
               className="public-detail-sticky-bar__btn public-detail-sticky-bar__btn--buy"
               disabled={!hasSelection}
-              onClick={handleBuyNow}
+              onClick={() => {
+                void handleBuyNow("sticky_bar");
+              }}
               type="button"
             >
               구매하기
@@ -2194,7 +2528,9 @@ function PublicProductDetailPage() {
           <button
             className="public-detail-sticky-bar__btn public-detail-sticky-bar__btn--buy"
             disabled={restockBusy}
-            onClick={handleToggleRestockSubscribe}
+            onClick={() => {
+              void handleToggleRestockSubscribe("sticky_bar");
+            }}
             type="button"
           >
             {restockBusy

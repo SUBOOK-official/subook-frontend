@@ -96,6 +96,25 @@ import {
   maskAccountNumber,
   sanitizeAccountNumberInput,
 } from "../lib/publicMypageUtils";
+import {
+  makeOnceGuard,
+  trackContactClick,
+  trackCopyClick,
+  trackDeliveryTrackClick,
+  trackDialogClose,
+  trackEmptyState,
+  trackEvent,
+  trackException,
+  trackFormAbandon,
+  trackImageZoom,
+  trackListFilterChange,
+  trackListPagination,
+  trackPickupCtaClick,
+  trackSelectContent,
+  trackTabChange,
+  trackViewItemList,
+} from "../lib/analytics";
+import { useInViewOnce } from "../lib/useInViewOnce";
 import { formatPhoneNumber, hasValidPhoneNumber } from "../lib/publicAuthFormUtils";
 import { fetchWishlistProducts } from "../lib/publicWishlist";
 import {
@@ -134,6 +153,9 @@ const MYPAGE_GRID_ITEMS = [
   { key: "settlements", label: "정산 내역", icon: receiptIcon },
   { key: "settlement-account", label: "정산 계좌 관리", icon: accountIcon },
 ];
+
+// GA4 item_list_name — 찜 목록(마이페이지 탭·설정 탭 공용)
+const WISHLIST_LIST_NAME = "마이페이지 찜한 교재";
 
 const initialLoadedTabs = {
   sales: false,
@@ -265,6 +287,12 @@ function PublicMypagePage() {
   const [expandedShipmentId, setExpandedShipmentId] = useState(null);
   const tabPanelRef = useRef(null);
   const addressDetailInputRef = useRef(null);
+  // GA4 탭 전환 계측용 — hash→tab 효과는 deps에 portalState가 있어 재실행되므로
+  // 그쪽에서 발화하면 중복된다. activeTabKey만 보는 별도 효과에서 1회씩 남긴다.
+  const lastTrackedTabRef = useRef(null);
+  const tabEntryRef = useRef({ entry: "hash", uiSurface: null });
+  // 데이터 로드·빈 상태 1회 발화 가드
+  const mypageLoadGuardRef = useRef(makeOnceGuard());
   // 상단 프로필 '>' 메뉴 (회원정보 수정 / 주소록)
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const profileMenuRef = useRef(null);
@@ -300,6 +328,36 @@ function PublicMypagePage() {
     setActiveTabKey(getTabKeyFromHash(location.hash));
   }, [location.hash, portalState]);
 
+  // GA4 탭 전환 — 위 효과(portalState 의존)에서 발화하면 재실행마다 중복되므로 여기서만.
+  // entry는 moveToTab 클릭이 채워두고(없으면 해시/기본 탭), 첫 진입은 initial로 남긴다.
+  useEffect(() => {
+    if (!activeTabKey || lastTrackedTabRef.current === activeTabKey) {
+      return;
+    }
+    const previousTab = lastTrackedTabRef.current;
+    lastTrackedTabRef.current = activeTabKey;
+    const { entry, uiSurface } = tabEntryRef.current;
+    trackTabChange("mypage", activeTabKey, {
+      ...(previousTab ? { fromTab: previousTab } : {}),
+      entry: previousTab ? entry : "initial",
+      ...(uiSurface ? { uiSurface } : {}),
+    });
+    tabEntryRef.current = { entry: "hash", uiSurface: null };
+  }, [activeTabKey]);
+
+  // GA4 접근 거부 — 운영자/차단/탈퇴 계정이 마이페이지에서 튕기는 비율
+  const accessDeniedTrackedRef = useRef(false);
+  useEffect(() => {
+    if (isLoading || isDemoPreview || isAuthenticated || accessDeniedTrackedRef.current) {
+      return;
+    }
+    accessDeniedTrackedRef.current = true;
+    trackEvent("mypage_access_denied", {
+      accountRole: accountRole || "anonymous",
+      isAdminAccount: Boolean(isAdminAccount),
+    });
+  }, [accountRole, isAdminAccount, isAuthenticated, isDemoPreview, isLoading]);
+
   useEffect(() => {
     if (!effectiveUser || loadedTabs[dataKey]) {
       return undefined;
@@ -325,6 +383,31 @@ function PublicMypagePage() {
 
       setPortalState(snapshot);
       setProfileForm(buildProfileForm(snapshot.profile, effectiveUser));
+
+      // GA4 데이터 로드 — 어느 소스에서 왔는지(local/empty면 조용한 폴백 상태)
+      if (mypageLoadGuardRef.current(dataKey)) {
+        const sources = snapshot.sources ?? {};
+        trackEvent("mypage_load", {
+          dataKey,
+          profileSource: sources.profile,
+          ordersSource: sources.orders,
+          settlementsSource: sources.settlements,
+          shipmentsSource: sources.recentShipments,
+        });
+        // supabase가 설정돼 있는데도 로컬 폴백/빈 소스로 떨어졌으면 조용한 장애다.
+        const isDegraded = ["orders", "settlements", "recentShipments"].some(
+          (key) => sources[key] === "local" || sources[key] === "fallback",
+        );
+        if (isDegraded && isConfigured && !isDemoPreview) {
+          trackException("mypage_data_degraded", {
+            dataKey,
+            ordersSource: sources.orders,
+            settlementsSource: sources.settlements,
+            shipmentsSource: sources.recentShipments,
+          });
+        }
+      }
+
       setLoadedTabs((currentValue) => ({
         ...currentValue,
         [dataKey]: true,
@@ -346,6 +429,7 @@ function PublicMypagePage() {
     dataKey,
     effectiveProfile,
     effectiveUser,
+    isConfigured,
     isDemoPreview,
     loadedTabs,
     portalState.profile,
@@ -404,6 +488,13 @@ function PublicMypagePage() {
       setWishlistError(
         result.error ? "찜한 교재를 불러오지 못했어요. 잠시 후 다시 시도해 주세요." : "",
       );
+      if (result.error) {
+        // GA4 찜 목록 로드 실패
+        trackException("wishlist_load_failed", {
+          errorMessage: result.error.message ?? "",
+          itemCount: favoriteIds.length,
+        });
+      }
       // 구독 목록 로드 실패는 치명적이지 않음 — 버튼이 "신청" 기본 상태로 보일 뿐.
       setRestockSubscribedIds(restockResult.productIds);
       setIsWishlistProductsLoading(false);
@@ -452,15 +543,21 @@ function PublicMypagePage() {
     const isSubscribed = restockSubscribedIds.has(productKey);
 
     setRestockBusyProductId(productKey);
+    // GA4 restock_subscribe/unsubscribe는 publicRestock 헬퍼가 발화한다(ui_surface만 전달).
     const result = isSubscribed
-      ? await unsubscribeRestock(productId)
-      : await subscribeRestock(productId);
+      ? await unsubscribeRestock(productId, { uiSurface: "wishlist_card" })
+      : await subscribeRestock(productId, { uiSurface: "wishlist_card" });
     setRestockBusyProductId(null);
 
     if (result.error) {
       setToastState({
         message: "재입고 알림 처리에 실패했어요. 잠시 후 다시 시도해 주세요.",
         tone: "error",
+      });
+      trackException("restock_toggle_failed", {
+        itemId: productKey,
+        uiSurface: "wishlist_card",
+        errorMessage: result.error.message ?? "",
       });
       return;
     }
@@ -577,7 +674,10 @@ function PublicMypagePage() {
   };
 
   const moveToTab = (tabKey, options = {}) => {
-    const { openProfileEdit = false, smoothScroll = true } = options;
+    const { openProfileEdit = false, smoothScroll = true, uiSurface = null } = options;
+
+    // GA4 — 실제 tab_change 발화는 activeTabKey 효과에서 1회. 여기서는 진입 경로만 남긴다.
+    tabEntryRef.current = { entry: "click", uiSurface };
 
     setActiveTabKey(tabKey);
     navigate(
@@ -666,6 +766,10 @@ function PublicMypagePage() {
         message: "최대 5개까지 등록할 수 있습니다.",
         tone: "error",
       });
+      // GA4 등록 상한으로 막힘 — 5개 제한이 실제로 걸리는지
+      trackEvent("address_limit_blocked", {
+        savedCount: portalState.shippingAddresses.length,
+      });
       return;
     }
 
@@ -686,6 +790,10 @@ function PublicMypagePage() {
       setToastState({
         message: "최대 5개까지 등록할 수 있습니다.",
         tone: "error",
+      });
+      // GA4 정산 계좌 등록 상한
+      trackEvent("settlement_account_limit_blocked", {
+        savedCount: portalState.settlementAccounts.length,
       });
       return;
     }
@@ -728,7 +836,11 @@ function PublicMypagePage() {
     }
 
     setProfileErrors(nextErrors);
-    return Object.values(nextErrors).every((value) => !value);
+    // GA4에서 실패 필드를 남기기 위해 errors까지 함께 돌려준다.
+    return {
+      isValid: Object.values(nextErrors).every((value) => !value),
+      errorField: Object.keys(nextErrors).find((key) => nextErrors[key]) ?? null,
+    };
   };
 
   const validateAddress = () => {
@@ -761,7 +873,10 @@ function PublicMypagePage() {
     }
 
     setAddressErrors(nextErrors);
-    return Object.values(nextErrors).every((value) => !value);
+    return {
+      isValid: Object.values(nextErrors).every((value) => !value),
+      errorField: Object.keys(nextErrors).find((key) => nextErrors[key]) ?? null,
+    };
   };
 
   const validateAccount = () => {
@@ -780,14 +895,24 @@ function PublicMypagePage() {
     }
 
     setAccountErrors(nextErrors);
-    return Object.values(nextErrors).every((value) => !value);
+    return {
+      isValid: Object.values(nextErrors).every((value) => !value),
+      errorField: Object.keys(nextErrors).find((key) => nextErrors[key]) ?? null,
+    };
   };
 
   const handleSaveProfile = async (event) => {
     event.preventDefault();
 
-    const isValid = await validateProfile();
-    if (!isValid || !effectiveUser) {
+    const validation = await validateProfile();
+    if (!validation.isValid || !effectiveUser) {
+      if (!validation.isValid) {
+        // GA4 프로필 저장 검증 실패 — 값은 보내지 않고 실패 필드만
+        trackEvent("profile_save", {
+          result: "validation",
+          errorField: validation.errorField,
+        });
+      }
       return;
     }
 
@@ -803,8 +928,16 @@ function PublicMypagePage() {
         message: result.error.message || "프로필을 저장하지 못했습니다.",
         tone: "error",
       });
+      // GA4 프로필 저장 실패
+      trackEvent("profile_save", {
+        result: "fail",
+        errorMessage: result.error.message ?? "",
+      });
       return;
     }
+
+    // GA4 프로필 저장 성공
+    trackEvent("profile_save", { result: "ok", source: result.source });
 
     if (!isDemoPreview) {
       await refreshProfile();
@@ -824,15 +957,29 @@ function PublicMypagePage() {
       return;
     }
 
+    const addressUiAction = addressForm.id ? "edit" : "create";
+
     if (!addressForm.id && portalState.shippingAddresses.length >= MAX_SAVED_ITEMS) {
       setToastState({
         message: "최대 5개까지 등록할 수 있습니다.",
         tone: "error",
       });
+      trackEvent("address_limit_blocked", {
+        savedCount: portalState.shippingAddresses.length,
+        uiSurface: "address_form",
+      });
       return;
     }
 
-    if (!validateAddress()) {
+    const addressValidation = validateAddress();
+    if (!addressValidation.isValid) {
+      // GA4 배송지 저장 검증 실패 (주소·연락처 값은 미전송)
+      trackEvent("address_save", {
+        uiAction: addressUiAction,
+        result: "validation",
+        errorField: addressValidation.errorField,
+        uiSurface: "mypage",
+      });
       return;
     }
 
@@ -849,8 +996,24 @@ function PublicMypagePage() {
         message: result.error.message || "배송지를 저장하지 못했습니다.",
         tone: "error",
       });
+      // GA4 배송지 저장 실패
+      trackEvent("address_save", {
+        uiAction: addressUiAction,
+        result: "fail",
+        errorMessage: result.error.message ?? "",
+        uiSurface: "mypage",
+      });
       return;
     }
+
+    // GA4 배송지 저장 성공
+    trackEvent("address_save", {
+      uiAction: addressUiAction,
+      result: "ok",
+      setDefault: Boolean(addressForm.is_default) || portalState.shippingAddresses.length === 0,
+      savedCount: portalState.shippingAddresses.length,
+      uiSurface: "mypage",
+    });
 
     closeAddressSheet();
     await syncPortalState({
@@ -866,15 +1029,28 @@ function PublicMypagePage() {
       return;
     }
 
+    const accountUiAction = accountForm.id ? "edit" : "create";
+
     if (!accountForm.id && portalState.settlementAccounts.length >= MAX_SAVED_ITEMS) {
       setToastState({
         message: "최대 5개까지 등록할 수 있습니다.",
         tone: "error",
       });
+      trackEvent("settlement_account_limit_blocked", {
+        savedCount: portalState.settlementAccounts.length,
+        uiSurface: "settlement_account_form",
+      });
       return;
     }
 
-    if (!validateAccount()) {
+    const accountValidation = validateAccount();
+    if (!accountValidation.isValid) {
+      // GA4 정산 계좌 검증 실패 — 계좌번호·예금주 값은 절대 미전송(은행명만 허용)
+      trackEvent("settlement_account_save", {
+        uiAction: accountUiAction,
+        result: "validation",
+        errorField: accountValidation.errorField,
+      });
       return;
     }
 
@@ -891,8 +1067,23 @@ function PublicMypagePage() {
         message: result.error.message || "정산 계좌를 저장하지 못했습니다.",
         tone: "error",
       });
+      // GA4 정산 계좌 저장 실패
+      trackEvent("settlement_account_save", {
+        uiAction: accountUiAction,
+        result: "fail",
+        errorMessage: result.error.message ?? "",
+      });
       return;
     }
+
+    // GA4 정산 계좌 저장 성공 (은행명은 PII가 아니라 남긴다)
+    trackEvent("settlement_account_save", {
+      uiAction: accountUiAction,
+      result: "ok",
+      bankName: accountForm.bank_name,
+      setDefault: Boolean(accountForm.is_default) || portalState.settlementAccounts.length === 0,
+      savedCount: portalState.settlementAccounts.length,
+    });
 
     closeAccountSheet();
     await syncPortalState({
@@ -907,6 +1098,8 @@ function PublicMypagePage() {
         message: "기본 주소는 삭제할 수 없습니다.",
         tone: "error",
       });
+      // GA4 삭제 차단 — 기본 주소 1개뿐
+      trackEvent("address_delete_blocked", { errorReason: "only_default" });
       return;
     }
 
@@ -915,6 +1108,7 @@ function PublicMypagePage() {
         message: "다른 주소를 기본으로 설정한 뒤 삭제해 주세요.",
         tone: "error",
       });
+      trackEvent("address_delete_blocked", { errorReason: "is_default" });
       return;
     }
 
@@ -922,6 +1116,7 @@ function PublicMypagePage() {
       open: true,
       type: "address",
       itemId: address.id,
+      analytics: { savedCount: portalState.shippingAddresses.length },
       title: "이 주소를 삭제하시겠습니까?",
       body: `${address.label} 배송지를 삭제하면 주문서에서 다시 선택할 수 없습니다.`,
       confirmLabel: "삭제",
@@ -935,6 +1130,8 @@ function PublicMypagePage() {
         message: "기본 계좌는 삭제할 수 없습니다.",
         tone: "error",
       });
+      // GA4 삭제 차단 — 기본 계좌 1개뿐
+      trackEvent("settlement_account_delete_blocked", { errorReason: "only_default" });
       return;
     }
 
@@ -943,6 +1140,7 @@ function PublicMypagePage() {
         message: "다른 계좌를 기본으로 설정한 뒤 삭제해 주세요.",
         tone: "error",
       });
+      trackEvent("settlement_account_delete_blocked", { errorReason: "is_default" });
       return;
     }
 
@@ -950,6 +1148,7 @@ function PublicMypagePage() {
       open: true,
       type: "account",
       itemId: account.id,
+      analytics: { savedCount: portalState.settlementAccounts.length, bankName: account.bank_name },
       title: "이 계좌를 삭제하시겠습니까?",
       body: `${account.bank_name} 계좌를 삭제하면 정산 시 다시 등록해야 합니다.`,
       confirmLabel: "삭제",
@@ -962,6 +1161,16 @@ function PublicMypagePage() {
       open: true,
       type: "order",
       itemId: order.id,
+      // GA4 — 다이얼로그 노출·확정 이벤트에 함께 실을 주문 맥락(금액·상태·자동확정 잔여일)
+      analytics: {
+        orderId: String(order.id),
+        orderStatus: order.status,
+        value: Number(order.totalAmount) || 0,
+        autoConfirmDaysRemaining:
+          order.autoConfirmDaysRemaining != null
+            ? Number(order.autoConfirmDaysRemaining)
+            : undefined,
+      },
       title: "구매를 확정하시겠습니까?",
       body: "확정 후에는 반품이 불가합니다.",
       confirmLabel: "확정하기",
@@ -976,6 +1185,12 @@ function PublicMypagePage() {
       open: true,
       type: "cancel_order",
       itemId: order.id,
+      analytics: {
+        orderId: String(order.id),
+        orderStatus: order.status,
+        value: Number(order.totalAmount) || 0,
+        paymentType: order.paymentMethod,
+      },
       title: "주문을 취소하시겠습니까?",
       body: "취소 후에는 되돌릴 수 없습니다. 취소 사유를 선택해 주세요.",
       confirmLabel: "주문 취소",
@@ -994,6 +1209,10 @@ function PublicMypagePage() {
       open: true,
       type: "cancel_pickup",
       itemId: shipment.pickupRequestId,
+      analytics: {
+        pickupStatus: shipment.status,
+        bookCount: Number(shipment.bookCount ?? shipment.items?.length ?? 0),
+      },
       title: "수거 신청을 취소하시겠습니까?",
       body: `수거 ${shipment.reference ?? ""} 신청이 취소되며, 필요하면 새로 신청해야 합니다.`,
       confirmLabel: "신청 취소",
@@ -1007,6 +1226,20 @@ function PublicMypagePage() {
       return;
     }
 
+    // GA4 — 회원 액션 RPC 실패를 한 곳에서 예외로 남긴다(토스트만 뜨고 사라지던 구간).
+    const trackActionFailure = (error) => {
+      trackException("member_action_failed", {
+        actionType: confirmState.type,
+        errorMessage: error?.message ?? "",
+        ...(confirmState.analytics ?? {}),
+      });
+    };
+    // 다이얼로그에서 고른 사유 분류 — 성공 이벤트(order_cancel 등)에 함께 싣는다.
+    const confirmAnalytics = {
+      ...(confirmState.analytics ?? {}),
+      ...(confirmReasonCategory ? { reasonCategory: confirmReasonCategory } : {}),
+    };
+
     if (confirmState.type === "withdrawal") {
       setIsWithdrawing(true);
       // 탈퇴 사유: 카테고리 키 + 선택 당시 문구 스냅샷 + (기타/부가) 상세 입력을 함께 보관.
@@ -1019,10 +1252,16 @@ function PublicMypagePage() {
         reasonCategory: confirmReasonCategory || null,
         reasonLabel: withdrawalCategory?.label ?? null,
         reasonDetail: confirmReason.trim() || null,
+        // GA4 member_withdraw에 얹을 부가 파라미터(사유 본문은 미전송, 작성 여부만)
+        analytics: {
+          ...(confirmState.analytics ?? {}),
+          hasReasonDetail: Boolean(confirmReason.trim()),
+        },
       });
       setIsWithdrawing(false);
 
       if (result.error) {
+        trackActionFailure(result.error);
         setToastState({
           message: result.error.message || "회원탈퇴 신청에 실패했습니다.",
           tone: "error",
@@ -1048,11 +1287,14 @@ function PublicMypagePage() {
       setBusyAddressId(null);
 
       if (result.error) {
+        trackActionFailure(result.error);
         setToastState({
           message: result.error.message || "배송지를 삭제하지 못했습니다.",
           tone: "error",
         });
       } else {
+        // GA4 배송지 삭제 성공
+        trackEvent("address_delete", { result: "ok", ...(confirmState.analytics ?? {}) });
         await syncPortalState({
           message: result.source === "supabase" ? "배송지가 삭제되었습니다." : "배송지가 임시 삭제되었습니다.",
           tone: result.source === "supabase" ? "success" : "info",
@@ -1072,11 +1314,17 @@ function PublicMypagePage() {
       setBusyAccountId(null);
 
       if (result.error) {
+        trackActionFailure(result.error);
         setToastState({
           message: result.error.message || "정산 계좌를 삭제하지 못했습니다.",
           tone: "error",
         });
       } else {
+        // GA4 정산 계좌 삭제 성공 (은행명만, 계좌번호·예금주는 미전송)
+        trackEvent("settlement_account_delete", {
+          result: "ok",
+          ...(confirmState.analytics ?? {}),
+        });
         await syncPortalState({
           message: result.source === "supabase" ? "정산 계좌가 삭제되었습니다." : "정산 계좌가 임시 삭제되었습니다.",
           tone: result.source === "supabase" ? "success" : "info",
@@ -1093,10 +1341,13 @@ function PublicMypagePage() {
         user: effectiveUser,
         orderId: confirmState.itemId,
         demoMode: isDemoPreview,
+        // GA4 purchase_confirm에 주문 맥락을 실어 보낸다(memberPortal이 성공 시 발화).
+        analytics: confirmAnalytics,
       });
       setBusyOrderId(null);
 
       if (result.error) {
+        trackActionFailure(result.error);
         setToastState({
           message: result.error.message || "구매확정 처리에 실패했습니다.",
           tone: "error",
@@ -1126,10 +1377,13 @@ function PublicMypagePage() {
         orderId: confirmState.itemId,
         reason: cancelReason,
         demoMode: isDemoPreview,
+        // GA4 order_cancel — 사유 분류·주문 상태·금액 (자유 입력 사유 본문은 미전송)
+        analytics: confirmAnalytics,
       });
       setBusyOrderId(null);
 
       if (result.error) {
+        trackActionFailure(result.error);
         setToastState({
           message: result.error.message || "주문 취소에 실패했습니다.",
           tone: "error",
@@ -1151,10 +1405,13 @@ function PublicMypagePage() {
         user: effectiveUser,
         requestId: confirmState.itemId,
         demoMode: isDemoPreview,
+        // GA4 pickup_self_cancel — memberPortal이 성공·실패 모두 발화한다.
+        analytics: confirmAnalytics,
       });
       setIsConfirmBusy(false);
 
       if (result.error) {
+        trackActionFailure(result.error);
         setToastState({
           message: result.error.message || "수거 신청 취소에 실패했습니다.",
           tone: "error",
@@ -1184,11 +1441,14 @@ function PublicMypagePage() {
         orderId: confirmState.itemId,
         reason: combinedReason,
         demoMode: isDemoPreview,
+        // GA4 refund_request — 사유 분류·주문 상태 (사유 본문은 미전송)
+        analytics: confirmAnalytics,
       });
       setBusyOrderId(null);
       setIsConfirmBusy(false);
 
       if (result.error) {
+        trackActionFailure(result.error);
         setToastState({
           message: result.error.message || "환불 신청에 실패했습니다.",
           tone: "error",
@@ -1219,8 +1479,16 @@ function PublicMypagePage() {
         message: result.error.message || "기본 배송지를 변경하지 못했습니다.",
         tone: "error",
       });
+      // GA4 기본 배송지 변경 실패
+      trackEvent("address_set_default", {
+        result: "fail",
+        errorMessage: result.error.message ?? "",
+      });
       return;
     }
+
+    // GA4 기본 배송지 변경 성공
+    trackEvent("address_set_default", { result: "ok" });
 
     await syncPortalState({
       message: "기본 배송지가 변경되었습니다.",
@@ -1242,8 +1510,16 @@ function PublicMypagePage() {
         message: result.error.message || "기본 정산 계좌를 변경하지 못했습니다.",
         tone: "error",
       });
+      // GA4 기본 정산 계좌 변경 실패
+      trackEvent("settlement_account_set_default", {
+        result: "fail",
+        errorMessage: result.error.message ?? "",
+      });
       return;
     }
+
+    // GA4 기본 정산 계좌 변경 성공
+    trackEvent("settlement_account_set_default", { result: "ok" });
 
     await syncPortalState({
       message: "기본 정산 계좌가 변경되었습니다.",
@@ -1251,7 +1527,8 @@ function PublicMypagePage() {
     });
   };
 
-  const handleTrackParcel = (trackingNumber) => {
+  // uiSurface: purchase_card / sales_card — 어디서 배송 조회를 눌렀는지 구분
+  const handleTrackParcel = (trackingNumber, uiSurface = "purchase_card", extra = {}) => {
     const trackingUrl = buildCjTrackingUrl(trackingNumber);
 
     if (!trackingUrl) {
@@ -1259,13 +1536,21 @@ function PublicMypagePage() {
         message: "운송장 정보가 아직 없습니다.",
         tone: "error",
       });
+      // GA4 운송장 없이 배송 조회를 누른 경우(죽은 버튼 노출량)
+      trackEvent("delivery_track_unavailable", { uiSurface, ...extra });
       return;
     }
 
+    // GA4 배송 조회 클릭
+    trackDeliveryTrackClick(uiSurface, extra);
     window.open(trackingUrl, "_blank", "noopener,noreferrer");
   };
 
-  const handlePickupRequest = () => {
+  // source: mypage_sales_empty / mypage_settlements_empty …
+  const handlePickupRequest = (source = "mypage") => {
+    // GA4 수거 신청 CTA — 로그인 관문 앞에서 센다(관문 이탈도 분모에 포함)
+    trackPickupCtaClick(typeof source === "string" ? source : "mypage");
+
     if (!requireMember("pickupRequest", "/pickup/new")) {
       return;
     }
@@ -1287,12 +1572,24 @@ function PublicMypagePage() {
         message: "배송완료 또는 구매확정 상태에서만 환불을 신청할 수 있어요.",
         tone: "info",
       });
+      // GA4 환불 신청 차단 — 상태 미달
+      trackEvent("refund_blocked", {
+        orderId: String(order.id),
+        errorReason: "status_ineligible",
+        orderStatus: order.status,
+      });
       return;
     }
     if (order.refund_requested_at || order.refundRequestedAt) {
       setToastState({
         message: "이미 환불 신청이 접수된 주문이에요.",
         tone: "info",
+      });
+      // GA4 환불 신청 차단 — 이미 접수됨
+      trackEvent("refund_blocked", {
+        orderId: String(order.id),
+        errorReason: "already_requested",
+        orderStatus: order.status,
       });
       return;
     }
@@ -1302,6 +1599,11 @@ function PublicMypagePage() {
       open: true,
       type: "refund_order",
       itemId: order.id,
+      analytics: {
+        orderId: String(order.id),
+        orderStatus: order.status,
+        value: Number(order.totalAmount) || 0,
+      },
       title: "환불을 신청하시겠습니까?",
       body: "환불 사유를 정확하게 알려주세요. 운영자 검토 후 환불이 진행됩니다.",
       confirmLabel: "환불 신청",
@@ -1319,6 +1621,7 @@ function PublicMypagePage() {
       open: true,
       type: "withdrawal",
       itemId: null,
+      analytics: { uiSurface: "mypage_settings" },
       title: "회원탈퇴를 신청하시겠습니까?",
       body: "신청 후 30일 동안 계정이 유예 상태로 보관되고, 이후 개인정보가 파기됩니다. 유예 기간 중 복구가 필요하면 고객센터로 문의해 주세요. 떠나시는 이유를 알려주시면 서비스 개선에 큰 도움이 됩니다.",
       confirmLabel: "탈퇴 신청",
@@ -1359,6 +1662,8 @@ function PublicMypagePage() {
       });
 
     try {
+      // GA4 주소 검색 열기 (주소 값 자체는 보내지 않는다)
+      trackEvent("address_search_open", { uiSurface: "mypage" });
       setIsSearchingAddress(true);
       await loadScript();
       setIsSearchingAddress(false);
@@ -1375,17 +1680,24 @@ function PublicMypagePage() {
             postal_code: "",
             address_line1: "",
           }));
+          // GA4 주소 선택 완료
+          trackEvent("address_search_complete", { uiSurface: "mypage" });
 
           window.setTimeout(() => {
             addressDetailInputRef.current?.focus();
           }, 50);
         },
       }).open();
-    } catch {
+    } catch (error) {
       setIsSearchingAddress(false);
       setToastState({
         message: "주소 검색을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.",
         tone: "error",
+      });
+      // GA4 우편번호 스크립트 로드 실패
+      trackException("address_script_failed", {
+        uiSurface: "mypage",
+        errorMessage: error?.message ?? "",
       });
     }
   };
@@ -1397,7 +1709,8 @@ function PublicMypagePage() {
     }
 
     setIsSigningOut(true);
-    const result = await signOut();
+    // GA4 logout은 AuthContext.signOut(source)이 발화한다 — 여기서 중복 발화하지 않는다.
+    const result = await signOut("mypage_settings");
     setIsSigningOut(false);
 
     if (result.error) {
@@ -1418,6 +1731,12 @@ function PublicMypagePage() {
       setToastState({
         message: result.error.message || "찜 상태를 변경하지 못했어요.",
         tone: "error",
+      });
+      // GA4 찜 토글 실패 (add/remove 이벤트는 WishlistContext가 성공 시에만 발화)
+      trackException("wishlist_toggle_failed", {
+        itemId: String(productId),
+        uiSurface: "mypage_wishlist",
+        errorMessage: result.error.message ?? "",
       });
       return;
     }
@@ -1681,7 +2000,7 @@ function PublicMypagePage() {
                       <div className="public-mypage-profile__menu" role="menu">
                         <button
                           className="public-mypage-profile__menu-item"
-                          onClick={() => { setIsProfileMenuOpen(false); moveToTab("profile", { smoothScroll: false }); }}
+                          onClick={() => { setIsProfileMenuOpen(false); moveToTab("profile", { smoothScroll: false, uiSurface: "profile_menu" }); }}
                           role="menuitem"
                           type="button"
                         >
@@ -1689,7 +2008,7 @@ function PublicMypagePage() {
                         </button>
                         <button
                           className="public-mypage-profile__menu-item"
-                          onClick={() => { setIsProfileMenuOpen(false); moveToTab("addresses", { smoothScroll: false }); }}
+                          onClick={() => { setIsProfileMenuOpen(false); moveToTab("addresses", { smoothScroll: false, uiSurface: "profile_menu" }); }}
                           role="menuitem"
                           type="button"
                         >
@@ -1707,7 +2026,7 @@ function PublicMypagePage() {
                       aria-current={activeTabKey === item.key ? "page" : undefined}
                       className={`public-mypage-navgrid__item ${activeTabKey === item.key ? "is-active" : ""}`}
                       key={item.key}
-                      onClick={() => moveToTab(item.key, { smoothScroll: false })}
+                      onClick={() => moveToTab(item.key, { smoothScroll: false, uiSurface: "grid_mobile" })}
                       type="button"
                     >
                       <img className="public-mypage-navgrid__icon" src={item.icon} alt="" aria-hidden="true" />
@@ -1733,7 +2052,7 @@ function PublicMypagePage() {
                                 <button
                                   aria-current={activeTabKey === item.key ? "page" : undefined}
                                   className={`public-mypage-sidebar__link ${activeTabKey === item.key ? "is-active" : ""}`}
-                                  onClick={() => moveToTab(item.key, { smoothScroll: false })}
+                                  onClick={() => moveToTab(item.key, { smoothScroll: false, uiSurface: "sidebar" })}
                                   type="button"
                                 >
                                   {item.label}
@@ -1786,6 +2105,14 @@ function PublicMypagePage() {
       />
 
       <ConfirmDialog
+        analyticsCloseExtra={() => ({
+          hadReasonCategory: Boolean(confirmReasonCategory),
+          reasonLength: confirmReason.trim().length,
+          ...(confirmState.analytics ?? {}),
+        })}
+        analyticsExtra={confirmState.analytics}
+        // dialog_open/close는 ConfirmDialog가 1회씩 발화한다(confirm_<type>).
+        analyticsName={confirmState.type ? `confirm_${confirmState.type}` : undefined}
         body={confirmState.body}
         busy={isConfirmBusy}
         confirmLabel={confirmState.confirmLabel}
@@ -1883,6 +2210,18 @@ function RejectableBookRow({ item, requestNumber }) {
   const isRejected = Boolean(item.isRejected || item.rejectionReason);
   const photos = Array.isArray(item.rejectionPhotoUrls) ? item.rejectionPhotoUrls : [];
   const inspectedDate = item.inspectedAt ? formatCompactDate(item.inspectedAt) : null;
+  const resultViewedRef = useRef(false);
+
+  // GA4 검수 결과 노출 — 책 1건당 1회. 판매불가 사유 분포(정책 개선 근거) 수집.
+  useEffect(() => {
+    if (resultViewedRef.current) return;
+    resultViewedRef.current = true;
+    trackEvent("inspection_result_view", {
+      result: isRejected ? "rejected" : "graded",
+      ...(isRejected ? { rejectionReason: item.rejectionReason || "unspecified" } : {}),
+      photoCount: photos.length,
+    });
+  }, [isRejected, item.rejectionReason, photos.length]);
 
   const buildDisputeMailto = () => {
     const subject = `[검수 이의 신청] 요청번호 ${requestNumber} / 책 #${item.id}`;
@@ -1925,6 +2264,13 @@ function RejectableBookRow({ item, requestNumber }) {
                     className="public-mypage-book-row__photo"
                     href={url}
                     key={url}
+                    onClick={() =>
+                      // GA4 검수 사진 확대 — 상품 id가 아니라 검수 맥락이라 null
+                      trackImageZoom(null, {
+                        zoomSource: "inspection_photo",
+                        photoCount: photos.length,
+                      })
+                    }
                     rel="noopener noreferrer"
                     target="_blank"
                   >
@@ -1938,6 +2284,12 @@ function RejectableBookRow({ item, requestNumber }) {
               <a
                 className="public-mypage-book-row__dispute public-mypage-book-row__dispute--primary"
                 href={KAKAO_CHANNEL_URL}
+                onClick={() =>
+                  // GA4 검수 이의 신청 문의 (카카오)
+                  trackContactClick("kakao", "inspection_dispute", {
+                    rejectionReason: item.rejectionReason || "unspecified",
+                  })
+                }
                 rel="noopener noreferrer"
                 target="_blank"
               >
@@ -1946,6 +2298,11 @@ function RejectableBookRow({ item, requestNumber }) {
               <a
                 className="public-mypage-book-row__dispute public-mypage-book-row__dispute--secondary"
                 href={buildDisputeMailto()}
+                onClick={() =>
+                  trackContactClick("email", "inspection_dispute", {
+                    rejectionReason: item.rejectionReason || "unspecified",
+                  })
+                }
                 rel="noopener noreferrer"
               >
                 메일로 문의
@@ -1975,8 +2332,11 @@ function TrackingNumberRow({ company, trackingNumber }) {
       await navigator.clipboard.writeText(trackingNumber);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
+      // GA4 복사 — 값(운송장 번호)은 보내지 않고 대상만
+      trackCopyClick("tracking_number", "purchase_card", "ok");
     } catch {
       /* ignore */
+      trackCopyClick("tracking_number", "purchase_card", "fail");
     }
   };
   return (
@@ -2000,7 +2360,8 @@ function TrackingNumberRow({ company, trackingNumber }) {
 // 입금 대기(pending) 주문의 계좌·입금자명·금액 재확인 안내.
 // 결제 직후 주문완료 화면을 놓쳐도(탭 닫힘/세션 만료) 여기서 다시 입금할 수 있게 한다.
 // 입금자명·계좌·마감 정의는 주문완료 페이지(PublicOrderCompletePage)와 동일 소스를 공유.
-function OrderDepositRow({ label, value, copyLabel, highlight = false, hint = null }) {
+// copyTarget: bank_account / deposit_amount / depositor_name — 복사한 "값"은 절대 보내지 않는다.
+function OrderDepositRow({ label, value, copyLabel, copyTarget = "unknown", highlight = false, hint = null }) {
   const [copied, setCopied] = useState(false);
   const handleCopy = async () => {
     if (!value || typeof navigator === "undefined" || !navigator.clipboard) return;
@@ -2008,8 +2369,10 @@ function OrderDepositRow({ label, value, copyLabel, highlight = false, hint = nu
       await navigator.clipboard.writeText(value);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
+      trackCopyClick(copyTarget, "mypage_order", "ok");
     } catch {
       /* ignore */
+      trackCopyClick(copyTarget, "mypage_order", "fail");
     }
   };
   return (
@@ -2038,11 +2401,25 @@ function OrderDepositRow({ label, value, copyLabel, highlight = false, hint = nu
 function OrderDepositInfo({ order }) {
   const depositorName = buildDepositorName(order.recipientName, order.reference);
   const bankAccountPlain = BANK_ACCOUNT.replace(/-/g, "");
+  const shownRef = useRef(false);
+
+  // GA4 입금 안내 노출 — 주문당 1회. 미입금 이탈 분석의 분모.
+  useEffect(() => {
+    if (shownRef.current) return;
+    shownRef.current = true;
+    trackEvent("bank_info_shown", {
+      uiSurface: "mypage_order",
+      orderId: String(order.id),
+      value: Number(order.totalAmount) || 0,
+    });
+  }, [order.id, order.totalAmount]);
+
   return (
     <div className="public-mypage-deposit" role="group" aria-label="입금 안내">
       <p className="public-mypage-deposit__title">입금 계좌 안내</p>
       <OrderDepositRow
         copyLabel="계좌번호 복사"
+        copyTarget="bank_account"
         label={`${BANK_NAME} · 예금주 ${BANK_HOLDER}`}
         value={BANK_ACCOUNT}
         hint={`복사 시 ${bankAccountPlain}`}
@@ -2050,6 +2427,7 @@ function OrderDepositInfo({ order }) {
       {order.totalAmount != null ? (
         <OrderDepositRow
           copyLabel="입금 금액 복사"
+          copyTarget="deposit_amount"
           label="입금 금액"
           value={formatCurrency(order.totalAmount)}
         />
@@ -2057,6 +2435,7 @@ function OrderDepositInfo({ order }) {
       {depositorName ? (
         <OrderDepositRow
           copyLabel="입금자명 복사"
+          copyTarget="depositor_name"
           highlight
           hint="본인 성함 + 주문번호 마지막 4자리. 다르게 입력하면 입금 확인이 늦어질 수 있어요."
           label="입금자명 (필수)"
@@ -2121,7 +2500,18 @@ function SettlementCard({ settlement, status }) {
 
       <button
         className="public-mypage-inline-link public-mypage-settlement-card__toggle"
-        onClick={() => setExpanded((v) => !v)}
+        onClick={() => {
+          // GA4 정산 타임라인 펼침 — 데이터가 비어 있으면 예외로도 남긴다.
+          trackEvent("settlement_detail_toggle", {
+            settlementStatus: status,
+            hasTimelineData: hasTimelineData,
+            uiAction: expanded ? "collapse" : "expand",
+          });
+          if (!expanded && !hasTimelineData) {
+            trackException("settlement_timeline_missing", { settlementStatus: status });
+          }
+          setExpanded((v) => !v);
+        }}
         type="button"
       >
         {expanded ? "타임라인 접기 ▲" : "타임라인 보기 ▼"}
@@ -2184,6 +2574,8 @@ function SalesTab({
 
   const handleJumpToFirstRejected = () => {
     if (rejectedBooks.length === 0) return;
+    // GA4 판매불가 배너 클릭 — 검수 결과 확인 동선 진입
+    trackEvent("inspection_rejected_banner_click", { rejectedCount: rejectedBooks.length });
     const first = rejectedBooks[0];
     if (expandedShipmentId !== first.shipmentId) {
       onToggleShipment(first.shipmentId);
@@ -2220,6 +2612,41 @@ function SalesTab({
     setCurrentPage(1);
   }, [statusFilter, searchKeyword]);
 
+  // GA4 판매 탭 검색 — 검색어(교재명)는 보내지 않고 결과 수만, 입력이 멈춘 뒤 1회.
+  useEffect(() => {
+    const keyword = searchKeyword.trim();
+    if (!keyword) return undefined;
+    const timerId = window.setTimeout(() => {
+      trackEvent("sales_search", {
+        resultCount: filteredShipments.length,
+        keywordLength: keyword.length,
+      });
+    }, 800);
+    return () => window.clearTimeout(timerId);
+    // 결과 수는 검색어 확정 시점 값만 필요하므로 filteredShipments는 의존성에서 제외.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchKeyword]);
+
+  // GA4 빈 상태 — 전체 0건 / 필터·검색 결과 0건을 각각 1회.
+  const salesEmptyGuardRef = useRef(makeOnceGuard());
+  useEffect(() => {
+    if (shipments.length === 0) {
+      if (salesEmptyGuardRef.current("all")) {
+        trackEmptyState("mypage_sales");
+      }
+      return;
+    }
+    if (
+      filteredShipments.length === 0 &&
+      salesEmptyGuardRef.current(`filter:${statusFilter}:${searchKeyword.trim() ? "search" : "none"}`)
+    ) {
+      trackEmptyState("mypage_sales", {
+        filterValue: statusFilter,
+        hasSearch: Boolean(searchKeyword.trim()),
+      });
+    }
+  }, [filteredShipments.length, searchKeyword, shipments.length, statusFilter]);
+
   const totalPages = Math.max(1, Math.ceil(filteredShipments.length / SALES_ITEMS_PER_PAGE));
   const safePage = Math.min(currentPage, totalPages);
   const paginatedShipments = filteredShipments.slice(
@@ -2231,7 +2658,7 @@ function SalesTab({
     return (
       <MypageEmptyState
         actionLabel="수거 요청하기"
-        actionOnClick={onRequestPickup}
+        actionOnClick={() => onRequestPickup("mypage_sales_empty")}
         icon={<MypageEmptyIcon src={emptyBoxIcon} />}
         title="아직 판매 내역이 없어요"
       />
@@ -2286,7 +2713,14 @@ function SalesTab({
             <button
               className={`public-mypage-filter-chip ${statusFilter === filterItem.value ? "public-mypage-filter-chip--active" : ""}`}
               key={filterItem.value}
-              onClick={() => setStatusFilter(filterItem.value)}
+              onClick={() => {
+                setStatusFilter(filterItem.value);
+                // GA4 판매 상태 필터 — 어떤 상태를 자주 확인하는지
+                trackListFilterChange("sales", filterItem.value, {
+                  resultCount: filterShipmentsByStatus(shipments, filterItem.value).length,
+                  fromFilter: statusFilter,
+                });
+              }}
               type="button"
             >
               {filterItem.label}
@@ -2328,6 +2762,7 @@ function SalesTab({
                         신청 취소
                       </button>
                     ) : null}
+                    {/* dialog_open("confirm_cancel_pickup")은 ConfirmDialog가 발화한다 */}
                     {!shipment.compact ? (
                       <span className={`public-mypage-chip public-mypage-chip--${getShipmentStatusTone(shipment.status)}`}>
                         {getShipmentStatusLabel(shipment.status)}
@@ -2335,7 +2770,15 @@ function SalesTab({
                     ) : (
                       <button
                         className="public-mypage-inline-link"
-                        onClick={() => onToggleShipment(isExpanded ? null : shipment.id)}
+                        onClick={() => {
+                          // GA4 수거 카드 상세 펼침/접기
+                          trackEvent("pickup_detail_toggle", {
+                            pickupStatus: shipment.status,
+                            bookCount: Number(shipment.bookCount ?? shipment.items?.length ?? 0),
+                            uiAction: isExpanded ? "collapse" : "expand",
+                          });
+                          onToggleShipment(isExpanded ? null : shipment.id);
+                        }}
                         type="button"
                       >
                         {isExpanded ? (
@@ -2357,7 +2800,15 @@ function SalesTab({
                       </div>
 
                       {shipment.trackingNumber ? (
-                        <button className="public-mypage-inline-link" onClick={() => onTrackParcel(shipment.trackingNumber)} type="button">
+                        <button
+                          className="public-mypage-inline-link"
+                          onClick={() =>
+                            onTrackParcel(shipment.trackingNumber, "sales_card", {
+                              pickupStatus: shipment.status,
+                            })
+                          }
+                          type="button"
+                        >
                           배송추적 <ArrowRightIcon size={13} />
                         </button>
                       ) : null}
@@ -2423,7 +2874,16 @@ function SalesTab({
               aria-label="이전 페이지"
               className="public-mypage-pagination__arrow"
               disabled={safePage === 1}
-              onClick={() => setCurrentPage(Math.max(1, safePage - 1))}
+              onClick={() => {
+                const nextPage = Math.max(1, safePage - 1);
+                trackListPagination("sales", {
+                  pageNumber: nextPage,
+                  previousPage: safePage,
+                  totalPages,
+                  navMethod: "prev",
+                });
+                setCurrentPage(nextPage);
+              }}
               type="button"
             >
               ‹
@@ -2433,7 +2893,15 @@ function SalesTab({
                 aria-current={pageNumber === safePage ? "page" : undefined}
                 className={`public-mypage-pagination__page ${pageNumber === safePage ? "is-active" : ""}`}
                 key={pageNumber}
-                onClick={() => setCurrentPage(pageNumber)}
+                onClick={() => {
+                  trackListPagination("sales", {
+                    pageNumber,
+                    previousPage: safePage,
+                    totalPages,
+                    navMethod: "page",
+                  });
+                  setCurrentPage(pageNumber);
+                }}
                 type="button"
               >
                 {pageNumber}
@@ -2443,7 +2911,16 @@ function SalesTab({
               aria-label="다음 페이지"
               className="public-mypage-pagination__arrow"
               disabled={safePage === totalPages}
-              onClick={() => setCurrentPage(Math.min(totalPages, safePage + 1))}
+              onClick={() => {
+                const nextPage = Math.min(totalPages, safePage + 1);
+                trackListPagination("sales", {
+                  pageNumber: nextPage,
+                  previousPage: safePage,
+                  totalPages,
+                  navMethod: "next",
+                });
+                setCurrentPage(nextPage);
+              }}
               type="button"
             >
               <ChevronRightIcon size={16} />
@@ -2472,6 +2949,9 @@ function CouponsView() {
     window.setTimeout(() => setToast(null), 3000);
   }, []);
 
+  // GA4 쿠폰함 노출 1회 가드 (재로드마다 다시 세지 않는다)
+  const couponWalletViewedRef = useRef(false);
+
   const loadAll = useCallback(async () => {
     setIsLoading(true);
     const [walletRes, downloadRes] = await Promise.all([
@@ -2480,6 +2960,25 @@ function CouponsView() {
     ]);
     if (!walletRes.error) setCoupons(Array.isArray(walletRes.data) ? walletRes.data : []);
     if (!downloadRes.error) setDownloadable(Array.isArray(downloadRes.data) ? downloadRes.data : []);
+    // GA4 로드 실패 — 지금까지 조용히 삼키던 구간
+    if (walletRes.error || downloadRes.error) {
+      trackException("coupon_wallet_load_failed", {
+        errorMessage: (walletRes.error ?? downloadRes.error)?.message ?? "",
+        errorReason: walletRes.error ? "wallet" : "downloadable",
+      });
+    }
+    if (!walletRes.error && !couponWalletViewedRef.current) {
+      couponWalletViewedRef.current = true;
+      const rows = Array.isArray(walletRes.data) ? walletRes.data : [];
+      const downloadRows = Array.isArray(downloadRes.data) ? downloadRes.data : [];
+      // GA4 쿠폰함 노출 — 보유/사용/만료/받을 수 있는 쿠폰 수
+      trackEvent("coupon_wallet_view", {
+        availableCount: rows.filter((row) => row.effective_status === "available").length,
+        usedCount: rows.filter((row) => row.effective_status === "used").length,
+        expiredCount: rows.filter((row) => row.effective_status === "expired").length,
+        downloadableCount: downloadRows.length,
+      });
+    }
     setIsLoading(false);
   }, []);
 
@@ -2492,6 +2991,15 @@ function CouponsView() {
     [coupons, statusFilter],
   );
 
+  // GA4 쿠폰 빈 상태 — 탭별 1회
+  const couponEmptyGuardRef = useRef(makeOnceGuard());
+  useEffect(() => {
+    if (isLoading) return;
+    if (filteredCoupons.length === 0 && couponEmptyGuardRef.current(statusFilter)) {
+      trackEmptyState("mypage_coupons", { filterValue: statusFilter });
+    }
+  }, [filteredCoupons.length, isLoading, statusFilter]);
+
   const handleClaimCode = async (e) => {
     e.preventDefault();
     if (!codeInput.trim()) return;
@@ -2502,8 +3010,15 @@ function CouponsView() {
     setIsClaiming(false);
     if (error) {
       showToast(error.message || "쿠폰 등록에 실패했습니다.", "error");
+      // GA4 쿠폰 코드 등록 실패 — 코드 값은 절대 보내지 않는다.
+      trackEvent("coupon_code_claim", {
+        result: "fail",
+        errorMessage: error.message ?? "",
+      });
       return;
     }
+    // GA4 쿠폰 코드 등록 성공
+    trackEvent("coupon_code_claim", { result: "ok" });
     showToast("쿠폰이 등록되었습니다.", "success");
     setCodeInput("");
     await loadAll();
@@ -2517,8 +3032,21 @@ function CouponsView() {
     setBusyId(null);
     if (error) {
       showToast(error.message || "쿠폰 받기에 실패했습니다.", "error");
+      // GA4 쿠폰 다운로드 실패
+      trackEvent("coupon_download", {
+        result: "fail",
+        couponId: String(coupon.id),
+        errorMessage: error.message ?? "",
+      });
       return;
     }
+    // GA4 쿠폰 다운로드 성공 — 어떤 쿠폰이 실제로 발급되는지
+    trackEvent("coupon_download", {
+      result: "ok",
+      couponId: String(coupon.id),
+      couponName: coupon.title,
+      discountType: coupon.discount_type,
+    });
     showToast("쿠폰이 발급되었습니다.", "success");
     await loadAll();
   };
@@ -2544,7 +3072,14 @@ function CouponsView() {
             key={tab.key}
             type="button"
             className={`public-mypage-coupon-tab ${statusFilter === tab.key ? "is-active" : ""}`}
-            onClick={() => setStatusFilter(tab.key)}
+            onClick={() => {
+              // GA4 쿠폰함 탭 전환
+              trackListFilterChange("coupons", tab.key, {
+                resultCount: counts[tab.key] ?? 0,
+                fromFilter: statusFilter,
+              });
+              setStatusFilter(tab.key);
+            }}
           >
             {tab.label} ({counts[tab.key] ?? 0})
           </button>
@@ -2686,6 +3221,13 @@ function OrderDetailSheet({ order, onClose }) {
 
   return (
     <ResponsiveSheet
+      analyticsExtra={{
+        orderId: String(order.id),
+        orderStatus: order.status,
+        paymentType: order.paymentMethod,
+        value: totalAmount,
+      }}
+      analyticsName="order_detail"
       eyebrow="주문 상세"
       onClose={onClose}
       open={Boolean(order)}
@@ -2779,6 +3321,20 @@ function PurchasesView({
 
   const groupedOrders = useMemo(() => groupOrdersByDate(filteredOrders), [filteredOrders]);
 
+  // GA4 빈 상태 — 주문 0건 / 필터 결과 0건을 각각 1회
+  const purchasesEmptyGuardRef = useRef(makeOnceGuard());
+  useEffect(() => {
+    if (orders.length === 0) {
+      if (purchasesEmptyGuardRef.current("all")) {
+        trackEmptyState("mypage_purchases");
+      }
+      return;
+    }
+    if (filteredOrders.length === 0 && purchasesEmptyGuardRef.current(`filter:${activeFilter}`)) {
+      trackEmptyState("mypage_purchases", { filterValue: activeFilter });
+    }
+  }, [activeFilter, filteredOrders.length, orders.length]);
+
   if (!orders.length) {
     return (
       <MypageEmptyState
@@ -2802,7 +3358,14 @@ function PurchasesView({
               aria-selected={isActive}
               className={`public-mypage-stat-card ${isActive ? "is-active" : ""}`}
               key={card.key}
-              onClick={() => setActiveFilter(card.key)}
+              onClick={() => {
+                // GA4 구매 상태 필터
+                trackListFilterChange("purchases", card.key, {
+                  resultCount: count,
+                  fromFilter: activeFilter,
+                });
+                setActiveFilter(card.key);
+              }}
               role="tab"
               type="button"
             >
@@ -2883,9 +3446,20 @@ function PurchasesView({
                     <div className="public-mypage-purchase-card__actions">
                       <button
                         className="public-mypage-purchase-card__btn"
-                        onClick={() =>
-                          order.trackingNumber ? onTrackParcel(order.trackingNumber) : null
-                        }
+                        onClick={() => {
+                          if (!order.trackingNumber) {
+                            // 기존 동작(아무 일도 안 일어남)은 유지하고 GA로만 남긴다 —
+                            // 운송장 없이 노출되는 죽은 버튼의 클릭량.
+                            trackEvent("delivery_track_unavailable", {
+                              uiSurface: "purchase_card",
+                              orderStatus: order.status,
+                            });
+                            return;
+                          }
+                          onTrackParcel(order.trackingNumber, "purchase_card", {
+                            orderStatus: order.status,
+                          });
+                        }}
                         type="button"
                       >
                         배송 조회
@@ -2905,6 +3479,12 @@ function PurchasesView({
                         <a
                           className="public-mypage-purchase-card__btn"
                           href={KAKAO_CHANNEL_URL}
+                          onClick={() =>
+                            // GA4 입금 후 취소 문의 — 셀프 취소가 막힌 구간의 실제 수요
+                            trackContactClick("kakao", "purchase_card_cancel", {
+                              orderStatus: order.status,
+                            })
+                          }
                           rel="noopener noreferrer"
                           target="_blank"
                         >
@@ -2925,7 +3505,14 @@ function PurchasesView({
                       {!item.refundedAt && order.status === "confirmed" && onWriteReview ? (
                         <button
                           className="public-mypage-purchase-card__btn"
-                          onClick={() => onWriteReview(order)}
+                          onClick={() => {
+                            // GA4 후기 CTA — 작성/보기 구분 (시트 노출은 시트가 따로 남긴다)
+                            trackEvent("review_cta_click", {
+                              orderId: String(order.id),
+                              uiAction: reviewsByOrderId?.[order.id] ? "view" : "write",
+                            });
+                            onWriteReview(order);
+                          }}
                           type="button"
                         >
                           {reviewsByOrderId?.[order.id] ? "후기 보기" : "후기 작성"}
@@ -2974,12 +3561,21 @@ function SettlementsTab({ completedSettlements, onRequestPickup, scheduledSettle
     completedSettlements,
     scheduledSettlements,
   });
+  const isEmpty = !completedSettlements.length && !scheduledSettlements.length;
 
-  if (!completedSettlements.length && !scheduledSettlements.length) {
+  // GA4 정산 빈 상태 — 마운트당 1회
+  const settlementEmptyRef = useRef(false);
+  useEffect(() => {
+    if (!isEmpty || settlementEmptyRef.current) return;
+    settlementEmptyRef.current = true;
+    trackEmptyState("mypage_settlements");
+  }, [isEmpty]);
+
+  if (isEmpty) {
     return (
       <MypageEmptyState
         actionLabel="수거 요청하기"
-        actionOnClick={onRequestPickup}
+        actionOnClick={() => onRequestPickup("mypage_settlements_empty")}
         icon={<MypageEmptyIcon src={receiptIcon} />}
         title="아직 정산 내역이 없어요"
       />
@@ -3064,6 +3660,38 @@ function WishlistTab({
   wishlistError,
   wishlistProducts,
 }) {
+  const gridRef = useRef(null);
+  const emptyTrackedRef = useRef(false);
+
+  // GA4 찜 목록 노출 — 그리드가 실제로 화면에 들어왔을 때 1회(view_item_list + 요약)
+  useInViewOnce(
+    gridRef,
+    () => {
+      const lines = wishlistProducts.map((product, index) => ({
+        productId: product.id,
+        title: product.title,
+        brand: product.brand,
+        subject: product.subject,
+        price: product.price,
+        quantity: 1,
+        index,
+      }));
+      trackViewItemList(WISHLIST_LIST_NAME, lines);
+      trackEvent("view_wishlist", {
+        itemCount: wishlistProducts.length,
+        soldoutCount: wishlistProducts.filter((product) => product.isSoldOut).length,
+      });
+    },
+    { enabled: !isLoading && wishlistProducts.length > 0 },
+  );
+
+  // GA4 찜 빈 상태
+  useEffect(() => {
+    if (isLoading || wishlistProducts.length > 0 || emptyTrackedRef.current) return;
+    emptyTrackedRef.current = true;
+    trackEmptyState("mypage_wishlist");
+  }, [isLoading, wishlistProducts.length]);
+
   return (
     <div className="public-mypage-stack">
       <section className="public-mypage-section">
@@ -3080,9 +3708,11 @@ function WishlistTab({
             ))}
           </div>
         ) : wishlistProducts.length ? (
-          <div className="public-mypage-wishlist-grid">
-            {wishlistProducts.map((product) => (
+          <div className="public-mypage-wishlist-grid" ref={gridRef}>
+            {wishlistProducts.map((product, index) => (
               <ProductCard
+                analyticsIndex={index}
+                analyticsListName={WISHLIST_LIST_NAME}
                 footer={
                   product.isSoldOut && typeof onToggleRestockAlert === "function" ? (
                     <WishlistRestockButton
@@ -3159,6 +3789,30 @@ function SettingsTab({
   const showWishlist = !section; // 새 사이드바에서는 wishlist를 별도 메뉴로 빼냈음
   const showAccount = !section || section === "profile";
 
+  // GA4 빈 상태 — 배송지/정산계좌 각각 1회
+  const settingsEmptyGuardRef = useRef(makeOnceGuard());
+  useEffect(() => {
+    if (
+      showAddresses &&
+      portalState.shippingAddresses.length === 0 &&
+      settingsEmptyGuardRef.current("addresses")
+    ) {
+      trackEmptyState("mypage_addresses");
+    }
+    if (
+      showSettlementAccount &&
+      portalState.settlementAccounts.length === 0 &&
+      settingsEmptyGuardRef.current("settlement_accounts")
+    ) {
+      trackEmptyState("mypage_settlement_accounts");
+    }
+  }, [
+    portalState.settlementAccounts.length,
+    portalState.shippingAddresses.length,
+    showAddresses,
+    showSettlementAccount,
+  ]);
+
   return (
     <div className="public-mypage-stack">
       {showProfile ? (
@@ -3170,6 +3824,8 @@ function SettingsTab({
                 <button
                   className="public-mypage-inline-button"
                   onClick={() => {
+                    // GA4 프로필 수정 이탈 (저장하지 않고 취소)
+                    trackFormAbandon("profile_edit", { uiSurface: "mypage_profile" });
                     setIsProfileEditing(false);
                     setProfileForm(buildProfileForm(profileSnapshot, user));
                     setProfileErrors(initialProfileErrors);
@@ -3190,7 +3846,15 @@ function SettingsTab({
                 </button>
               </div>
             ) : (
-              <button className="public-mypage-inline-button" onClick={() => setIsProfileEditing(true)} type="button">
+              <button
+                className="public-mypage-inline-button"
+                onClick={() => {
+                  // GA4 프로필 수정 진입 (저장까지의 이탈률 분모)
+                  trackEvent("profile_edit_open", { uiSurface: "mypage_profile" });
+                  setIsProfileEditing(true);
+                }}
+                type="button"
+              >
                 수정
               </button>
             )
@@ -3398,8 +4062,10 @@ function SettingsTab({
           </div>
         ) : wishlistProducts.length ? (
           <div className="public-mypage-wishlist-grid">
-            {wishlistProducts.map((product) => (
+            {wishlistProducts.map((product, index) => (
               <ProductCard
+                analyticsIndex={index}
+                analyticsListName={WISHLIST_LIST_NAME}
                 footer={
                   product.isSoldOut && typeof onToggleRestockAlert === "function" ? (
                     <WishlistRestockButton
@@ -3513,7 +4179,14 @@ function ProfileEditor({
           ) : null}
         </div>
       </div>
-      <Link className="public-auth-ghost-link" to="/forgot-password">
+      <Link
+        className="public-auth-ghost-link"
+        onClick={() =>
+          // GA4 비밀번호 변경 진입 (마이페이지 → 재설정 메일 흐름)
+          trackSelectContent("auth_entry", "forgot_password", { uiSurface: "mypage_profile" })
+        }
+        to="/forgot-password"
+      >
         비밀번호 변경 <ArrowRightIcon size={13} />
       </Link>
     </form>
@@ -3536,7 +4209,17 @@ function AddressSheet({
     <ResponsiveSheet
       actions={
         <>
-          <button className="public-auth-button public-auth-button--secondary" onClick={closeAddressSheet} type="button">
+          <button
+            className="public-auth-button public-auth-button--secondary"
+            onClick={() => {
+              // GA4 — 푸터 취소는 시트가 못 잡으므로 여기서 close_method를 남긴다.
+              trackDialogClose("address_form", "cancel_button", {
+                uiAction: addressForm.id ? "edit" : "create",
+              });
+              closeAddressSheet();
+            }}
+            type="button"
+          >
             취소
           </button>
           <button
@@ -3551,6 +4234,8 @@ function AddressSheet({
           </button>
         </>
       }
+      analyticsExtra={{ uiAction: addressForm.id ? "edit" : "create" }}
+      analyticsName="address_form"
       eyebrow="배송지"
       onClose={closeAddressSheet}
       open={isAddressSheetOpen}
@@ -3633,7 +4318,16 @@ function AccountSheet({
     <ResponsiveSheet
       actions={
         <>
-          <button className="public-auth-button public-auth-button--secondary" onClick={closeAccountSheet} type="button">
+          <button
+            className="public-auth-button public-auth-button--secondary"
+            onClick={() => {
+              trackDialogClose("settlement_account_form", "cancel_button", {
+                uiAction: accountForm.id ? "edit" : "create",
+              });
+              closeAccountSheet();
+            }}
+            type="button"
+          >
             취소
           </button>
           <button
@@ -3648,6 +4342,8 @@ function AccountSheet({
           </button>
         </>
       }
+      analyticsExtra={{ uiAction: accountForm.id ? "edit" : "create" }}
+      analyticsName="settlement_account_form"
       onClose={closeAccountSheet}
       open={isAccountSheetOpen}
       title={accountForm.id ? "정산 계좌 수정" : "정산 계좌 추가"}
@@ -3658,7 +4354,21 @@ function AccountSheet({
             은행
           </label>
           <div className="public-auth-field-row__control">
-            <select className="public-mypage-select" id="public-mypage-account-bank" onChange={handleAccountChange("bank_name")} value={accountForm.bank_name}>
+            <select
+              className="public-mypage-select"
+              id="public-mypage-account-bank"
+              onChange={(event) => {
+                handleAccountChange("bank_name")(event);
+                // GA4 은행 선택 — 은행명은 PII가 아니라 그대로 남긴다.
+                if (event.target.value) {
+                  trackEvent("settlement_account_bank_select", {
+                    bankName: event.target.value,
+                    uiSurface: "mypage",
+                  });
+                }
+              }}
+              value={accountForm.bank_name}
+            >
               <option value="">은행 선택</option>
               {BANK_OPTIONS.map((bankName) => (
                 <option key={bankName} value={bankName}>

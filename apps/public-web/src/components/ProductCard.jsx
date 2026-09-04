@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { formatCurrency } from "@shared-domain/format";
-import { trackSelectItem } from "../lib/analytics";
+import { trackException, trackSelectItem } from "../lib/analytics";
 import {
   COLLAB_OPEN_LABEL,
   findFeaturedProductEntry,
@@ -77,6 +77,8 @@ function ProductCardFavoriteButton({ filled = false, onToggle }) {
 }
 
 function ProductCard({
+  // GA4 select_item의 items[].index — 목록 내 위치(0부터). 지정하지 않으면 index를 보내지 않는다.
+  analyticsIndex = null,
   // GA4 select_item의 item_list_name — 이 카드가 어느 목록에 놓였는지 (예: "BEST 교재").
   // 미지정 목록은 목록명 없이 select_item만 발화한다.
   analyticsListName = null,
@@ -117,11 +119,25 @@ function ProductCard({
   const showPlaceholder = !coverImageUrl || imageStatus === "fallback";
   const cardClassName = ["public-product-card", className].filter(Boolean).join(" ");
 
+  // 표지 로드 실패 계측 1회 가드 (URL이 바뀌면 다시 계측 가능)
+  const imageFailureTrackedRef = useRef(false);
+
   // coverImageUrl이 바뀌면 로드 상태를 리셋한다.
   useEffect(() => {
     setImageStatus(coverImageUrl ? "loading" : "fallback");
     setShouldLoad(false);
+    imageFailureTrackedRef.current = false;
   }, [coverImageUrl]);
+
+  // GA4 exception — 표지가 깨지면 "사진 준비 중" 패널로 조용히 대체돼 사고를 알아채기 어렵다.
+  const trackCoverFailure = (errorReason) => {
+    if (imageFailureTrackedRef.current) return;
+    imageFailureTrackedRef.current = true;
+    trackException("product_cover_image_failed", {
+      itemId: product.id,
+      errorReason,
+    });
+  };
 
   // 뷰포트 근처(400px)에 들어왔을 때만 실제 로드를 시작한다. native loading="lazy"를
   // IntersectionObserver로 대체 — 로드 시작 시점을 알아야 아래 "멈춤 방어" 타이머를
@@ -157,10 +173,15 @@ function ProductCard({
       return undefined;
     }
     const timer = setTimeout(() => {
-      setImageStatus((current) => (current === "loading" ? "fallback" : current));
+      setImageStatus((current) => {
+        if (current !== "loading") return current;
+        trackCoverFailure("timeout");
+        return "fallback";
+      });
     }, 15000);
     return () => clearTimeout(timer);
-  }, [coverImageUrl, shouldLoad]);
+    // trackCoverFailure는 렌더마다 새로 만들어지지만 내부 가드가 1회 발화를 보장한다.
+  }, [coverImageUrl, shouldLoad]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <article className={cardClassName}>
@@ -168,14 +189,24 @@ function ProductCard({
         aria-label={`${title} 상세 보기`}
         className="public-product-card__overlay-link"
         onClick={() =>
-          trackSelectItem(analyticsListName, {
-            productId: product.id,
-            title,
-            brand: product.brand,
-            subject: product.subject,
-            price,
-            quantity: 1,
-          })
+          trackSelectItem(
+            analyticsListName,
+            {
+              productId: product.id,
+              title,
+              brand: product.brand,
+              subject: product.subject,
+              price,
+              quantity: 1,
+              ...(Number.isInteger(analyticsIndex) ? { index: analyticsIndex } : {}),
+            },
+            // 품절·출시예정 카드 클릭 비중과 할인율 반응을 상세 진입 단계에서 가른다.
+            {
+              isSoldOut: Boolean(product.isSoldOut),
+              isPreRelease,
+              ...(discountRate !== null ? { discountRate } : {}),
+            },
+          )
         }
         to={resolvedDetailPath}
       />
@@ -194,7 +225,10 @@ function ProductCard({
             decoding="async"
             // 로드 시점은 위 IntersectionObserver(shouldLoad)로 직접 제어하므로
             // native loading="lazy"는 붙이지 않는다(중복 defer 방지).
-            onError={() => setImageStatus("fallback")}
+            onError={() => {
+              trackCoverFailure("error");
+              setImageStatus("fallback");
+            }}
             onLoad={() => setImageStatus("loaded")}
             src={coverImageUrl}
           />

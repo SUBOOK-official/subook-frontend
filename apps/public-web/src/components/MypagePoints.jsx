@@ -37,7 +37,14 @@ export function MypagePointsCard({ points, onOpenHistory }) {
 export function PointsHistorySheet({ open, onClose, points }) {
   const transactions = points?.transactions ?? [];
   return (
-    <ResponsiveSheet eyebrow="포인트" onClose={onClose} open={open} title="포인트 내역">
+    <ResponsiveSheet
+      analyticsExtra={{ itemCount: transactions.length }}
+      analyticsName="points_history"
+      eyebrow="포인트"
+      onClose={onClose}
+      open={open}
+      title="포인트 내역"
+    >
       <div className="public-mypage-points-summary">
         <span>보유 포인트</span>
         <strong>{formatPoints(points?.balance ?? 0)}</strong>

@@ -20,7 +20,14 @@ import {
   removeRecentSearchTerm,
 } from "../lib/publicStoreSearch";
 import { SEARCH_DEBOUNCE_MS } from "../lib/publicStoreNavigation";
-import { trackSelectItem } from "../lib/analytics";
+import {
+  trackCartOpen,
+  trackEmptyState,
+  trackEvent,
+  trackPickupCtaClick,
+  trackSelectContent,
+  trackSelectItem,
+} from "../lib/analytics";
 import { BellIcon, CartIcon, ClockIcon, MenuIcon, CloseIcon } from "./icons";
 
 // 자동완성 = 서버 검색 RPC(search_storefront_products, FTS+초성+오타 매칭).
@@ -297,6 +304,8 @@ function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
   const [debouncedKeyword, setDebouncedKeyword] = useState("");
   const [recentSearches, setRecentSearches] = useState(() => readRecentSearches());
   const [autocomplete, setAutocomplete] = useState({ books: [], instructors: [], brands: [] });
+  // 자동완성 결과가 어느 키워드의 응답인지 — 조회 중(빈 결과)에 "제안 0건"을 오계측하지 않기 위함.
+  const [autocompleteKeyword, setAutocompleteKeyword] = useState("");
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
   const searchWrapRef = useRef(null);
   const mobileSearchValueRef = useRef("");
@@ -316,6 +325,7 @@ function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
     const normalizedKeyword = debouncedKeyword;
     if (normalizedKeyword.replace(/\s+/g, "").length < STORE_AUTOCOMPLETE_MIN_KEYWORD_LENGTH) {
       setAutocomplete({ books: [], instructors: [], brands: [] });
+      setAutocompleteKeyword("");
       return undefined;
     }
 
@@ -323,6 +333,7 @@ function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
       const rows = await fetchAutocompleteSearchRows(normalizedKeyword);
       if (cancelled) return;
       setAutocomplete(buildStoreAutocompleteFromSearchRows(rows, normalizedKeyword));
+      setAutocompleteKeyword(normalizedKeyword);
     })();
 
     return () => {
@@ -337,7 +348,10 @@ function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
   useEffect(() => {
     if (!isMobileMenuOpen) return undefined;
     const handleKey = (event) => {
-      if (event.key === "Escape") setIsMobileMenuOpen(false);
+      if (event.key !== "Escape") return;
+      // GA4 mobile_menu_toggle — ESC 닫기도 다른 닫기 제스처와 같은 이벤트로 묶는다.
+      trackEvent("mobile_menu_toggle", { uiAction: "close", closeMethod: "escape" });
+      setIsMobileMenuOpen(false);
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
@@ -462,6 +476,11 @@ function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
   const handleSearchSubmit = (event) => {
     event.preventDefault();
     setIsSuggestionsOpen(false);
+    // GA4 search_submit — 검색 "실행 의도"(결과 수는 그리드의 search 이벤트가 담당).
+    const trimmed = searchValue.trim();
+    if (trimmed) {
+      trackEvent("search_submit", { searchTerm: trimmed, uiSurface: "header" });
+    }
     navigateToSearch(searchValue);
   };
 
@@ -483,6 +502,12 @@ function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
       return;
     }
     if (item.kind === "brand") {
+      // GA4 search_suggestion_select — 교재(select_item)가 아닌 제안 종류별 클릭 분포.
+      trackEvent("search_suggestion_select", {
+        suggestionKind: "brand",
+        suggestionValue: item.brand,
+        searchTerm: debouncedKeyword,
+      });
       const nextRecent = addRecentSearchTerm(recentSearches, item.brand);
       setRecentSearches(nextRecent);
       writeRecentSearches(nextRecent);
@@ -492,12 +517,19 @@ function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
       return;
     }
     // instructor / 일반은 키워드 검색으로 처리
+    trackEvent("search_suggestion_select", {
+      suggestionKind: item.kind === "instructor" ? "instructor" : "keyword",
+      suggestionValue: item.keyword ?? item.label,
+      searchTerm: debouncedKeyword,
+    });
     navigateToSearch(item.keyword ?? item.label);
   };
 
   const handlePickRecent = (term) => {
     setIsSuggestionsOpen(false);
     setSearchValue(term);
+    // GA4 recent_search_select — 최근 검색어 재진입 비중
+    trackEvent("recent_search_select", { searchTerm: term, uiSurface: "header" });
     navigateToSearch(term);
   };
 
@@ -505,9 +537,11 @@ function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
     const next = removeRecentSearchTerm(recentSearches, term);
     setRecentSearches(next);
     writeRecentSearches(next);
+    trackEvent("recent_search_remove", { uiSurface: "header" });
   };
 
   const handleClearAllRecent = () => {
+    trackEvent("recent_search_clear_all", { itemCount: recentSearches.length, uiSurface: "header" });
     setRecentSearches([]);
     writeRecentSearches([]);
   };
@@ -519,10 +553,16 @@ function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
     const query = formData.get("q")?.toString().trim();
     if (!query) return;
     setIsMobileMenuOpen(false);
+    // GA4 search_submit — 드로어 검색은 ui_surface로 구분
+    trackEvent("search_submit", { searchTerm: query, uiSurface: "mobile_drawer" });
     navigateToSearch(query);
   };
 
-  const handleCartClick = () => {
+  // uiSurface: header_desktop / header_mobile / mobile_drawer
+  const handleCartClick = (uiSurface = "header_desktop") => {
+    // GA4 cart_open — 장바구니 진입은 헤더 한 곳에서만 계측(홈의 onCartClick은 중복 발화 금지).
+    trackCartOpen(uiSurface, cartItemCount);
+
     if (onCartClick) {
       onCartClick();
       return;
@@ -552,9 +592,10 @@ function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
     };
   }, [isAccountMenuOpen]);
 
-  const handleSignOut = async () => {
+  // GA4 logout은 PublicAuthContext.signOut(source)가 발화한다 — 여기서 중복 발화 금지.
+  const handleSignOut = async (source = "account_menu") => {
     setIsAccountMenuOpen(false);
-    await signOut();
+    await signOut(source);
     navigate("/", { replace: true });
   };
 
@@ -571,10 +612,27 @@ function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
   );
   const hasKeyword = debouncedKeyword.replace(/\s+/g, "").length >= STORE_AUTOCOMPLETE_MIN_KEYWORD_LENGTH;
 
+  // GA4 empty_state_view — 자동완성 제안 0건(미보유 수요 시그널). 조회가 끝난 키워드에 대해서만,
+  // 키워드당 1회. (조회 중 빈 상태는 계측하지 않는다)
+  const emptySuggestionTrackedRef = useRef(new Set());
+  useEffect(() => {
+    if (!isSuggestionsOpen || !hasKeyword) return;
+    if (autocompleteKeyword !== debouncedKeyword) return;
+    if (hasAutocompleteResults(autocomplete)) return;
+    if (emptySuggestionTrackedRef.current.has(debouncedKeyword)) return;
+    emptySuggestionTrackedRef.current.add(debouncedKeyword);
+    trackEmptyState("search_suggestions", { searchTerm: debouncedKeyword });
+  }, [autocomplete, autocompleteKeyword, debouncedKeyword, hasKeyword, isSuggestionsOpen]);
+
+  // 헤더/드로어 내비게이션 클릭 (GA4 select_content) — 어느 진입점이 실제로 쓰이는지.
+  const trackNavSelect = (contentId, uiSurface) => {
+    trackSelectContent("nav", contentId, { uiSurface });
+  };
+
   const headerNode = (
     <div className="public-sticky-header" ref={headerRef}>
       <ContentContainer as="header" className="public-nav public-site-header">
-        <Link className="public-brand" to="/">
+        <Link className="public-brand" onClick={() => trackNavSelect("home", "header_desktop")} to="/">
           <img alt="수북 SUBOOK" className="public-brand__logo" src={brandLogoImage} />
         </Link>
 
@@ -614,6 +672,8 @@ function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
                   onRemoveRecent={handleRemoveRecent}
                   onSubmitKeyword={(value) => {
                     setIsSuggestionsOpen(false);
+                    // GA4 — 제안 0건 패널의 '입고 알림 받기' 진입(그리드 빈 상태 모달로 이어짐)
+                    trackEvent("search_no_suggestion_cta_click", { searchTerm: value });
                     navigateToSearch(value);
                   }}
                   recentSearches={visibleRecent}
@@ -627,7 +687,11 @@ function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
         <nav aria-label="유틸리티 메뉴" className="public-nav-actions">
           {/* 셀러 전환 동선 — 로그인/비로그인 무관하게 항상 노출. 모바일 드로어에만
               있던 메뉴를 데스크톱 헤더에 primary CTA로 고정. */}
-          <Link className="public-nav-link public-nav-link--cta" to="/pickup/new">
+          <Link
+            className="public-nav-link public-nav-link--cta"
+            onClick={() => trackPickupCtaClick("header_nav")}
+            to="/pickup/new"
+          >
             교재 판매하기
           </Link>
           {isAuthenticated ? (
@@ -635,7 +699,14 @@ function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
               <button
                 aria-label={`알림 ${unreadNotificationCount}개`}
                 className="public-nav-link public-nav-link--cart"
-                onClick={() => navigate("/notifications")}
+                onClick={() => {
+                  // GA4 notification_bell_click — 미읽음 수와 함께 알림함 진입 계측
+                  trackEvent("notification_bell_click", {
+                    unreadCount: unreadNotificationCount,
+                    uiSurface: "header_desktop",
+                  });
+                  navigate("/notifications");
+                }}
                 type="button"
               >
                 <span>알림</span>
@@ -646,7 +717,7 @@ function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
               <button
                 aria-label={`장바구니 ${cartItemCount}개`}
                 className="public-nav-link public-nav-link--cart"
-                onClick={handleCartClick}
+                onClick={() => handleCartClick("header_desktop")}
                 type="button"
               >
                 <span>장바구니</span>
@@ -654,7 +725,7 @@ function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
                   <span className="public-nav-link__badge">{cartBadge}</span>
                 ) : null}
               </button>
-              <Link className="public-nav-link" to="/mypage">
+              <Link className="public-nav-link" onClick={() => trackNavSelect("mypage", "header_desktop")} to="/mypage">
                 마이페이지
               </Link>
               <div className="public-nav-account" ref={accountMenuRef}>
@@ -672,7 +743,7 @@ function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
                   <div className="public-nav-account__menu" role="menu">
                     <button
                       className="public-nav-account__item public-nav-account__item--danger"
-                      onClick={handleSignOut}
+                      onClick={() => handleSignOut("account_menu")}
                       role="menuitem"
                       type="button"
                     >
@@ -683,7 +754,11 @@ function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
               </div>
             </>
           ) : (
-            <Link className="public-nav-link public-nav-button" to="/login">
+            <Link
+              className="public-nav-link public-nav-button"
+              onClick={() => trackSelectContent("auth_entry", "login", { uiSurface: "header_desktop" })}
+              to="/login"
+            >
               로그인/회원가입
             </Link>
           )}
@@ -696,7 +771,13 @@ function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
               <button
                 aria-label={`알림 ${unreadNotificationCount}개`}
                 className="public-nav-mobile-cart"
-                onClick={() => navigate("/notifications")}
+                onClick={() => {
+                  trackEvent("notification_bell_click", {
+                    unreadCount: unreadNotificationCount,
+                    uiSurface: "header_mobile",
+                  });
+                  navigate("/notifications");
+                }}
                 type="button"
               >
                 <BellIcon size={20} />
@@ -707,7 +788,7 @@ function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
               <button
                 aria-label={`장바구니 ${cartItemCount}개`}
                 className="public-nav-mobile-cart"
-                onClick={handleCartClick}
+                onClick={() => handleCartClick("header_mobile")}
                 type="button"
               >
                 <CartIcon size={20} />
@@ -721,7 +802,16 @@ function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
             aria-expanded={isMobileMenuOpen}
             aria-label={isMobileMenuOpen ? "메뉴 닫기" : "메뉴 열기"}
             className="public-nav-hamburger"
-            onClick={() => setIsMobileMenuOpen((open) => !open)}
+            onClick={() => {
+              const nextOpen = !isMobileMenuOpen;
+              // GA4 mobile_menu_toggle — 모바일 메뉴 사용률(열기 대비 실제 이동)
+              trackEvent("mobile_menu_toggle", {
+                uiAction: nextOpen ? "open" : "close",
+                ...(nextOpen ? {} : { closeMethod: "hamburger" }),
+                isAuthenticated,
+              });
+              setIsMobileMenuOpen(nextOpen);
+            }}
             type="button"
           >
             {isMobileMenuOpen ? <CloseIcon size={22} /> : <MenuIcon size={22} />}
@@ -735,7 +825,14 @@ function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
           <button
             aria-label="메뉴 닫기"
             className="public-nav-drawer__backdrop"
-            onClick={() => setIsMobileMenuOpen(false)}
+            onClick={() => {
+              trackEvent("mobile_menu_toggle", {
+                uiAction: "close",
+                closeMethod: "backdrop",
+                isAuthenticated,
+              });
+              setIsMobileMenuOpen(false);
+            }}
             type="button"
           />
           <div className="public-nav-drawer__panel">
@@ -766,6 +863,10 @@ function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
                       key={`mobile-recent-${term}`}
                       onClick={() => {
                         setIsMobileMenuOpen(false);
+                        trackEvent("recent_search_select", {
+                          searchTerm: term,
+                          uiSurface: "mobile_drawer",
+                        });
                         navigateToSearch(term);
                       }}
                       type="button"
@@ -780,7 +881,7 @@ function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
               <>
                 <button
                   className="public-nav-drawer__item"
-                  onClick={() => { setIsMobileMenuOpen(false); handleCartClick(); }}
+                  onClick={() => { setIsMobileMenuOpen(false); handleCartClick("mobile_drawer"); }}
                   type="button"
                 >
                   장바구니
@@ -788,30 +889,64 @@ function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
                     <span className="public-nav-link__badge" style={{ marginLeft: 8 }}>{cartBadge}</span>
                   ) : null}
                 </button>
-                <Link className="public-nav-drawer__item" to="/notifications" onClick={() => setIsMobileMenuOpen(false)}>
+                <Link
+                  className="public-nav-drawer__item"
+                  to="/notifications"
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    trackEvent("notification_bell_click", {
+                      unreadCount: unreadNotificationCount,
+                      uiSurface: "mobile_drawer",
+                    });
+                  }}
+                >
                   알림
                   {notificationBadge !== null ? (
                     <span className="public-nav-link__badge" style={{ marginLeft: 8 }}>{notificationBadge}</span>
                   ) : null}
                 </Link>
-                <Link className="public-nav-drawer__item" to="/mypage" onClick={() => setIsMobileMenuOpen(false)}>
+                <Link
+                  className="public-nav-drawer__item"
+                  to="/mypage"
+                  onClick={() => { setIsMobileMenuOpen(false); trackNavSelect("mypage", "mobile_drawer"); }}
+                >
                   마이페이지
                 </Link>
               </>
             ) : null}
-            <Link className="public-nav-drawer__item" to="/pickup/new" onClick={() => setIsMobileMenuOpen(false)}>
+            <Link
+              className="public-nav-drawer__item"
+              to="/pickup/new"
+              onClick={() => { setIsMobileMenuOpen(false); trackPickupCtaClick("mobile_drawer"); }}
+            >
               교재 판매하기
             </Link>
-            <Link className="public-nav-drawer__item" to="/faq" onClick={() => setIsMobileMenuOpen(false)}>
+            <Link
+              className="public-nav-drawer__item"
+              to="/faq"
+              onClick={() => { setIsMobileMenuOpen(false); trackNavSelect("faq", "mobile_drawer"); }}
+            >
               자주 묻는 질문
             </Link>
-            <Link className="public-nav-drawer__item" to="/notices" onClick={() => setIsMobileMenuOpen(false)}>
+            <Link
+              className="public-nav-drawer__item"
+              to="/notices"
+              onClick={() => { setIsMobileMenuOpen(false); trackNavSelect("notices", "mobile_drawer"); }}
+            >
               공지사항
             </Link>
-            <Link className="public-nav-drawer__item" to="/terms" onClick={() => setIsMobileMenuOpen(false)}>
+            <Link
+              className="public-nav-drawer__item"
+              to="/terms"
+              onClick={() => { setIsMobileMenuOpen(false); trackNavSelect("terms", "mobile_drawer"); }}
+            >
               이용약관
             </Link>
-            <Link className="public-nav-drawer__item" to="/refund" onClick={() => setIsMobileMenuOpen(false)}>
+            <Link
+              className="public-nav-drawer__item"
+              to="/refund"
+              onClick={() => { setIsMobileMenuOpen(false); trackNavSelect("refund", "mobile_drawer"); }}
+            >
               환불정책
             </Link>
             <div className="public-nav-drawer__divider" />
@@ -820,7 +955,7 @@ function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
                 <div className="public-nav-drawer__user">{displayName}님</div>
                 <button
                   className="public-nav-drawer__item public-nav-drawer__item--danger"
-                  onClick={() => { setIsMobileMenuOpen(false); handleSignOut(); }}
+                  onClick={() => { setIsMobileMenuOpen(false); handleSignOut("mobile_drawer"); }}
                   type="button"
                 >
                   로그아웃
@@ -830,7 +965,10 @@ function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
               <Link
                 className="public-nav-drawer__item public-nav-drawer__item--primary"
                 to="/login"
-                onClick={() => setIsMobileMenuOpen(false)}
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  trackSelectContent("auth_entry", "login", { uiSurface: "mobile_drawer" });
+                }}
               >
                 로그인 / 회원가입
               </Link>

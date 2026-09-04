@@ -3,6 +3,7 @@ import {
   fetchHomeBestBooks,
   getCachedHomeBestBooks,
 } from "../../lib/publicHomeBestBooks";
+import { trackException } from "../../lib/analytics";
 import ProductCarouselSection from "./ProductCarouselSection";
 
 function BestBooksSection({ favoriteIds, onToggleFavorite }) {
@@ -35,10 +36,16 @@ function BestBooksSection({ favoriteIds, onToggleFavorite }) {
         setProducts(result.products);
         setIsLoading(false);
         setHasFatalError(false);
-      } catch {
+      } catch (error) {
         if (isCancelled) {
           return;
         }
+
+        // GA4 exception — 캐시로 가려지는 실패까지 포함해 BEST 레일 조회 실패를 남긴다.
+        trackException("home_best_books_fetch_failed", {
+          hadCache: Boolean(cachedProducts),
+          errorMessage: error?.message,
+        });
 
         if (!cachedProducts) {
           setHasFatalError(true);

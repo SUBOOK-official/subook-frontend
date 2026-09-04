@@ -9,7 +9,18 @@ import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { usePublicWishlist } from "../contexts/PublicWishlistContext";
-import { trackAddToCart, trackRemoveFromCart, trackViewCart } from "../lib/analytics";
+import {
+  makeOnceGuard,
+  trackAddToCart,
+  trackEmptyState,
+  trackEvent,
+  trackException,
+  trackLoginGateShown,
+  trackRemoveFromCart,
+  trackSelectContent,
+  trackSelectItem,
+  trackViewCart,
+} from "../lib/analytics";
 import { usePageMeta } from "../lib/usePageMeta";
 import { getAddableBooks, groupCartItems, normalizeCartGrade } from "../lib/cartItemGroups";
 import { fetchStorefrontProductDetail } from "../lib/storefront";
@@ -113,6 +124,12 @@ function CartGroupRow({ group, isSelected, canIncrease, busy, onToggle, onIncrea
       <div className="cart-item__info">
         <Link
           className="cart-item__title"
+          onClick={() => {
+            // GA4 select_item — 장바구니에서 상품 상세로 되돌아가는 클릭
+            if (group.representative) {
+              trackSelectItem("장바구니", cartItemToAnalyticsLine(group.representative));
+            }
+          }}
           to={`/store/${group.productId || group.representative?.book_id}`}
         >
           {group.representative?.title}
@@ -233,6 +250,8 @@ function PublicCartPage() {
 
   // GA4 view_cart — 페이지 방문당 1회 (되돌리기 등으로 loadCart가 재실행돼도 재발화 금지)
   const viewCartTrackedRef = useRef(false);
+  // GA4 노출 계열(빈 장바구니·구매 불가 뱃지) 1회 가드 — 마운트당 key별 1회
+  const impressionGuardRef = useRef(makeOnceGuard());
 
   const loadCart = useCallback(async () => {
     setIsLoading(true);
@@ -264,6 +283,13 @@ function PublicCartPage() {
 
     // 실패는 토스트(사라짐) 대신 화면 에러 상태로 — 빈 장바구니로 위장되는 것 방지.
     setHasFatalError(Boolean(error));
+    // GA4 exception — 장바구니 전체 로드 실패(화면 전체가 에러라 fatal)
+    if (error) {
+      trackException("cart_load_failed", {
+        fatal: true,
+        errorMessage: error?.message,
+      });
+    }
     setIsLoading(false);
 
     // 재고 맵은 백그라운드로 — 받기 전엔 "+"가 잠시 비활성(재고 미확인).
@@ -281,12 +307,39 @@ function PublicCartPage() {
   useEffect(() => {
     if (authLoading) return;
     if (!isAuthenticated) {
+      // GA4 login_gate_shown — 장바구니는 requireMember 대신 dialog를 직접 열어 여기서 발화
+      if (impressionGuardRef.current("login_gate")) {
+        trackLoginGateShown("cartPage");
+      }
       setIsMemberGateOpen(true);
       return;
     }
     setIsMemberGateOpen(false);
     void loadCart();
   }, [authLoading, isAuthenticated, loadCart]);
+
+  // GA4 노출 — 빈 장바구니 / 구매 불가(품절·가격 확인 중) 항목. 마운트당 1회씩.
+  useEffect(() => {
+    if (isLoading || hasFatalError || !isAuthenticated) return;
+    if (items.length === 0) {
+      if (impressionGuardRef.current("empty_cart")) {
+        trackEmptyState("cart", {
+          favoriteCount,
+          isAuthenticated,
+        });
+      }
+      return;
+    }
+    for (const group of groups) {
+      if (!group.isSoldOut && !group.isPriceMissing) continue;
+      if (!impressionGuardRef.current(`unavailable:${group.key}`)) continue;
+      trackEvent("cart_item_unavailable_view", {
+        ...(group.productId != null ? { itemId: String(group.productId) } : {}),
+        ...(group.optionLabel ? { optionLabel: group.optionLabel } : {}),
+        errorReason: group.isSoldOut ? "sold_out" : "price_missing",
+      });
+    }
+  }, [groups, items.length, isLoading, hasFatalError, isAuthenticated, favoriteCount]);
 
   const handleMemberGateClose = () => {
     setIsMemberGateOpen(false);
@@ -317,6 +370,13 @@ function PublicCartPage() {
   const allSelected = selectableGroups.length > 0 && selectedGroupCount === selectableGroups.length;
 
   const handleToggleGroup = (group) => {
+    // GA4 — 결제 대상에서 빼는 행동(주문 금액 축소)의 빈도 관찰
+    trackEvent("cart_select_item", {
+      uiAction: isGroupSelected(group) ? "deselect" : "select",
+      ...(group.productId != null ? { itemId: String(group.productId) } : {}),
+      ...(group.optionLabel ? { optionLabel: group.optionLabel } : {}),
+      itemCount: group.count,
+    });
     setSelectedIds((prev) => {
       const next = new Set(prev);
       const selected = group.count > 0 && group.purchasableItemIds.every((id) => next.has(id));
@@ -326,6 +386,11 @@ function PublicCartPage() {
   };
 
   const handleToggleAll = () => {
+    // GA4 — 전체선택/해제
+    trackEvent("cart_select_all", {
+      uiAction: allSelected ? "deselect_all" : "select_all",
+      itemCount: selectableGroups.length,
+    });
     if (allSelected) {
       setSelectedIds(new Set());
       return;
@@ -365,6 +430,11 @@ function PublicCartPage() {
     setGroupBusy(group.key, false);
     if (error) {
       showToast("수량을 줄이지 못했어요. 잠시 후 다시 시도해 주세요.", "error");
+      // GA4 exception — 수량 줄이기 실패
+      trackException("cart_decrease_failed", {
+        ...(group.productId != null ? { itemId: String(group.productId) } : {}),
+        errorMessage: error?.message,
+      });
       return;
     }
     trackRemoveFromCart([cartItemToAnalyticsLine(target)]);
@@ -381,6 +451,12 @@ function PublicCartPage() {
     const addable = getGroupAddable(group);
     if (addable.length === 0) {
       showToast("이 옵션은 더 담을 재고가 없어요.", "info");
+      // GA4 — 재고가 막아선 구매 의도(입고 우선순위 신호)
+      trackEvent("cart_stock_limit", {
+        ...(group.productId != null ? { itemId: String(group.productId) } : {}),
+        ...(group.optionLabel ? { optionLabel: group.optionLabel } : {}),
+        itemCount: group.count,
+      });
       return;
     }
     const addBook = addable[0];
@@ -404,11 +480,28 @@ function PublicCartPage() {
     setGroupBusy(group.key, false);
     if (error) {
       showToast("수량을 늘리지 못했어요. 잠시 후 다시 시도해 주세요.", "error");
+      // GA4 exception — 수량 늘리기 실패
+      trackException("cart_increase_failed", {
+        ...(group.productId != null ? { itemId: String(group.productId) } : {}),
+        errorMessage: error?.message,
+      });
       return;
     }
     const newId = data?.cart_item_id;
     if (newId === null || newId === undefined) {
       // 신규 cart_item id를 못 받으면 정확한 동기화를 위해 전체 새로고침으로 폴백.
+      // 담기 자체는 성공했으므로 GA4 add_to_cart는 이 경로에서도 남긴다.
+      trackAddToCart([
+        cartItemToAnalyticsLine({
+          product_id: group.productId,
+          title: rep?.title,
+          brand: rep?.brand,
+          subject: rep?.subject,
+          option_label: rep?.option_label,
+          condition_grade: rep?.condition_grade,
+          price: addBook.price ?? rep?.price ?? null,
+        }),
+      ]);
       await loadCart();
       return;
     }
@@ -444,6 +537,12 @@ function PublicCartPage() {
     const { error } = await deleteCartItems(ids);
     if (error) {
       showToast("삭제에 실패했습니다.", "error");
+      // GA4 exception — 그룹 삭제 실패
+      trackException("cart_delete_failed", {
+        uiAction: "delete_group",
+        itemCount: ids.length,
+        errorMessage: error?.message,
+      });
       return;
     }
     trackRemoveFromCart(snapshot.map(cartItemToAnalyticsLine));
@@ -457,6 +556,11 @@ function PublicCartPage() {
     showToast(`${label}${snapshot.length}권을 삭제했어요.`, "info", {
       actionLabel: "되돌리기",
       onAction: async () => {
+        // GA4 — 삭제 되돌리기(잘못된 삭제 UX 신호)
+        trackEvent("cart_undo_delete", {
+          uiAction: "delete_group",
+          itemCount: snapshot.length,
+        });
         let failed = 0;
         const restored = [];
         for (const item of snapshot) {
@@ -495,6 +599,12 @@ function PublicCartPage() {
     const { error } = await deleteCartItems(ids);
     if (error) {
       showToast("삭제에 실패했습니다.", "error");
+      // GA4 exception — 선택삭제 실패
+      trackException("cart_delete_failed", {
+        uiAction: "delete_selected",
+        itemCount: ids.length,
+        errorMessage: error?.message,
+      });
       return;
     }
     trackRemoveFromCart(snapshot.map(cartItemToAnalyticsLine));
@@ -503,6 +613,11 @@ function PublicCartPage() {
     showToast(`${ids.length}개 상품이 삭제되었습니다.`, "info", {
       actionLabel: "되돌리기",
       onAction: async () => {
+        // GA4 — 선택삭제 되돌리기
+        trackEvent("cart_undo_delete", {
+          uiAction: "delete_selected",
+          itemCount: snapshot.length,
+        });
         let failed = 0;
         const restored = [];
         for (const item of snapshot) {
@@ -546,6 +661,13 @@ function PublicCartPage() {
       price: i.price,
       originalPrice: i.original_price ?? null,
     }));
+    // GA4 — 주문하기 클릭(장바구니 → 주문서). begin_checkout은 주문서 진입에서 별도 발화.
+    trackEvent("cart_checkout_click", {
+      itemCount: orderItems.length,
+      value: subtotal,
+      shipping: shippingFee,
+      cartItemCount: items.length,
+    });
     navigate("/order", { state: { items: orderPayload } });
   };
 
@@ -577,7 +699,11 @@ function PublicCartPage() {
               <p className="cart-empty__text">장바구니를 불러오지 못했습니다</p>
               <button
                 className="cart-empty__link"
-                onClick={() => void loadCart()}
+                onClick={() => {
+                  // GA4 — 로드 실패 후 재시도 클릭
+                  trackSelectContent("cart_retry", "cart");
+                  void loadCart();
+                }}
                 type="button"
               >
                 다시 시도
@@ -591,9 +717,20 @@ function PublicCartPage() {
               <p className="cart-empty__text">장바구니가 비어있습니다</p>
               <p className="cart-empty__hint">마음에 드는 교재를 담아보세요</p>
               <div className="cart-empty__actions">
-                <Link className="cart-empty__link" to="/">스토어 둘러보기</Link>
+                {/* GA4 — 빈 장바구니에서 어느 출구를 고르는지 */}
+                <Link
+                  className="cart-empty__link"
+                  onClick={() => trackSelectContent("empty_cart_cta", "store")}
+                  to="/"
+                >
+                  스토어 둘러보기
+                </Link>
                 {favoriteCount > 0 ? (
-                  <Link className="cart-empty__link cart-empty__link--secondary" to="/mypage#wishlist">
+                  <Link
+                    className="cart-empty__link cart-empty__link--secondary"
+                    onClick={() => trackSelectContent("empty_cart_cta", "wishlist")}
+                    to="/mypage#wishlist"
+                  >
                     찜한 교재 {favoriteCount}개 보기
                   </Link>
                 ) : null}

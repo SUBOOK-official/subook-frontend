@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/publicSupabaseClient";
+import { trackEvent, trackOAuthStart } from "../lib/analytics";
 
 // 카카오톡 공식 심볼: 검은색 말풍선. 카카오 브랜드 가이드 기준.
 function KakaoBrandIcon({ size = 18 }) {
@@ -92,12 +93,45 @@ function buildOAuthFallbackMessage(providerLabel, error) {
   return `${providerLabel} 로그인이 아직 준비되지 않았습니다. 이메일 로그인으로 계속 진행해 주세요.`;
 }
 
+// GA4 error_reason — buildOAuthFallbackMessage와 같은 분기를 짧은 열거값으로.
+function classifyOAuthStartError(error) {
+  const rawMessage = error?.message?.toLowerCase() ?? "";
+
+  if (
+    rawMessage.includes("provider") ||
+    rawMessage.includes("not enabled") ||
+    rawMessage.includes("unsupported")
+  ) {
+    return "provider_disabled";
+  }
+
+  return "other";
+}
+
+// GA4 ui_surface 폴백 — analyticsSurface를 안 넘긴 호출부용. contextLabel이 한국어라
+// 슬러그가 비면 placement 기반 이름으로 강등한다.
+function deriveAnalyticsSurface(analyticsSurface, contextLabel, placement) {
+  if (analyticsSurface) {
+    return analyticsSurface;
+  }
+
+  const slug = String(contextLabel || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+
+  return slug || `oauth_${placement || "unknown"}`;
+}
+
 function PublicOAuthButtons({
   contextLabel,
   redirectTo,
   dividerLabel = "또는",
   dividerPosition = "top",
   placement = "bottom",
+  // GA4 ui_surface(선택) — login_page / signup_page / member_gate …
+  // 미지정이면 contextLabel/placement에서 슬러그를 만들어 쓴다.
+  analyticsSurface = "",
   // 클릭 계측용 콜백(선택) — 리다이렉트 전에 provider 이름을 알려준다.
   onProviderClick = null,
   // 일부 provider만 렌더링(선택) — 예: ["kakao"]. 미지정이면 전체.
@@ -105,12 +139,21 @@ function PublicOAuthButtons({
 }) {
   const [activeProvider, setActiveProvider] = useState("");
   const [notice, setNotice] = useState("");
+  const uiSurface = deriveAnalyticsSurface(analyticsSurface, contextLabel, placement);
 
   const handleOAuthSignIn = async (providerConfig) => {
     setNotice("");
+    // GA4 oauth_start — 리다이렉트 전 클릭 의도. login/sign_up(완료)의 분모가 된다.
+    trackOAuthStart(providerConfig.provider, uiSurface);
     onProviderClick?.(providerConfig.provider);
 
     if (!isSupabaseConfigured || !supabase) {
+      // GA4 oauth_start_fail — 환경 설정 누락(데모/로컬)으로 시작 자체가 불가
+      trackEvent("oauth_start_fail", {
+        method: providerConfig.provider,
+        uiSurface,
+        errorReason: "not_configured",
+      });
       setNotice("소셜 로그인 기능을 사용하려면 Supabase 환경 변수가 필요합니다.");
       return;
     }
@@ -125,6 +168,13 @@ function PublicOAuthButtons({
     });
 
     if (error) {
+      // GA4 oauth_start_fail — provider 미활성/기타 오류
+      trackEvent("oauth_start_fail", {
+        method: providerConfig.provider,
+        uiSurface,
+        errorReason: classifyOAuthStartError(error),
+        errorMessage: error.message ?? "",
+      });
       setNotice(buildOAuthFallbackMessage(providerConfig.label, error));
       setActiveProvider("");
       return;
@@ -135,6 +185,12 @@ function PublicOAuthButtons({
       return;
     }
 
+    // GA4 oauth_start_fail — 오류는 없는데 리다이렉트 URL이 비어 온 케이스
+    trackEvent("oauth_start_fail", {
+      method: providerConfig.provider,
+      uiSurface,
+      errorReason: "no_redirect_url",
+    });
     setNotice(`${providerConfig.label} 로그인을 시작할 수 없습니다. 잠시 후 다시 시도해 주세요.`);
     setActiveProvider("");
   };

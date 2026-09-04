@@ -4,7 +4,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ResponsiveSheet } from "./PublicMypageUi.jsx";
 import { CloseIcon, PlusIcon, StarIcon } from "./icons";
-import { trackReviewSubmit } from "../lib/analytics";
+import {
+  trackDialogClose,
+  trackEvent,
+  trackFormError,
+  trackReviewSubmit,
+} from "../lib/analytics";
 import { createReview, removeReviewPhotos, uploadReviewPhotos } from "../lib/publicReviews";
 import {
   REVIEW_CONTENT_MAX_LENGTH,
@@ -54,13 +59,39 @@ function OrderSummary({ order }) {
 
 // 이미 작성한 후기 — 읽기 전용
 function ReviewReadOnly({ order, review, onClose, open }) {
+  const readViewTrackedRef = useRef(false);
+
+  // GA4 작성 완료 후기 열람 — 한 번의 열림당 1회.
+  useEffect(() => {
+    if (!open) {
+      readViewTrackedRef.current = false;
+      return;
+    }
+    if (readViewTrackedRef.current) {
+      return;
+    }
+    readViewTrackedRef.current = true;
+    trackEvent("review_read_view", {
+      orderId: order?.id != null ? String(order.id) : undefined,
+      rating: Number(review?.rating) || 0,
+    });
+  }, [open, order?.id, review?.rating]);
+
   return (
     <ResponsiveSheet
       actions={
-        <button className="public-auth-button public-auth-button--primary" onClick={onClose} type="button">
+        <button
+          className="public-auth-button public-auth-button--primary"
+          onClick={() => {
+            trackDialogClose("review_read", "close_button");
+            onClose?.();
+          }}
+          type="button"
+        >
           닫기
         </button>
       }
+      analyticsName="review_read"
       eyebrow="내 후기"
       onClose={onClose}
       open={open}
@@ -130,6 +161,16 @@ function ReviewComposerSheet({ open, order, review, user, onClose, onSaved }) {
 
   const contentLength = draft.content.trim().length;
   const displayRating = hoverRating || draft.rating;
+  const orderItemCount = (order?.items ?? [])
+    .filter((item) => !item.refundedAt)
+    .reduce((sum, item) => sum + (Number(item.quantity) || 1), 0);
+
+  // GA4 dialog_close에 실을 작성 진행도 — 닫는 시점 값이 필요해 함수로 넘긴다.
+  const getAnalyticsCloseExtra = () => ({
+    hadRating: draft.rating > 0,
+    contentLength: draft.content.trim().length,
+    photoCount: draft.photos.length,
+  });
 
   const handlePickFiles = (event) => {
     const files = Array.from(event.target.files ?? []);
@@ -140,12 +181,29 @@ function ReviewComposerSheet({ open, order, review, user, onClose, onSaved }) {
     const remaining = REVIEW_PHOTO_MAX_COUNT - draft.photos.length;
     if (remaining <= 0) {
       setErrorMessage(`사진은 최대 ${REVIEW_PHOTO_MAX_COUNT}장까지 첨부할 수 있어요.`);
+      // GA4 사진 첨부 거절 — 장수 상한 초과
+      trackEvent("review_photo_reject", {
+        errorReason: "max_count",
+        photoCount: draft.photos.length,
+      });
       return;
     }
     const accepted = files.filter((file) => file.type.startsWith("image/")).slice(0, remaining);
     if (accepted.length === 0) {
       setErrorMessage("이미지 파일만 첨부할 수 있어요.");
+      // GA4 사진 첨부 거절 — 이미지가 아닌 파일
+      trackEvent("review_photo_reject", {
+        errorReason: "not_image",
+        photoCount: draft.photos.length,
+      });
       return;
+    }
+    if (accepted.length < files.filter((file) => file.type.startsWith("image/")).length) {
+      // GA4 사진 첨부 일부만 반영 — 남은 슬롯보다 많이 골랐을 때
+      trackEvent("review_photo_reject", {
+        errorReason: "truncated",
+        photoCount: draft.photos.length,
+      });
     }
     const nextPhotos = accepted.map((file) => {
       const previewUrl = URL.createObjectURL(file);
@@ -158,6 +216,11 @@ function ReviewComposerSheet({ open, order, review, user, onClose, onSaved }) {
     });
     setErrorMessage("");
     setDraft((previous) => ({ ...previous, photos: [...previous.photos, ...nextPhotos] }));
+    // GA4 사진 첨부 성공
+    trackEvent("review_photo_add", {
+      addedCount: nextPhotos.length,
+      photoCount: draft.photos.length + nextPhotos.length,
+    });
   };
 
   const handleRemovePhoto = (key) => {
@@ -187,6 +250,20 @@ function ReviewComposerSheet({ open, order, review, user, onClose, onSaved }) {
     });
     if (validationMessage) {
       setErrorMessage(validationMessage);
+      // GA4 후기 검증 실패 — 본문은 보내지 않고 길이·사유만 남긴다.
+      const ratingValue = Number(draft.rating);
+      const isRatingInvalid =
+        !Number.isInteger(ratingValue) || ratingValue < 1 || ratingValue > 5;
+      const isPhotoOver = draft.photos.length > REVIEW_PHOTO_MAX_COUNT;
+      const fieldName = isRatingInvalid ? "rating" : isPhotoOver ? "photos" : "content";
+      const errorReason = isRatingInvalid
+        ? "required"
+        : isPhotoOver
+          ? "max_count"
+          : contentLength < REVIEW_CONTENT_MIN_LENGTH
+            ? "too_short"
+            : "too_long";
+      trackFormError("review", fieldName, errorReason, { contentLength });
       return;
     }
 
@@ -210,6 +287,13 @@ function ReviewComposerSheet({ open, order, review, user, onClose, onSaved }) {
         // RPC 실패 시 방금 올린 사진은 고아가 되지 않게 정리
         await removeReviewPhotos(uploadedUrls);
         setErrorMessage(result.error.message || "후기를 저장하지 못했어요.");
+        // GA4 후기 등록 실패 — RPC 거부(중복·미확정 주문 등)
+        trackEvent("review_submit_fail", {
+          errorReason: "rpc",
+          errorMessage: result.error.message ?? "",
+          photoCount: uploadedUrls.length,
+          rating: draft.rating,
+        });
         setIsSubmitting(false);
         return;
       }
@@ -225,6 +309,13 @@ function ReviewComposerSheet({ open, order, review, user, onClose, onSaved }) {
     } catch (error) {
       await removeReviewPhotos(uploadedUrls);
       setErrorMessage(error?.message || "후기를 저장하지 못했어요.");
+      // GA4 후기 등록 실패 — 사진 업로드 단계 예외
+      trackEvent("review_submit_fail", {
+        errorReason: "photo_upload",
+        errorMessage: error?.message ?? "",
+        photoCount: draft.photos.length,
+        rating: draft.rating,
+      });
       setIsSubmitting(false);
     }
   };
@@ -236,7 +327,11 @@ function ReviewComposerSheet({ open, order, review, user, onClose, onSaved }) {
           <button
             className="public-auth-button public-auth-button--secondary"
             disabled={isSubmitting}
-            onClick={onClose}
+            onClick={() => {
+              // GA4 — 푸터 취소는 시트가 잡지 못하므로 여기서 기록.
+              trackDialogClose("review_composer", "cancel_button", getAnalyticsCloseExtra());
+              onClose?.();
+            }}
             type="button"
           >
             취소
@@ -253,6 +348,12 @@ function ReviewComposerSheet({ open, order, review, user, onClose, onSaved }) {
           </button>
         </>
       }
+      analyticsCloseExtra={getAnalyticsCloseExtra}
+      analyticsExtra={{
+        orderId: order?.id != null ? String(order.id) : undefined,
+        itemCount: orderItemCount,
+      }}
+      analyticsName="review_composer"
       eyebrow="후기 작성"
       onClose={isSubmitting ? () => {} : onClose}
       open={open}
@@ -278,7 +379,14 @@ function ReviewComposerSheet({ open, order, review, user, onClose, onSaved }) {
                   aria-label={`${star}점 ${getReviewRatingLabel(star)}`}
                   className={`public-review-form__star${star <= displayRating ? " is-active" : ""}`}
                   key={star}
-                  onClick={() => setDraft((previous) => ({ ...previous, rating: star }))}
+                  onClick={() => {
+                    setDraft((previous) => ({ ...previous, rating: star }));
+                    // GA4 별점 선택 — 재선택(변경) 여부까지 남긴다.
+                    trackEvent("review_rating_set", {
+                      rating: star,
+                      isChange: draft.rating > 0 && draft.rating !== star,
+                    });
+                  }}
                   onMouseEnter={() => setHoverRating(star)}
                   role="radio"
                   type="button"

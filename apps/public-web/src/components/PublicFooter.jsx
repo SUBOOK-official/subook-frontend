@@ -2,9 +2,29 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import ContentContainer from "./ContentContainer";
 import { KAKAO_CHANNEL_URL } from "../lib/supportChannels";
+import {
+  trackContactClick,
+  trackCopyClick,
+  trackPickupCtaClick,
+  trackSelectContent,
+} from "../lib/analytics";
 import brandLogoWhiteImage from "../assets/brand/logo-horizontal-white.png";
 
 const CONTACT_EMAIL = "subook2025@gmail.com";
+const PICKUP_REQUEST_PATH = "/pickup/new";
+
+// 푸터 링크 클릭 계측 — 셀러 CTA·문의 채널은 전용 이벤트, 나머지는 select_content(footer_nav).
+function trackFooterLinkClick(link) {
+  if (link.to === PICKUP_REQUEST_PATH) {
+    trackPickupCtaClick("footer");
+    return;
+  }
+  if (link.href === KAKAO_CHANNEL_URL) {
+    trackContactClick("kakao", "footer_link");
+    return;
+  }
+  trackSelectContent("footer_nav", link.to ?? link.label);
+}
 
 function FooterMailIcon() {
   return (
@@ -112,13 +132,22 @@ function PublicFooter() {
   };
 
   const handleEmailClick = () => {
+    // GA4 contact_click — 이메일 문의 시도(주소 값 자체는 전송하지 않는다)
+    trackContactClick("email", "footer_social");
     if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
       navigator.clipboard.writeText(CONTACT_EMAIL).then(
-        () => flashEmailFeedback(`이메일 주소를 복사했어요 · ${CONTACT_EMAIL}`),
-        () => flashEmailFeedback(`문의 이메일 · ${CONTACT_EMAIL}`),
+        () => {
+          trackCopyClick("contact_email", "footer", "ok");
+          flashEmailFeedback(`이메일 주소를 복사했어요 · ${CONTACT_EMAIL}`);
+        },
+        () => {
+          trackCopyClick("contact_email", "footer", "fail");
+          flashEmailFeedback(`문의 이메일 · ${CONTACT_EMAIL}`);
+        },
       );
       return;
     }
+    trackCopyClick("contact_email", "footer", "unsupported");
     flashEmailFeedback(`문의 이메일 · ${CONTACT_EMAIL}`);
   };
 
@@ -135,7 +164,12 @@ function PublicFooter() {
               const className = `public-footer__text-button${link.bold ? " public-footer__text-button--bold" : ""}`;
 
               return link.to ? (
-                <Link className={className} key={link.label} to={link.to}>
+                <Link
+                  className={className}
+                  key={link.label}
+                  onClick={() => trackFooterLinkClick(link)}
+                  to={link.to}
+                >
                   {link.label}
                 </Link>
               ) : link.href ? (
@@ -143,6 +177,7 @@ function PublicFooter() {
                   className={className}
                   href={link.href}
                   key={link.label}
+                  onClick={() => trackFooterLinkClick(link)}
                   {...(link.external
                     ? { rel: "noopener noreferrer", target: "_blank" }
                     : {})}
@@ -179,10 +214,24 @@ function PublicFooter() {
             >
               <FooterMailIcon />
             </a>
-            <a aria-label="인스타그램" className="public-footer__social" href="https://instagram.com/subook.official" rel="noopener noreferrer" target="_blank">
+            <a
+              aria-label="인스타그램"
+              className="public-footer__social"
+              href="https://instagram.com/subook.official"
+              onClick={() => trackSelectContent("social_link", "instagram", { uiSurface: "footer" })}
+              rel="noopener noreferrer"
+              target="_blank"
+            >
               <FooterInstagramIcon />
             </a>
-            <a aria-label="카카오톡 채널" className="public-footer__social" href={KAKAO_CHANNEL_URL} rel="noopener noreferrer" target="_blank">
+            <a
+              aria-label="카카오톡 채널"
+              className="public-footer__social"
+              href={KAKAO_CHANNEL_URL}
+              onClick={() => trackContactClick("kakao", "footer_social")}
+              rel="noopener noreferrer"
+              target="_blank"
+            >
               <FooterChatIcon />
             </a>
           </div>

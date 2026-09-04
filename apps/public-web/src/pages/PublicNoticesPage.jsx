@@ -6,6 +6,7 @@ import PublicFooter from "../components/PublicFooter";
 import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
 import { usePageMeta } from "../lib/usePageMeta";
+import { trackEmptyState, trackEvent, trackException } from "../lib/analytics";
 import { looksLikeRichHtml, sanitizeRichHtml } from "@shared-domain/richText";
 import { ChevronRightIcon, ChevronUpIcon, PinIcon } from "../components/icons";
 // 공지 페이지는 FAQ 아코디언 스타일(public-faq-*)을 재사용한다.
@@ -64,9 +65,14 @@ function PublicNoticesPage() {
       });
       if (cancelled) return;
       if (error) {
+        // GA4 exception — 공지 조회 실패(안내 문구만 남고 조용히 끝나는 화면)
+        trackException("notices_fetch_failed", { errorMessage: error.message });
         setErrorMessage("공지를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.");
       } else {
         const rows = Array.isArray(data) ? data : [];
+        if (rows.length === 0) {
+          trackEmptyState("notices");
+        }
         setNotices(rows);
         // 핀 공지는 기본 펼침
         setOpenIds(new Set(rows.filter((n) => n.is_pinned).map((n) => n.id)));
@@ -131,7 +137,18 @@ function PublicNoticesPage() {
                         aria-controls={`notice-panel-${notice.id}`}
                         aria-expanded={isOpen}
                         className={`public-faq-item__head ${isOpen ? "is-open" : ""}`}
-                        onClick={() => toggleOpen(notice.id)}
+                        onClick={() => {
+                          // GA4 notice_open — 접힘 → 펼침 전환만 (어떤 공지가 실제로 읽히는지)
+                          if (!isOpen) {
+                            trackEvent("notice_open", {
+                              noticeId: String(notice.id),
+                              noticeTitle: notice.title,
+                              isPinned: Boolean(notice.is_pinned),
+                              isNew: isNoticeNew(notice.published_at),
+                            });
+                          }
+                          toggleOpen(notice.id);
+                        }}
                         type="button"
                       >
                         <span className="public-faq-item__category">

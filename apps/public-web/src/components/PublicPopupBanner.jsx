@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { trackSelectPromotion, trackViewPromotion } from "../lib/analytics";
+import {
+  trackPromotionDismiss,
+  trackSelectPromotion,
+  trackViewPromotion,
+} from "../lib/analytics";
 import { COLLAB_OPEN_AT } from "../lib/publicFeaturedProducts";
 import popupJeonilImg from "../assets/home-popup/POP-UP1.webp";
 import popupKakaoImg from "../assets/home-popup/POP-UP2.webp";
@@ -87,7 +91,17 @@ function PublicPopupBanner() {
   };
 
   // 닫기: 다음 팝업이 있으면 다음으로, 없으면 종료
-  const handleClose = () => {
+  // closeMethod: close_button(×) / backdrop
+  const handleClose = (closeMethod = "close_button") => {
+    // GA4 promotion_dismiss — view_promotion 대비 이탈률(팝업 피로도)
+    const popup = popups[index];
+    if (popup) {
+      trackPromotionDismiss({
+        ...popup.promotion,
+        closeMethod,
+        popupIndex: index,
+      });
+    }
     if (index < popups.length - 1) {
       setIndex((prev) => prev + 1);
     } else {
@@ -121,7 +135,7 @@ function PublicPopupBanner() {
       role="dialog"
       aria-modal="true"
       aria-label="이벤트 안내"
-      onClick={handleClose}
+      onClick={() => handleClose("backdrop")}
     >
       <div
         className={`public-popup-banner__panel${popup.large ? " public-popup-banner__panel--large" : ""}`}
@@ -130,7 +144,7 @@ function PublicPopupBanner() {
         <button
           type="button"
           className="public-popup-banner__close"
-          onClick={handleClose}
+          onClick={() => handleClose("close_button")}
           aria-label="닫기"
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">

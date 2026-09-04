@@ -17,7 +17,13 @@ import {
   getInstructorCollectionMeta,
   getSeriesCollectionMeta,
 } from "../lib/publicStoreCollections";
-import { trackViewItemList } from "../lib/analytics";
+import {
+  trackEmptyState,
+  trackException,
+  trackLoadMore,
+  trackSelectContent,
+  trackViewItemList,
+} from "../lib/analytics";
 import { usePageMeta } from "../lib/usePageMeta";
 import { ChevronRightIcon } from "../components/icons";
 import "./PublicSubjectPage.css";
@@ -92,21 +98,35 @@ function PublicCollectionPage({ type }) {
         setProducts((current) => (page === 1 ? rows : [...current, ...rows]));
         setHasFatalError(false);
 
-        // GA4 view_item_list — 컬렉션 랜딩 목록 노출 (새로 로드된 페이지 단위)
+        // GA4 view_item_list — 컬렉션 랜딩 목록 노출 (새로 로드된 페이지 단위, index는 누적 순번)
         trackViewItemList(
           analyticsListName,
-          rows.map((product) => ({
+          rows.map((product, index) => ({
             productId: product.id,
             title: product.title,
             brand: product.brand,
             subject: product.subject,
             price: product.price,
             quantity: 1,
+            index: (page - 1) * PAGE_SIZE + index,
           })),
+          {
+            collectionType: type,
+            collectionSlug: collectionKey,
+            pageNumber: page,
+            resultCount: result.totalCount ?? rows.length,
+          },
         );
-      } catch {
+      } catch (error) {
         // 첫 페이지 실패만 전면 에러로 처리 — "더 보기" 실패는 기존 목록 유지
         if (!cancelled && seq === requestSeqRef.current && page === 1) {
+          // GA4 exception — 시리즈·강사 SEO 랜딩 전면 실패
+          trackException("collection_fetch_failed", {
+            collectionType: type,
+            collectionSlug: collectionKey,
+            pageNumber: page,
+            errorMessage: error?.message,
+          });
           setProducts([]);
           setTotalCount(0);
           setHasFatalError(true);
@@ -126,6 +146,16 @@ function PublicCollectionPage({ type }) {
 
   const isEmpty = !isLoading && !hasFatalError && products.length === 0;
   const hasMore = products.length < totalCount;
+
+  // GA4 empty_state_view — 컬렉션 재고 공백(입고 우선순위 신호). 컬렉션당 1회.
+  const emptyTrackedRef = useRef("");
+  useEffect(() => {
+    const key = `${type}|${collectionKey}`;
+    if (!isEmpty || emptyTrackedRef.current === key) return;
+    emptyTrackedRef.current = key;
+    trackEmptyState("collection", { collectionType: type, collectionSlug: collectionKey });
+  }, [collectionKey, isEmpty, type]);
+
   const origin = typeof window !== "undefined" ? window.location.origin : "https://subook.kr";
 
   usePageMeta(
@@ -167,7 +197,7 @@ function PublicCollectionPage({ type }) {
   );
 
   if (!collection) {
-    return <PublicNotFoundPage />;
+    return <PublicNotFoundPage notFoundSource="collection" />;
   }
 
   const handleToggleFavorite = async (productId) => {
@@ -222,12 +252,27 @@ function PublicCollectionPage({ type }) {
             <Link
               className={`public-subject-nav__link ${item.slug === collection.slug ? "is-active" : ""}`}
               key={item.slug}
+              onClick={() =>
+                trackSelectContent("collection_nav", item.slug, {
+                  collectionType: type,
+                  fromCollectionSlug: collectionKey,
+                })
+              }
               to={item.to}
             >
               {item.label}
             </Link>
           ))}
-          <Link className="public-subject-nav__link" to="/">
+          <Link
+            className="public-subject-nav__link"
+            onClick={() =>
+              trackSelectContent("collection_nav", "all", {
+                collectionType: type,
+                fromCollectionSlug: collectionKey,
+              })
+            }
+            to="/"
+          >
             전체 교재
           </Link>
         </nav>
@@ -243,7 +288,10 @@ function PublicCollectionPage({ type }) {
             <strong>교재를 불러오지 못했습니다</strong>
             <button
               className="public-subject-more__button"
-              onClick={() => setRetryNonce((nonce) => nonce + 1)}
+              onClick={() => {
+                trackSelectContent("retry", "collection", { collectionType: type });
+                setRetryNonce((nonce) => nonce + 1);
+              }}
               type="button"
             >
               다시 시도
@@ -259,8 +307,9 @@ function PublicCollectionPage({ type }) {
         ) : (
           <>
             <div className="public-home-store-grid__list">
-              {products.map((product) => (
+              {products.map((product, index) => (
                 <ProductCard
+                  analyticsIndex={index}
                   analyticsListName={analyticsListName}
                   isFavorite={favoriteIds.includes(product.id)}
                   key={product.id}
@@ -274,7 +323,16 @@ function PublicCollectionPage({ type }) {
                 <button
                   className="public-subject-more__button"
                   disabled={isLoading}
-                  onClick={() => setPage((current) => current + 1)}
+                  onClick={() => {
+                    // GA4 load_more — 컬렉션 랜딩 탐색 깊이
+                    trackLoadMore(analyticsListName, {
+                      nextPage: page + 1,
+                      loadedCount: products.length,
+                      totalCount,
+                      collectionType: type,
+                    });
+                    setPage((current) => current + 1);
+                  }}
                   type="button"
                 >
                   {isLoading ? "불러오는 중..." : "더 보기"}

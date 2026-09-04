@@ -6,7 +6,14 @@ import PublicFooter from "../components/PublicFooter";
 import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
-import { trackKakaoCouponClaim } from "../lib/analytics";
+import {
+  trackContactClick,
+  trackEvent,
+  trackKakaoCouponClaim,
+  trackOAuthStart,
+  trackSelectContent,
+  trackViewPromotion,
+} from "../lib/analytics";
 import { usePageMeta } from "../lib/usePageMeta";
 import { KAKAO_CHANNEL_URL } from "../lib/supportChannels";
 import "./PublicKakaoCouponPage.css";
@@ -73,13 +80,40 @@ function PublicKakaoCouponPage() {
   const [result, setResult] = useState(null); // { code, expiresAt?, relation? }
   const [notice, setNotice] = useState("");
   const autoClaimedRef = useRef(false);
+  const promotionViewedRef = useRef(false);
 
   const accessToken = session?.access_token ?? null;
 
-  const startKakaoAuth = async () => {
+  // GA4 쿠폰 페이지 노출 — 마운트당 1회. OAuth 복귀(?claim=1) 진입과 순수 유입을 가른다.
+  useEffect(() => {
+    if (promotionViewedRef.current) {
+      return;
+    }
+    promotionViewedRef.current = true;
+    trackViewPromotion({
+      promotionId: "kakao_channel_coupon",
+      promotionName: "카카오톡 채널 친구추가 쿠폰",
+      creativeSlot: "coupon_page",
+      isAuthenticated,
+      isOauthReturn: new URLSearchParams(location.search).get("claim") === "1",
+    });
+    // 노출은 진입 시점 상태로 1회만 — 이후 로그인 상태 변화로 재발화시키지 않는다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // uiAction: main_cta / consent_required / link_required — 어떤 맥락에서 카카오 인증을 시작했는지.
+  const startKakaoAuth = async (uiAction = "main_cta") => {
     setNotice("");
+    // GA4 카카오 인증 시작(리다이렉트 전 의도)
+    trackOAuthStart("kakao", "kakao_coupon_page", { uiAction });
     if (!isSupabaseConfigured || !supabase) {
       setNotice("로그인 기능을 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.");
+      trackEvent("oauth_start_fail", {
+        method: "kakao",
+        uiSurface: "kakao_coupon_page",
+        errorReason: "not_configured",
+        uiAction,
+      });
       return;
     }
     setOauthStarting(true);
@@ -93,6 +127,14 @@ function PublicKakaoCouponPage() {
     if (error) {
       setOauthStarting(false);
       setNotice("카카오 인증을 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+      // GA4 OAuth 시작 실패 — 리다이렉트 URL을 받지 못한 경우
+      trackEvent("oauth_start_fail", {
+        method: "kakao",
+        uiSurface: "kakao_coupon_page",
+        errorReason: "sign_in_error",
+        errorMessage: error.message ?? "",
+        uiAction,
+      });
       return;
     }
     if (data?.url) {
@@ -101,9 +143,16 @@ function PublicKakaoCouponPage() {
     }
     setOauthStarting(false);
     setNotice("카카오 인증을 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+    trackEvent("oauth_start_fail", {
+      method: "kakao",
+      uiSurface: "kakao_coupon_page",
+      errorReason: "no_redirect_url",
+      uiAction,
+    });
   };
 
-  const claimCoupon = async () => {
+  // trigger: manual(메인 CTA) / auto_oauth_return(?claim=1 복귀) / retry(결과 카드 재시도)
+  const claimCoupon = async (trigger = "manual") => {
     if (!accessToken || claiming) {
       return;
     }
@@ -117,12 +166,22 @@ function PublicKakaoCouponPage() {
       const data = await response.json().catch(() => ({}));
       if (data?.success) {
         setResult({ code: "ISSUED", expiresAt: data.expiresAt ?? null });
-        trackKakaoCouponClaim();
+        trackKakaoCouponClaim({ claimTrigger: trigger });
         return;
       }
       setResult({ code: data?.code || "ERROR" });
+      // GA4 발급 실패 — 친구추가 미확인·동의 필요 등 코드별 분포
+      trackEvent("kakao_coupon_claim_fail", {
+        errorReason: data?.code || "ERROR",
+        claimTrigger: trigger,
+      });
     } catch {
       setResult({ code: "ERROR" });
+      // GA4 발급 실패 — 네트워크/파싱 예외
+      trackEvent("kakao_coupon_claim_fail", {
+        errorReason: "NETWORK",
+        claimTrigger: trigger,
+      });
     } finally {
       setClaiming(false);
     }
@@ -136,7 +195,7 @@ function PublicKakaoCouponPage() {
     const params = new URLSearchParams(location.search);
     if (params.get("claim") === "1" && isAuthenticated && accessToken) {
       autoClaimedRef.current = true;
-      claimCoupon();
+      claimCoupon("auto_oauth_return");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.search, isAuthenticated, accessToken]);
@@ -154,7 +213,13 @@ function PublicKakaoCouponPage() {
             <p className="kakao-coupon-result__desc">
               {expiry ? `${expiry}까지 사용할 수 있습니다.` : "발급 후 24시간 안에 사용할 수 있습니다."}
             </p>
-            <Link className="kakao-coupon-result__link" to="/mypage#coupons">
+            <Link
+              className="kakao-coupon-result__link"
+              onClick={() =>
+                trackSelectContent("kakao_coupon_cta", "wallet", { fromCode: "ISSUED" })
+              }
+              to="/mypage#coupons"
+            >
               쿠폰함에서 확인하기
             </Link>
           </div>
@@ -164,7 +229,13 @@ function PublicKakaoCouponPage() {
         return (
           <div className="kakao-coupon-result" role="status">
             <p className="kakao-coupon-result__title">이미 발급받은 쿠폰입니다.</p>
-            <Link className="kakao-coupon-result__link" to="/mypage#coupons">
+            <Link
+              className="kakao-coupon-result__link"
+              onClick={() =>
+                trackSelectContent("kakao_coupon_cta", "wallet", { fromCode: "ALREADY_CLAIMED" })
+              }
+              to="/mypage#coupons"
+            >
               쿠폰함에서 확인하기
             </Link>
           </div>
@@ -180,6 +251,11 @@ function PublicKakaoCouponPage() {
               <a
                 className="kakao-coupon-channel-link"
                 href={KAKAO_CHANNEL_URL}
+                onClick={() =>
+                  trackContactClick("kakao", "kakao_coupon_not_added", {
+                    uiAction: "channel_add",
+                  })
+                }
                 rel="noreferrer"
                 target="_blank"
               >
@@ -188,7 +264,11 @@ function PublicKakaoCouponPage() {
               <button
                 className="kakao-coupon-retry"
                 disabled={claiming}
-                onClick={claimCoupon}
+                onClick={() => {
+                  // GA4 재확인 클릭 — 어떤 실패 코드에서 재시도했는지
+                  trackEvent("kakao_coupon_retry", { fromCode: "NOT_ADDED" });
+                  claimCoupon("retry");
+                }}
                 type="button"
               >
                 {claiming ? "확인 중..." : "친구추가 완료, 다시 확인"}
@@ -203,7 +283,7 @@ function PublicKakaoCouponPage() {
             <button
               className="public-auth-social__button public-auth-social__button--kakao kakao-coupon-kakao-btn"
               disabled={oauthStarting}
-              onClick={startKakaoAuth}
+              onClick={() => startKakaoAuth("consent_required")}
               type="button"
             >
               <KakaoBrandIcon />
@@ -218,7 +298,7 @@ function PublicKakaoCouponPage() {
             <button
               className="public-auth-social__button public-auth-social__button--kakao kakao-coupon-kakao-btn"
               disabled={oauthStarting}
-              onClick={startKakaoAuth}
+              onClick={() => startKakaoAuth("link_required")}
               type="button"
             >
               <KakaoBrandIcon />
@@ -230,7 +310,13 @@ function PublicKakaoCouponPage() {
         return (
           <div className="kakao-coupon-result kakao-coupon-result--warn" role="status">
             <p className="kakao-coupon-result__title">회원가입을 마무리한 뒤 받을 수 있습니다.</p>
-            <Link className="kakao-coupon-result__link" to="/signup">
+            <Link
+              className="kakao-coupon-result__link"
+              onClick={() =>
+                trackSelectContent("kakao_coupon_cta", "signup", { fromCode: "NOT_MEMBER" })
+              }
+              to="/signup"
+            >
               회원가입 마무리하기
             </Link>
           </div>
@@ -267,7 +353,11 @@ function PublicKakaoCouponPage() {
             <button
               className="kakao-coupon-retry"
               disabled={claiming}
-              onClick={claimCoupon}
+              onClick={() => {
+                // GA4 재시도 클릭 — 직전 실패 코드와 함께
+                trackEvent("kakao_coupon_retry", { fromCode: result.code || "ERROR" });
+                claimCoupon("retry");
+              }}
               type="button"
             >
               {claiming ? "확인 중..." : "다시 시도"}
@@ -312,6 +402,9 @@ function PublicKakaoCouponPage() {
               <a
                 className="kakao-coupon-channel-link"
                 href={KAKAO_CHANNEL_URL}
+                onClick={() =>
+                  trackContactClick("kakao", "kakao_coupon_main", { uiAction: "channel_add" })
+                }
                 rel="noreferrer"
                 target="_blank"
               >
@@ -323,7 +416,7 @@ function PublicKakaoCouponPage() {
               <button
                 className="public-auth-social__button public-auth-social__button--kakao kakao-coupon-kakao-btn"
                 disabled={oauthStarting}
-                onClick={startKakaoAuth}
+                onClick={() => startKakaoAuth("main_cta")}
                 type="button"
               >
                 <KakaoBrandIcon />
@@ -335,7 +428,11 @@ function PublicKakaoCouponPage() {
               <button
                 className="kakao-coupon-claim-btn"
                 disabled={claiming}
-                onClick={claimCoupon}
+                onClick={() => {
+                  // GA4 발급 시도 클릭(성공/실패 분모)
+                  trackEvent("kakao_coupon_claim_click", { uiSurface: "main_cta" });
+                  claimCoupon("manual");
+                }}
                 type="button"
               >
                 {claiming ? "친구추가 확인 중..." : "3,000원 쿠폰 받기"}

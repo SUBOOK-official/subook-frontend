@@ -18,13 +18,22 @@ import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { supabase as publicSupabase } from "@shared-supabase/publicSupabaseClient";
 import {
+  makeOnceGuard,
   trackAddPaymentInfo,
   trackAddShippingInfo,
   trackBeginCheckout,
   trackCheckoutError,
+  trackCopyClick,
   trackCouponApply,
   trackCouponRemove,
+  trackDialogClose,
+  trackDialogOpen,
+  trackEvent,
+  trackException,
+  trackFormProgress,
+  trackPaymentMethodSelect,
   trackPurchase,
+  trackSelectContent,
 } from "../lib/analytics";
 import {
   FREE_SHIPPING_THRESHOLD,
@@ -389,6 +398,8 @@ function OrderAddressBookModal({
   onSaved,
   onClose,
   showToast,
+  // GA4 — 결제 여정 공통 컨텍스트(checkout_type·pg_review_mode)를 주문서에서 주입
+  checkoutContext = () => ({}),
 }) {
   const [view, setView] = useState("list");
   const [form, setForm] = useState(EMPTY_ADDRESS_FORM);
@@ -418,18 +429,34 @@ function OrderAddressBookModal({
     !isSaving;
 
   const handleSearchPostcode = async () => {
+    // GA4 address_search_open — 우편번호 검색 진입(주소 입력 단계 이탈 진단)
+    trackEvent("address_search_open", { uiSurface: "address_book", ...checkoutContext() });
     try {
       await loadDaumPostcode();
     } catch (err) {
+      trackCheckoutError("address_script", err?.message, {
+        uiSurface: "address_book",
+        ...checkoutContext(),
+      });
       showToast(err?.message || "주소 검색을 불러오지 못했습니다.", "error");
       return;
     }
     if (!window.daum?.Postcode) {
+      trackCheckoutError("address_script", "postcode_unavailable", {
+        uiSurface: "address_book",
+        ...checkoutContext(),
+      });
       showToast("주소 검색을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.", "error");
       return;
     }
     new window.daum.Postcode({
       oncomplete: (data) => {
+        // GA4 address_search_complete — 주소 원문은 절대 보내지 않고 도서산간 여부만
+        trackEvent("address_search_complete", {
+          uiSurface: "address_book",
+          isRemoteArea: Boolean(getRemoteAreaInfo(data.zonecode)),
+          ...checkoutContext(),
+        });
         setForm((prev) => ({
           ...prev,
           postalCode: data.zonecode,
@@ -456,9 +483,20 @@ function OrderAddressBookModal({
     });
     setIsSaving(false);
     if (result.error) {
+      // GA4 exception — 주소 저장 실패(입력값은 보내지 않는다)
+      trackException("address_save_failed", {
+        errorMessage: result.error.message,
+        ...checkoutContext(),
+      });
       showToast(result.error.message || "주소를 저장하지 못했습니다.", "error");
       return;
     }
+    // GA4 address_save — 저장 성공 시점만(실패는 위 exception)
+    trackEvent("address_save", {
+      uiSurface: "order_page",
+      setDefault: Boolean(form.isDefault || addresses.length === 0),
+      ...checkoutContext(),
+    });
     await onSaved(savedValues);
     setView("list");
     setForm(EMPTY_ADDRESS_FORM);
@@ -494,7 +532,15 @@ function OrderAddressBookModal({
 
         {view === "list" ? (
           <div className="order-modal__body order-modal__body--list">
-            <button className="order-addrbook__add-btn" onClick={() => setView("add")} type="button">
+            <button
+              className="order-addrbook__add-btn"
+              onClick={() => {
+                // GA4 address_add_start — 주소록에 저장된 주소를 두고 새로 입력하는 비율
+                trackEvent("address_add_start", { ...checkoutContext() });
+                setView("add");
+              }}
+              type="button"
+            >
               + 새 주소 추가하기
             </button>
             {addresses.map((addr) => (
@@ -595,7 +641,14 @@ function OrderAddressBookModal({
             <label className="order-addrbook__default-check">
               <input
                 checked={form.isDefault}
-                onChange={(event) => setForm((prev) => ({ ...prev, isDefault: event.target.checked }))}
+                onChange={(event) => {
+                  // GA4 address_default_toggle — 기본 배송지 지정 의향
+                  trackEvent("address_default_toggle", {
+                    checked: event.target.checked,
+                    ...checkoutContext(),
+                  });
+                  setForm((prev) => ({ ...prev, isDefault: event.target.checked }));
+                }}
                 type="checkbox"
               />
               <span>기본 배송지로 설정</span>
@@ -760,6 +813,58 @@ function PublicOrderPage() {
     setTimeout(() => setToast(null), 3000);
   }, []);
 
+  // ── GA4 계측 공용 ───────────────────────────────────────────────────────────
+  // 결제 여정 이벤트에 항상 얹는 컨텍스트: 회원/비회원 구분 + 토스 심사 모드 세션 여부.
+  const checkoutContext = useCallback(
+    () => ({
+      checkoutType: isGuestCheckout ? "guest" : "member",
+      ...(PG_OVERRIDE ? { pgReviewMode: true } : {}),
+    }),
+    [isGuestCheckout],
+  );
+
+  // 금액 파생값(소계·배송비·쿠폰·포인트)은 렌더 하단에서 계산되므로, effect·핸들러에서
+  // 쓰려면 화면과 같은 공식으로 다시 계산한다(계측 전용 스냅샷 — 결제 금액은 서버가 확정).
+  const analyticsPricing = useCallback(() => {
+    const items = orderItems || [];
+    const subtotalNow = items.reduce((sum, i) => sum + (i.price ?? 0) * (i.quantity ?? 1), 0);
+    const coupon = applicableCoupons.find((c) => c.id === selectedCouponId) ?? null;
+    const preview = previewCouponDiscount(coupon, subtotalNow, calculateShippingFee(subtotalNow));
+    const surcharge = getRemoteAreaInfo(shipping.postalCode)?.surcharge ?? 0;
+    const maxPoints = isGuestCheckout
+      ? 0
+      : computeMaxUsablePoints({
+          balance: pointBalance,
+          subtotal: subtotalNow,
+          couponDiscount: preview.subtotalDiscount,
+        });
+    const points = Math.min(Math.max(0, pointsToUse), maxPoints);
+    return {
+      subtotal: subtotalNow,
+      couponDiscount: preview.subtotalDiscount,
+      shippingFee: preview.shippingFeeAfter + surcharge,
+      maxUsablePoints: maxPoints,
+      points,
+      total: Math.max(
+        0,
+        subtotalNow + preview.shippingFeeAfter + surcharge - preview.subtotalDiscount - points,
+      ),
+    };
+  }, [
+    orderItems,
+    applicableCoupons,
+    selectedCouponId,
+    shipping.postalCode,
+    isGuestCheckout,
+    pointBalance,
+    pointsToUse,
+  ]);
+
+  const submitAttemptRef = useRef(0); // 결제하기 시도 횟수 (attempt_index)
+  const impressionGuardRef = useRef(makeOnceGuard()); // 노출 계열 1회 가드
+  const formProgressGuardRef = useRef(makeOnceGuard()); // 배송 필드 최초 입력 1회 가드
+  const refundFieldGuardRef = useRef(makeOnceGuard()); // 환불계좌 필드 최초 입력 1회 가드
+
   // 계좌번호 복사 ('-' 제거한 숫자만 → 은행 앱에 바로 붙여넣기 편하게)
   const handleCopyAccount = async () => {
     const plain = BANK_ACCOUNT.replace(/-/g, "");
@@ -775,8 +880,11 @@ function PublicOrderPage() {
         t.remove();
       }
       showToast("계좌번호를 복사했어요.");
+      // GA4 copy_click — 무엇을 복사했는지만 (계좌번호 값은 절대 보내지 않는다)
+      trackCopyClick("bank_account", "order_form", "ok");
     } catch {
       showToast("복사에 실패했어요. 길게 눌러 복사해 주세요.", "error");
+      trackCopyClick("bank_account", "order_form", "fail");
     }
   };
 
@@ -801,8 +909,8 @@ function PublicOrderPage() {
     if (authLoading || (!isAuthenticated && !isGuestMode)) return;
     if (!orderItems || orderItems.length === 0) return;
     beginCheckoutTrackedRef.current = true;
-    trackBeginCheckout(orderItems.map(toAnalyticsLine));
-  }, [authLoading, isAuthenticated, isGuestMode, orderItems]);
+    trackBeginCheckout(orderItems.map(toAnalyticsLine), checkoutContext());
+  }, [authLoading, isAuthenticated, isGuestMode, orderItems, checkoutContext]);
 
   // 가격 drift 검증: 진입 시 books 테이블에서 fresh 가격·status를 조회해 표시 금액을 동기화한다.
   // initialOrderItems가 바뀔 때만 한 번 fetch (재실행 방지).
@@ -823,6 +931,12 @@ function PublicOrderPage() {
       });
       if (cancelled) return;
       if (error || !Array.isArray(data)) {
+        // GA4 checkout_price_drift — 진입 재검증이 만든 이탈 원인(조회 실패)
+        trackEvent("checkout_price_drift", {
+          driftType: "fetch_failed",
+          itemCount: initialOrderItems.length,
+          ...checkoutContext(),
+        });
         // 검증 실패를 "변동 없음"으로 침묵 처리하면 표시 금액 ≠ 청구 금액이 될 수 있다.
         // 결제는 서버가 books.price 기준으로 재계산하므로 막지는 않되, 명시적으로 경고.
         setPriceDriftWarning(
@@ -852,10 +966,22 @@ function PublicOrderPage() {
       });
       setOrderItems(merged.filter((item) => !item._unavailable));
       if (unavailable.length > 0) {
+        // GA4 checkout_price_drift — 품절·비공개로 주문에서 빠진 품목 수
+        trackEvent("checkout_price_drift", {
+          driftType: "unavailable",
+          itemCount: unavailable.length,
+          ...checkoutContext(),
+        });
         setPriceDriftWarning(
           `이미 판매되었거나 비공개된 교재가 ${unavailable.length}건 있어 주문에서 제외했습니다: ${unavailable.join(", ")}`,
         );
       } else if (drifts.length > 0) {
+        // GA4 checkout_price_drift — 표시 금액이 바뀐 품목 수(가격 신뢰도 이슈)
+        trackEvent("checkout_price_drift", {
+          driftType: "price_changed",
+          itemCount: drifts.length,
+          ...checkoutContext(),
+        });
         const lines = drifts.map(
           (d) =>
             `${d.title}: ${d.oldPrice?.toLocaleString() ?? "?"}원 → ${d.newPrice?.toLocaleString() ?? "?"}원`,
@@ -866,7 +992,7 @@ function PublicOrderPage() {
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated, isGuestMode, initialOrderItems]);
+  }, [isAuthenticated, isGuestMode, initialOrderItems, checkoutContext]);
 
   useEffect(() => {
     if (!user) return;
@@ -915,10 +1041,19 @@ function PublicOrderPage() {
       });
       if (!error && Array.isArray(data)) {
         setApplicableCoupons(data);
+        // GA4 coupon_availability — 이 장바구니 구성에서 쓸 수 있는 쿠폰이 몇 장인지 1회.
+        // (0장이면 UI에서 쿠폰 row 자체가 숨겨져 "왜 안 썼나"를 화면만으로는 알 수 없다)
+        if (impressionGuardRef.current(`coupon_availability:${subtotalForFetch}:${orderItems.length}`)) {
+          trackEvent("coupon_availability", {
+            availableCount: data.length,
+            subtotal: subtotalForFetch,
+            ...checkoutContext(),
+          });
+        }
       }
     };
     void loadCoupons();
-  }, [user, orderItems]);
+  }, [user, orderItems, checkoutContext]);
 
   // 포인트 잔액 — 회원만 (게스트 주문은 사용 불가)
   useEffect(() => {
@@ -973,12 +1108,17 @@ function PublicOrderPage() {
       } catch (err) {
         tossInitStartedRef.current = false; // 다음 렌더에서 재시도 허용
         setTossLoadError(true);
+        // GA4 checkout_error — 위젯 초기화 실패는 결제 버튼 자체가 잠기는 치명 구간
+        trackCheckoutError("pg_widget_init", err?.message, {
+          pgProvider: "toss",
+          ...checkoutContext(),
+        });
         if (typeof window !== "undefined" && window.console) {
           window.console.warn("[toss] 결제위젯 초기화 실패", err);
         }
       }
     })();
-  }, [user, isGuestCheckout]);
+  }, [user, isGuestCheckout, checkoutContext]);
 
   // 금액(쿠폰/배송비) 변동 시 결제위젯 금액 동기화
   useEffect(() => {
@@ -994,6 +1134,106 @@ function PublicOrderPage() {
     if (PG_PROVIDER !== "nicepay") return;
     loadNicepaySdk().catch(() => {});
   }, []);
+
+  // ── GA4 노출 계측 (렌더 중이 아니라 effect에서, 값별 1회) ────────────────────
+
+  // 주문 가능한 품목이 0이 된 막다른 화면 — drift/품절이 만든 결제 불가 이탈
+  useEffect(() => {
+    if (!initialOrderItems || initialOrderItems.length === 0) return;
+    if (orderItems && orderItems.length > 0) return;
+    if (!impressionGuardRef.current("checkout_blocked_empty")) return;
+    trackEvent("checkout_blocked_empty", {
+      itemCount: initialOrderItems.length,
+      ...checkoutContext(),
+    });
+  }, [initialOrderItems, orderItems, checkoutContext]);
+
+  // 무통장 안내 블록 + 환불계좌 폼 노출 (결제 수단을 계좌이체로 둔 사용자 수)
+  useEffect(() => {
+    if (paymentMethod !== "bank_transfer") return;
+    if (impressionGuardRef.current("bank_info_shown")) {
+      trackEvent("bank_info_shown", {
+        uiSurface: "order_form",
+        value: analyticsPricing().total,
+        ...checkoutContext(),
+      });
+    }
+    if (impressionGuardRef.current("refund_account_form_shown")) {
+      trackEvent("refund_account_form_shown", { ...checkoutContext() });
+    }
+  }, [paymentMethod, analyticsPricing, checkoutContext]);
+
+  // 도서산간 추가 배송비 안내 — 지역 라벨 단위 1회 (주소 변경 때마다 재발화 방지)
+  useEffect(() => {
+    const info = getRemoteAreaInfo(shipping.postalCode);
+    if (!info) return;
+    if (!impressionGuardRef.current(`remote_area:${info.label}`)) return;
+    trackEvent("remote_area_fee_shown", {
+      region: info.label,
+      surcharge: info.surcharge,
+      ...checkoutContext(),
+    });
+  }, [shipping.postalCode, checkoutContext]);
+
+  // "N원 더 담으면 무료배송" 힌트 노출 — 배송비를 남긴 채 결제로 가는 비율 분모
+  useEffect(() => {
+    const pricing = analyticsPricing();
+    if (pricing.subtotal <= 0) return;
+    if (pricing.shippingFee - (getRemoteAreaInfo(shipping.postalCode)?.surcharge ?? 0) <= 0) return;
+    if (!impressionGuardRef.current("free_shipping_hint")) return;
+    trackEvent("free_shipping_hint_view", {
+      gapAmount: Math.max(0, FREE_SHIPPING_THRESHOLD - pricing.subtotal),
+      ...checkoutContext(),
+    });
+  }, [analyticsPricing, shipping.postalCode, checkoutContext]);
+
+  // 포인트 블록 노출 / 사용 불가 사유 — 적립은 됐는데 못 쓰는 구간을 분리해 본다
+  useEffect(() => {
+    if (isGuestCheckout || pointBalance <= 0) return;
+    const pricing = analyticsPricing();
+    if (impressionGuardRef.current("points_section_shown")) {
+      trackEvent("points_section_shown", {
+        balance: pointBalance,
+        maxUsable: pricing.maxUsablePoints,
+        ...checkoutContext(),
+      });
+    }
+    if (pricing.maxUsablePoints > 0) return;
+    const reason = getPointsUnavailableReason({ balance: pointBalance, subtotal: pricing.subtotal });
+    if (!reason) return;
+    if (!impressionGuardRef.current(`points_unavailable:${reason}`)) return;
+    trackEvent("points_unavailable", {
+      reason,
+      balance: pointBalance,
+      ...checkoutContext(),
+    });
+  }, [isGuestCheckout, pointBalance, analyticsPricing, checkoutContext]);
+
+  // 포인트 입력 — 키 입력마다 보내지 않도록 800ms 디바운스 후 적용/해제만 1건씩.
+  const pointsTrackedValueRef = useRef(0);
+  const pointsInputMethodRef = useRef("manual"); // manual(직접 입력) / max(전액 사용 버튼)
+  useEffect(() => {
+    if (isGuestCheckout) return undefined;
+    if (pointsToUse === pointsTrackedValueRef.current) return undefined;
+    const timer = window.setTimeout(() => {
+      const previous = pointsTrackedValueRef.current;
+      pointsTrackedValueRef.current = pointsToUse;
+      if (pointsToUse <= 0) {
+        if (previous > 0) {
+          trackEvent("points_clear", { balance: pointBalance, ...checkoutContext() });
+        }
+        return;
+      }
+      trackEvent("points_apply", {
+        inputMethod: pointsInputMethodRef.current,
+        pointsAmount: pointsToUse,
+        balance: pointBalance,
+        maxUsable: analyticsPricing().maxUsablePoints,
+        ...checkoutContext(),
+      });
+    }, 800);
+    return () => window.clearTimeout(timer);
+  }, [pointsToUse, isGuestCheckout, pointBalance, analyticsPricing, checkoutContext]);
 
   const handleSelectAddress = (addr) => {
     setSelectedAddressId(addr.id);
@@ -1030,20 +1270,37 @@ function PublicOrderPage() {
   };
 
   const handleSearchAddress = async () => {
+    // GA4 address_search_open — 주소 검색 진입(주소 단계 이탈 진단의 분모)
+    trackEvent("address_search_open", { uiSurface: "order_form", ...checkoutContext() });
     try {
       await loadDaumPostcode();
     } catch (err) {
+      // GA4 checkout_error — 우편번호 스크립트 로드 실패(광고차단·네트워크)
+      trackCheckoutError("address_script", err?.message, {
+        uiSurface: "order_form",
+        ...checkoutContext(),
+      });
       showToast(err?.message || "주소 검색을 불러오지 못했습니다.", "error");
       return;
     }
 
     if (!window.daum?.Postcode) {
+      trackCheckoutError("address_script", "postcode_unavailable", {
+        uiSurface: "order_form",
+        ...checkoutContext(),
+      });
       showToast("주소 검색을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.", "error");
       return;
     }
 
     new window.daum.Postcode({
       oncomplete: (data) => {
+        // GA4 address_search_complete — 주소 원문 없이 도서산간 여부만 남긴다
+        trackEvent("address_search_complete", {
+          uiSurface: "order_form",
+          isRemoteArea: Boolean(getRemoteAreaInfo(data.zonecode)),
+          ...checkoutContext(),
+        });
         setShipping((prev) => ({
           ...prev,
           postalCode: data.zonecode,
@@ -1054,9 +1311,40 @@ function PublicOrderPage() {
     }).open();
   };
 
+  // GA4 form_progress — 배송 필드 최초 입력 완료(blur 시 값 있음)를 필드별 1회.
+  // 어느 칸에서 멈추는지(퍼널 감사 요청)를 보기 위한 것이라 값은 절대 보내지 않는다.
+  const handleShippingFieldBlur = (fieldName) => (event) => {
+    if (!event.target.value.trim()) return;
+    if (!formProgressGuardRef.current(fieldName)) return;
+    trackFormProgress("checkout", fieldName, checkoutContext());
+  };
+
+  // GA4 refund_account_filled — 환불계좌 칸을 실제로 채웠는지만 필드별 1회.
+  // 계좌번호·예금주 값은 어떤 형태로도 보내지 않는다.
+  const handleRefundFieldBlur = (fieldName) => (event) => {
+    if (!event.target.value.trim()) return;
+    if (!refundFieldGuardRef.current(fieldName)) return;
+    trackEvent("refund_account_filled", { fieldName, ...checkoutContext() });
+  };
+
+  // GA4 payment_method_select용 라벨 — add_payment_info와 같은 어휘로 맞춘다.
+  const toPaymentTypeLabel = (methodId) =>
+    methodId === "bank_transfer"
+      ? "bank_transfer"
+      : PG_PROVIDER === "nicepay"
+        ? "card_nicepay"
+        : PG_PROVIDER === "toss"
+          ? "card_toss"
+          : methodId;
+
   const handlePaymentSelect = (methodId) => {
     if (PG_READY) {
       // PG 활성 시: 'card'(나이스페이 결제창/토스 결제위젯)와 'bank_transfer'(계좌이체) 둘 다 선택 가능
+      // GA4 payment_method_select — 수단 선택 자체(제출 전)의 분포와 전환
+      trackPaymentMethodSelect(toPaymentTypeLabel(methodId), {
+        previousMethod: toPaymentTypeLabel(paymentMethod),
+        ...checkoutContext(),
+      });
       setPaymentMethod(methodId);
       return;
     }
@@ -1066,25 +1354,65 @@ function PublicOrderPage() {
       showToast("사업자 등록 완료 후 오픈 예정입니다.", "info");
       return;
     }
+    trackPaymentMethodSelect(toPaymentTypeLabel(methodId), {
+      previousMethod: toPaymentTypeLabel(paymentMethod),
+      ...checkoutContext(),
+    });
     setPaymentMethod(methodId);
   };
 
+  // 반환값: null(통과) 또는 { field, message }.
+  // field는 GA4 checkout_error(error_field)용 기계 판독 코드, message는 사용자 토스트 문구
+  // (문구·검증 순서는 기존과 동일 — 계측을 위해 반환 형태만 바뀌었다).
   const validate = () => {
-    if (!shipping.recipientName.trim()) return "수령인 이름을 입력해주세요.";
-    if (!shipping.recipientPhone.trim()) return "수령인 연락처를 입력해주세요.";
+    if (!shipping.recipientName.trim()) {
+      return { field: "recipient_name", message: "수령인 이름을 입력해주세요." };
+    }
+    if (!shipping.recipientPhone.trim()) {
+      return { field: "recipient_phone", message: "수령인 연락처를 입력해주세요." };
+    }
     // 배송 안내 SMS·알림톡 발송 대상이므로 휴대폰 형식을 검증한다(수거요청 페이지와 동일 기준).
-    if (!isValidKoreanMobile(shipping.recipientPhone)) return "휴대폰 번호를 정확히 입력해주세요. (예: 010-1234-5678)";
-    if (!shipping.postalCode.trim() || !shipping.addressLine1.trim()) return "배송지 주소를 입력해주세요.";
-    if (!agreementOrder) return "[필수] 주문 내용 확인 및 개인정보 수집·이용 동의에 체크해주세요.";
-    if (!isPg && !agreementPayment) return "[필수] 미입금 시 주문 자동 취소 동의에 체크해주세요.";
-    if (!agreementRefund) return "[필수] 환불·교환 정책 확인 동의에 체크해주세요.";
+    if (!isValidKoreanMobile(shipping.recipientPhone)) {
+      return {
+        field: "phone_format",
+        message: "휴대폰 번호를 정확히 입력해주세요. (예: 010-1234-5678)",
+      };
+    }
+    if (!shipping.postalCode.trim() || !shipping.addressLine1.trim()) {
+      return { field: "address", message: "배송지 주소를 입력해주세요." };
+    }
+    if (!agreementOrder) {
+      return {
+        field: "agreement_order",
+        message: "[필수] 주문 내용 확인 및 개인정보 수집·이용 동의에 체크해주세요.",
+      };
+    }
+    if (!isPg && !agreementPayment) {
+      return {
+        field: "agreement_payment",
+        message: "[필수] 미입금 시 주문 자동 취소 동의에 체크해주세요.",
+      };
+    }
+    if (!agreementRefund) {
+      return {
+        field: "agreement_refund",
+        message: "[필수] 환불·교환 정책 확인 동의에 체크해주세요.",
+      };
+    }
     // 무통장입금은 환불계좌를 주문 시점에 필수 수집 (2026-07-12 정책 — 환불 시 계좌 확인 지연 방지)
     if (!isPg) {
-      if (!refundAccount.bank.trim()) return "환불받을 계좌의 은행을 선택해주세요.";
-      if (refundAccount.number.replace(/[^0-9]/g, "").length < 6) {
-        return "환불받을 계좌번호를 정확히 입력해주세요.";
+      if (!refundAccount.bank.trim()) {
+        return { field: "refund_bank", message: "환불받을 계좌의 은행을 선택해주세요." };
       }
-      if (!refundAccount.holder.trim()) return "환불받을 계좌의 예금주를 입력해주세요.";
+      if (refundAccount.number.replace(/[^0-9]/g, "").length < 6) {
+        return {
+          field: "refund_account_number",
+          message: "환불받을 계좌번호를 정확히 입력해주세요.",
+        };
+      }
+      if (!refundAccount.holder.trim()) {
+        return { field: "refund_account_holder", message: "환불받을 계좌의 예금주를 입력해주세요." };
+      }
     }
     return null;
   };
@@ -1095,11 +1423,31 @@ function PublicOrderPage() {
     if (inFlightRef.current) return;
     inFlightRef.current = true;
 
+    // 제출 시도 횟수 — 검증 실패로 되돌아온 재시도까지 센다(몇 번 만에 통과하는지).
+    submitAttemptRef.current += 1;
+    const attemptIndex = submitAttemptRef.current;
+    const paymentTypeLabel =
+      isPg && PG_PROVIDER === "nicepay" ? "card_nicepay" : isPg ? "card_toss" : "bank_transfer";
+
+    // GA4 checkout_submit_click — 결제하기를 실제로 누른 횟수(검증 통과 전 분모)
+    trackEvent("checkout_submit_click", {
+      paymentType: paymentTypeLabel,
+      value: totalAmount,
+      attemptIndex,
+      couponApplied: Boolean(selectedCoupon),
+      pointsUsed: isGuestCheckout ? 0 : effectivePoints,
+      ...checkoutContext(),
+    });
+
     const validationError = validate();
     if (validationError) {
       // GA4 checkout_error — 제출 시도가 검증에서 막힌 지점 (미입력 필드·동의 누락 분포)
-      trackCheckoutError("validation", validationError);
-      showToast(validationError, "error");
+      trackCheckoutError("validation", validationError.message, {
+        errorField: validationError.field,
+        attemptIndex,
+        ...checkoutContext(),
+      });
+      showToast(validationError.message, "error");
       inFlightRef.current = false;
       return;
     }
@@ -1114,16 +1462,15 @@ function PublicOrderPage() {
         : shippingFee === 0
           ? "무료배송"
           : "일반",
+      attemptIndex,
+      ...checkoutContext(),
     });
     trackAddPaymentInfo({
       lines: analyticsLines,
-      paymentType:
-        isPg && PG_PROVIDER === "nicepay"
-          ? "card_nicepay"
-          : isPg
-            ? "card_toss"
-            : "bank_transfer",
+      paymentType: paymentTypeLabel,
       coupon: selectedCoupon?.title,
+      attemptIndex,
+      ...checkoutContext(),
     });
 
     setIsSubmitting(true);
@@ -1177,7 +1524,11 @@ function PublicOrderPage() {
 
     if (error) {
       // GA4 checkout_error — 주문/세션 RPC 실패 (재고 선점 경합·쿠폰 무효 등 서버 거절 분포)
-      trackCheckoutError(isNicepayCard ? "checkout_session" : "create_order", error.message);
+      trackCheckoutError(isNicepayCard ? "checkout_session" : "create_order", error.message, {
+        paymentType: paymentTypeLabel,
+        attemptIndex,
+        ...checkoutContext(),
+      });
       setIsSubmitting(false);
       showToast(toFriendlyOrderError(error), "error");
       inFlightRef.current = false;
@@ -1207,6 +1558,15 @@ function PublicOrderPage() {
     // 카드 인증이 끝나면 나이스페이가 returnUrl(/api/payments/nicepay-return)로 POST →
     // 서버가 주문 생성(finalize) → 승인 → 주문완료로 리다이렉트.
     if (isNicepayCard) {
+      // GA4 pg_session_created — 결제 세션 RPC 성공(결제창 호출 직전). 이후 purchase와의
+      // 격차가 "결제창까지 갔다가 이탈" 구간이 된다.
+      trackEvent("pg_session_created", {
+        value: data.total_amount,
+        itemCount: orderItems.length,
+        pgProvider: "nicepay",
+        attemptIndex,
+        ...checkoutContext(),
+      });
       // 게스트: 결제창 복귀(서버 303) 후 완료 페이지가 세션 없이도 주문을 보여줄 수 있게
       // 주문번호+휴대폰을 sessionStorage에 보관 (조회 RPC의 2요소 키와 동일).
       if (isGuestCheckout) {
@@ -1226,15 +1586,29 @@ function PublicOrderPage() {
           buyerTel: shipping.recipientPhone.replace(/\D/g, "") || undefined,
           buyerEmail: user?.email || undefined,
           onError: (result) => {
-            trackCheckoutError("pg_open", result?.errorMsg);
+            trackCheckoutError("pg_open", result?.errorMsg, {
+              pgProvider: "nicepay",
+              ...checkoutContext(),
+            });
             showToast(
               result?.errorMsg || "결제를 시작하지 못했어요. 잠시 후 다시 시도해 주세요.",
               "error",
             );
           },
         });
+        // GA4 pg_open — 결제창 호출이 예외 없이 시작됨. 결제창을 닫는 이탈은 콜백이 없어
+        // pg_open − purchase 격차로만 관찰된다(나이스페이 SDK 한계).
+        trackEvent("pg_open", {
+          value: data.total_amount,
+          pgProvider: "nicepay",
+          attemptIndex,
+          ...checkoutContext(),
+        });
       } catch (err) {
-        trackCheckoutError("pg_open", err?.message);
+        trackCheckoutError("pg_open", err?.message, {
+          pgProvider: "nicepay",
+          ...checkoutContext(),
+        });
         const msg =
           err?.message && /[가-힣]/.test(err.message)
             ? err.message
@@ -1268,7 +1642,11 @@ function PublicOrderPage() {
         // 리다이렉트되므로 이후 코드는 실행되지 않는다.
       } catch (err) {
         // 사용자가 결제창을 닫았거나 실패. 주문(pending)은 24시간 후 자동 취소된다.
-        trackCheckoutError("pg_widget", err?.message);
+        trackCheckoutError("pg_widget", err?.message, {
+          pgProvider: "toss",
+          attemptIndex,
+          ...checkoutContext(),
+        });
         setIsSubmitting(false);
         inFlightRef.current = false;
         const msg =
@@ -1288,6 +1666,10 @@ function PublicOrderPage() {
       shipping: shippingFee,
       items: orderItems.map(toAnalyticsLine),
       coupon: selectedCoupon?.title,
+      paymentType: "bank_transfer",
+      discountAmount: couponDiscount,
+      pointsUsed: isGuestCheckout ? 0 : effectivePoints,
+      ...checkoutContext(),
     });
 
     // 게스트 무통장: 새로고침·재방문 시 완료 페이지가 RLS 대신 조회 RPC로 복원하도록 보관
@@ -1330,7 +1712,11 @@ function PublicOrderPage() {
               </p>
               <button
                 className="order-empty__back"
-                onClick={() => navigate("/cart")}
+                onClick={() => {
+                  // GA4 select_content — 막다른 화면에서 카트로 복귀한 비율
+                  trackSelectContent("checkout_empty_cta", "back_to_cart", checkoutContext());
+                  navigate("/cart");
+                }}
                 type="button"
               >
                 장바구니로 돌아가기
@@ -1441,7 +1827,14 @@ function PublicOrderPage() {
                   {savedAddresses.length > 0 && (
                     <button
                       className="order-addr-change-btn"
-                      onClick={() => setIsAddressBookOpen(true)}
+                      onClick={() => {
+                        // GA4 dialog_open(address_book) — 저장된 주소를 바꾸러 들어간 비율
+                        trackDialogOpen("address_book", {
+                          savedAddressCount: savedAddresses.length,
+                          ...checkoutContext(),
+                        });
+                        setIsAddressBookOpen(true);
+                      }}
                       type="button"
                     >
                       주소 변경
@@ -1477,6 +1870,7 @@ function PublicOrderPage() {
                       <label className="order-form__label">수령인</label>
                       <input
                         className="order-form__input"
+                        onBlur={handleShippingFieldBlur("recipient_name")}
                         onChange={(e) => setShipping((p) => ({ ...p, recipientName: e.target.value }))}
                         placeholder="이름"
                         type="text"
@@ -1488,6 +1882,7 @@ function PublicOrderPage() {
                       <input
                         className="order-form__input"
                         inputMode="tel"
+                        onBlur={handleShippingFieldBlur("recipient_phone")}
                         onChange={(e) => setShipping((p) => ({ ...p, recipientPhone: formatPhoneNumber(e.target.value) }))}
                         placeholder="010-0000-0000"
                         type="tel"
@@ -1522,6 +1917,7 @@ function PublicOrderPage() {
                         />
                         <input
                           className="order-form__input"
+                          onBlur={handleShippingFieldBlur("address_detail")}
                           onChange={(e) => setShipping((p) => ({ ...p, addressLine2: e.target.value }))}
                           placeholder="상세 주소 (동/호수)"
                           type="text"
@@ -1535,7 +1931,14 @@ function PublicOrderPage() {
                 {/* 배송 요청사항 — 선택형 모달로 설정 */}
                 <button
                   className="order-memo-row"
-                  onClick={() => setIsMemoModalOpen(true)}
+                  onClick={() => {
+                    // GA4 dialog_open(delivery_memo) — 요청사항을 실제로 여는 비율
+                    trackDialogOpen("delivery_memo", {
+                      hasMemo: Boolean(shipping.memo),
+                      ...checkoutContext(),
+                    });
+                    setIsMemoModalOpen(true);
+                  }}
                   type="button"
                 >
                   <span className={shipping.memo ? "" : "order-memo-row__placeholder"}>
@@ -1677,7 +2080,14 @@ function PublicOrderPage() {
                   </p>
                   <div className="order-refund-account">
                     <BankSelect
-                      onChange={(bank) => setRefundAccount((prev) => ({ ...prev, bank }))}
+                      onChange={(bank) => {
+                        // GA4 refund_account_bank_select — 은행명은 개인정보가 아니라 그대로 기록
+                        trackEvent("refund_account_bank_select", {
+                          bankName: bank,
+                          ...checkoutContext(),
+                        });
+                        setRefundAccount((prev) => ({ ...prev, bank }));
+                      }}
                       options={BANK_OPTIONS}
                       value={refundAccount.bank}
                     />
@@ -1685,6 +2095,7 @@ function PublicOrderPage() {
                       className="order-refund-account__input"
                       enterKeyHint="next"
                       inputMode="numeric"
+                      onBlur={handleRefundFieldBlur("account_number")}
                       onChange={(e) => setRefundAccount((prev) => ({ ...prev, number: e.target.value }))}
                       placeholder="계좌번호 (‘-’ 없이 숫자만)"
                       type="text"
@@ -1693,6 +2104,7 @@ function PublicOrderPage() {
                     <input
                       className="order-refund-account__input"
                       enterKeyHint="done"
+                      onBlur={handleRefundFieldBlur("holder")}
                       onChange={(e) => setRefundAccount((prev) => ({ ...prev, holder: e.target.value }))}
                       placeholder="예금주"
                       type="text"
@@ -1734,7 +2146,16 @@ function PublicOrderPage() {
                     <button
                       type="button"
                       className="order-sidebar__coupon-button"
-                      onClick={() => setIsCouponPickerOpen(true)}
+                      onClick={() => {
+                        // GA4 dialog_open(coupon_picker) — 보유 쿠폰 대비 실제로 여는 비율
+                        trackDialogOpen("coupon_picker", {
+                          availableCount: applicableCoupons.length,
+                          hasSelected: Boolean(selectedCoupon),
+                          subtotal,
+                          ...checkoutContext(),
+                        });
+                        setIsCouponPickerOpen(true);
+                      }}
                     >
                       {selectedCoupon
                         ? <><TicketIcon size={14} /> {selectedCoupon.title}</>
@@ -1746,7 +2167,11 @@ function PublicOrderPage() {
                         type="button"
                         className="order-sidebar__coupon-clear"
                         onClick={() => {
-                          trackCouponRemove();
+                          trackCouponRemove({
+                            uiSurface: "sidebar",
+                            couponId: String(selectedCoupon?.id ?? ""),
+                            ...checkoutContext(),
+                          });
                           setSelectedCouponId(null);
                         }}
                       >
@@ -1781,16 +2206,22 @@ function PublicOrderPage() {
                             aria-label="사용할 포인트"
                             className="order-sidebar__points-input"
                             inputMode="numeric"
-                            onChange={(e) => setPointsToUse(clampPointsInput(e.target.value, maxUsablePoints))}
+                            onChange={(e) => {
+                              // 직접 입력 — 실제 발화는 아래 디바운스 effect가 800ms 뒤 1건만
+                              pointsInputMethodRef.current = "manual";
+                              setPointsToUse(clampPointsInput(e.target.value, maxUsablePoints));
+                            }}
                             placeholder="0"
                             type="text"
                             value={effectivePoints > 0 ? String(effectivePoints) : ""}
                           />
                           <button
                             className="order-sidebar__points-max"
-                            onClick={() =>
-                              setPointsToUse(effectivePoints === maxUsablePoints ? 0 : maxUsablePoints)
-                            }
+                            onClick={() => {
+                              // 전액 사용/해제 — input_method=max로 구분 (발화는 디바운스 effect)
+                              pointsInputMethodRef.current = "max";
+                              setPointsToUse(effectivePoints === maxUsablePoints ? 0 : maxUsablePoints);
+                            }}
                             type="button"
                           >
                             {effectivePoints === maxUsablePoints ? "해제" : "전액 사용"}
@@ -1838,6 +2269,12 @@ function PublicOrderPage() {
                       }
                       onChange={(e) => {
                         const next = e.target.checked;
+                        // GA4 agreement_toggle_all — 일괄 동의 사용 비율(개별 체크 대비)
+                        trackEvent("agreement_toggle_all", {
+                          formName: "checkout",
+                          checked: next,
+                          ...checkoutContext(),
+                        });
                         setAgreementOrder(next);
                         setAgreementPayment(next);
                         setAgreementRefund(next);
@@ -1851,7 +2288,16 @@ function PublicOrderPage() {
                   <label className="order-sidebar__agreement-check">
                     <input
                       checked={agreementOrder}
-                      onChange={(e) => setAgreementOrder(e.target.checked)}
+                      onChange={(e) => {
+                        // GA4 agreement_toggle — 어떤 필수 동의에서 멈추는지(검증 실패와 대조)
+                        trackEvent("agreement_toggle", {
+                          formName: "checkout",
+                          agreementType: "order_privacy",
+                          checked: e.target.checked,
+                          ...checkoutContext(),
+                        });
+                        setAgreementOrder(e.target.checked);
+                      }}
                       type="checkbox"
                     />
                     <span>
@@ -1859,6 +2305,9 @@ function PublicOrderPage() {
                       <a
                         className="order-sidebar__agreement-link"
                         href="/privacy"
+                        onClick={() =>
+                          trackSelectContent("policy_link", "privacy", checkoutContext())
+                        }
                         rel="noopener noreferrer"
                         target="_blank"
                       >
@@ -1871,7 +2320,15 @@ function PublicOrderPage() {
                     <label className="order-sidebar__agreement-check">
                       <input
                         checked={agreementPayment}
-                        onChange={(e) => setAgreementPayment(e.target.checked)}
+                        onChange={(e) => {
+                          trackEvent("agreement_toggle", {
+                            formName: "checkout",
+                            agreementType: "auto_cancel",
+                            checked: e.target.checked,
+                            ...checkoutContext(),
+                          });
+                          setAgreementPayment(e.target.checked);
+                        }}
                         type="checkbox"
                       />
                       <span>
@@ -1883,7 +2340,15 @@ function PublicOrderPage() {
                   <label className="order-sidebar__agreement-check">
                     <input
                       checked={agreementRefund}
-                      onChange={(e) => setAgreementRefund(e.target.checked)}
+                      onChange={(e) => {
+                        trackEvent("agreement_toggle", {
+                          formName: "checkout",
+                          agreementType: "refund_policy",
+                          checked: e.target.checked,
+                          ...checkoutContext(),
+                        });
+                        setAgreementRefund(e.target.checked);
+                      }}
                       type="checkbox"
                     />
                     <span>
@@ -1891,6 +2356,7 @@ function PublicOrderPage() {
                       <a
                         className="order-sidebar__agreement-link"
                         href="/refund"
+                        onClick={() => trackSelectContent("policy_link", "refund", checkoutContext())}
                         rel="noopener noreferrer"
                         target="_blank"
                       >
@@ -1923,9 +2389,16 @@ function PublicOrderPage() {
 
         <OrderAddressBookModal
           addresses={savedAddresses}
+          checkoutContext={checkoutContext}
           onClose={() => setIsAddressBookOpen(false)}
           onSaved={refreshAddressesAndSelect}
           onSelect={(addr) => {
+            // GA4 address_select — 주소록에서 고른 주소(기본 배송지 사용률)
+            trackEvent("address_select", {
+              isDefault: Boolean(addr.is_default),
+              savedAddressCount: savedAddresses.length,
+              ...checkoutContext(),
+            });
             handleSelectAddress(addr);
             setIsAddressBookOpen(false);
           }}
@@ -1937,6 +2410,16 @@ function PublicOrderPage() {
         <OrderDeliveryRequestModal
           memo={shipping.memo}
           onApply={(nextMemo) => {
+            // GA4 delivery_memo_apply — 프리셋/직접입력 분포. 직접입력 본문은 보내지 않는다.
+            trackEvent("delivery_memo_apply", {
+              memoType: !nextMemo
+                ? "none"
+                : DELIVERY_REQUEST_PRESETS.includes(nextMemo)
+                  ? "preset"
+                  : "custom",
+              ...(DELIVERY_REQUEST_PRESETS.includes(nextMemo) ? { optionLabel: nextMemo } : {}),
+              ...checkoutContext(),
+            });
             setShipping((prev) => ({ ...prev, memo: nextMemo }));
             setIsMemoModalOpen(false);
           }}
@@ -1951,7 +2434,13 @@ function PublicOrderPage() {
         )}
 
         {isCouponPickerOpen && (
-          <div className="order-coupon-modal" onClick={() => setIsCouponPickerOpen(false)}>
+          <div
+            className="order-coupon-modal"
+            onClick={() => {
+              trackDialogClose("coupon_picker", "backdrop", checkoutContext());
+              setIsCouponPickerOpen(false);
+            }}
+          >
             <div
               className="order-coupon-modal__panel"
               onClick={(e) => e.stopPropagation()}
@@ -1962,7 +2451,10 @@ function PublicOrderPage() {
                   aria-label="닫기"
                   type="button"
                   className="order-coupon-modal__close"
-                  onClick={() => setIsCouponPickerOpen(false)}
+                  onClick={() => {
+                    trackDialogClose("coupon_picker", "close_button", checkoutContext());
+                    setIsCouponPickerOpen(false);
+                  }}
                 >
                   <CloseIcon size={18} />
                 </button>
@@ -1974,7 +2466,7 @@ function PublicOrderPage() {
                     이 주문에 사용할 수 있는 쿠폰이 없습니다.
                   </li>
                 ) : (
-                  sortedCoupons.map((c) => {
+                  sortedCoupons.map((c, couponIndex) => {
                     const isSelected = c.id === selectedCouponId;
                     const isRecommended = c.id === recommendedCouponId;
                     const expiringSoon = isCouponExpiringSoon(c);
@@ -1984,10 +2476,16 @@ function PublicOrderPage() {
                           type="button"
                           className={`order-coupon-modal__item${isSelected ? " is-selected" : ""}`}
                           onClick={() => {
+                            // GA4 coupon_apply — 정렬 순위·추천/만료임박 라벨이 선택에 미치는 영향
                             trackCouponApply({
                               couponId: c.id,
                               couponTitle: c.title,
                               discountType: c.discount_type,
+                              discountAmount: estimateCouponDiscountAmount(c, subtotal),
+                              isRecommended,
+                              expiringSoon,
+                              rank: couponIndex + 1,
+                              ...checkoutContext(),
                             });
                             setSelectedCouponId(c.id);
                             setIsCouponPickerOpen(false);
@@ -2041,7 +2539,11 @@ function PublicOrderPage() {
                     type="button"
                     className="order-coupon-modal__clear"
                     onClick={() => {
-                      trackCouponRemove();
+                      trackCouponRemove({
+                        uiSurface: "modal",
+                        couponId: String(selectedCouponId ?? ""),
+                        ...checkoutContext(),
+                      });
                       setSelectedCouponId(null);
                       setIsCouponPickerOpen(false);
                     }}
@@ -2052,7 +2554,10 @@ function PublicOrderPage() {
                 <button
                   type="button"
                   className="order-coupon-modal__close-button"
-                  onClick={() => setIsCouponPickerOpen(false)}
+                  onClick={() => {
+                    trackDialogClose("coupon_picker", "cancel_button", checkoutContext());
+                    setIsCouponPickerOpen(false);
+                  }}
                 >
                   닫기
                 </button>

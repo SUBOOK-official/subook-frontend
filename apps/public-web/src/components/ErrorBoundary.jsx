@@ -1,5 +1,6 @@
 import { Component } from "react";
 import { isChunkLoadError, isChunkReloadPending } from "../lib/chunkReloadGuard";
+import { trackContactClick, trackEvent, trackException, trackSelectContent } from "../lib/analytics";
 import { Sentry } from "../lib/sentryInit";
 
 /**
@@ -19,11 +20,14 @@ class ErrorBoundary extends Component {
 
   componentDidCatch(error, errorInfo) {
     if (isChunkReloadPending()) {
+      // GA4 — 배포 직후 스테일 청크 자동 새로고침 발생 빈도(사용자에겐 보이지 않는 복구)
+      trackEvent("stale_chunk_auto_reload", { errorMessage: error?.message });
       return; // 스테일 청크 자동 새로고침 직전의 잔여 에러 — 리포트 불필요
     }
     console.error("[ErrorBoundary] 렌더링 에러 발생:", error, errorInfo);
+    let eventId = null;
     try {
-      const eventId = Sentry?.captureException?.(error, {
+      eventId = Sentry?.captureException?.(error, {
         contexts: { react: { componentStack: errorInfo?.componentStack } },
       });
       if (eventId) {
@@ -32,13 +36,22 @@ class ErrorBoundary extends Component {
     } catch {
       /* noop */
     }
+    // GA4 exception(fatal) — 흰화면 사고. Sentry와 별개로 GA4 세션 지표와 엮어 본다.
+    trackException("render_crash", {
+      fatal: true,
+      errorMessage: error?.message,
+      isChunkError: isChunkLoadError(error),
+      ...(eventId ? { errorId: String(eventId).slice(0, 8) } : {}),
+    });
   }
 
   handleReload = () => {
+    trackSelectContent("error_recovery", "home");
     window.location.assign("/");
   };
 
   handleRefresh = () => {
+    trackSelectContent("error_recovery", "refresh");
     window.location.reload();
   };
 
@@ -67,7 +80,10 @@ class ErrorBoundary extends Component {
               새로고침
             </button>
             <p className="error-boundary__hint">
-              문제가 계속되면 <a href="mailto:subook2025@gmail.com">subook2025@gmail.com</a>으로 문의해 주세요.
+              문제가 계속되면 <a
+                href="mailto:subook2025@gmail.com"
+                onClick={() => trackContactClick("email", "error_boundary")}
+              >subook2025@gmail.com</a>으로 문의해 주세요.
               {this.state.eventId ? (
                 <> (오류 ID: <code>{this.state.eventId}</code>)</>
               ) : null}
@@ -93,7 +109,10 @@ class ErrorBoundary extends Component {
             홈으로 돌아가기
           </button>
           <p className="error-boundary__hint">
-            문제가 계속되면 <a href="mailto:subook2025@gmail.com">subook2025@gmail.com</a>으로 문의해 주세요.
+            문제가 계속되면 <a
+                href="mailto:subook2025@gmail.com"
+                onClick={() => trackContactClick("email", "error_boundary")}
+              >subook2025@gmail.com</a>으로 문의해 주세요.
             {this.state.eventId ? (
               <> (오류 ID: <code>{this.state.eventId}</code>)</>
             ) : null}

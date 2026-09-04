@@ -1,10 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import ContentContainer from "../components/ContentContainer";
 import PublicFooter from "../components/PublicFooter";
 import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
 import { usePageMeta } from "../lib/usePageMeta";
+import { trackEvent, trackPageNotFound, trackSelectContent } from "../lib/analytics";
 import {
   STORE_RECENT_SEARCH_STORAGE_KEY,
   normalizeRecentSearches,
@@ -24,7 +25,8 @@ function readRecentSearches() {
   }
 }
 
-function PublicNotFoundPage() {
+// notFoundSource: route(라우트 미매칭) / subject / collection — 어디서 404가 나는지 구분.
+function PublicNotFoundPage({ notFoundSource = "route" }) {
   usePageMeta({
     title: "페이지를 찾을 수 없어요",
     description: "요청하신 페이지가 존재하지 않습니다.",
@@ -33,6 +35,14 @@ function PublicNotFoundPage() {
 
   const navigate = useNavigate();
   const [searchValue, setSearchValue] = useState("");
+
+  // GA4 page_not_found — 마운트당 1회. 깨진 링크·죽은 SEO 진입 탐지용(page_location 자동 첨부).
+  const notFoundTrackedRef = useRef(false);
+  useEffect(() => {
+    if (notFoundTrackedRef.current) return;
+    notFoundTrackedRef.current = true;
+    trackPageNotFound(notFoundSource);
+  }, [notFoundSource]);
 
   const popularKeywords = useMemo(() => {
     const recent = readRecentSearches();
@@ -50,6 +60,11 @@ function PublicNotFoundPage() {
 
   const handleSubmit = (event) => {
     event.preventDefault();
+    const trimmed = searchValue.trim();
+    if (trimmed) {
+      // GA4 search_submit — 404에서 검색으로 회복하는 비율
+      trackEvent("search_submit", { searchTerm: trimmed, uiSurface: "not_found" });
+    }
     navigateToSearch(searchValue);
   };
 
@@ -88,7 +103,10 @@ function PublicNotFoundPage() {
               <button
                 className="public-notfound__popular-chip"
                 key={`popular-${term}`}
-                onClick={() => navigateToSearch(term)}
+                onClick={() => {
+                  trackSelectContent("notfound_keyword", term);
+                  navigateToSearch(term);
+                }}
                 type="button"
               >
                 {term}
@@ -98,10 +116,18 @@ function PublicNotFoundPage() {
         </div>
 
         <div className="public-notfound__actions">
-          <Link className="public-notfound__cta public-notfound__cta--primary" to="/">
+          <Link
+            className="public-notfound__cta public-notfound__cta--primary"
+            onClick={() => trackSelectContent("notfound_cta", "home")}
+            to="/"
+          >
             홈으로
           </Link>
-          <Link className="public-notfound__cta public-notfound__cta--secondary" to="/faq">
+          <Link
+            className="public-notfound__cta public-notfound__cta--secondary"
+            onClick={() => trackSelectContent("notfound_cta", "faq")}
+            to="/faq"
+          >
             자주 묻는 질문
           </Link>
         </div>

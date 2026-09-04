@@ -1,5 +1,6 @@
 import { isSupabaseConfigured, supabase } from "@shared-supabase/publicSupabaseClient";
 import {
+  trackEvent,
   trackMemberWithdraw,
   trackOrderCancel,
   trackPurchaseConfirm,
@@ -1122,7 +1123,9 @@ async function loadMemberPortalSnapshot({ user, profile, demoMode = false }) {
   };
 }
 
-async function confirmMemberPurchase({ user, orderId, demoMode = false }) {
+// analytics(선택): GA 이벤트에 얹을 추가 파라미터(order_status·value·남은 자동확정일 등).
+// 호출부가 이미 들고 있는 값만 넘긴다 — 시그니처는 하위호환(미전달 시 기존 동작).
+async function confirmMemberPurchase({ user, orderId, demoMode = false, analytics }) {
   if (!user) {
     return {
       error: new Error("로그인된 회원 정보를 찾지 못했습니다."),
@@ -1139,7 +1142,7 @@ async function confirmMemberPurchase({ user, orderId, demoMode = false }) {
     }
 
     if (!error) {
-      trackPurchaseConfirm(orderId);
+      trackPurchaseConfirm(orderId, analytics);
       return { error: null, source: "supabase" };
     }
   }
@@ -1174,7 +1177,7 @@ async function confirmMemberPurchase({ user, orderId, demoMode = false }) {
   };
 }
 
-async function requestMemberRefund({ user, orderId, reason, demoMode = false }) {
+async function requestMemberRefund({ user, orderId, reason, demoMode = false, analytics }) {
   if (!user) {
     return {
       error: new Error("로그인된 회원 정보를 찾지 못했습니다."),
@@ -1214,11 +1217,11 @@ async function requestMemberRefund({ user, orderId, reason, demoMode = false }) 
     return { error, source: "fallback" };
   }
 
-  trackRefundRequest(orderId);
+  trackRefundRequest(orderId, analytics);
   return { error: null, source: "supabase" };
 }
 
-async function cancelMemberOrder({ user, orderId, reason = "", demoMode = false }) {
+async function cancelMemberOrder({ user, orderId, reason = "", demoMode = false, analytics }) {
   if (!user) {
     return {
       error: new Error("로그인된 회원 정보를 찾지 못했습니다."),
@@ -1252,7 +1255,7 @@ async function cancelMemberOrder({ user, orderId, reason = "", demoMode = false 
     }
 
     if (!error) {
-      trackOrderCancel(orderId);
+      trackOrderCancel(orderId, analytics);
       return { error: null, source: "supabase" };
     }
   }
@@ -1274,7 +1277,7 @@ async function cancelMemberOrder({ user, orderId, reason = "", demoMode = false 
 }
 
 // 수거 신청 취소 — CJ 접수 전(pending)만 서버에서 허용. 접수 후에는 RPC가 안내 문구로 거부.
-async function cancelMemberPickupRequest({ user, requestId, demoMode = false }) {
+async function cancelMemberPickupRequest({ user, requestId, demoMode = false, analytics }) {
   if (!user) {
     return {
       error: new Error("로그인된 회원 정보를 찾지 못했습니다."),
@@ -1294,9 +1297,17 @@ async function cancelMemberPickupRequest({ user, requestId, demoMode = false }) 
   });
 
   if (error) {
+    // GA4 셀러 셀프 취소 실패 — RPC가 접수 후 취소를 거부한 경우가 대부분.
+    trackEvent("pickup_self_cancel", {
+      result: "fail",
+      errorMessage: error.message ?? "",
+      ...(analytics ?? {}),
+    });
     return { error, source: "fallback" };
   }
 
+  // GA4 셀러 셀프 취소 성공
+  trackEvent("pickup_self_cancel", { result: "ok", ...(analytics ?? {}) });
   return { error: null, source: "supabase" };
 }
 
@@ -1306,6 +1317,7 @@ async function requestMemberWithdrawal({
   reasonCategory = null,
   reasonLabel = null,
   reasonDetail = null,
+  analytics,
 }) {
   if (!user) {
     return {
@@ -1340,7 +1352,7 @@ async function requestMemberWithdrawal({
     return { error, source: "fallback" };
   }
 
-  trackMemberWithdraw(reasonCategory);
+  trackMemberWithdraw(reasonCategory, analytics);
   clearStoredPortalState(user.id);
   return { error: null, source: "supabase" };
 }

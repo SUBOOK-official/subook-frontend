@@ -4,7 +4,7 @@ import { isSupabaseConfigured, supabase } from "@shared-supabase/publicSupabaseC
 import PublicToastMessage from "../components/PublicToastMessage";
 import { CheckCircleIcon, ClockIcon } from "../components/icons";
 import { clearSignupSuccessState, loadSignupSuccessState, saveSignupSuccessState } from "../lib/publicSignupSuccessState";
-import { trackEmailVerified } from "../lib/analytics";
+import { trackEmailVerified, trackEvent } from "../lib/analytics";
 
 const RESEND_COOLDOWN_SECONDS = 60;
 
@@ -69,6 +69,19 @@ function PublicSignupSuccessPage() {
   const isVerified = Boolean(successState.isVerified);
   const initialNotice = successState.notice ?? "";
 
+  // GA4 email_verify_prompt_shown — 인증코드 입력 화면 노출(1회). 인증 완료율의 분모.
+  const verifyPromptTrackedRef = useRef(false);
+  useEffect(() => {
+    if (isVerified || !requiresEmailConfirmation || !email) {
+      return;
+    }
+    if (verifyPromptTrackedRef.current) {
+      return;
+    }
+    verifyPromptTrackedRef.current = true;
+    trackEvent("email_verify_prompt_shown", { uiSurface: "signup_success" });
+  }, [email, isVerified, requiresEmailConfirmation]);
+
   const handleMoveHome = () => {
     clearSignupSuccessState();
     navigate("/", { replace: true });
@@ -110,6 +123,14 @@ function PublicSignupSuccessPage() {
     });
 
     if (verifyError) {
+      // GA4 email_verify_fail — 코드 만료/오입력 분포
+      trackEvent("email_verify_fail", {
+        context: "signup_success",
+        errorReason: /expired|token/i.test(verifyError.message ?? "")
+          ? "expired_or_invalid"
+          : "other",
+        errorMessage: verifyError.message ?? "",
+      });
       setCodeError(buildVerificationErrorMessage(verifyError));
       setIsVerifying(false);
       return;
@@ -118,6 +139,12 @@ function PublicSignupSuccessPage() {
     const { error: completeError } = await supabase.rpc("complete_member_email_verification");
 
     if (completeError) {
+      // GA4 email_verify_fail — 코드는 맞았는데 마무리 RPC에서 깨진 케이스
+      trackEvent("email_verify_fail", {
+        context: "signup_success",
+        errorReason: "complete_rpc",
+        errorMessage: completeError.message ?? "",
+      });
       setToastState({
         message: completeError.message || "이메일 인증 완료 처리를 마무리하지 못했습니다.",
         tone: "error",
@@ -127,7 +154,7 @@ function PublicSignupSuccessPage() {
     }
 
     // GA4 email_verify_complete — OTP 인증 성공 (가입 활성화 지표)
-    trackEmailVerified();
+    trackEmailVerified({ context: "signup_success" });
 
     const nextState = buildVerifiedSuccessState(successState);
     saveSignupSuccessState(nextState);
@@ -164,6 +191,13 @@ function PublicSignupSuccessPage() {
     });
 
     if (error) {
+      // GA4 email_verify_resend — 재발송 실패(레이트리밋 여부)
+      trackEvent("email_verify_resend", {
+        result: "fail",
+        uiSurface: "signup_success",
+        errorReason: /rate|limit|seconds/i.test(error.message ?? "") ? "rate_limit" : "other",
+        errorMessage: error.message ?? "",
+      });
       setToastState({
         message: error.message || "인증코드 재발송에 실패했습니다. 잠시 후 다시 시도해주세요.",
         tone: "error",
@@ -172,6 +206,8 @@ function PublicSignupSuccessPage() {
       return;
     }
 
+    // GA4 email_verify_resend — 재발송 성공(= 첫 메일 미도달 신호)
+    trackEvent("email_verify_resend", { result: "ok", uiSurface: "signup_success" });
     setVerificationCode("");
     setCodeError("");
     setPageNotice("인증코드를 다시 보내드렸어요. 메일함과 스팸함을 함께 확인해주세요.");

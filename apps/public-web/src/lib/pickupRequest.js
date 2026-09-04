@@ -181,15 +181,25 @@ async function fetchVerifiedPhone(userId) {
   };
 }
 
+// 실패 시 reason(not_configured / no_session / api / network)을 함께 돌려준다 —
+// 호출부가 GA4 error_reason으로 쓰기 위한 값이며, 기존 success/error 계약은 그대로다.
 async function sendPhoneOtp(phone) {
   if (!isSupabaseConfigured || !supabase) {
-    return { success: false, error: new Error("서비스에 연결할 수 없습니다.") };
+    return {
+      success: false,
+      error: new Error("서비스에 연결할 수 없습니다."),
+      reason: "not_configured",
+    };
   }
 
   const { data: sessionData } = await supabase.auth.getSession();
   const token = sessionData?.session?.access_token;
   if (!token) {
-    return { success: false, error: new Error("로그인이 필요합니다.") };
+    return {
+      success: false,
+      error: new Error("로그인이 필요합니다."),
+      reason: "no_session",
+    };
   }
 
   try {
@@ -207,6 +217,7 @@ async function sendPhoneOtp(phone) {
       return {
         success: false,
         error: new Error(result?.error || "인증번호 발송에 실패했습니다."),
+        reason: "api",
       };
     }
 
@@ -215,6 +226,7 @@ async function sendPhoneOtp(phone) {
     return {
       success: false,
       error: new Error("인증번호 발송에 실패했습니다. 잠시 후 다시 시도해 주세요."),
+      reason: "network",
     };
   }
 }

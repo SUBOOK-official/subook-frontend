@@ -5,9 +5,14 @@ import ContentContainer from "../components/ContentContainer";
 import PublicFooter from "../components/PublicFooter";
 import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
-import { trackPaymentFail } from "../lib/analytics";
+import { trackEvent, trackPaymentFail, trackSelectContent } from "../lib/analytics";
+import { NICEPAY_READY } from "../lib/nicepay";
+import { PG_OVERRIDE } from "../lib/pgReviewMode";
 import { usePageMeta } from "../lib/usePageMeta";
 import "./PublicOrderCompletePage.css";
+
+// 실패 복귀가 어느 PG에서 왔는지 — 주문서(PublicOrderPage)의 PG_PROVIDER 선택 규칙과 동일.
+const PG_PROVIDER = PG_OVERRIDE === "toss" ? "toss" : NICEPAY_READY ? "nicepay" : "toss";
 
 // PG 결제 실패 복귀 지점 (나이스페이 failRedirect / 토스 failUrl — ?code=&message=&orderId=).
 //
@@ -35,8 +40,14 @@ function PublicPaymentFailPage() {
   useEffect(() => {
     if (failTrackedRef.current) return;
     failTrackedRef.current = true;
-    trackPaymentFail({ code, message });
-  }, [code, message]);
+    trackPaymentFail({
+      code,
+      message,
+      pgProvider: PG_PROVIDER,
+      ...(orderNumber ? { orderNumber } : {}),
+      ...(PG_OVERRIDE ? { pgReviewMode: true } : {}),
+    });
+  }, [code, message, orderNumber]);
 
   useEffect(() => {
     if (calledRef.current || !orderNumber || !supabase) return;
@@ -56,12 +67,20 @@ function PublicPaymentFailPage() {
           data.payment_status === "paid" ||
           data.payment_method === "bank_transfer"
         ) {
+          // GA4 payment_fail_auto_cancel — 정리 대상이 아니었던 케이스(세션 번호·타인 주문·이미 결제 등)
+          trackEvent("payment_fail_auto_cancel", { result: "skipped", pgProvider: PG_PROVIDER });
           return;
         }
         const { error } = await supabase.rpc("cancel_member_order", { p_order_id: data.id });
         if (!error) setAutoCancelled(true);
+        // GA4 payment_fail_auto_cancel — 미결제 카드 주문 자동 취소 결과
+        trackEvent("payment_fail_auto_cancel", {
+          result: error ? "error" : "cancelled",
+          pgProvider: PG_PROVIDER,
+        });
       } catch {
         // 취소 실패해도 30분 자동만료가 정리한다 — 사용자 흐름을 막지 않는다
+        trackEvent("payment_fail_auto_cancel", { result: "error", pgProvider: PG_PROVIDER });
       }
     })();
   }, [orderNumber]);
@@ -85,10 +104,19 @@ function PublicPaymentFailPage() {
                 : "결제만 진행되지 않았을 뿐 요금은 청구되지 않았어요. 다시 시도하거나 다른 결제수단을 이용해 주세요."}
             </p>
             <div className="order-complete-card__actions">
-              <Link className="order-complete-card__btn order-complete-card__btn--primary" to="/cart">
+              {/* GA4 select_content — 실패 후 어디로 복귀하는지(재시도 vs 이탈) */}
+              <Link
+                className="order-complete-card__btn order-complete-card__btn--primary"
+                onClick={() => trackSelectContent("payment_fail_cta", "back_to_cart")}
+                to="/cart"
+              >
                 장바구니로 돌아가기
               </Link>
-              <Link className="order-complete-card__btn order-complete-card__btn--secondary" to="/mypage">
+              <Link
+                className="order-complete-card__btn order-complete-card__btn--secondary"
+                onClick={() => trackSelectContent("payment_fail_cta", "mypage")}
+                to="/mypage"
+              >
                 주문 내역 확인
               </Link>
             </div>

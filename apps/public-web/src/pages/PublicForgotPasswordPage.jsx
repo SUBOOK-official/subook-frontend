@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/publicSupabaseClient";
 import { MailIcon } from "../components/icons";
+import { trackEvent, trackFormError, trackSelectContent } from "../lib/analytics";
 import { isValidEmailFormat, normalizeEmail } from "../lib/publicAuthFormUtils";
 
 function PublicForgotPasswordPage() {
@@ -51,21 +52,35 @@ function PublicForgotPasswordPage() {
       email: "",
     };
 
+    let emailErrorReason = "";
+
     if (!formValues.name.trim()) {
       nextErrors.name = "필수 항목입니다.";
     }
 
     if (!normalizedEmail) {
       nextErrors.email = "필수 항목입니다.";
+      emailErrorReason = "required";
     } else if (!isValidEmailFormat(normalizedEmail)) {
       nextErrors.email = "유효한 이메일 형식을 확인해 주세요.";
+      emailErrorReason = "format";
     }
 
     setFieldErrors(nextErrors);
+
+    // GA4 form_validation_error — 재설정 요청이 막히는 필드
+    if (nextErrors.name) {
+      trackFormError("forgot_password", "name", "required");
+    }
+    if (emailErrorReason) {
+      trackFormError("forgot_password", "email", emailErrorReason);
+    }
+
     return !nextErrors.name && !nextErrors.email;
   };
 
-  const requestResetEmail = async () => {
+  // isResend: 발송 완료 화면의 '재발송' 버튼에서 온 호출인지 (첫 발송과 구분해 계측)
+  const requestResetEmail = async (isResend = false) => {
     const normalizedEmail = normalizeEmail(formValues.email);
     // 이름 매칭 친절화: trim + lowercase 후 비교. 백엔드 RPC가 어떤 비교 로직을 쓰든
     // 클라이언트는 일관되게 정규화된 값을 보낸다.
@@ -89,6 +104,12 @@ function PublicForgotPasswordPage() {
     const [lookupResult, resetResult] = await Promise.all([lookupPromise, resetPromise, minDelay]);
 
     if (lookupResult.error) {
+      // GA4 password_reset_request — 회원 조회 RPC 자체가 실패
+      trackEvent("password_reset_request", {
+        result: "lookup_error",
+        isResend,
+        errorMessage: lookupResult.error.message ?? "",
+      });
       setPageError("회원 정보를 확인하는 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
       return false;
     }
@@ -96,9 +117,24 @@ function PublicForgotPasswordPage() {
     // 매칭 안 됐어도 동일 화면 표시 (사용자 존재 식별 불가).
     // 실제 발송은 Supabase가 매칭된 auth.users에만 수행하므로 진짜 사용자만 메일 수신.
     if (resetResult.error && lookupResult.data) {
+      // GA4 password_reset_request — 메일 발송 실패
+      trackEvent("password_reset_request", {
+        result: "send_fail",
+        isResend,
+        matched: true,
+        errorMessage: resetResult.error.message ?? "",
+      });
       setPageError(resetResult.error.message || "비밀번호 재설정 메일 발송에 실패했습니다. 다시 시도해 주세요.");
       return false;
     }
+
+    // GA4 password_reset_request — 발송 완료 화면 진입.
+    // matched는 이름+이메일이 실제 회원과 맞았는지(boolean만, 값은 보내지 않는다).
+    trackEvent("password_reset_request", {
+      result: "sent",
+      isResend,
+      matched: Boolean(lookupResult.data),
+    });
 
     setSubmittedEmail(normalizedEmail);
     setHasSubmitted(true);
@@ -119,7 +155,7 @@ function PublicForgotPasswordPage() {
     }
 
     setIsSubmitting(true);
-    await requestResetEmail();
+    await requestResetEmail(false);
     setIsSubmitting(false);
   };
 
@@ -132,7 +168,7 @@ function PublicForgotPasswordPage() {
     }
 
     setIsSubmitting(true);
-    await requestResetEmail();
+    await requestResetEmail(true);
     setIsSubmitting(false);
   };
 
@@ -200,7 +236,16 @@ function PublicForgotPasswordPage() {
                       "재발송"
                     )}
                   </button>
-                  <Link className="public-auth-button public-auth-button--ghost" to="/login">
+                  <Link
+                    className="public-auth-button public-auth-button--ghost"
+                    onClick={() =>
+                      // GA4 select_content — 메일 발송 후 로그인으로 복귀한 비율
+                      trackSelectContent("auth_entry", "login", {
+                        uiSurface: "forgot_password",
+                      })
+                    }
+                    to="/login"
+                  >
                     로그인으로 돌아가기
                   </Link>
                 </div>

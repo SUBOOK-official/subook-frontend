@@ -1,6 +1,11 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { usePublicAuth } from "./PublicAuthContext";
-import { trackAddToWishlist, trackRemoveFromWishlist } from "../lib/analytics";
+import {
+  trackAddToWishlist,
+  trackEvent,
+  trackException,
+  trackRemoveFromWishlist,
+} from "../lib/analytics";
 import {
   loadWishlistProductIds,
   mergeWishlistProductIds,
@@ -55,6 +60,12 @@ function PublicWishlistProvider({ children }) {
       setFavoriteIds(result.productIds);
       setWishlistError(result.error ?? null);
       setIsWishlistLoading(false);
+      // GA4 exception — 찜 목록 로드 실패(빈 목록으로 위장되는 것을 구분)
+      if (result.error) {
+        trackException("wishlist_load_failed", {
+          errorMessage: result.error?.message,
+        });
+      }
     };
 
     void loadWishlist();
@@ -79,10 +90,17 @@ function PublicWishlistProvider({ children }) {
     setFavoriteIds(result.productIds);
     setWishlistError(result.error ?? null);
     setIsWishlistLoading(false);
+    // GA4 exception — 새로고침 경로의 찜 목록 로드 실패
+    if (result.error) {
+      trackException("wishlist_load_failed", {
+        errorMessage: result.error?.message,
+      });
+    }
     return result;
   };
 
-  const toggleFavorite = async (productId) => {
+  // meta는 선택 — { title, price, brand, subject, uiSurface }. 넘기지 않아도 기존처럼 동작한다.
+  const toggleFavorite = async (productId, meta = {}) => {
     const normalizedProductId = normalizeWishlistProductId(productId);
 
     if (!normalizedProductId) {
@@ -94,6 +112,12 @@ function PublicWishlistProvider({ children }) {
     }
 
     if (!isAuthenticated || !user?.id) {
+      // GA4 — 로그인 관문 없이 찜이 막힌 표면(카드 하트 등) 관찰용
+      trackEvent("wishlist_blocked", {
+        errorReason: "auth_required",
+        itemId: String(normalizedProductId),
+        ...(meta?.uiSurface ? { uiSurface: meta.uiSurface } : {}),
+      });
       return {
         isFavorite: false,
         source: "auth-required",
@@ -131,6 +155,13 @@ function PublicWishlistProvider({ children }) {
     if (result.error) {
       setFavoriteIds(currentIds);
       setWishlistError(result.error);
+      // GA4 exception — 찜 토글 실패(롤백)
+      trackException("wishlist_toggle_failed", {
+        itemId: String(normalizedProductId),
+        uiAction: wasFavorite ? "remove" : "add",
+        ...(meta?.uiSurface ? { uiSurface: meta.uiSurface } : {}),
+        errorMessage: result.error?.message,
+      });
       return {
         isFavorite: wasFavorite,
         source: result.source,
@@ -141,10 +172,11 @@ function PublicWishlistProvider({ children }) {
     setFavoriteIds(result.productIds);
 
     // GA4 찜 계측 — 모든 표면(카드·상세·로그인 복귀 재실행)이 이 함수를 거치므로 여기서 1회.
+    // meta({ title, price, brand, subject, uiSurface })를 넘긴 호출부는 items·ui_surface까지 남는다.
     if (!wasFavorite) {
-      trackAddToWishlist(normalizedProductId);
+      trackAddToWishlist(normalizedProductId, meta ?? {});
     } else {
-      trackRemoveFromWishlist(normalizedProductId);
+      trackRemoveFromWishlist(normalizedProductId, meta ?? {});
     }
 
     return {

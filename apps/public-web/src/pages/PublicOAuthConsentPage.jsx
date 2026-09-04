@@ -1,11 +1,18 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@shared-supabase/publicSupabaseClient";
 import PublicAgreementDialog from "../components/PublicAgreementDialog";
 import brandLogoImage from "../assets/brand/logo-horizontal.png";
 import { CheckIcon } from "../components/icons";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
-import { trackSignUp } from "../lib/analytics";
+import {
+  trackDialogClose,
+  trackDialogOpen,
+  trackEvent,
+  trackFormAbandon,
+  trackFormError,
+  trackSignUp,
+} from "../lib/analytics";
 import { usePageMeta } from "../lib/usePageMeta";
 import {
   formatPhoneNumber,
@@ -158,13 +165,51 @@ function PublicOAuthConsentPage() {
     }
   }, [isLoading, hasSession, isAuthenticated, needsSignupCompletion, next, navigate]);
 
+  // GA4 signup_consent_shown — 가입 마무리 화면 노출(1회). sign_up과의 격차 = 마무리 이탈.
+  const consentShownTrackedRef = useRef(false);
+  useEffect(() => {
+    if (isLoading || !hasSession || !needsSignupCompletion) {
+      return;
+    }
+    if (consentShownTrackedRef.current) {
+      return;
+    }
+    consentShownTrackedRef.current = true;
+    trackEvent("signup_consent_shown", {
+      method: user?.app_metadata?.provider ?? "email",
+      needsPassword: needsPasswordSetup,
+      // 값이 아니라 "채워졌는지"만 (PII 금지)
+      prefilledName: Boolean(initialName),
+      prefilledPhone: Boolean(initialPhone),
+    });
+  }, [
+    hasSession,
+    initialName,
+    initialPhone,
+    isLoading,
+    needsPasswordSetup,
+    needsSignupCompletion,
+    user,
+  ]);
+
   const handleToggleAgreement = (key) => {
+    // GA4 agreement_toggle — 항목별 동의/해제(마케팅 선택 동의율 포함)
+    trackEvent("agreement_toggle", {
+      formName: "oauth_consent",
+      policyKey: key,
+      checked: !agreements[key],
+    });
     setAgreements((prev) => ({ ...prev, [key]: !prev[key] }));
     setErrorMessage("");
   };
 
   const handleToggleRequiredAgreements = () => {
     const nextValue = !isAllAgreed;
+    // GA4 agreement_toggle_all — 전체 동의(마케팅 포함) 사용 비율
+    trackEvent("agreement_toggle_all", {
+      formName: "oauth_consent",
+      checked: nextValue,
+    });
     setAgreements((prev) => ({
       ...prev,
       terms: nextValue,
@@ -172,6 +217,16 @@ function PublicOAuthConsentPage() {
       marketing: nextValue,
     }));
     setErrorMessage("");
+  };
+
+  // '보기' → 약관 본문 모달. GA4 agreement_view로 실제 열람 비율을 남긴다.
+  const handleOpenAgreement = (key) => {
+    trackEvent("agreement_view", {
+      formName: "oauth_consent",
+      policyKey: key,
+      uiAction: "expand",
+    });
+    setActiveAgreementKey(key);
   };
 
   const handleChangeValue = (key) => (event) => {
@@ -186,28 +241,44 @@ function PublicOAuthConsentPage() {
 
   const validateFields = () => {
     const nextErrors = { name: "", phone: "", password: "" };
+    // GA4 error_reason — 메시지 문구가 아니라 사유 열거값으로 남긴다.
+    const errorReasons = { name: "", phone: "", password: "" };
 
     if (!formValues.name.trim()) {
       nextErrors.name = "필수 항목입니다.";
+      errorReasons.name = "required";
     }
 
     if (!formValues.phone.trim()) {
       nextErrors.phone = "필수 항목입니다.";
+      errorReasons.phone = "required";
     } else if (!hasValidPhoneNumber(formValues.phone)) {
       nextErrors.phone = "연락처 형식을 확인해 주세요.";
+      errorReasons.phone = "format";
     }
 
     if (needsPasswordSetup) {
       if (!formValues.password) {
         nextErrors.password = "비밀번호를 설정해 주세요.";
+        errorReasons.password = "required";
       } else if (!hasOnlyAllowedPasswordCharacters(formValues.password)) {
         nextErrors.password = "비밀번호에 한글·공백은 사용할 수 없어요. 영문, 숫자, 특수문자만 사용해 주세요.";
+        errorReasons.password = "format";
       } else if (!hasRequiredPasswordConditions(formValues.password)) {
         nextErrors.password = "영문·숫자 포함 8자 이상으로 입력해 주세요.";
+        errorReasons.password = "too_short";
       }
     }
 
     setFieldErrors(nextErrors);
+
+    // GA4 form_validation_error — 마무리 화면에서 막히는 필드 분포
+    for (const fieldName of ["name", "phone", "password"]) {
+      if (errorReasons[fieldName]) {
+        trackFormError("oauth_consent", fieldName, errorReasons[fieldName]);
+      }
+    }
+
     return !nextErrors.name && !nextErrors.phone && !nextErrors.password;
   };
 
@@ -216,6 +287,8 @@ function PublicOAuthConsentPage() {
     setErrorMessage("");
 
     if (!hasRequiredAgreements) {
+      // GA4 form_validation_error — 필수 약관 미동의로 제출이 막힌 케이스
+      trackFormError("oauth_consent", "agreements", "required");
       setErrorMessage("필수 약관에 모두 동의해 주세요.");
       return;
     }
@@ -235,6 +308,13 @@ function PublicOAuthConsentPage() {
           password: formValues.password,
         });
         if (passwordError) {
+          // GA4 signup_failure — 비밀번호 설정 단계에서 중단
+          trackEvent("signup_failure", {
+            method: user?.app_metadata?.provider ?? "email",
+            errorReason: "password_set",
+            errorMessage: passwordError.message ?? "",
+            uiSurface: "oauth_consent",
+          });
           setErrorMessage(passwordError.message || "비밀번호 설정에 실패했어요. 잠시 후 다시 시도해 주세요.");
           setIsSubmitting(false);
           return;
@@ -257,6 +337,14 @@ function PublicOAuthConsentPage() {
           rawMessage.includes("p_phone") ||
           rawMessage.includes("function complete_oauth_signup");
 
+        // GA4 signup_failure — complete_oauth_signup RPC 실패(시그니처 드리프트 여부 구분)
+        trackEvent("signup_failure", {
+          method: user?.app_metadata?.provider ?? "email",
+          errorReason: isSignatureMissing ? "rpc_signature" : "rpc_error",
+          errorCode: rawCode,
+          errorMessage: error.message ?? "",
+          uiSurface: "oauth_consent",
+        });
         setErrorMessage(
           isSignatureMissing
             ? "약관 동의 처리가 일시적으로 중단되었습니다. 잠시 후 다시 시도해 주세요. (시스템 업데이트 중)"
@@ -268,24 +356,50 @@ function PublicOAuthConsentPage() {
 
       // GA4 sign_up — 가입 마무리(약관 동의) 완료 시점. OAuth(google/kakao)와
       // OTP만 마치고 떠났던 이메일 가입자 모두 여기서 확정된다.
-      trackSignUp(user?.app_metadata?.provider ?? "email");
+      trackSignUp(user?.app_metadata?.provider ?? "email", {
+        marketingOptIn: agreements.marketing,
+        needsPassword: needsPasswordSetup,
+      });
 
       await refreshProfile();
       navigate(next, { replace: true });
     } catch (err) {
       console.error("complete_oauth_signup failed", err);
+      // GA4 signup_failure — 예외로 떨어진 케이스
+      trackEvent("signup_failure", {
+        method: user?.app_metadata?.provider ?? "email",
+        errorReason: "exception",
+        errorMessage: err?.message ?? "",
+        uiSurface: "oauth_consent",
+      });
       setErrorMessage("동의 처리 중 오류가 발생했어요. 잠시 후 다시 시도해 주세요.");
       setIsSubmitting(false);
     }
   };
 
   const handleCancel = () => {
+    // GA4 dialog_open — 취소 확인 시트 노출
+    trackDialogOpen("consent_cancel_confirm", {
+      method: user?.app_metadata?.provider ?? "email",
+    });
     setShowCancelConfirm(true);
+  };
+
+  // 취소 확인 시트를 닫고 폼으로 돌아가는 경로들(배경/×/돌아가기) 공통 처리
+  const dismissCancelConfirm = (closeMethod) => {
+    trackDialogClose("consent_cancel_confirm", closeMethod);
+    setShowCancelConfirm(false);
   };
 
   const handleConfirmCancel = async () => {
     setShowCancelConfirm(false);
-    await signOut();
+    trackDialogClose("consent_cancel_confirm", "submit");
+    // GA4 form_abandon — 가입 마무리를 확정적으로 포기(= 로그아웃까지 진행)
+    trackFormAbandon("oauth_consent", {
+      method: user?.app_metadata?.provider ?? "email",
+      uiAction: "confirm",
+    });
+    await signOut("consent_cancel");
     navigate("/login", { replace: true });
   };
 
@@ -462,7 +576,7 @@ function PublicOAuthConsentPage() {
                           </label>
                           <button
                             className="public-auth-agreement-box__view"
-                            onClick={() => setActiveAgreementKey(item.key)}
+                            onClick={() => handleOpenAgreement(item.key)}
                             type="button"
                           >
                             보기
@@ -498,7 +612,7 @@ function PublicOAuthConsentPage() {
                           </label>
                           <button
                             className="public-auth-agreement-box__view"
-                            onClick={() => setActiveAgreementKey(item.key)}
+                            onClick={() => handleOpenAgreement(item.key)}
                             type="button"
                           >
                             보기
@@ -538,6 +652,7 @@ function PublicOAuthConsentPage() {
       </main>
 
       <PublicAgreementDialog
+        analyticsSurface="oauth_consent"
         documentItem={activeAgreement}
         onClose={() => setActiveAgreementKey("")}
         open={Boolean(activeAgreement)}
@@ -546,7 +661,7 @@ function PublicOAuthConsentPage() {
       {showCancelConfirm ? (
         <div
           className="public-sheet-backdrop"
-          onClick={() => setShowCancelConfirm(false)}
+          onClick={() => dismissCancelConfirm("backdrop")}
           role="presentation"
         >
           <section
@@ -567,7 +682,7 @@ function PublicOAuthConsentPage() {
               <button
                 aria-label="닫기"
                 className="public-sheet__close"
-                onClick={() => setShowCancelConfirm(false)}
+                onClick={() => dismissCancelConfirm("close_button")}
                 type="button"
               >
                 ×
@@ -582,7 +697,7 @@ function PublicOAuthConsentPage() {
             <div className="public-sheet__footer">
               <button
                 className="public-auth-button public-auth-button--secondary"
-                onClick={() => setShowCancelConfirm(false)}
+                onClick={() => dismissCancelConfirm("cancel_button")}
                 type="button"
               >
                 돌아가기

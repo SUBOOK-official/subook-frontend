@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useFocusTrap } from "@shared-domain/useFocusTrap";
-import { trackFortuneCookieDraw } from "../lib/analytics";
+import { trackDialogClose, trackEvent, trackFortuneCookieDraw } from "../lib/analytics";
 import { FORTUNE_COOKIE_MESSAGES } from "../lib/fortuneCookieMessages";
 import "./FortuneCookie.css";
 
@@ -53,7 +53,11 @@ function FortuneCookie() {
   useEffect(() => {
     if (readLocal(OPTOUT_KEY) === "1") return undefined;
     if (readLocal(LAST_KEY) === todayStr()) return undefined;
-    const timer = window.setTimeout(() => setPhase("floating"), APPEAR_DELAY_MS);
+    const timer = window.setTimeout(() => {
+      // GA4 — 쿠키가 실제로 떠오른 횟수(draw의 분모). 하루 1회·opt-out 필터를 통과한 노출만.
+      trackEvent("fortune_cookie_shown");
+      setPhase("floating");
+    }, APPEAR_DELAY_MS);
     return () => window.clearTimeout(timer);
   }, []);
 
@@ -61,7 +65,9 @@ function FortuneCookie() {
   useEffect(() => {
     if (!isOpen) return undefined;
     const onKey = (event) => {
-      if (event.key === "Escape") setPhase("closed");
+      if (event.key !== "Escape") return;
+      trackDialogClose("fortune_cookie", "escape");
+      setPhase("closed");
     };
     window.addEventListener("keydown", onKey);
     const prevOverflow = document.body.style.overflow;
@@ -75,15 +81,22 @@ function FortuneCookie() {
 
   const draw = () => {
     const list = FORTUNE_COOKIE_MESSAGES;
-    trackFortuneCookieDraw();
-    setFortune(list[Math.floor(Math.random() * list.length)] ?? "");
+    const messageIndex = Math.floor(Math.random() * list.length);
+    // message_index만 남긴다(멘트 본문은 전송하지 않음)
+    trackFortuneCookieDraw({ messageIndex });
+    setFortune(list[messageIndex] ?? "");
     writeLocal(LAST_KEY, todayStr()); // 하루 1회 — 뽑는 순간 오늘 날짜 기록
     setPhase("open");
   };
 
-  const closeModal = () => setPhase("closed");
+  const closeModal = (closeMethod = "close_button") => {
+    trackDialogClose("fortune_cookie", closeMethod);
+    setPhase("closed");
+  };
 
   const optOut = () => {
+    // GA4 — 영구 opt-out 비율(이스터에그 피로도 지표)
+    trackEvent("fortune_cookie_optout");
     writeLocal(OPTOUT_KEY, "1");
     setPhase("closed");
   };
@@ -120,13 +133,18 @@ function FortuneCookie() {
         aria-modal="true"
         className="fc-modal"
         onClick={(event) => {
-          if (event.target === overlayRef.current) closeModal();
+          if (event.target === overlayRef.current) closeModal("backdrop");
         }}
         ref={overlayRef}
         role="dialog"
       >
         <div className="fc-modal__card" ref={cardRef}>
-          <button aria-label="닫기" className="fc-modal__close" onClick={closeModal} type="button">
+          <button
+            aria-label="닫기"
+            className="fc-modal__close"
+            onClick={() => closeModal("close_button")}
+            type="button"
+          >
             ✕
           </button>
           <span aria-hidden="true" className="fc-modal__cookie">🥠</span>

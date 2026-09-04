@@ -10,7 +10,13 @@ import usePublicMemberGate from "../lib/publicMemberGate";
 import { usePublicWishlist } from "../contexts/PublicWishlistContext";
 import { fetchStorefrontProducts } from "../lib/storefront";
 import { STORE_DEFAULT_SUBJECT, STORE_SUBJECTS } from "../lib/publicStoreNavigation";
-import { trackViewItemList } from "../lib/analytics";
+import {
+  trackEmptyState,
+  trackException,
+  trackLoadMore,
+  trackSelectContent,
+  trackViewItemList,
+} from "../lib/analytics";
 import { usePageMeta } from "../lib/usePageMeta";
 import { ChevronRightIcon } from "../components/icons";
 import "./PublicSubjectPage.css";
@@ -75,22 +81,30 @@ function PublicSubjectPage() {
         setProducts((current) => (page === 1 ? rows : [...current, ...rows]));
         setHasFatalError(false);
 
-        // GA4 view_item_list — 과목 랜딩 목록 노출 (새로 로드된 페이지 단위)
+        // GA4 view_item_list — 과목 랜딩 목록 노출 (새로 로드된 페이지 단위, index는 누적 순번)
         trackViewItemList(
           `과목별 · ${subject}`,
-          rows.map((product) => ({
+          rows.map((product, index) => ({
             productId: product.id,
             title: product.title,
             brand: product.brand,
             subject: product.subject,
             price: product.price,
             quantity: 1,
+            index: (page - 1) * PAGE_SIZE + index,
           })),
+          { pageNumber: page, resultCount: result.totalCount ?? rows.length },
         );
-      } catch {
+      } catch (error) {
         // 첫 페이지 실패만 전면 에러로 처리. "더 보기" 실패는 기존 목록을 유지하고
         // 버튼이 그대로 남아 재시도 동선이 된다.
         if (!cancelled && seq === requestSeqRef.current && page === 1) {
+          // GA4 exception — SEO 랜딩이 통째로 실패하면 유입이 그대로 이탈한다.
+          trackException("subject_fetch_failed", {
+            subject,
+            pageNumber: page,
+            errorMessage: error?.message,
+          });
           setProducts([]);
           setTotalCount(0);
           setHasFatalError(true);
@@ -109,6 +123,15 @@ function PublicSubjectPage() {
 
   const isEmpty = !isLoading && !hasFatalError && products.length === 0;
   const hasMore = products.length < totalCount;
+
+  // GA4 empty_state_view — 과목 랜딩 재고 공백(입고 우선순위 신호). 과목당 1회.
+  const emptyTrackedRef = useRef("");
+  useEffect(() => {
+    if (!isEmpty || emptyTrackedRef.current === subject) return;
+    emptyTrackedRef.current = subject;
+    trackEmptyState("subject", { subject });
+  }, [isEmpty, subject]);
+
   const origin = typeof window !== "undefined" ? window.location.origin : "https://subook.kr";
 
   // 상품명·과목 title + canonical + ItemList/BreadcrumbList JSON-LD
@@ -152,7 +175,7 @@ function PublicSubjectPage() {
   );
 
   if (!isValidSubject) {
-    return <PublicNotFoundPage />;
+    return <PublicNotFoundPage notFoundSource="subject" />;
   }
 
   const handleToggleFavorite = async (productId) => {
@@ -191,12 +214,17 @@ function PublicSubjectPage() {
             <Link
               className={`public-subject-nav__link ${name === subject ? "is-active" : ""}`}
               key={name}
+              onClick={() => trackSelectContent("subject_nav", name, { fromSubject: subject })}
               to={`/store/subject/${encodeURIComponent(name)}`}
             >
               {name}
             </Link>
           ))}
-          <Link className="public-subject-nav__link" to="/">
+          <Link
+            className="public-subject-nav__link"
+            onClick={() => trackSelectContent("subject_nav", "all", { fromSubject: subject })}
+            to="/"
+          >
             전체 교재
           </Link>
         </nav>
@@ -213,7 +241,10 @@ function PublicSubjectPage() {
             <strong>교재를 불러오지 못했습니다</strong>
             <button
               className="public-subject-more__button"
-              onClick={() => setRetryNonce((nonce) => nonce + 1)}
+              onClick={() => {
+                trackSelectContent("retry", "subject");
+                setRetryNonce((nonce) => nonce + 1);
+              }}
               type="button"
             >
               다시 시도
@@ -229,8 +260,9 @@ function PublicSubjectPage() {
         ) : (
           <>
             <div className="public-home-store-grid__list">
-              {products.map((product) => (
+              {products.map((product, index) => (
                 <ProductCard
+                  analyticsIndex={index}
                   analyticsListName={`과목별 · ${subject}`}
                   isFavorite={favoriteIds.includes(product.id)}
                   key={product.id}
@@ -244,7 +276,15 @@ function PublicSubjectPage() {
                 <button
                   className="public-subject-more__button"
                   disabled={isLoading}
-                  onClick={() => setPage((current) => current + 1)}
+                  onClick={() => {
+                    // GA4 load_more — 랜딩에서 목록을 얼마나 더 파고드는지
+                    trackLoadMore(`과목별 · ${subject}`, {
+                      nextPage: page + 1,
+                      loadedCount: products.length,
+                      totalCount,
+                    });
+                    setPage((current) => current + 1);
+                  }}
                   type="button"
                 >
                   {isLoading ? "불러오는 중..." : "더 보기"}

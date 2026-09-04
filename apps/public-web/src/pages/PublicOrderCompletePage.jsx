@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, Navigate, useLocation, useParams } from "react-router-dom";
 import { formatCurrency } from "@shared-domain/format";
 import { supabase } from "@shared-supabase/publicSupabaseClient";
@@ -7,7 +7,14 @@ import PublicFooter from "../components/PublicFooter";
 import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
-import { trackPurchase } from "../lib/analytics";
+import {
+  makeOnceGuard,
+  trackCopyClick,
+  trackEvent,
+  trackException,
+  trackPurchase,
+  trackSelectContent,
+} from "../lib/analytics";
 import { usePageMeta } from "../lib/usePageMeta";
 import { fetchGuestOrder, readGuestOrderRef } from "../lib/guestOrder";
 import {
@@ -47,18 +54,24 @@ function markTrackedPurchase(key) {
 
 // 공통 발화부 — 카드 결제 완료 주문만, 주문번호 기준 1회. itemLines는 analytics 라인
 // ({ productId?, title, optionLabel?, conditionGrade?, price, quantity }) 배열.
-function fireCardPurchaseOnce(orderRow, itemLines) {
+// extra에는 checkout_type(guest/member)을 넘긴다 — 무통장(OrderPage) purchase와 같은 축으로 비교.
+function fireCardPurchaseOnce(orderRow, itemLines, extra = {}) {
   if (!orderRow) return;
   if (orderRow.payment_method !== "card" || orderRow.payment_status !== "paid") return;
   const key = String(orderRow.order_number ?? "");
   if (!key || purchaseTrackingInFlight.has(key) || hasTrackedPurchase(key)) return;
   if (!Array.isArray(itemLines) || itemLines.length === 0) return;
   purchaseTrackingInFlight.add(key);
+  const couponDiscount = Number(orderRow.coupon_discount_amount);
   trackPurchase({
     transactionId: key,
     value: orderRow.total_amount,
     shipping: orderRow.shipping_fee,
     items: itemLines,
+    // GA4 — 카드 결제 purchase의 수단·회원 구분·쿠폰 할인액 (쿠폰 코드는 보내지 않는다)
+    paymentType: "card",
+    ...(Number.isFinite(couponDiscount) ? { discountAmount: couponDiscount } : {}),
+    ...extra,
   });
   markTrackedPurchase(key);
 }
@@ -87,6 +100,7 @@ async function trackMemberCardPurchase(orderId, orderRow) {
       price: item.unit_price,
       quantity: item.quantity,
     })),
+    { checkoutType: "member" },
   );
 }
 
@@ -138,7 +152,9 @@ function usePaymentCountdown(createdAtIso, active) {
   }
 }
 
-function CopyButton({ value, ariaLabel }) {
+// copyTarget: order_number / bank_account / deposit_amount / depositor_name
+// (GA4에는 무엇을 복사했는지만 보내고 값 자체는 절대 보내지 않는다)
+function CopyButton({ value, ariaLabel, copyTarget }) {
   const [copied, setCopied] = useState(false);
 
   const onCopy = async () => {
@@ -156,8 +172,10 @@ function CopyButton({ value, ariaLabel }) {
       }
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1500);
+      trackCopyClick(copyTarget, "order_complete", "ok");
     } catch {
       // ignore
+      trackCopyClick(copyTarget, "order_complete", "fail");
     }
   };
 
@@ -240,7 +258,12 @@ function PublicOrderCompletePage() {
                 price: item.unit_price,
                 quantity: item.quantity,
               })),
+              { checkoutType: "guest" },
             );
+          } else {
+            // GA4 exception — 게스트 주문 복원 실패(카드 인증 실패로 주문 미생성 등).
+            // 화면은 state fallback으로 계속 뜨지만 계측상은 "복원 실패"로 남긴다.
+            trackException("guest_order_restore_failed");
           }
           // 조회 실패(카드 인증 실패로 주문 미생성 등)는 state fallback 그대로 표시
           setIsLoading(false);
@@ -264,7 +287,7 @@ function PublicOrderCompletePage() {
       const { data, error } = await supabase
         .from("orders")
         .select(
-          "id, order_number, total_amount, shipping_fee, item_count, status, payment_status, payment_method, created_at, shipping_recipient_name",
+          "id, order_number, total_amount, shipping_fee, coupon_discount_amount, item_count, status, payment_status, payment_method, created_at, shipping_recipient_name",
         )
         .eq("id", orderId)
         .maybeSingle();
@@ -272,11 +295,15 @@ function PublicOrderCompletePage() {
       if (cancelled) return;
 
       if (error) {
+        // GA4 exception — 주문 조회 실패 (결제는 끝났는데 완료 화면이 비는 구간)
+        trackException("order_complete_fetch_failed", { errorMessage: error.message });
         setErrorMessage("주문 정보를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.");
         setIsLoading(false);
         return;
       }
       if (!data) {
+        // GA4 exception — 주문 없음/권한 없음 (다른 계정 로그인·잘못된 링크)
+        trackException("order_complete_not_found");
         setErrorMessage("주문을 찾을 수 없거나 접근 권한이 없습니다.");
         setIsLoading(false);
         return;
@@ -303,6 +330,78 @@ function PublicOrderCompletePage() {
       cancelled = true;
     };
   }, [authLoading, hasSession, orderId, guestRef]);
+
+  // ── GA4 노출 계측 — 완료 화면이 실제로 그려진 뒤 1회씩 ──────────────────────
+  const impressionGuardRef = useRef(makeOnceGuard());
+  useEffect(() => {
+    if (isLoading || errorMessage) return;
+    const key = String(order.orderNumber ?? orderId ?? "unknown");
+    const checkoutType = isGuestView ? "guest" : "member";
+    // 주문완료 화면 노출 — purchase(카드)·주문생성(무통장) 대비 실제 도달률
+    if (impressionGuardRef.current(`view:${key}`)) {
+      trackEvent("order_complete_view", {
+        paymentType: order.paymentMethod || "unknown",
+        checkoutType,
+        isPaid: Boolean(isPaid),
+        isCancelled: Boolean(isCancelled),
+        ...(order.itemCount != null ? { itemCount: Number(order.itemCount) } : {}),
+        ...(order.totalAmount != null ? { value: Number(order.totalAmount) } : {}),
+      });
+    }
+    // 카드 결제 미완료 안내 노출 — 결제창 이탈이 완료 화면까지 온 케이스
+    if (
+      !isPaid &&
+      !isCancelled &&
+      isCardOrder &&
+      impressionGuardRef.current(`incomplete:${key}`)
+    ) {
+      trackEvent("payment_incomplete_shown", { paymentType: "card", checkoutType });
+    }
+    // 무통장 입금 계좌 안내 노출 — 입금 안내를 실제로 본 주문 수
+    if (
+      !isPaid &&
+      !isCancelled &&
+      !isCardOrder &&
+      impressionGuardRef.current(`bank:${key}`)
+    ) {
+      trackEvent("bank_info_shown", {
+        uiSurface: "order_complete",
+        checkoutType,
+        ...(order.totalAmount != null ? { value: Number(order.totalAmount) } : {}),
+      });
+    }
+  }, [
+    isLoading,
+    errorMessage,
+    order.orderNumber,
+    order.paymentMethod,
+    order.itemCount,
+    order.totalAmount,
+    orderId,
+    isGuestView,
+    isPaid,
+    isCancelled,
+    isCardOrder,
+  ]);
+
+  // 입금 마감 상태 전환(임박·경과) 1회씩 — 카운트다운이 실제로 압박이 되는 시점 관찰
+  useEffect(() => {
+    if (!countdown) return;
+    const key = String(order.orderNumber ?? orderId ?? "unknown");
+    const state = countdown.expired ? "expired" : countdown.urgent ? "urgent" : null;
+    if (!state) return;
+    if (!impressionGuardRef.current(`deadline:${state}:${key}`)) return;
+    trackEvent("payment_deadline_state", { state });
+  }, [countdown, order.orderNumber, orderId]);
+
+  // 로그인 요구 리다이렉트 — 결제 직후 세션 만료로 입금 안내를 못 본 케이스
+  const loginRequiredTrackedRef = useRef(false);
+  useEffect(() => {
+    if (loginRequiredTrackedRef.current) return;
+    if (authLoading || hasSession || order.orderNumber || guestRef) return;
+    loginRequiredTrackedRef.current = true;
+    trackEvent("order_complete_login_required", { hasGuestRef: false });
+  }, [authLoading, hasSession, order.orderNumber, guestRef]);
 
   // 비로그인 + 주문 정보도 못 가져온 케이스: 결제 직후 세션이 만료된 사용자가
   // 입금 안내(계좌번호/입금자명)를 못 보면 입금만 보내고 매칭 실패 → 24시간 자동 취소
@@ -374,7 +473,13 @@ function PublicOrderCompletePage() {
                       <span>주문번호</span>
                       <span className="order-complete-card__value order-complete-card__value--with-copy">
                         {orderNumber}
-                        {isGuestView ? <CopyButton ariaLabel="주문번호 복사" value={orderNumber} /> : null}
+                        {isGuestView ? (
+                          <CopyButton
+                            ariaLabel="주문번호 복사"
+                            copyTarget="order_number"
+                            value={orderNumber}
+                          />
+                        ) : null}
                       </span>
                     </div>
                   )}
@@ -413,7 +518,11 @@ function PublicOrderCompletePage() {
                         </p>
                         <p className="order-complete-card__bank-holder">예금주: {BANK_HOLDER}</p>
                       </div>
-                      <CopyButton value={bankAccountPlain} ariaLabel="계좌번호 복사" />
+                      <CopyButton
+                        ariaLabel="계좌번호 복사"
+                        copyTarget="bank_account"
+                        value={bankAccountPlain}
+                      />
                     </div>
 
                     {totalAmount != null && (
@@ -422,7 +531,11 @@ function PublicOrderCompletePage() {
                           <p className="order-complete-card__bank-label">입금 금액</p>
                           <p className="order-complete-card__bank-amount">{formatCurrency(totalAmount)}</p>
                         </div>
-                        <CopyButton value={String(totalAmount)} ariaLabel="입금 금액 복사" />
+                        <CopyButton
+                          ariaLabel="입금 금액 복사"
+                          copyTarget="deposit_amount"
+                          value={String(totalAmount)}
+                        />
                       </div>
                     )}
 
@@ -435,7 +548,11 @@ function PublicOrderCompletePage() {
                             본인 성함 + 주문번호 마지막 4자리. 다르게 입력하면 입금 확인이 늦어질 수 있습니다.
                           </p>
                         </div>
-                        <CopyButton value={depositorName} ariaLabel="입금자명 복사" />
+                        <CopyButton
+                          ariaLabel="입금자명 복사"
+                          copyTarget="depositor_name"
+                          value={depositorName}
+                        />
                       </div>
                     )}
 
@@ -475,20 +592,30 @@ function PublicOrderCompletePage() {
                   </p>
                 ) : null}
 
+                {/* GA4 select_content — 주문완료 후 다음 동선(내역 확인 vs 쇼핑 복귀) */}
                 <div className="order-complete-card__actions">
                   {isGuestView ? (
                     <Link
                       className="order-complete-card__btn order-complete-card__btn--primary"
+                      onClick={() => trackSelectContent("order_complete_cta", "guest_lookup")}
                       to="/order/lookup"
                     >
                       비회원 주문 조회
                     </Link>
                   ) : (
-                    <Link className="order-complete-card__btn order-complete-card__btn--primary" to="/mypage">
+                    <Link
+                      className="order-complete-card__btn order-complete-card__btn--primary"
+                      onClick={() => trackSelectContent("order_complete_cta", "mypage")}
+                      to="/mypage"
+                    >
                       주문 내역 확인
                     </Link>
                   )}
-                  <Link className="order-complete-card__btn order-complete-card__btn--secondary" to="/">
+                  <Link
+                    className="order-complete-card__btn order-complete-card__btn--secondary"
+                    onClick={() => trackSelectContent("order_complete_cta", "continue_shopping")}
+                    to="/"
+                  >
                     쇼핑 계속하기
                   </Link>
                 </div>

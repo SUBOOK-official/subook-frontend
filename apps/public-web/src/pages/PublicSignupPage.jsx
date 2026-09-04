@@ -9,6 +9,7 @@ import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { getPublicAccountAccessState } from "../lib/publicAuthAccess";
 import {
   buildSocialDuplicateSignupMessage,
+  getSocialProviderLabels,
   isSocialOnlyAccount,
 } from "../lib/publicAuthProviders";
 import {
@@ -21,7 +22,14 @@ import {
   normalizeEmail,
 } from "../lib/publicAuthFormUtils";
 import { saveSignupSuccessState } from "../lib/publicSignupSuccessState";
-import { trackSignUp } from "../lib/analytics";
+import {
+  trackEmailVerified,
+  trackEvent,
+  trackFormAbandon,
+  trackFormError,
+  trackSelectContent,
+  trackSignUp,
+} from "../lib/analytics";
 
 const RESEND_COOLDOWN_SECONDS = 60;
 
@@ -120,6 +128,19 @@ function PublicSignupPage() {
   // hasSession=true가 되지만 verificationStatus="verified"인 mid-signup 상태이므로 가입 진행 허용.
   const cannotSignupBecauseLoggedIn = Boolean(hasSession) && verificationStatus !== "verified";
   const cooldownTimerRef = useRef(null);
+  // GA4 1회 발화 가드 — 입력 시작(마운트당 1회), 이메일 중복확인(이메일+결과당 1회),
+  // 구 회원 안내 노출(이메일당 1회).
+  const signupStartedRef = useRef(false);
+  const emailCheckTrackedRef = useRef("");
+  const legacyHintTrackedRef = useRef("");
+  // 유입 경로 — 로그인 페이지의 구 회원 안내(prefillEmail) / 인증 미완료 리다이렉트(email) / 직접 진입
+  const signupEntryRef = useRef(
+    location?.state?.prefillEmail
+      ? "legacy_hint"
+      : location?.state?.email
+        ? "login_redirect"
+        : "direct",
+  );
 
   useEffect(() => {
     if (resendCooldown <= 0) return undefined;
@@ -187,6 +208,17 @@ function PublicSignupPage() {
       return undefined;
     }
 
+    // GA4 signup_email_check — 가입 이탈의 큰 축(이미 가입된 이메일)을 원인별로 센다.
+    // 디바운스로 effect가 반복 실행되므로 "이메일+결과" 키로 1회만 발화한다.
+    const trackCheckResult = (checkResult, extra) => {
+      const key = `${normalizedEmail}|${checkResult}`;
+      if (emailCheckTrackedRef.current === key) {
+        return;
+      }
+      emailCheckTrackedRef.current = key;
+      trackEvent("signup_email_check", { checkResult, ...extra });
+    };
+
     if (!normalizedEmail) {
       setEmailStatus({
         state: "idle",
@@ -202,6 +234,7 @@ function PublicSignupPage() {
         email: normalizedEmail,
         message: "유효한 이메일 형식인지 확인해 주세요.",
       });
+      trackCheckResult("invalid_format");
       return undefined;
     }
 
@@ -236,6 +269,7 @@ function PublicSignupPage() {
           email: normalizedEmail,
           message: "이메일 확인 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.",
         });
+        trackCheckResult("error", { errorMessage: error.message ?? "" });
         return;
       }
 
@@ -247,10 +281,16 @@ function PublicSignupPage() {
           email: normalizedEmail,
           message: "사용 가능한 이메일입니다.",
         });
+        trackCheckResult("available");
         // 이전 수북(식스샵) 회원 안내용 boolean 체크 — PII 노출 X
         try {
           const { data: legacyData } = await supabase.rpc("is_legacy_sixshop_email", { p_email: normalizedEmail });
           if (isMounted) setIsLegacyEmail(Boolean(legacyData));
+          // GA4 — 구 수북(식스샵) 회원 안내 노출(이메일당 1회). 안내 → 가입 완주율 관찰용.
+          if (isMounted && legacyData && legacyHintTrackedRef.current !== normalizedEmail) {
+            legacyHintTrackedRef.current = normalizedEmail;
+            trackEvent("legacy_member_hint_shown", { uiSurface: "signup" });
+          }
         } catch {
           if (isMounted) setIsLegacyEmail(false);
         }
@@ -272,6 +312,9 @@ function PublicSignupPage() {
           email: normalizedEmail,
           message: "이미 가입된 이메일입니다.",
         });
+        // 소셜 전용 여부까지 확인한 뒤 한 번만 계측 (duplicate / duplicate_social).
+        let duplicateResult = "duplicate";
+        let availableMethods = "";
         try {
           const { data: providerData } = await supabase.rpc(
             "get_member_auth_providers",
@@ -283,10 +326,17 @@ function PublicSignupPage() {
               email: normalizedEmail,
               message: buildSocialDuplicateSignupMessage(providerData),
             });
+            duplicateResult = "duplicate_social";
+            // provider 라벨만 — PII 아님
+            availableMethods = getSocialProviderLabels(providerData).join("|");
           }
         } catch {
           /* provider 조회 실패 시 기본 안내 유지 */
         }
+        trackCheckResult(
+          duplicateResult,
+          availableMethods ? { availableMethods } : undefined,
+        );
         return;
       }
 
@@ -294,6 +344,9 @@ function PublicSignupPage() {
         state: "unavailable",
         email: normalizedEmail,
         message: "사용할 수 없는 이메일입니다. 다른 이메일을 입력해 주세요.",
+      });
+      trackCheckResult("unavailable", {
+        ...(row?.account_role ? { accountRole: row.account_role } : {}),
       });
     }, 500);
 
@@ -305,6 +358,12 @@ function PublicSignupPage() {
 
   const handleChangeValue = (key) => (event) => {
     const nextValue = key === "phone" ? formatPhoneNumber(event.target.value) : event.target.value;
+
+    // GA4 signup_start — 폼에 처음 입력한 순간(마운트당 1회). sign_up의 분모.
+    if (!signupStartedRef.current) {
+      signupStartedRef.current = true;
+      trackEvent("signup_start", { method: "email", entry: signupEntryRef.current });
+    }
 
     setFormValues((currentValue) => ({
       ...currentValue,
@@ -346,6 +405,12 @@ function PublicSignupPage() {
   };
 
   const handleToggleAgreement = (key) => {
+    // GA4 agreement_toggle — 항목별 동의/해제(특히 마케팅 선택 동의율)
+    trackEvent("agreement_toggle", {
+      formName: "signup",
+      policyKey: key,
+      checked: !agreements[key],
+    });
     setAgreements((currentValue) => ({
       ...currentValue,
       [key]: !currentValue[key],
@@ -360,6 +425,8 @@ function PublicSignupPage() {
   // 라벨에 "(마케팅 정보 수신 포함)" 명시해 사용자 인지 보장. 마케팅 수신 동의율 유도가 목적.
   const handleToggleRequiredAgreements = () => {
     const nextValue = !isAllAgreed;
+    // GA4 agreement_toggle_all — 전체 동의(마케팅 포함) 사용 비율
+    trackEvent("agreement_toggle_all", { formName: "signup", checked: nextValue });
     setAgreements((current) => ({
       ...current,
       terms: nextValue,
@@ -382,6 +449,12 @@ function PublicSignupPage() {
         next.add(key);
       }
       return next;
+    });
+    // GA4 agreement_view — 약관 본문을 실제로 펼쳐본 비율
+    trackEvent("agreement_view", {
+      formName: "signup",
+      policyKey: key,
+      uiAction: expandedAgreements.has(key) ? "collapse" : "expand",
     });
   };
 
@@ -433,7 +506,7 @@ function PublicSignupPage() {
 
   const handleClearSession = async () => {
     setPageAlert("");
-    await signOut();
+    await signOut("signup_admin_banner");
   };
 
   // 검증 통과한 첫 에러 필드를 찾아 scrollIntoView + focus.
@@ -520,10 +593,19 @@ function PublicSignupPage() {
     setFieldErrors(nextErrors);
     const isValid = Object.values(nextErrors).every((value) => !value);
     if (!isValid) {
+      // GA4 form_validation_error — 어느 필드가 가입을 막는지(첫 에러 + 총 개수)
+      const errorKeys = Object.keys(nextErrors).filter((key) => nextErrors[key]);
+      trackFormError("signup", errorKeys[0] ?? "unknown", "invalid", {
+        errorCount: errorKeys.length,
+      });
       focusFirstError(nextErrors);
       return false;
     }
     if (verificationStatus !== "verified") {
+      // GA4 form_validation_error — 다른 항목은 다 채웠는데 이메일 인증만 미완료
+      trackFormError("signup", "verification", "unverified", {
+        verificationStatus,
+      });
       setCodeError("이메일 인증을 먼저 완료해 주세요.");
       focusFirstError({ verification: "이메일 인증을 먼저 완료해 주세요." });
       return false;
@@ -561,10 +643,21 @@ function PublicSignupPage() {
 
     setIsSubmitting(true);
 
+    // GA4 signup_submit — 검증을 통과한 가입 제출(분자는 sign_up)
+    trackEvent("signup_submit", {
+      method: "email",
+      marketingOptIn: agreements.marketing,
+    });
+
     // 인증된 user가 admin 이메일이면 차단.
     const { data: sessionData } = await supabase.auth.getSession();
     const accessState = await getPublicAccountAccessState(sessionData.session?.user ?? null);
     if (accessState.accountRole === "admin") {
+      // GA4 signup_failure — 운영자 이메일로 공개 가입 시도
+      trackEvent("signup_failure", {
+        method: "email",
+        errorReason: "admin_account",
+      });
       await supabase.auth.signOut();
       setToastState({
         message: "이 이메일은 운영자 계정으로 연결되어 있어 공개 회원가입에 사용할 수 없습니다.",
@@ -589,6 +682,12 @@ function PublicSignupPage() {
     });
 
     if (updateError) {
+      // GA4 signup_failure — 인증까지 끝내고 마지막 저장에서 깨진 케이스(가장 아까운 이탈)
+      trackEvent("signup_failure", {
+        method: "email",
+        errorReason: "update_user",
+        errorMessage: updateError.message ?? "",
+      });
       setToastState({
         message: updateError.message || "가입 정보 저장에 실패했어요. 잠시 후 다시 시도해 주세요.",
         tone: "error",
@@ -609,7 +708,10 @@ function PublicSignupPage() {
     }
 
     // GA4 sign_up — 이메일 가입 확정 시점 (OAuth 가입은 동의 페이지 완료 시 발화)
-    trackSignUp("email");
+    trackSignUp("email", {
+      marketingOptIn: agreements.marketing,
+      isLegacyMember: isLegacyEmail,
+    });
 
     saveSignupSuccessState({
       email: normalizedEmail,
@@ -646,6 +748,9 @@ function PublicSignupPage() {
     }
     if (resendCooldown > 0 || verificationStatus === "sending") return;
 
+    // 재발송 여부는 상태를 바꾸기 전에 잡아둔다(아래에서 sending/sent로 덮이기 때문).
+    const isResend = verificationStatus !== "idle";
+
     setVerificationStatus("sending");
     const { error } = await supabase.auth.signInWithOtp({
       email: normalizedEmail,
@@ -653,11 +758,20 @@ function PublicSignupPage() {
     });
 
     if (error) {
+      // GA4 signup_otp_send — 발송 실패(레이트리밋 여부가 이탈 원인 판별의 핵심)
+      trackEvent("signup_otp_send", {
+        result: "fail",
+        isResend,
+        errorReason: /rate|limit|seconds/i.test(error.message ?? "") ? "rate_limit" : "other",
+        errorMessage: error.message ?? "",
+      });
       setVerificationStatus("idle");
       setCodeError(error.message || "인증코드 발송에 실패했어요. 잠시 후 다시 시도해 주세요.");
       return;
     }
 
+    // GA4 signup_otp_send — 발송 성공. email_verify_complete와의 격차 = 코드 입력 이탈.
+    trackEvent("signup_otp_send", { result: "ok", isResend });
     setVerificationStatus("sent");
     setVerifiedEmail("");
     setResendCooldown(RESEND_COOLDOWN_SECONDS);
@@ -684,11 +798,21 @@ function PublicSignupPage() {
     });
 
     if (error) {
+      // GA4 email_verify_fail — 코드 만료/오입력 분포
+      trackEvent("email_verify_fail", {
+        context: "signup_inline",
+        errorReason: /expired|token/i.test(error.message ?? "")
+          ? "expired_or_invalid"
+          : "other",
+        errorMessage: error.message ?? "",
+      });
       setVerificationStatus("sent");
       setCodeError(buildVerificationErrorMessage(error));
       return;
     }
 
+    // GA4 email_verify_complete — 인라인 인증 성공(가입 활성화 지표)
+    trackEmailVerified({ context: "signup_inline" });
     setVerificationStatus("verified");
     setVerifiedEmail(normalizedEmail);
     setCodeError("");
@@ -739,6 +863,12 @@ function PublicSignupPage() {
               aria-label="이전 페이지로 돌아가기"
               className="public-auth-back-link"
               onClick={() => {
+                // GA4 form_abandon — 가입 폼을 명시적으로 빠져나간 시점(어느 단계에서 포기했는지)
+                trackFormAbandon("signup", {
+                  stage: verificationStatus,
+                  uiAction: "back_button",
+                });
+
                 if (window.history.length > 1) {
                   navigate(-1);
                   return;
@@ -768,6 +898,7 @@ function PublicSignupPage() {
             </div>
 
             <PublicOAuthButtons
+              analyticsSurface="signup_page"
               contextLabel="회원가입"
               dividerLabel="또는 이메일로 계속"
               dividerPosition="bottom"
@@ -806,7 +937,16 @@ function PublicSignupPage() {
                 {emailStatus.state === "duplicate" ? (
                   <p className="public-auth-inline-message public-auth-inline-message--error">
                     <span>{emailStatus.message}</span>
-                    <Link className="public-auth-inline-message__link" to="/login">
+                    <Link
+                      className="public-auth-inline-message__link"
+                      onClick={() =>
+                        // GA4 select_content — 중복 안내에서 로그인으로 되돌아간 회복률
+                        trackSelectContent("auth_entry", "login", {
+                          uiSurface: "signup_duplicate",
+                        })
+                      }
+                      to="/login"
+                    >
                       로그인하기 <ArrowRightIcon size={13} />
                     </Link>
                   </p>

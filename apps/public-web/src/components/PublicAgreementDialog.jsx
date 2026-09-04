@@ -1,14 +1,29 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useFocusTrap } from "@shared-domain/useFocusTrap";
 import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
+import { trackDialogClose } from "../lib/analytics";
 
-function PublicAgreementDialog({ documentItem, onClose, open }) {
+// analyticsSurface(선택): 어느 폼의 약관 모달인지 — signup / oauth_consent …
+// 열람 자체(agreement_view)는 호출부가 발화하고, 여기서는 닫는 방식만 남긴다.
+function PublicAgreementDialog({ analyticsSurface = "", documentItem, onClose, open }) {
   const dialogRef = useRef(null);
   const active = open && Boolean(documentItem);
 
   useFocusTrap(dialogRef, active);
   useBodyScrollLock(active);
+
+  const closeWith = useCallback(
+    (closeMethod) => {
+      // GA4 dialog_close — 약관을 끝까지 보고 닫았는지(버튼) vs 흘려 닫았는지(배경/ESC)
+      trackDialogClose("agreement", closeMethod, {
+        ...(documentItem?.key ? { policyKey: documentItem.key } : {}),
+        ...(analyticsSurface ? { formName: analyticsSurface } : {}),
+      });
+      onClose();
+    },
+    [analyticsSurface, documentItem, onClose],
+  );
 
   useEffect(() => {
     if (!open) {
@@ -17,7 +32,7 @@ function PublicAgreementDialog({ documentItem, onClose, open }) {
 
     const handleKeyDown = (event) => {
       if (event.key === "Escape") {
-        onClose();
+        closeWith("escape");
       }
     };
 
@@ -26,14 +41,14 @@ function PublicAgreementDialog({ documentItem, onClose, open }) {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [onClose, open]);
+  }, [closeWith, open]);
 
   if (!open || !documentItem) {
     return null;
   }
 
   return createPortal(
-    <div className="public-sheet-backdrop" onClick={onClose}>
+    <div className="public-sheet-backdrop" onClick={() => closeWith("backdrop")}>
       <section
         aria-labelledby="public-agreement-dialog-title"
         aria-modal="true"
@@ -53,7 +68,7 @@ function PublicAgreementDialog({ documentItem, onClose, open }) {
           <button
             aria-label="약관 닫기"
             className="public-sheet__close"
-            onClick={onClose}
+            onClick={() => closeWith("close_button")}
             type="button"
           >
             ×
@@ -67,7 +82,11 @@ function PublicAgreementDialog({ documentItem, onClose, open }) {
           ))}
         </div>
         <div className="public-sheet__footer">
-          <button className="public-auth-button public-auth-button--primary" onClick={onClose} type="button">
+          <button
+            className="public-auth-button public-auth-button--primary"
+            onClick={() => closeWith("submit")}
+            type="button"
+          >
             닫기
           </button>
         </div>

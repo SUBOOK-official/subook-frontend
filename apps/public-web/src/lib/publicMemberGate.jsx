@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import PublicMemberGateDialog from "../components/PublicMemberGateDialog";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
-import { trackLoginGateShown } from "./analytics";
+import { trackEvent, trackLoginGateShown } from "./analytics";
 import { createMemberGateRedirectState } from "./publicMemberGateUtils";
 import { setPendingMemberAction } from "./pendingMemberAction";
 
@@ -38,6 +38,16 @@ function usePublicMemberGate() {
       // 로그인 후 이어서 실행할 행동(담기/바로구매/찜)을 저장. 호출부가 파라미터까지 담아 넘긴다.
       if (pendingAction) {
         setPendingMemberAction(pendingAction);
+        // GA4 pending_action_saved — 저장 대비 복귀 후 실제 재실행(pending_action_resume) 비율
+        const pendingItemCount =
+          pendingAction.cartArgsList?.length ?? pendingAction.orderItems?.length ?? null;
+        trackEvent("pending_action_saved", {
+          actionType: pendingAction.type ?? nextActionType,
+          ...(pendingAction.productId != null
+            ? { itemId: String(pendingAction.productId) }
+            : {}),
+          ...(pendingItemCount != null ? { itemCount: pendingItemCount } : {}),
+        });
       }
       setGuestOrderItems(
         nextActionType === "buyNow" && Array.isArray(pendingAction?.orderItems)
@@ -72,10 +82,23 @@ function usePublicMemberGate() {
   // 비회원으로 주문하기 — 게이트에 담긴 바로구매 아이템으로 주문 페이지 게스트 모드 진입
   const handleGuestCheckout = useCallback(() => {
     const items = guestOrderItems;
+    const gateReason = actionType;
     closeMemberGate();
-    if (!items || items.length === 0) return;
+    if (!items || items.length === 0) {
+      // GA4 login_gate_guest_abort — 비회원 주문 버튼을 눌렀는데 아이템이 비어 조용히 끊긴 경우
+      trackEvent("login_gate_guest_abort", {
+        gateReason,
+        errorReason: "no_items",
+      });
+      return;
+    }
+    // GA4 login_gate_guest_start — 관문에서 비회원 주문으로 빠져나간 구매 의도
+    trackEvent("login_gate_guest_start", {
+      gateReason,
+      itemCount: items.length,
+    });
     navigate("/order", { state: { items, guestMode: true } });
-  }, [closeMemberGate, guestOrderItems, navigate]);
+  }, [actionType, closeMemberGate, guestOrderItems, navigate]);
 
   return {
     closeMemberGate,

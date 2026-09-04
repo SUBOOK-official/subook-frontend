@@ -33,7 +33,20 @@ import {
   submitPickupRequest,
   verifyPhoneOtp,
 } from "../lib/pickupRequest";
-import { trackGenerateLead, trackPickupRequestStart } from "../lib/analytics";
+import {
+  makeOnceGuard,
+  trackContactClick,
+  trackDialogClose,
+  trackDialogOpen,
+  trackEvent,
+  trackException,
+  trackFormAbandon,
+  trackFormError,
+  trackFormStepView,
+  trackGenerateLead,
+  trackPickupRequestStart,
+  trackSelectContent,
+} from "../lib/analytics";
 import { KAKAO_CHANNEL_URL } from "../lib/supportChannels";
 import { loadMemberPortalSnapshot } from "../lib/memberPortal";
 import { isValidKoreanMobile } from "../lib/publicAuthFormUtils";
@@ -197,10 +210,20 @@ const PICKUP_INTRO_NOTES = [
 function StepIntro({ onNext }) {
   const [acked, setAcked] = useState(() => PICKUP_INTRO_NOTES.map(() => false));
   const allAcked = acked.every(Boolean);
-  const toggleAck = (index) =>
+  const toggleAck = (index) => {
     setAcked((prev) => prev.map((v, i) => (i === index ? !v : v)));
-  const toggleAllAck = (checked) =>
+    // GA4 유의사항 개별 확인 — 어떤 항목에서 멈추는지
+    trackEvent("pickup_intro_ack", {
+      uiAction: "single",
+      ackIndex: index,
+      checked: !acked[index],
+    });
+  };
+  const toggleAllAck = (checked) => {
     setAcked(PICKUP_INTRO_NOTES.map(() => checked));
+    // GA4 유의사항 전체 선택
+    trackEvent("pickup_intro_ack", { uiAction: "all", checked });
+  };
 
   return (
     <div className="pickup-step">
@@ -460,21 +483,46 @@ function PhoneVerifySection({ phone, isVerified, onVerified, showToast }) {
   const [isSending, setIsSending] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
 
+  const otpSkipTrackedRef = useRef(false);
+
   // 번호를 바꾸면 이전 발송 상태는 무효
   useEffect(() => {
     setSent(false);
     setCode("");
   }, [digits]);
 
+  // GA4 인증 생략 — 이미 인증된 번호라 OTP 단계를 건너뛴 경우 1회
+  // (이번 화면에서 발송한 적이 있으면 방금 인증에 성공한 것이므로 제외)
+  useEffect(() => {
+    if (!isVerified || sent || otpSkipTrackedRef.current) return;
+    otpSkipTrackedRef.current = true;
+    trackEvent("phone_otp_skipped", { formName: "pickup_request" });
+  }, [isVerified, sent]);
+
   const handleSend = async () => {
+    const isResend = sent;
     setIsSending(true);
     const result = await sendPhoneOtp(digits);
     setIsSending(false);
     if (result.error) {
       showToast(result.error.message, "error");
+      // GA4 인증번호 발송 실패 (번호 자체는 절대 보내지 않는다)
+      trackEvent("phone_otp_send", {
+        result: "fail",
+        isResend,
+        errorReason: result.reason || "api",
+        errorMessage: result.error.message ?? "",
+        formName: "pickup_request",
+      });
       return;
     }
     setSent(true);
+    // GA4 인증번호 발송 성공
+    trackEvent("phone_otp_send", {
+      result: "ok",
+      isResend,
+      formName: "pickup_request",
+    });
     showToast("인증번호를 보냈어요. 5분 안에 입력해주세요.", "info");
   };
 
@@ -484,9 +532,17 @@ function PhoneVerifySection({ phone, isVerified, onVerified, showToast }) {
     setIsVerifying(false);
     if (result.error) {
       showToast(result.error.message || "인증에 실패했습니다.", "error");
+      // GA4 인증 확인 실패
+      trackEvent("phone_otp_verify", {
+        result: "fail",
+        errorMessage: result.error.message ?? "",
+        formName: "pickup_request",
+      });
       return;
     }
     onVerified(result.verifiedPhone);
+    // GA4 인증 확인 성공
+    trackEvent("phone_otp_verify", { result: "ok", formName: "pickup_request" });
     showToast("휴대폰 인증이 완료되었습니다.", "success");
   };
 
@@ -573,11 +629,20 @@ function StepAddressForm({
     if (savedAddresses.length > 0 && !selectedSavedId && !useNewAddress) {
       const defaultAddr =
         savedAddresses.find((a) => a.is_default) || savedAddresses[0];
-      selectSaved(defaultAddr);
+      selectSaved(defaultAddr, { isAuto: true });
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const selectSaved = (addr) => {
+  // isAuto: 기본 주소 자동 선택(사용자 조작 아님) — GA 이벤트는 보내지 않는다.
+  const selectSaved = (addr, { isAuto = false } = {}) => {
+    if (!isAuto) {
+      // GA4 저장 주소 사용
+      trackEvent("pickup_address_select", {
+        source: "saved",
+        isDefault: Boolean(addr.is_default),
+        savedCount: savedAddresses.length,
+      });
+    }
     setSelectedSavedId(addr.id);
     const detail = addr.address_line2 || "";
     setUseNewAddress(!detail.trim());
@@ -598,6 +663,11 @@ function StepAddressForm({
   };
 
   const startNewAddress = () => {
+    // GA4 새 주소 직접 입력 선택
+    trackEvent("pickup_address_select", {
+      source: "new",
+      savedCount: savedAddresses.length,
+    });
     setSelectedSavedId(null);
     setUseNewAddress(true);
     setAddress((prev) => ({
@@ -639,6 +709,8 @@ function StepAddressForm({
       });
 
     try {
+      // GA4 주소 검색 열기 (주소 값 자체는 보내지 않는다)
+      trackEvent("address_search_open", { uiSurface: "pickup" });
       setIsSearchingAddress(true);
       await loadScript();
       setIsSearchingAddress(false);
@@ -650,11 +722,18 @@ function StepAddressForm({
             postal_code: data.zonecode ?? "",
             address_line1: data.roadAddress || data.jibunAddress || "",
           }));
+          // GA4 주소 선택 완료
+          trackEvent("address_search_complete", { uiSurface: "pickup" });
           setTimeout(() => detailRef.current?.focus(), 50);
         },
       }).open();
-    } catch {
+    } catch (error) {
       setIsSearchingAddress(false);
+      // GA4 우편번호 스크립트 로드 실패 — 주소 입력 자체가 막히는 치명적 이탈 지점
+      trackException("address_script_failed", {
+        uiSurface: "pickup",
+        errorMessage: error?.message ?? "",
+      });
       showToast("주소 검색을 불러오지 못했습니다.", "error");
     }
   };
@@ -667,6 +746,52 @@ function StepAddressForm({
     address.address_line1.trim() &&
     address.address_line2.trim() &&
     isPhoneVerified;
+
+  // GA4 1단계 진행 불가 사유 — 화면의 안내 문구와 같은 순서로 판정한다.
+  // 아무것도 입력하지 않은 진입 직후(pristine)는 제외해야 신호가 남는다.
+  const isPristineStep = !(
+    address.recipient_name.trim() ||
+    address.recipient_phone.trim() ||
+    address.postal_code.trim() ||
+    address.address_line2.trim()
+  );
+  let invalidReason = null;
+  if (!isValid && !isPristineStep) {
+    if (
+      !address.recipient_name.trim() ||
+      !address.recipient_phone.trim() ||
+      !isValidKoreanMobile(address.recipient_phone)
+    ) {
+      invalidReason = "contact";
+    } else if (!address.postal_code.trim() || !address.address_line1.trim()) {
+      invalidReason = "address";
+    } else if (!address.address_line2.trim()) {
+      invalidReason = "address_detail";
+    } else {
+      invalidReason = "phone_unverified";
+    }
+  }
+  const invalidGuardRef = useRef(makeOnceGuard());
+  useEffect(() => {
+    if (!invalidReason) return;
+    if (invalidGuardRef.current(invalidReason)) {
+      trackFormError("pickup_request", "step_1", invalidReason);
+    }
+  }, [invalidReason]);
+
+  const handleDesiredDateChange = (value) => {
+    setAddress((p) => ({ ...p, desired_pickup_date: value }));
+    if (!value) return;
+    const picked = new Date(value);
+    if (Number.isNaN(picked.getTime())) return;
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    // GA4 희망 수거일 — 날짜 값이 아니라 "며칠 뒤·주말 여부"만 남긴다.
+    trackEvent("pickup_date_select", {
+      daysAhead: Math.round((picked.getTime() - today.getTime()) / 86400000),
+      isWeekend: isWeekend(picked),
+    });
+  };
 
   return (
     <div className="pickup-step">
@@ -828,9 +953,7 @@ function StepAddressForm({
         <input
           className="pickup-input"
           min={minPickupDate}
-          onChange={(e) =>
-            setAddress((p) => ({ ...p, desired_pickup_date: e.target.value }))
-          }
+          onChange={(e) => handleDesiredDateChange(e.target.value)}
           type="date"
           value={address.desired_pickup_date}
         />
@@ -885,6 +1008,15 @@ function StepExpectedCount({ address, setAddress, onNext, onPrev }) {
   const expectedCountNumber = Number.parseInt(address.expected_book_count, 10);
   const isValid =
     Number.isFinite(expectedCountNumber) && expectedCountNumber > 0;
+  // GA4 — 타이핑 중이 아니라 blur(입력 확정) 시점에만, 값이 바뀐 경우에만 발화.
+  const lastSentCountRef = useRef(null);
+  const handleCountBlur = () => {
+    if (!isValid || lastSentCountRef.current === expectedCountNumber) return;
+    lastSentCountRef.current = expectedCountNumber;
+    trackEvent("pickup_expected_count_set", {
+      expectedBookCount: expectedCountNumber,
+    });
+  };
 
   return (
     <div className="pickup-step">
@@ -898,6 +1030,7 @@ function StepExpectedCount({ address, setAddress, onNext, onPrev }) {
           className="pickup-input"
           inputMode="numeric"
           min="1"
+          onBlur={handleCountBlur}
           onChange={(e) => {
             const digits = e.target.value.replace(/\D/g, "").slice(0, 4);
             setAddress((p) => ({ ...p, expected_book_count: digits }));
@@ -949,6 +1082,13 @@ function StepExpectedCount({ address, setAddress, onNext, onPrev }) {
 function StepBoxCount({ address, setAddress, onNext, onPrev }) {
   const boxCountNumber = Number.parseInt(address.box_count, 10);
   const isValid = Number.isFinite(boxCountNumber) && boxCountNumber > 0;
+  // GA4 — 박스 수도 blur(입력 확정) 시점에만.
+  const lastSentBoxRef = useRef(null);
+  const handleBoxBlur = () => {
+    if (!isValid || lastSentBoxRef.current === boxCountNumber) return;
+    lastSentBoxRef.current = boxCountNumber;
+    trackEvent("pickup_box_count_set", { boxCount: boxCountNumber });
+  };
 
   return (
     <div className="pickup-step">
@@ -962,6 +1102,7 @@ function StepBoxCount({ address, setAddress, onNext, onPrev }) {
           className="pickup-input"
           inputMode="numeric"
           min="1"
+          onBlur={handleBoxBlur}
           onChange={(e) => {
             const digits = e.target.value.replace(/\D/g, "").slice(0, 3);
             setAddress((p) => ({ ...p, box_count: digits }));
@@ -1062,13 +1203,22 @@ function StepSettlement({
     if (savedAccounts.length > 0) {
       const defaultAcc =
         savedAccounts.find((a) => a.is_default) || savedAccounts[0];
-      selectSaved(defaultAcc);
+      selectSaved(defaultAcc, { isAuto: true });
     } else {
       setUseNewAccount(true);
     }
   }, [savedAccounts, account.account_id, account.account_number]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const selectSaved = (acc) => {
+  // isAuto: 기본 계좌 자동 선택(사용자 조작 아님) — GA 이벤트는 보내지 않는다.
+  const selectSaved = (acc, { isAuto = false } = {}) => {
+    if (!isAuto) {
+      // GA4 저장 정산계좌 사용 (계좌번호·예금주는 절대 보내지 않는다)
+      trackEvent("pickup_account_select", {
+        source: "saved",
+        isDefault: Boolean(acc.is_default),
+        savedCount: savedAccounts.length,
+      });
+    }
     setSelectedSavedId(acc.id);
     setUseNewAccount(false);
     // P0-2: 저장된 계좌 선택 시 account_number를 빈 값으로 두고 account_id만 식별자로 보존.
@@ -1084,6 +1234,11 @@ function StepSettlement({
   };
 
   const startNewAccount = () => {
+    // GA4 새 계좌 직접 입력 선택
+    trackEvent("pickup_account_select", {
+      source: "new",
+      savedCount: savedAccounts.length,
+    });
     setSelectedSavedId(null);
     setUseNewAccount(true);
     setAccount({
@@ -1100,6 +1255,12 @@ function StepSettlement({
     policyAgreed.consignment && policyAgreed.privacy && policyAgreed.disposal;
   const togglePolicy = (key) => (event) => {
     setPolicyAgreed((prev) => ({ ...prev, [key]: event.target.checked }));
+    // GA4 필수 약관 개별 동의 — 어떤 약관에서 멈추는지
+    trackEvent("agreement_toggle", {
+      formName: "pickup_request",
+      policyKey: key,
+      checked: event.target.checked,
+    });
   };
   const toggleAll = (event) => {
     const checked = event.target.checked;
@@ -1108,13 +1269,54 @@ function StepSettlement({
       privacy: checked,
       disposal: checked,
     });
+    // GA4 전체 동의
+    trackEvent("agreement_toggle_all", {
+      formName: "pickup_request",
+      checked,
+    });
   };
 
-  const isValid =
+  const isAccountFilled =
     account.bank_name.trim() &&
     (account.account_id || account.account_number.trim()) &&
-    account.account_holder.trim() &&
-    allAgreed;
+    account.account_holder.trim();
+  const isValid = isAccountFilled && allAgreed;
+
+  // GA4 예금주 불일치 경고 노출 — 정산 사고 예방 문구가 실제로 얼마나 뜨는지(이름 값은 미전송)
+  const holderMismatchTrackedRef = useRef(false);
+  const isHolderMismatch = Boolean(
+    memberProfileName &&
+      account.account_holder.trim().length > 0 &&
+      account.account_holder.trim() !== memberProfileName,
+  );
+  useEffect(() => {
+    if (!isHolderMismatch || holderMismatchTrackedRef.current) return;
+    holderMismatchTrackedRef.current = true;
+    trackEvent("pickup_holder_mismatch_warn", { formName: "pickup_request" });
+  }, [isHolderMismatch]);
+
+  // GA4 4단계 진행 불가 사유 — 계좌 미완성 / 약관 미동의를 사유별 1회.
+  // 아무것도 손대지 않은 진입 직후는 제외.
+  const isSettlementTouched = Boolean(
+    policyAgreed.consignment ||
+      policyAgreed.privacy ||
+      policyAgreed.disposal ||
+      account.account_number.trim() ||
+      account.account_holder.trim(),
+  );
+  const settlementInvalidReason =
+    isValid || !isSettlementTouched
+      ? null
+      : !isAccountFilled
+        ? "account_incomplete"
+        : "policy_unagreed";
+  const settlementInvalidGuardRef = useRef(makeOnceGuard());
+  useEffect(() => {
+    if (!settlementInvalidReason) return;
+    if (settlementInvalidGuardRef.current(settlementInvalidReason)) {
+      trackFormError("pickup_request", "step_4", settlementInvalidReason);
+    }
+  }, [settlementInvalidReason]);
 
   return (
     <div className="pickup-step">
@@ -1182,13 +1384,17 @@ function StepSettlement({
             <label className="pickup-field-label">은행 *</label>
             <select
               className="pickup-select"
-              onChange={(e) =>
+              onChange={(e) => {
                 setAccount((p) => ({
                   ...p,
                   account_id: null,
                   bank_name: e.target.value,
-                }))
-              }
+                }));
+                // GA4 은행 선택 — 은행명은 PII가 아니라 그대로 남긴다.
+                if (e.target.value) {
+                  trackEvent("pickup_bank_select", { bankName: e.target.value });
+                }
+              }}
               value={account.bank_name}
             >
               <option value="">은행 선택</option>
@@ -1310,7 +1516,14 @@ function StepSettlement({
 
         <button
           className="pickup-link-button pickup-policy-agree__toggle"
-          onClick={() => setShowPolicyDetail((v) => !v)}
+          onClick={() => {
+            // GA4 약관 본문 펼치기/접기
+            trackEvent("agreement_view", {
+              formName: "pickup_request",
+              uiAction: showPolicyDetail ? "close" : "open",
+            });
+            setShowPolicyDetail((v) => !v);
+          }}
           type="button"
         >
           {showPolicyDetail ? "약관 자세히 닫기 ▲" : "약관 자세히 보기 ▼"}
@@ -1432,6 +1645,12 @@ function StepConfirm({
   const expectedCount = Number.parseInt(address.expected_book_count, 10) || 0;
   const boxCount = Number.parseInt(address.box_count, 10) || 0;
 
+  // GA4 확인 화면에서 되돌아가 수정하는 항목 — 어떤 단계가 재작성을 유발하는지
+  const goEditStep = (targetStep) => {
+    trackEvent("pickup_confirm_edit_click", { targetStep });
+    goToStep(targetStep);
+  };
+
   return (
     <div className="pickup-step">
       <div className="pickup-step__header">
@@ -1447,7 +1666,7 @@ function StepConfirm({
           <span className="pickup-confirm-section__title">수거 수량</span>
           <button
             className="pickup-link-button"
-            onClick={() => goToStep(2)}
+            onClick={() => goEditStep(2)}
             type="button"
           >
             수정 <ArrowRightIcon size={13} />
@@ -1474,7 +1693,7 @@ function StepConfirm({
           <span className="pickup-confirm-section__title">수거 주소</span>
           <button
             className="pickup-link-button"
-            onClick={() => goToStep(1)}
+            onClick={() => goEditStep(1)}
             type="button"
           >
             수정 <ArrowRightIcon size={13} />
@@ -1506,7 +1725,7 @@ function StepConfirm({
           <span className="pickup-confirm-section__title">정산 계좌</span>
           <button
             className="pickup-link-button"
-            onClick={() => goToStep(4)}
+            onClick={() => goEditStep(4)}
             type="button"
           >
             수정 <ArrowRightIcon size={13} />
@@ -1621,6 +1840,14 @@ function StepConfirm({
 // ─── 성공 페이지 ───
 function PickupSuccess({ result, expectedCount, boxCount }) {
   const navigate = useNavigate();
+  const successViewedRef = useRef(false);
+
+  // GA4 신청 완료 화면 노출 — 마운트당 1회(generate_lead와 짝을 이루는 도달 지표)
+  useEffect(() => {
+    if (successViewedRef.current) return;
+    successViewedRef.current = true;
+    trackEvent("pickup_success_view", { boxCount, expectedBookCount: expectedCount });
+  }, [boxCount, expectedCount]);
 
   return (
     <div className="pickup-success">
@@ -1666,6 +1893,7 @@ function PickupSuccess({ result, expectedCount, boxCount }) {
           <a
             className="pickup-success__guide-link"
             href={KAKAO_CHANNEL_URL}
+            onClick={() => trackContactClick("kakao", "pickup_success")}
             rel="noopener noreferrer"
             target="_blank"
           >
@@ -1677,14 +1905,20 @@ function PickupSuccess({ result, expectedCount, boxCount }) {
       <div className="pickup-success__actions">
         <button
           className="pickup-btn pickup-btn--primary"
-          onClick={() => navigate("/mypage#sales")}
+          onClick={() => {
+            trackSelectContent("pickup_success_cta", "mypage");
+            navigate("/mypage#sales");
+          }}
           type="button"
         >
           수거 현황 보기
         </button>
         <button
           className="pickup-btn pickup-btn--ghost"
-          onClick={() => navigate("/")}
+          onClick={() => {
+            trackSelectContent("pickup_success_cta", "home");
+            navigate("/");
+          }}
           type="button"
         >
           홈으로
@@ -1695,9 +1929,10 @@ function PickupSuccess({ result, expectedCount, boxCount }) {
 }
 
 // ─── 취소 확인 모달 ───
+// onCancel(closeMethod) — 배경 클릭과 '계속 작성' 버튼을 GA에서 구분하기 위해 인자를 넘긴다.
 function CancelConfirmModal({ onConfirm, onCancel }) {
   return (
-    <div className="pickup-overlay" onClick={onCancel}>
+    <div className="pickup-overlay" onClick={() => onCancel("backdrop")}>
       <div
         className="pickup-modal pickup-modal--sm"
         onClick={(e) => e.stopPropagation()}
@@ -1713,7 +1948,7 @@ function CancelConfirmModal({ onConfirm, onCancel }) {
         <div className="pickup-modal__footer">
           <button
             className="pickup-btn pickup-btn--secondary"
-            onClick={onCancel}
+            onClick={() => onCancel("cancel_button")}
             type="button"
           >
             계속 작성
@@ -1814,8 +2049,21 @@ function PublicPickupRequestPage() {
         // 이미 인증한 번호면 연락처 인증 단계를 건너뛰게 한다
         const { verifiedPhone: knownVerifiedPhone } = await fetchVerifiedPhone(user.id);
         if (!cancelled) setVerifiedPhone(knownVerifiedPhone);
-      } catch {
-        // 로딩 실패 시 빈 상태로 진행
+
+        // GA4 프리필 상태 — 저장 주소·계좌 보유가 완주율에 미치는 영향 관찰용(값은 개수·불리언만)
+        if (!cancelled) {
+          trackEvent("pickup_prefill", {
+            savedAddressCount: (snapshot.shippingAddresses ?? []).length,
+            savedAccountCount: (snapshot.settlementAccounts ?? []).length,
+            hasProfilePhone: Boolean(snapshot.profile?.phone),
+            phonePrevVerified: Boolean(knownVerifiedPhone),
+          });
+        }
+      } catch (error) {
+        // 로딩 실패 시 빈 상태로 진행 (조용히 삼키던 구간 — GA로만 남긴다)
+        trackException("pickup_prefill_failed", {
+          errorMessage: error?.message ?? "",
+        });
       } finally {
         if (!cancelled) setIsLoadingData(false);
       }
@@ -1839,6 +2087,10 @@ function PublicPickupRequestPage() {
         draft.address.expected_book_count)
     ) {
       setDraftPrompt(draft);
+      // GA4 이어쓰기 안내 노출 (어느 단계에서 이탈했던 신청서인지)
+      trackDialogOpen("pickup_draft_prompt", {
+        draftStep: Number.isFinite(draft.step) ? draft.step : undefined,
+      });
     } else {
       draftDecidedRef.current = true;
       draftReadyRef.current = true;
@@ -1863,6 +2115,17 @@ function PublicPickupRequestPage() {
 
   const handleDraftContinue = () => {
     if (!draftPrompt) return;
+    // GA4 이어서 작성 — 복구 단계까지
+    trackEvent("pickup_draft_resume", {
+      uiAction: "continue",
+      draftStep: Number.isFinite(draftPrompt.step) ? draftPrompt.step : undefined,
+    });
+    if (Number.isFinite(draftPrompt.step)) {
+      const resumedStep = Math.min(6, Math.max(0, draftPrompt.step));
+      trackFormStepView("pickup_request", resumedStep, STEPS[resumedStep], {
+        direction: "resume",
+      });
+    }
     if (draftPrompt.address && typeof draftPrompt.address === "object") {
       setAddress((prev) => ({ ...prev, ...draftPrompt.address }));
     }
@@ -1883,6 +2146,11 @@ function PublicPickupRequestPage() {
   };
 
   const handleDraftDiscard = () => {
+    // GA4 새로 시작(임시 저장본 폐기)
+    trackEvent("pickup_draft_resume", {
+      uiAction: "discard",
+      draftStep: Number.isFinite(draftPrompt?.step) ? draftPrompt.step : undefined,
+    });
     clearDraft();
     setDraftPrompt(null);
     draftDecidedRef.current = true;
@@ -1906,6 +2174,8 @@ function PublicPickupRequestPage() {
       address.recipient_name ||
       address.expected_book_count
     ) {
+      // GA4 이탈 확인 모달 노출 — 어느 단계에서 나가려 했는지
+      trackDialogOpen("pickup_abandon_confirm", { stepIndex: currentStep });
       setShowCancelModal(true);
     } else {
       navigate(-1);
@@ -1913,6 +2183,10 @@ function PublicPickupRequestPage() {
   };
 
   const goToStep = (step) => {
+    // GA4 스텝 노출 — 단계별 이탈 지점 파악(direction으로 되돌아가기와 구분)
+    trackFormStepView("pickup_request", step, STEPS[step], {
+      direction: step > currentStep ? "next" : step < currentStep ? "prev" : "jump",
+    });
     setCurrentStep(step);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -1923,7 +2197,17 @@ function PublicPickupRequestPage() {
     if (pickupStartTrackedRef.current || isLoading || !isAuthenticated) return;
     pickupStartTrackedRef.current = true;
     trackPickupRequestStart();
+    // 첫 단계(안내)도 스텝 노출로 남겨야 step_index 퍼널의 분모가 생긴다.
+    trackFormStepView("pickup_request", 0, STEPS[0], { direction: "initial" });
   }, [isLoading, isAuthenticated]);
+
+  // GA4 비로그인 진입 — 로그인 관문 때문에 잃는 셀러 리드
+  const loginRequiredTrackedRef = useRef(false);
+  useEffect(() => {
+    if (isLoading || isAuthenticated || loginRequiredTrackedRef.current) return;
+    loginRequiredTrackedRef.current = true;
+    trackEvent("pickup_login_required");
+  }, [isAuthenticated, isLoading]);
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
@@ -1940,6 +2224,12 @@ function PublicPickupRequestPage() {
     if (error) {
       // 서버 거부 사유(휴대폰 인증 필요 등)를 그대로 보여준다
       showToast(error.message || "요청에 실패했습니다. 다시 시도해주세요.", "error");
+      // GA4 제출 실패 — 마지막 관문에서 잃는 리드(중복 집계를 막으려 여기서만 발화)
+      trackEvent("pickup_submit_fail", {
+        errorMessage: error.message ?? "",
+        boxCount: Number.parseInt(address.box_count, 10),
+        expectedBookCount: Number.parseInt(address.expected_book_count, 10),
+      });
       return;
     }
 
@@ -1947,6 +2237,14 @@ function PublicPickupRequestPage() {
     trackGenerateLead({
       boxCount: Number.parseInt(address.box_count, 10),
       expectedBookCount: Number.parseInt(address.expected_book_count, 10),
+      // 저장된 주소·계좌를 쓴 신청인지(재신청 셀러 판별) + 희망일 지정 여부
+      usedSavedAddress: savedAddresses.some(
+        (saved) =>
+          saved.address_line1 === address.address_line1 &&
+          String(saved.postal_code ?? "") === String(address.postal_code ?? ""),
+      ),
+      usedSavedAccount: Boolean(account.account_id),
+      hasDesiredDate: Boolean(address.desired_pickup_date),
     });
 
     // 신청 성공 시 draft cleanup
@@ -2149,8 +2447,20 @@ function PublicPickupRequestPage() {
       {/* 취소 확인 모달 */}
       {showCancelModal && (
         <CancelConfirmModal
-          onCancel={() => setShowCancelModal(false)}
+          onCancel={(closeMethod = "cancel_button") => {
+            // GA4 계속 작성(이탈 취소)
+            trackDialogClose("pickup_abandon_confirm", closeMethod, {
+              stepIndex: currentStep,
+            });
+            setShowCancelModal(false);
+          }}
           onConfirm={() => {
+            // GA4 작성 포기 — 어느 단계에서 나갔는지가 폼 개선의 핵심 지표
+            trackFormAbandon("pickup_request", {
+              stepIndex: currentStep,
+              stepName: STEPS[currentStep],
+              uiAction: "confirm",
+            });
             setShowCancelModal(false);
             if (window.history.length > 1) navigate(-1);
             else navigate("/", { replace: true });

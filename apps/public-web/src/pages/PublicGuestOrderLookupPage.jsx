@@ -5,7 +5,13 @@ import ContentContainer from "../components/ContentContainer";
 import PublicFooter from "../components/PublicFooter";
 import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
-import { trackGuestOrderLookup } from "../lib/analytics";
+import {
+  makeOnceGuard,
+  trackContactClick,
+  trackEvent,
+  trackGuestOrderLookup,
+  trackSelectContent,
+} from "../lib/analytics";
 import { usePageMeta } from "../lib/usePageMeta";
 import { fetchGuestOrder } from "../lib/guestOrder";
 import {
@@ -55,15 +61,25 @@ function PublicGuestOrderLookupPage() {
   const [result, setResult] = useState(null);
   const autoSearchedRef = useRef(false);
 
-  const runLookup = async (nextOrderNumber, nextPhone) => {
+  // lookupSource: manual(폼 제출) / auto(주문완료 페이지에서 state로 진입한 자동 조회)
+  const runLookup = async (nextOrderNumber, nextPhone, lookupSource = "manual") => {
     const trimmedNumber = String(nextOrderNumber ?? "").trim();
     const phoneDigits = String(nextPhone ?? "").replace(/\D/g, "");
 
     if (!trimmedNumber) {
+      // GA4 guest_order_lookup_error — 조회 실패 원인 분포(입력 누락 vs 서버 거절)
+      trackEvent("guest_order_lookup_error", {
+        errorReason: "missing_order_number",
+        lookupSource,
+      });
       setErrorMessage("주문번호를 입력해 주세요.");
       return;
     }
     if (phoneDigits.length < 9) {
+      trackEvent("guest_order_lookup_error", {
+        errorReason: "invalid_phone",
+        lookupSource,
+      });
       setErrorMessage("주문 시 입력한 휴대폰 번호를 입력해 주세요.");
       return;
     }
@@ -77,27 +93,32 @@ function PublicGuestOrderLookupPage() {
     setIsLoading(false);
 
     if (error) {
+      const isRateLimited = Boolean(error.message?.includes("조회 시도가 너무 많습니다"));
+      trackEvent("guest_order_lookup_error", {
+        errorReason: isRateLimited ? "rate_limited" : "rpc_error",
+        lookupSource,
+      });
       setErrorMessage(
-        error.message?.includes("조회 시도가 너무 많습니다")
+        isRateLimited
           ? "조회 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요."
           : "주문을 조회하지 못했어요. 잠시 후 다시 시도해 주세요.",
       );
       return;
     }
     if (!data?.found) {
-      trackGuestOrderLookup(false);
+      trackGuestOrderLookup(false, { lookupSource });
       setErrorMessage("일치하는 주문이 없습니다. 주문번호와 휴대폰 번호를 확인해 주세요.");
       return;
     }
 
-    trackGuestOrderLookup(true);
+    trackGuestOrderLookup(true, { lookupSource });
     setResult(data);
   };
 
   const handleSubmit = (event) => {
     event.preventDefault();
     if (isLoading) return;
-    runLookup(orderNumber, phone);
+    runLookup(orderNumber, phone, "manual");
   };
 
   // 주문완료 페이지 등에서 state로 진입하면 자동 조회 (1회)
@@ -105,7 +126,7 @@ function PublicGuestOrderLookupPage() {
     if (autoSearchedRef.current) return;
     if (location.state?.orderNumber && location.state?.phone) {
       autoSearchedRef.current = true;
-      runLookup(location.state.orderNumber, location.state.phone);
+      runLookup(location.state.orderNumber, location.state.phone, "auto");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -122,6 +143,31 @@ function PublicGuestOrderLookupPage() {
     : "";
   const deadlineLabel = order ? formatDeadline(order.created_at) : "";
   const refundedAmount = Number(order?.refunded_amount ?? 0);
+
+  // GA4 guest_order_lookup_result_view — 조회 성공 화면 노출 1회(주문번호 기준).
+  // 조회 성공 대비 어떤 상태의 주문을 확인하러 오는지(입금 대기·배송 추적) 분포를 본다.
+  const resultViewGuardRef = useRef(makeOnceGuard());
+  useEffect(() => {
+    if (!order?.order_number) return;
+    if (!resultViewGuardRef.current(String(order.order_number))) return;
+    trackEvent("guest_order_lookup_result_view", {
+      orderStatus: order.status,
+      paymentType: order.payment_method,
+      isPendingBank: Boolean(isPendingBank),
+      hasTracking: Boolean(order.tracking_number),
+    });
+  }, [order, isPendingBank]);
+
+  // GA4 bank_info_shown — 입금 계좌 안내 노출 1회 (입금 미완료 재확인 동선)
+  const bankInfoGuardRef = useRef(makeOnceGuard());
+  useEffect(() => {
+    if (!isPendingBank || !order?.order_number) return;
+    if (!bankInfoGuardRef.current(String(order.order_number))) return;
+    trackEvent("bank_info_shown", {
+      uiSurface: "guest_lookup",
+      value: Number(order.total_amount) || 0,
+    });
+  }, [isPendingBank, order]);
 
   return (
     <PublicPageFrame>
@@ -276,7 +322,15 @@ function PublicGuestOrderLookupPage() {
 
               <p className="guest-lookup-help">
                 주문 취소·변경이 필요하면{" "}
-                <a href={KAKAO_CHANNEL_URL} rel="noopener noreferrer" target="_blank">
+                {/* GA4 contact_click — 어떤 주문 상태에서 문의로 새는지 */}
+                <a
+                  href={KAKAO_CHANNEL_URL}
+                  onClick={() =>
+                    trackContactClick("kakao", "guest_lookup", { orderStatus: order.status })
+                  }
+                  rel="noopener noreferrer"
+                  target="_blank"
+                >
                   카카오톡 1:1문의
                 </a>
                 로 주문번호와 함께 문의해 주세요.
@@ -285,9 +339,14 @@ function PublicGuestOrderLookupPage() {
           ) : null}
 
           <div className="guest-lookup-footer-links">
-            <Link to="/login">회원 로그인</Link>
+            {/* GA4 select_content — 조회 후 이동 동선(회원 전환 vs 쇼핑 복귀) */}
+            <Link onClick={() => trackSelectContent("guest_lookup_link", "login")} to="/login">
+              회원 로그인
+            </Link>
             <span aria-hidden="true">·</span>
-            <Link to="/">쇼핑 계속하기</Link>
+            <Link onClick={() => trackSelectContent("guest_lookup_link", "home")} to="/">
+              쇼핑 계속하기
+            </Link>
           </div>
         </ContentContainer>
 

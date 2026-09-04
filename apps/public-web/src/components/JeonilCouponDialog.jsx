@@ -1,7 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/publicSupabaseClient";
-import { trackJeonilLaunchAlert } from "../lib/analytics";
+import {
+  trackDialogClose,
+  trackDialogOpen,
+  trackEvent,
+  trackJeonilLaunchAlert,
+} from "../lib/analytics";
 import {
   formatPhoneNumber,
   isValidKoreanMobile,
@@ -12,13 +17,40 @@ import "./JeonilCouponDialog.css";
 const EVENT_KEY = "jeonil-2026-09";
 
 // 전일학원 이벤트 출시 알림 신청 팝업 — 전화번호 + 마케팅 수신 동의.
-function JeonilCouponDialog({ open, onClose }) {
+// entry: 어디서 열렸는지(hotspot / hash_deeplink …) — GA4 dialog_open 파라미터로만 쓴다.
+function JeonilCouponDialog({ open, onClose, entry }) {
   const [phone, setPhone] = useState("");
   const [agree, setAgree] = useState(true);
   const [termsOpen, setTermsOpen] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+  const openTrackedRef = useRef(false);
+  const closeHandlerRef = useRef(null);
+
+  // GA4 닫기 — 제스처(backdrop/close_button/escape)와 진행 상태를 함께 남긴다.
+  // 번호 자체는 절대 보내지 않고 입력 여부(had_input)만.
+  const closeWithTracking = (closeMethod) => {
+    trackDialogClose("jeonil_coupon", closeMethod, {
+      hadInput: phone.length > 0,
+      done,
+    });
+    onClose?.();
+  };
+  closeHandlerRef.current = closeWithTracking;
+
+  // GA4 팝업 노출 — 한 번의 열림당 1회(페이지가 아니라 여기서만 발화한다).
+  useEffect(() => {
+    if (!open) {
+      openTrackedRef.current = false;
+      return;
+    }
+    if (openTrackedRef.current) {
+      return;
+    }
+    openTrackedRef.current = true;
+    trackDialogOpen("jeonil_coupon", entry ? { entry } : undefined);
+  }, [entry, open]);
 
   useEffect(() => {
     if (!open) {
@@ -26,7 +58,7 @@ function JeonilCouponDialog({ open, onClose }) {
     }
     const handleKeyDown = (event) => {
       if (event.key === "Escape") {
-        onClose();
+        closeHandlerRef.current?.("escape");
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -35,7 +67,7 @@ function JeonilCouponDialog({ open, onClose }) {
       window.removeEventListener("keydown", handleKeyDown);
       document.body.style.overflow = "";
     };
-  }, [open, onClose]);
+  }, [open]);
 
   useEffect(() => {
     if (!open) {
@@ -63,14 +95,20 @@ function JeonilCouponDialog({ open, onClose }) {
     event.preventDefault();
     if (!isValidKoreanMobile(phone)) {
       setError("올바른 휴대전화 번호를 입력해 주세요.");
+      // GA4 알림 신청 실패 — 번호 형식(클라이언트 검증)
+      trackEvent("jeonil_launch_alert_fail", { errorReason: "CLIENT_INVALID_PHONE" });
       return;
     }
     if (!agree) {
       setError("개인정보 마케팅 수신에 동의해 주세요.");
+      // GA4 알림 신청 실패 — 마케팅 수신 미동의
+      trackEvent("jeonil_launch_alert_fail", { errorReason: "NO_CONSENT" });
       return;
     }
     if (!isSupabaseConfigured || !supabase) {
       setError("신청에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      // GA4 알림 신청 실패 — 백엔드 미설정
+      trackEvent("jeonil_launch_alert_fail", { errorReason: "NOT_CONFIGURED" });
       return;
     }
     setSubmitting(true);
@@ -86,15 +124,25 @@ function JeonilCouponDialog({ open, onClose }) {
             ? "올바른 휴대전화 번호를 입력해 주세요."
             : "신청에 실패했습니다. 잠시 후 다시 시도해 주세요.",
         );
+        // GA4 알림 신청 실패 — 서버 거부(코드별)
+        trackEvent("jeonil_launch_alert_fail", {
+          errorReason: data?.code || "RPC_ERROR",
+          errorMessage: rpcError?.message ?? "",
+        });
         return;
       }
       // 재신청(ALREADY)도 완료 화면은 보여주되 리드 이벤트는 최초 신청만 집계
       if (data.code === "SUBSCRIBED") {
-        trackJeonilLaunchAlert();
+        trackJeonilLaunchAlert({ entry: entry || undefined });
+      } else if (data.code === "ALREADY") {
+        // GA4 중복 신청 — 리드로는 세지 않되 재방문 신호로 남긴다.
+        trackEvent("jeonil_launch_alert_duplicate", { entry: entry || undefined });
       }
       setDone(true);
     } catch {
       setError("신청에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      // GA4 알림 신청 실패 — 네트워크/예외
+      trackEvent("jeonil_launch_alert_fail", { errorReason: "NETWORK" });
     } finally {
       setSubmitting(false);
     }
@@ -106,10 +154,15 @@ function JeonilCouponDialog({ open, onClose }) {
       role="dialog"
       aria-modal="true"
       aria-label="출시 알림 신청"
-      onClick={onClose}
+      onClick={() => closeWithTracking("backdrop")}
     >
       <div className="jeonil-coupon__panel" onClick={(event) => event.stopPropagation()}>
-        <button type="button" className="jeonil-coupon__close" onClick={onClose} aria-label="닫기">
+        <button
+          type="button"
+          className="jeonil-coupon__close"
+          onClick={() => closeWithTracking("close_button")}
+          aria-label="닫기"
+        >
           <svg width="18" height="18" viewBox="0 0 16 16" fill="none" aria-hidden="true">
             <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
           </svg>
@@ -121,7 +174,11 @@ function JeonilCouponDialog({ open, onClose }) {
             <p className="jeonil-coupon__done-desc">
               입력해주신 번호로 출시 알림과 할인쿠폰을 보내드릴게요.
             </p>
-            <button type="button" className="jeonil-coupon__submit" onClick={onClose}>
+            <button
+              type="button"
+              className="jeonil-coupon__submit"
+              onClick={() => closeWithTracking("close_button")}
+            >
               확인
             </button>
           </div>
@@ -148,6 +205,12 @@ function JeonilCouponDialog({ open, onClose }) {
                   onChange={(e) => {
                     setAgree(e.target.checked);
                     if (error) setError("");
+                    // GA4 마케팅 수신 동의 토글(기본 체크 상태에서 해제되는 비율 관찰)
+                    trackEvent("agreement_toggle", {
+                      formName: "jeonil_alert",
+                      policyKey: "marketing",
+                      checked: e.target.checked,
+                    });
                   }}
                 />
                 <span className="jeonil-coupon__check-box" aria-hidden="true" />

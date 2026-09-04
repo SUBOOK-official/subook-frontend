@@ -5,6 +5,15 @@ import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
 import { COLLAB_OPEN_AT } from "../lib/publicFeaturedProducts";
 import { fetchFeaturedProductsByKey } from "../lib/publicFeaturedProductsApi";
+import {
+  makeOnceGuard,
+  trackDialogOpen,
+  trackEvent,
+  trackException,
+  trackSelectItem,
+  trackSelectPromotion,
+  trackViewPromotion,
+} from "../lib/analytics";
 import { usePageMeta } from "../lib/usePageMeta";
 import JeonilCouponDialog from "../components/JeonilCouponDialog";
 import JeonilProductChooserDialog from "../components/JeonilProductChooserDialog";
@@ -39,6 +48,11 @@ const R_ANS_C = "3840 / 1605";
 const JEONGWON_RATIO = "3840 / 883";
 const R_CARD = "3009 / 1430";
 const R_COUPON = "1493 / 976";
+
+// GA4 프로모션 식별자 — 이벤트 페이지 전체가 하나의 프로모션 크리에이티브다.
+const PROMOTION_ID = "jeonil_2026_09";
+const PROMOTION_NAME = "전일학원 × 수북";
+const BOOK_LIST_NAME = "전일학원 이벤트";
 
 // 교재 카드 → 상품 상세 링크. key는 publicFeaturedProducts.js 레지스트리와 맞춘다.
 // 아직 등록 전인 상품은 id를 못 찾으므로 링크 없이 이미지만 보여준다(죽은 링크 방지).
@@ -234,20 +248,61 @@ function PublicJeonilEventPage() {
   const [isOpen] = useState(() => Date.now() >= Date.parse(COLLAB_OPEN_AT));
   // 교재 카드 링크용 상품 id — 등록 전이면 빈 객체라 카드는 링크 없이 그대로 보인다.
   const [featuredByKey, setFeaturedByKey] = useState({});
+  // GA4 1회 발화 가드 — 프로모션 노출 / 링크 없는 카드 보고
+  const promotionViewedRef = useRef(false);
+  const unlinkedGuardRef = useRef(makeOnceGuard());
+
+  // GA4 이벤트 페이지 노출 — 마운트당 1회, 오픈 전/후와 D-day를 함께 남긴다.
+  useEffect(() => {
+    if (promotionViewedRef.current) {
+      return;
+    }
+    promotionViewedRef.current = true;
+    trackViewPromotion({
+      promotionId: PROMOTION_ID,
+      promotionName: PROMOTION_NAME,
+      creativeSlot: "event_page",
+      releaseState: isOpen ? "open" : "pre",
+      ddayLabel: dday,
+    });
+  }, [dday, isOpen]);
 
   useEffect(() => {
     let isCancelled = false;
 
-    fetchFeaturedProductsByKey().then((byKey) => {
-      if (!isCancelled) {
-        setFeaturedByKey(byKey);
-      }
-    });
+    fetchFeaturedProductsByKey()
+      .then((byKey) => {
+        if (!isCancelled) {
+          setFeaturedByKey(byKey);
+        }
+      })
+      .catch((error) => {
+        // GA4 — 교재 카드 링크용 상품 조회 실패(카드가 조용히 링크 없이 뜬다)
+        trackException("jeonil_featured_load_failed", {
+          errorMessage: error?.message ?? "",
+        });
+      });
 
     return () => {
       isCancelled = true;
     };
   }, []);
+
+  // GA4 링크 없는 교재 카드 — 아직 등록 전이라 죽은 카드로 보이는 상태를 카드별 1회 보고.
+  useEffect(() => {
+    if (Object.keys(featuredByKey).length === 0) {
+      return;
+    }
+    BOOK_CARDS.forEach((card) => {
+      const linkedChoices = (card.choices ?? []).filter(
+        (choice) => featuredByKey[choice.key]?.id != null,
+      );
+      const productId = featuredByKey[card.key]?.id ?? null;
+      if (productId === null && linkedChoices.length <= 1 && unlinkedGuardRef.current(card.key)) {
+        trackException("jeonil_book_card_unlinked", { cardKey: card.key });
+      }
+    });
+  }, [featuredByKey]);
 
   useEffect(() => {
     const selector =
@@ -302,6 +357,8 @@ function PublicJeonilEventPage() {
   // 이미지 로드 후 레이아웃이 확정되도록 두 번(초기·지연) 스크롤한다.
   useEffect(() => {
     if (window.location.hash !== "#coupon") return undefined;
+    // GA4 딥링크 진입 — 상품 상세의 '알림 받기'에서 넘어온 트래픽 구분용
+    trackEvent("jeonil_coupon_scroll", { entry: "hash_deeplink" });
     const doScroll = () =>
       couponRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
     const t1 = setTimeout(doScroll, 400);
@@ -323,6 +380,22 @@ function PublicJeonilEventPage() {
     booksRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
+  // GA4 히어로 CTA 클릭 — 오픈 전(알림 신청)·후(구매)로 목적지가 갈린다.
+  const handleHeroCta = () => {
+    trackSelectPromotion({
+      promotionId: PROMOTION_ID,
+      promotionName: PROMOTION_NAME,
+      creativeSlot: "event_hero_cta",
+      ctaAction: isOpen ? "scroll_books" : "scroll_coupon",
+      releaseState: isOpen ? "open" : "pre",
+    });
+    if (isOpen) {
+      scrollToBooks();
+      return;
+    }
+    scrollToCoupon();
+  };
+
   return (
     <PublicPageFrame>
       <div
@@ -341,7 +414,7 @@ function PublicJeonilEventPage() {
             <span className="jeonil-dday__count">{dday}</span>
           </div>
 
-          <HeroSection isOpen={isOpen} onNotify={isOpen ? scrollToBooks : scrollToCoupon} />
+          <HeroSection isOpen={isOpen} onNotify={handleHeroCta} />
 
           <div className="jeonil-openbar">
             <span className="jeonil-openbar__text">
@@ -516,7 +589,7 @@ function PublicJeonilEventPage() {
             </div>
             {/* 교재 3권 — 배경 위에 떠서 차례대로 등장 + 호버 확대 */}
             <div className="jeonil-books" ref={booksRef}>
-              {BOOK_CARDS.map((card) => {
+              {BOOK_CARDS.map((card, index) => {
                 const productId = featuredByKey[card.key]?.id ?? null;
                 const image = (
                   <img
@@ -538,7 +611,15 @@ function PublicJeonilEventPage() {
                       className="jeonil-book-link jeonil-book-link--button"
                       key={card.key}
                       type="button"
-                      onClick={() => setChooserCard({ ...card, choices })}
+                      onClick={() => {
+                        // GA4 구성 선택 모달 열기 (10회분/30일분 등 카드 하나가 상품 여럿)
+                        trackDialogOpen("jeonil_product_chooser", {
+                          cardKey: card.key,
+                          itemCount: choices.length,
+                          index,
+                        });
+                        setChooserCard({ ...card, choices });
+                      }}
                       aria-haspopup="dialog"
                       aria-label={`${card.alt} 구성 선택`}
                     >
@@ -556,6 +637,15 @@ function PublicJeonilEventPage() {
                   <Link
                     className="jeonil-book-link"
                     key={card.key}
+                    onClick={() =>
+                      // GA4 이벤트 페이지 → 상품 상세 (목록 성과 비교용 select_item)
+                      trackSelectItem(BOOK_LIST_NAME, {
+                        productId,
+                        title: card.alt,
+                        quantity: 1,
+                        index,
+                      })
+                    }
                     to={`/store/${productId}`}
                     aria-label={`${card.alt} 상품 보러가기`}
                   >
@@ -599,7 +689,8 @@ function PublicJeonilEventPage() {
         <PublicFooter />
       </div>
 
-      <JeonilCouponDialog open={couponOpen} onClose={() => setCouponOpen(false)} />
+      {/* dialog_open/close는 다이얼로그 내부에서 1회만 발화한다(entry는 진입 경로 힌트) */}
+      <JeonilCouponDialog entry="hotspot" open={couponOpen} onClose={() => setCouponOpen(false)} />
       <JeonilProductChooserDialog card={chooserCard} onClose={() => setChooserCard(null)} />
     </PublicPageFrame>
   );

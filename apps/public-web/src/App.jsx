@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useRef } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate, useNavigationType } from "react-router-dom";
 import { usePublicAuth } from "./contexts/PublicAuthContext";
 import JeonilMiniPopup from "./components/JeonilMiniPopup";
+import { trackEvent } from "./lib/analytics";
 // PG 심사 모드 파라미터(?pg=toss)는 부트 시점에 캡처해야 한다 — 페이지 모듈이 lazy라
 // 주문서 도착 시점엔 진입 파라미터가 이미 사라져 있기 때문 (side-effect import).
 import "./lib/pgReviewMode";
@@ -45,6 +46,17 @@ function PageLoadingFallback() {
 // 쿼리스트링·해시를 보존한 채 홈(HomeStoreGrid가 search params를 읽음)으로 리다이렉트.
 function RedirectStoreToHome() {
   const location = useLocation();
+  // GA4 — 구 /store 링크(외부 SEO·북마크)가 아직 얼마나 들어오는지. 마운트당 1회.
+  const trackedRef = useRef(false);
+  useEffect(() => {
+    if (trackedRef.current) return;
+    trackedRef.current = true;
+    trackEvent("legacy_redirect", {
+      fromPath: "/store",
+      hasQuery: Boolean(location.search),
+    });
+  }, [location.search]);
+
   return <Navigate replace to={{ pathname: "/", search: location.search, hash: location.hash }} />;
 }
 
@@ -65,6 +77,8 @@ function SignupCompletionGate() {
       || location.pathname === "/signup"
     ) return;
     const nextPath = `${location.pathname}${location.search}${location.hash}`;
+    // GA4 — 가입 미완료 사용자가 어느 화면에서 강제 이동되는지(가입 마무리 이탈 진단)
+    trackEvent("signup_gate_redirect", { fromPath: location.pathname });
     navigate(`/auth/oauth-consent?next=${encodeURIComponent(nextPath)}`, { replace: true });
   }, [isLoading, needsSignupCompletion, location.pathname, location.search, location.hash, navigate]);
 

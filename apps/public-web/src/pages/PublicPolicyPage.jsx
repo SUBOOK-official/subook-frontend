@@ -4,6 +4,7 @@ import PublicSiteHeader from "../components/PublicSiteHeader";
 import PublicFooter from "../components/PublicFooter";
 import PublicPageFrame from "../components/PublicPageFrame";
 import { usePageMeta } from "../lib/usePageMeta";
+import { trackTabChange } from "../lib/analytics";
 import "./PublicPolicyPage.css";
 
 // 2026-07-07 문구 피드백: 법무 윤문본 전문으로 교체.
@@ -550,13 +551,26 @@ function PublicPolicyPage({ type = "privacy" }) {
         <main className="public-policy-route">
           <ContentContainer className="public-policy-shell">
             <nav aria-label="정책 문서" className="public-policy-tabs">
-              <Link className={`public-policy-tab ${pageType === "privacy" ? "is-active" : ""}`} to="/privacy">
+              {/* GA4 tab_change — 정책 문서 간 이동(어떤 문서가 실제로 읽히는지) */}
+              <Link
+                className={`public-policy-tab ${pageType === "privacy" ? "is-active" : ""}`}
+                onClick={() => trackTabChange("policy", "privacy", { fromTab: pageType })}
+                to="/privacy"
+              >
                 개인정보처리방침
               </Link>
-              <Link className={`public-policy-tab ${isTerms ? "is-active" : ""}`} to="/terms">
+              <Link
+                className={`public-policy-tab ${isTerms ? "is-active" : ""}`}
+                onClick={() => trackTabChange("policy", "terms", { fromTab: pageType })}
+                to="/terms"
+              >
                 이용약관
               </Link>
-              <Link className={`public-policy-tab ${isRefund ? "is-active" : ""}`} to="/refund">
+              <Link
+                className={`public-policy-tab ${isRefund ? "is-active" : ""}`}
+                onClick={() => trackTabChange("policy", "refund", { fromTab: pageType })}
+                to="/refund"
+              >
                 환불정책
               </Link>
             </nav>

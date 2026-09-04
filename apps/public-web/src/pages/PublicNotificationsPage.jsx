@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/publicSupabaseClient";
 import ContentContainer from "../components/ContentContainer";
@@ -6,6 +6,15 @@ import PublicFooter from "../components/PublicFooter";
 import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
+import {
+  makeOnceGuard,
+  trackEmptyState,
+  trackEvent,
+  trackException,
+  trackListFilterChange,
+  trackLoadMore,
+  trackNotificationClick,
+} from "../lib/analytics";
 import { usePageMeta } from "../lib/usePageMeta";
 import {
   BankIcon,
@@ -83,6 +92,9 @@ function PublicNotificationsPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [bulkBusy, setBulkBusy] = useState(false);
   const [categoryKey, setCategoryKey] = useState("all");
+  // GA4 1회 발화 가드 — 목록 노출·빈 상태(필터별)
+  const listViewedRef = useRef(false);
+  const emptyGuardRef = useRef(makeOnceGuard());
 
   const loadNotifications = useCallback(async ({ offset = 0, append = false } = {}) => {
     if (!isSupabaseConfigured || !supabase) {
@@ -103,11 +115,21 @@ function PublicNotificationsPage() {
     if (error) {
       setErrorMessage(error.message || "알림을 불러오지 못했어요.");
       setHasMore(false);
+      // GA4 알림 로드 실패
+      trackException("notifications_load_failed", { errorMessage: error.message ?? "" });
     } else {
       const rows = Array.isArray(data) ? data : [];
       setItems((prev) => (append ? [...prev, ...rows] : rows));
       // 더 가져올 게 있는지 — PAGE_SIZE보다 적게 왔으면 끝.
       setHasMore(rows.length === PAGE_SIZE);
+      // GA4 알림함 목록 노출 — 첫 페이지 1회만.
+      if (!append && !listViewedRef.current) {
+        listViewedRef.current = true;
+        trackEvent("notification_list_view", {
+          itemCount: rows.length,
+          unreadCount: rows.filter((row) => !row.read_at).length,
+        });
+      }
     }
     setIsLoading(false);
     setIsLoadingMore(false);
@@ -121,10 +143,18 @@ function PublicNotificationsPage() {
 
   const handleLoadMore = () => {
     if (isLoadingMore || !hasMore) return;
+    // GA4 추가 로드
+    trackLoadMore("notifications", { loadedCount: items.length });
     void loadNotifications({ offset: items.length, append: true });
   };
 
   const handleItemClick = async (item) => {
+    // GA4 알림 클릭 — 읽음 여부·이동 링크 유무까지(제목·본문은 보내지 않는다).
+    trackNotificationClick(item.type, {
+      wasUnread: !item.read_at,
+      hasRefUrl: Boolean(item.ref_url),
+      isExternal: Boolean(item.ref_url) && !String(item.ref_url).startsWith("/"),
+    });
     if (!item.read_at && supabase) {
       // 비동기로 읽음 처리 (실패해도 이동은 진행)
       void supabase.rpc("mark_notification_read", { p_id: item.id });
@@ -143,13 +173,25 @@ function PublicNotificationsPage() {
 
   const handleMarkAllRead = async () => {
     if (!supabase) return;
+    const targetUnreadCount = items.filter((it) => !it.read_at).length;
     setBulkBusy(true);
     const { error } = await supabase.rpc("mark_all_notifications_read");
     setBulkBusy(false);
     if (error) {
       setErrorMessage(error.message || "처리에 실패했어요.");
+      // GA4 모두 읽음 실패
+      trackEvent("notification_mark_all_read", {
+        result: "fail",
+        unreadCount: targetUnreadCount,
+        errorMessage: error.message ?? "",
+      });
       return;
     }
+    // GA4 모두 읽음 성공
+    trackEvent("notification_mark_all_read", {
+      result: "ok",
+      unreadCount: targetUnreadCount,
+    });
     const now = new Date().toISOString();
     setItems((prev) => prev.map((it) => ({ ...it, read_at: it.read_at ?? now })));
   };
@@ -159,6 +201,20 @@ function PublicNotificationsPage() {
     if (!filter || !filter.types) return items;
     return items.filter((it) => filter.types.includes(it.type));
   }, [items, categoryKey]);
+
+  // GA4 빈 상태 노출 — 전체 0건 / 필터 결과 0건을 각각 1회씩.
+  useEffect(() => {
+    if (isLoading) return;
+    if (items.length === 0) {
+      if (emptyGuardRef.current("all")) {
+        trackEmptyState("notifications");
+      }
+      return;
+    }
+    if (filteredItems.length === 0 && emptyGuardRef.current(`filter:${categoryKey}`)) {
+      trackEmptyState("notifications", { filterValue: categoryKey });
+    }
+  }, [categoryKey, filteredItems.length, isLoading, items.length]);
 
   if (!authLoading && !hasSession) {
     return <Navigate replace state={{ notice: "알림함을 보려면 로그인이 필요해요." }} to="/login" />;
@@ -230,7 +286,16 @@ function PublicNotificationsPage() {
                     aria-selected={categoryKey === filter.key}
                     className={`public-notifications-filter__chip ${categoryKey === filter.key ? "is-active" : ""}`}
                     key={filter.key}
-                    onClick={() => setCategoryKey(filter.key)}
+                    onClick={() => {
+                      setCategoryKey(filter.key);
+                      // GA4 카테고리 필터 — 해당 필터의 결과 수까지 함께.
+                      trackListFilterChange("notifications", filter.key, {
+                        resultCount: filter.types
+                          ? items.filter((it) => filter.types.includes(it.type)).length
+                          : items.length,
+                        fromFilter: categoryKey,
+                      });
+                    }}
                     role="tab"
                     type="button"
                   >

@@ -1,4 +1,5 @@
 import { isSupabaseConfigured, supabase } from "@shared-supabase/publicSupabaseClient";
+import { trackRestockSubscribe } from "./analytics";
 
 // 재입고 알림 구독 헬퍼 — 찜 목록(마이페이지)의 품절 카드에서 바로 신청/해제할 때 사용.
 // 상품 상세 페이지는 자체 인라인 호출을 유지하고 있으므로 여기 로직과 RPC 이름을 맞출 것.
@@ -39,7 +40,8 @@ export async function subscribeRestockKeyword(keyword) {
   return { success: true, keyword: data?.keyword ?? keyword };
 }
 
-export async function subscribeRestock(productId) {
+// 두 번째 인자 { uiSurface }는 선택 — 생략하면 찜 목록 카드(기본 호출부)로 본다.
+export async function subscribeRestock(productId, { uiSurface } = {}) {
   if (!isSupabaseConfigured || !supabase) {
     return { error: new Error("Supabase가 설정되지 않았습니다.") };
   }
@@ -47,10 +49,14 @@ export async function subscribeRestock(productId) {
   const { error } = await supabase.rpc("subscribe_restock", {
     p_product_id: Number(productId),
   });
+  // GA4 restock_subscribe — RPC 성공 시에만
+  if (!error) {
+    trackRestockSubscribe(productId, true, { uiSurface: uiSurface || "wishlist_card" });
+  }
   return { error };
 }
 
-export async function unsubscribeRestock(productId) {
+export async function unsubscribeRestock(productId, { uiSurface } = {}) {
   if (!isSupabaseConfigured || !supabase) {
     return { error: new Error("Supabase가 설정되지 않았습니다.") };
   }
@@ -58,5 +64,9 @@ export async function unsubscribeRestock(productId) {
   const { error } = await supabase.rpc("unsubscribe_restock", {
     p_product_id: Number(productId),
   });
+  // GA4 restock_unsubscribe — RPC 성공 시에만
+  if (!error) {
+    trackRestockSubscribe(productId, false, { uiSurface: uiSurface || "wishlist_card" });
+  }
   return { error };
 }

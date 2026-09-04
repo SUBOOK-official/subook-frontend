@@ -9,6 +9,10 @@
 // key는 publicFeaturedProducts.js의 레지스트리 key와 같다. 여기 DETAIL_IMAGE_HEIGHTS에
 // 없는 key는 전용 상세페이지가 없는 상품이라 일반 포맷으로 폴백된다.
 
+import { useEffect, useRef } from "react";
+import { trackEvent, trackException } from "../lib/analytics";
+import { useInViewOnce } from "../lib/useInViewOnce";
+
 // assets/product-detail/<key>/01.webp ... 09.webp
 const detailImageModules = import.meta.glob("../assets/product-detail/*/*.webp", {
   eager: true,
@@ -50,27 +54,95 @@ export function hasFeaturedProductDetail(key) {
   return Boolean(key) && (DETAIL_IMAGES[key]?.length ?? 0) > 0;
 }
 
-function FeaturedProductDetail({ detailKey, title }) {
+// 상세 이미지 열람 깊이 마일스톤(%) — 슬라이스가 화면에 들어온 순간의 누적 비율로 판정.
+const SCROLL_DEPTH_MILESTONES = [25, 50, 75, 100];
+
+function FeaturedProductDetail({ detailKey, title, productId }) {
   const images = DETAIL_IMAGES[detailKey] ?? [];
+  const containerRef = useRef(null);
+  const firedDepthsRef = useRef(new Set());
+  const sliceCount = images.length;
+
+  // GA4 featured_detail_view — 콜라보 상세 이미지가 실제로 화면에 들어온 순간 1회
+  useInViewOnce(
+    containerRef,
+    () => {
+      trackEvent("featured_detail_view", {
+        detailKey,
+        sliceCount,
+        ...(productId != null ? { itemId: String(productId) } : {}),
+      });
+    },
+    { enabled: sliceCount > 0, resetKey: detailKey },
+  );
+
+  // GA4 featured_detail_scroll — 슬라이스 노출을 열람 깊이(25/50/75/100%)로 환산해 각 1회
+  useEffect(() => {
+    firedDepthsRef.current = new Set();
+  }, [detailKey]);
+
+  useEffect(() => {
+    if (sliceCount === 0) return undefined;
+    const container = containerRef.current;
+    if (!container || typeof IntersectionObserver === "undefined") return undefined;
+    const slices = Array.from(
+      container.querySelectorAll(".public-detail-featured__slice"),
+    );
+    if (slices.length === 0) return undefined;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          const index = Number(entry.target.dataset.sliceIndex);
+          if (!Number.isFinite(index)) continue;
+          const depthPct = ((index + 1) / sliceCount) * 100;
+          for (const milestone of SCROLL_DEPTH_MILESTONES) {
+            if (milestone > depthPct) continue;
+            if (firedDepthsRef.current.has(milestone)) continue;
+            firedDepthsRef.current.add(milestone);
+            trackEvent("featured_detail_scroll", {
+              detailKey,
+              sliceIndex: index,
+              depthPct: milestone,
+              ...(productId != null ? { itemId: String(productId) } : {}),
+            });
+          }
+        }
+      },
+      { threshold: 0.25 },
+    );
+    slices.forEach((slice) => observer.observe(slice));
+    return () => observer.disconnect();
+  }, [detailKey, productId, sliceCount]);
 
   if (images.length === 0) {
     return null;
   }
 
   return (
-    <div className="public-detail-featured">
+    <div className="public-detail-featured" ref={containerRef}>
       {/* 본문이 전부 이미지라 텍스트 대안이 없다. 최소한 섹션 제목은 읽히도록 둔다. */}
       <h3 className="public-visually-hidden">{title ? `${title} 상세 정보` : "상세 정보"}</h3>
       {images.map((image, index) => (
         <img
           alt=""
           className="public-detail-featured__slice"
+          data-slice-index={index}
           decoding="async"
           draggable={false}
           height={image.height ?? undefined}
           key={image.src}
           // 첫 두 장은 접히는 화면 근처라 바로 받고, 나머지는 스크롤할 때 받는다.
           loading={index < 2 ? "eager" : "lazy"}
+          // GA4 exception — 상세 이미지가 통째로 안 뜨는 사고(본문 전체가 이미지라 치명적)
+          onError={() => {
+            trackException("featured_detail_image_failed", {
+              detailKey,
+              sliceIndex: index,
+              ...(productId != null ? { itemId: String(productId) } : {}),
+            });
+          }}
           src={image.src}
           width={image.width}
         />

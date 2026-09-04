@@ -5,7 +5,7 @@ import ContentContainer from "../components/ContentContainer";
 import PublicFooter from "../components/PublicFooter";
 import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
-import { trackFaqOpen } from "../lib/analytics";
+import { trackEvent, trackException, trackFaqOpen } from "../lib/analytics";
 import { usePageMeta } from "../lib/usePageMeta";
 import { ChevronRightIcon, ChevronUpIcon } from "../components/icons";
 import { looksLikeRichHtml, sanitizeRichHtml } from "@shared-domain/richText";
@@ -206,6 +206,11 @@ function PublicFaqPage() {
       const { data, error } = await supabase.rpc("list_public_faqs");
       if (cancelled) return;
       if (error || !Array.isArray(data) || data.length === 0) {
+        // GA4 exception — DB FAQ 실패/공백은 정적 fallback으로 조용히 가려진다(운영자만 모름)
+        trackException("faq_fetch_failed", {
+          errorReason: error ? "rpc_error" : "empty",
+          errorMessage: error?.message,
+        });
         setDbFaqs([]); // fallback to FAQ_ITEMS
       } else {
         setDbFaqs(data.map(normalizeDbFaq));
@@ -231,10 +236,19 @@ function PublicFaqPage() {
   };
 
   const handleExpandAll = () => {
+    // GA4 — 개별 faq_open 대신 일괄 펼침을 쓰는 비중(질문 탐색 방식)
+    trackEvent("faq_bulk_toggle", {
+      uiAction: "expand_all",
+      itemCount: effectiveItems.length,
+    });
     setOpenIds(new Set(effectiveItems.map((item) => item.id)));
   };
 
   const handleCollapseAll = () => {
+    trackEvent("faq_bulk_toggle", {
+      uiAction: "collapse_all",
+      itemCount: openIds.size,
+    });
     setOpenIds(new Set());
   };
 
@@ -286,7 +300,13 @@ function PublicFaqPage() {
                   onClick={() => {
                     // GA4 faq_open — 접힘 → 펼침 전환만 (어떤 질문이 많이 읽히는지)
                     if (!isOpen) {
-                      trackFaqOpen({ faqId: item.id, question: item.question, category: item.category });
+                      trackFaqOpen({
+                        faqId: item.id,
+                        question: item.question,
+                        category: item.category,
+                        // db(어드민 관리) vs fallback(하드코딩) — 어느 쪽이 읽히는지
+                        faqSource: dbFaqs && dbFaqs.length > 0 ? "db" : "fallback",
+                      });
                     }
                     handleToggle(item.id);
                   }}

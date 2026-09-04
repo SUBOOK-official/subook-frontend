@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildOAuthCallbackErrorNotice,
+  classifyOAuthCallbackError,
   parseOAuthCallbackError,
 } from "./publicOAuthCallbackError.js";
 
@@ -82,4 +83,48 @@ test("buildOAuthCallbackErrorNotice falls back to generic notice", () => {
   assert.match(bare, /소셜 로그인에 실패했어요/);
 
   assert.equal(buildOAuthCallbackErrorNotice(null), "");
+});
+
+test("classifyOAuthCallbackError mirrors the notice branches", () => {
+  assert.equal(
+    classifyOAuthCallbackError({
+      error: "server_error",
+      errorCode: "email_exists",
+      errorDescription: "",
+    }),
+    "already_registered",
+  );
+  assert.equal(
+    classifyOAuthCallbackError({
+      error: "server_error",
+      errorCode: "",
+      errorDescription: "A user with this email address has already been registered",
+    }),
+    "already_registered",
+  );
+  assert.equal(
+    classifyOAuthCallbackError({
+      error: "server_error",
+      errorCode: "",
+      errorDescription: "Error getting user email from external provider",
+    }),
+    "email_not_provided",
+  );
+  assert.equal(
+    classifyOAuthCallbackError({
+      error: "access_denied",
+      errorCode: "",
+      errorDescription: "",
+    }),
+    "user_cancelled",
+  );
+  assert.equal(
+    classifyOAuthCallbackError({
+      error: "server_error",
+      errorCode: "",
+      errorDescription: "Unexpected failure",
+    }),
+    "other",
+  );
+  assert.equal(classifyOAuthCallbackError(null), "");
 });

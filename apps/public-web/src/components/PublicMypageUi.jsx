@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { useFocusTrap } from "@shared-domain/useFocusTrap";
 import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
+import { trackDialogClose, trackDialogOpen, trackEvent } from "../lib/analytics";
 
 function MypageEmptyState({ actionLabel, actionOnClick, actionTo, icon, title }) {
   return (
@@ -57,13 +58,55 @@ function MypageSummaryCard({ description, onClick, title, value }) {
   );
 }
 
-function ResponsiveSheet({ actions, children, eyebrow, onClose, open, title }) {
+// analyticsName을 주면 열림/닫힘을 GA4 dialog_open/dialog_close로 기록한다(주지 않으면 무계측).
+// analyticsExtra는 열림 시점, analyticsCloseExtra는 닫힘 시점 파라미터 — 닫힘 값은 시점에
+// 따라 달라질 수 있으므로 함수도 허용한다(() => ({ had_rating, content_length … })).
+function ResponsiveSheet({
+  actions,
+  analyticsCloseExtra,
+  analyticsExtra,
+  analyticsName,
+  children,
+  eyebrow,
+  onClose,
+  open,
+  title,
+}) {
   const [offsetY, setOffsetY] = useState(0);
   const startYRef = useRef(null);
   const dialogRef = useRef(null);
+  const openTrackedRef = useRef(false);
+  const closeHandlerRef = useRef(null);
 
   useFocusTrap(dialogRef, open);
   useBodyScrollLock(open);
+
+  const resolveCloseExtra = () =>
+    typeof analyticsCloseExtra === "function" ? analyticsCloseExtra() : analyticsCloseExtra;
+
+  // GA4 닫기 — close_method(backdrop/close_button/escape/swipe)를 구분해 기록한 뒤 닫는다.
+  const closeWithTracking = (closeMethod) => {
+    if (analyticsName) {
+      trackDialogClose(analyticsName, closeMethod, resolveCloseExtra());
+    }
+    onClose?.();
+  };
+  closeHandlerRef.current = closeWithTracking;
+
+  // GA4 다이얼로그 노출 — 한 번의 열림당 1회.
+  useEffect(() => {
+    if (!open) {
+      openTrackedRef.current = false;
+      return;
+    }
+    if (!analyticsName || openTrackedRef.current) {
+      return;
+    }
+    openTrackedRef.current = true;
+    trackDialogOpen(analyticsName, analyticsExtra);
+    // analyticsExtra는 열림 시점 값만 쓰면 되므로 의존성에서 제외한다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [analyticsName, open]);
 
   useEffect(() => {
     if (!open) {
@@ -72,7 +115,7 @@ function ResponsiveSheet({ actions, children, eyebrow, onClose, open, title }) {
 
     const handleKeyDown = (event) => {
       if (event.key === "Escape") {
-        onClose();
+        closeHandlerRef.current?.("escape");
       }
     };
 
@@ -83,7 +126,7 @@ function ResponsiveSheet({ actions, children, eyebrow, onClose, open, title }) {
       setOffsetY(0);
       startYRef.current = null;
     };
-  }, [onClose, open]);
+  }, [open]);
 
   if (!open) {
     return null;
@@ -116,7 +159,7 @@ function ResponsiveSheet({ actions, children, eyebrow, onClose, open, title }) {
     }
 
     if (offsetY > 120) {
-      onClose();
+      closeWithTracking("swipe");
       return;
     }
 
@@ -125,7 +168,7 @@ function ResponsiveSheet({ actions, children, eyebrow, onClose, open, title }) {
   };
 
   return createPortal(
-    <div className="public-sheet-backdrop" onClick={onClose}>
+    <div className="public-sheet-backdrop" onClick={() => closeWithTracking("backdrop")}>
       <section
         aria-modal="true"
         className="public-sheet public-mypage-sheet"
@@ -149,7 +192,12 @@ function ResponsiveSheet({ actions, children, eyebrow, onClose, open, title }) {
             {eyebrow ? <p className="public-sheet__eyebrow">{eyebrow}</p> : null}
             <h2 className="public-sheet__title">{title}</h2>
           </div>
-          <button aria-label="닫기" className="public-sheet__close" onClick={onClose} type="button">
+          <button
+            aria-label="닫기"
+            className="public-sheet__close"
+            onClick={() => closeWithTracking("close_button")}
+            type="button"
+          >
             ×
           </button>
         </div>
@@ -182,6 +230,9 @@ const DEFAULT_CHANGE_OF_MIND_HINT =
   "단순 변심은 전자상거래법상 왕복 배송비를 구매자가 부담합니다.";
 
 function ConfirmDialog({
+  analyticsCloseExtra,
+  analyticsExtra,
+  analyticsName,
   body,
   confirmLabel,
   confirmTone = "danger",
@@ -214,6 +265,28 @@ function ConfirmDialog({
   const isConfirmDisabled = busy || isReasonTooShort || isCategoryMissing;
   const isChangeOfMind = reasonCategoryValue === "change_of_mind";
 
+  // GA4 — 시트 자체의 닫기(배경·×·Escape·스와이프)는 ResponsiveSheet가 기록하고,
+  // 푸터의 '취소' 버튼만 여기서 cancel_button으로 남긴다(이중 발화 없음).
+  const handleCancelButton = () => {
+    if (analyticsName) {
+      trackDialogClose(
+        analyticsName,
+        "cancel_button",
+        typeof analyticsCloseExtra === "function" ? analyticsCloseExtra() : analyticsCloseExtra,
+      );
+    }
+    onClose?.();
+  };
+
+  const handleReasonCategoryChange = (value) => {
+    onReasonCategoryChange(value);
+    // GA4 사유 분류 선택 — 취소·환불 사유 분포 관찰용(자유 입력 본문은 보내지 않는다).
+    trackEvent("confirm_reason_select", {
+      dialogName: analyticsName || "unknown",
+      reasonCategory: value,
+    });
+  };
+
   return (
     <ResponsiveSheet
       actions={
@@ -221,7 +294,7 @@ function ConfirmDialog({
           <button
             className="public-auth-button public-auth-button--secondary"
             disabled={busy}
-            onClick={onClose}
+            onClick={handleCancelButton}
             type="button"
           >
             취소
@@ -236,6 +309,9 @@ function ConfirmDialog({
           </button>
         </>
       }
+      analyticsCloseExtra={analyticsCloseExtra}
+      analyticsExtra={analyticsExtra}
+      analyticsName={analyticsName}
       eyebrow="확인"
       onClose={onClose}
       open={open}
@@ -254,7 +330,7 @@ function ConfirmDialog({
                       checked={reasonCategoryValue === opt.value}
                       disabled={busy}
                       name="public-mypage-reason-category"
-                      onChange={() => onReasonCategoryChange(opt.value)}
+                      onChange={() => handleReasonCategoryChange(opt.value)}
                       type="radio"
                       value={opt.value}
                     />

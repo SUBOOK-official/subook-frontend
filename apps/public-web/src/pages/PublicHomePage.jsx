@@ -12,7 +12,7 @@ import FortuneCookie from "../components/FortuneCookie";
 import PublicPopupBanner from "../components/PublicPopupBanner";
 import usePublicMemberGate from "../lib/publicMemberGate";
 import { usePublicWishlist } from "../contexts/PublicWishlistContext";
-import { trackPickupCtaClick } from "../lib/analytics";
+import { trackEvent, trackPickupCtaClick } from "../lib/analytics";
 import { usePageMeta } from "../lib/usePageMeta";
 
 const PICKUP_REQUEST_PATH = "/pickup/new";
@@ -80,6 +80,7 @@ function PublicHomePage() {
   // 배너(대치동 현강/교재 보러가기) 클릭 시 스크롤 도착 지점 — 배너 바로 아래 상품 구역.
   const productsRef = useRef(null);
 
+  // GA4 cart_open은 헤더(handleCartClick)가 단일 지점에서 발화한다 — 여기서 중복 발화 금지.
   const handleGoToCart = () => {
     if (!requireMember("cart", "/cart")) {
       return;
@@ -108,6 +109,8 @@ function PublicHomePage() {
       // 같은 홈 화면이므로 URL 이동 없이 배너 바로 아래 상품 구역으로 부드럽게 스크롤.
       // (기존 navigate('/?q=', scrollToStorefront) 방식은 홈에서 클릭 시 스크롤이 안 걸리는
       //  케이스가 있어, 같은 페이지 앵커로 직접 스크롤한다. 모바일/데스크탑 공통 동작.)
+      // GA4 — 배너발 "교재 보러가기"는 페이지 이동이 없어 select_promotion 외 도달을 따로 남긴다.
+      trackEvent("home_scroll_to_products", { promotionId: slide.id });
       productsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
@@ -132,7 +135,8 @@ function PublicHomePage() {
       return;
     }
 
-    await toggleFavorite(productId);
+    // 찜 계측(add_to_wishlist)은 PublicWishlistContext가 단일 지점에서 발화 — 표면만 알려준다.
+    await toggleFavorite(productId, { uiSurface: "home_card" });
   };
 
   const pageContent = (
