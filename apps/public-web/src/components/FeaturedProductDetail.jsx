@@ -24,8 +24,8 @@ const detailImageModules = import.meta.glob("../assets/product-detail/*/*.webp",
 // ⚠ 이미지를 다시 내보내면 이 높이 배열도 함께 갱신할 것.
 const DETAIL_IMAGE_WIDTH = 1201;
 const DETAIL_IMAGE_HEIGHTS = {
-  "j1-full": [934, 767, 1394, 1879, 1258, 1257, 1418, 1778, 1250],
-  "j1-mini": [934, 767, 1394, 2216, 1151, 1419, 1417, 1797, 1250],
+  "j1-full": [1400, 1400, 1400, 1400, 1400, 1400, 1400, 1400, 739],
+  "j1-mini": [1400, 1400, 1400, 1400, 1400, 1400, 1400, 1400, 1149],
 };
 
 function buildDetailImages(key) {

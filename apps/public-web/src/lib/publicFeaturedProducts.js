@@ -33,11 +33,12 @@ export const COLLAB_OPEN_AT = "2026-09-03T18:00:00+09:00";
 export const COLLAB_OPEN_LABEL = "9월 3일 18시";
 
 export const FEATURED_PRODUCTS = [
+  // 홈 '신규 입고' 노출 순서 = 이 배열 순서(pinFeaturedProductsFirst). 요청: 미니30 → FULL → 미니10.
   {
-    key: "j1-full",
-    title: "[수능 직전 최종점검] 2027 J1 원트 FULL 모의고사 국어(7회분)",
+    key: "j1-mini",
+    title: "[수능 직전 일일점검] 2027 J1 원트 미니모의고사 국어(30일분)",
     // 실제 products.id — 지정돼 있으면 제목 매칭보다 우선한다(상품명을 바꿔도 안전).
-    productId: 2370,
+    productId: 2371,
     // 홈 '신규 입고' 캐러셀 최상단 고정 대상
     pinToLatest: true,
     // 출시 전 — 가격을 감추고 주문(장바구니·구매)을 막는다. 오픈일에 false로 바꾸면
@@ -48,19 +49,19 @@ export const FEATURED_PRODUCTS = [
     hideStockCount: true,
     releaseAt: COLLAB_OPEN_AT,
     eventPath: JEONIL_EVENT_PATH,
-    preReleaseCoverUrl: `${TEASER_COVER_BASE}/1787900000000-teaser-j1-full-v2.png`,
+    preReleaseCoverUrl: `${TEASER_COVER_BASE}/1787900000000-teaser-j1-mini-v2.png`,
   },
   {
-    key: "j1-mini",
-    title: "[수능 직전 일일점검] 2027 J1 원트 미니모의고사 국어(30일분)",
-    productId: 2371,
+    key: "j1-full",
+    title: "[수능 직전 최종점검] 2027 J1 원트 FULL 모의고사 국어(7회분)",
+    productId: 2370,
     pinToLatest: true,
     preRelease: true,
     // 남은 수량("N개 남음") 숨김 — 콜라보 재고(옵션당 100권)는 운영상 숫자라 시급성 신호가 아니다.
     hideStockCount: true,
     releaseAt: COLLAB_OPEN_AT,
     eventPath: JEONIL_EVENT_PATH,
-    preReleaseCoverUrl: `${TEASER_COVER_BASE}/1787900000000-teaser-j1-mini-v2.png`,
+    preReleaseCoverUrl: `${TEASER_COVER_BASE}/1787900000000-teaser-j1-full-v2.png`,
   },
   {
     // 미니모의고사 10회분 SET A/B/C — 2026-09-03 에 30일분에서 분리한 상품.

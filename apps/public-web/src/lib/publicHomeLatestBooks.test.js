@@ -66,10 +66,10 @@ test("normalizeHomeLatestBooks pins the collab products ahead of newer arrivals"
     { id: fullId, createdAt: "2026-08-01T09:00:00+09:00" },
   ]);
 
-  // 레지스트리 순서(FULL → 미니)를 따르고, 입고일이 더 최신인 상품보다 앞에 온다.
+  // 레지스트리 순서(미니 → FULL)를 따르고, 입고일이 더 최신인 상품보다 앞에 온다.
   assert.deepEqual(normalized.map((product) => product.id), [
-    fullId,
     miniId,
+    fullId,
     "new-1",
     "new-2",
   ]);
