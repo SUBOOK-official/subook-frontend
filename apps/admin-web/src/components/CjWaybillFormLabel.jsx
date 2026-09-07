@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import JsBarcode from "jsbarcode";
 import { maskName, maskPhone } from "../lib/waybillMask";
+import { uniqueDeliveryLabels } from "../../api/_lib/deliveryGroups.js";
 
 // CJ 지급 양식(사전인쇄 라벨, 120×96mm) 전용 — **데이터만** 절대좌표(mm)로 인쇄하는 레이어.
 // 테두리·로고·필드라벨(운송장번호/받는분/수량 등)은 양식에 이미 인쇄돼 있으므로 그리지 않는다.
@@ -113,7 +114,7 @@ function formatWaybill(no) {
 //   시트 박스 363×454px(=96×120mm), 단건은 텍스트 배치행렬 86개가 변경 전과 완전 동일.
 // 인쇄 CSS는 label-preview 하네스에서 실물 검증된 것과 동일 (@page 96×120·회전·데이터만).
 export function CjWaybillFormPrintModal({ open, data, items, onClose }) {
-  const sheets = Array.isArray(items) && items.length > 0 ? items : data ? [data] : [];
+  const sheets = uniqueDeliveryLabels(Array.isArray(items) && items.length > 0 ? items : data ? [data] : []);
   if (!open || sheets.length === 0) return null;
   const offsetX = Number(import.meta.env.VITE_CJ_PRINT_OFFSET_X ?? 2.6); // PS70 실측 캘리브레이션
   const offsetY = Number(import.meta.env.VITE_CJ_PRINT_OFFSET_Y ?? 0.4);
@@ -357,6 +358,11 @@ export default function CjWaybillFormLabel({
         {/* ── 배송메시지 (양식 여백부) ── */}
         {order.shipping_memo ? (
           <T x={3} y={54} w={105} size={2.71}>{order.shipping_memo}</T>
+        ) : null}
+        {order.order_numbers?.length > 1 ? (
+          <T x={3} y={59} w={105} size={2.37}>
+            합배송 {order.order_numbers.length}건 · {order.order_numbers.join(" / ")}
+          </T>
         ) : null}
 
         {/* ── 하단 ── */}

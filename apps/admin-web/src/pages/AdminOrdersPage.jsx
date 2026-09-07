@@ -18,6 +18,7 @@ import { CjWaybillFormPrintModal } from "../components/CjWaybillFormLabel";
 import { AlertTriangleIcon, CheckIcon } from "../components/icons";
 import { downloadSalesSheetXlsx } from "../lib/salesSheetExport";
 import { BusyText, InlineLoading, LoadingOverlay } from "../components/Loading";
+import { uniqueDeliveryLabels } from "../../api/_lib/deliveryGroups.js";
 
 const PAGE_SIZE = 30;
 
@@ -312,6 +313,10 @@ function AdminOrdersPage() {
   const [labelData, setLabelData] = useState(null);
   // CJ 송장 일괄 출력 — 선택 주문을 묶어 발급하고 한 번의 인쇄 작업으로 N장 출력
   const [bulkCjConfirmOpen, setBulkCjConfirmOpen] = useState(false);
+  const [deliveryPlan, setDeliveryPlan] = useState([]);
+  const [deliveryPlanLoading, setDeliveryPlanLoading] = useState(false);
+  const [deliveryPlanError, setDeliveryPlanError] = useState("");
+  const deliveryPlanCount = deliveryPlan.reduce((sum, group) => sum + group.orderIds.length, 0);
   const [bulkCjProgress, setBulkCjProgress] = useState(null); // { done, total }
   const [bulkCjResult, setBulkCjResult] = useState(null); // 실패가 섞였을 때만 결과 요약 모달
   const [labelBatch, setLabelBatch] = useState(null); // 다건 라벨 배열
@@ -617,32 +622,38 @@ function AdminOrdersPage() {
     return null;
   };
 
-  // CJ 송장 출력: cj-delivery(채번+주소정제+예약접수) 호출 → 성공 시 배송중 전환 + 표준 라벨 모달.
-  const handleCjDelivery = async (orderId) => {
-    setBusyOrderId(orderId);
+  // 단건 버튼도 서버에서 전체 배송준비 주문을 검사해 합배송 미리보기를 연다.
+  const openDeliveryPlan = async (ids) => {
+    setDeliveryPlan([]);
+    setDeliveryPlanError("");
+    setDeliveryPlanLoading(true);
+    setBulkCjConfirmOpen(true);
     try {
-      const row = await requestCjDelivery(orderId, { reprint: false });
-      if (!row) return;
-
-      showToast(`운송장번호 ${row.trackingNumber} 발급 완료 — 배송중으로 전환되었습니다.`, "success");
-
-      // 배송 시작 알림톡 (백그라운드)
-      const order = orders.find((o) => o.id === orderId);
-      if (order) {
-        try {
-          await notifyShippingStarted({ order, trackingNumber: row.trackingNumber });
-        } catch {
-          console.warn("배송 알림톡 발송 실패 (송장 발급은 정상)");
-        }
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("인증이 만료되었습니다. 다시 로그인해 주세요.");
+      const groups = new Map();
+      for (let i = 0; i < ids.length; i += 30) {
+        const resp = await fetch("/api/admin/cj-delivery", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ orderIds: ids.slice(i, i + 30), preview: true }),
+          signal: AbortSignal.timeout(30_000),
+        });
+        const result = await resp.json().catch(() => ({}));
+        if (!resp.ok || !Array.isArray(result.groups)) throw new Error(result.error || "합배송 대상을 확인하지 못했습니다.");
+        if (result.excludedOrderIds?.length) throw new Error("선택한 주문의 상태가 변경되었거나 환불 신청 중입니다. 목록을 새로고침해 주세요.");
+        for (const group of result.groups) groups.set(group.orderIds.join(","), group);
       }
-
-      setLabelData(row); // 라벨 모달 오픈
-      setSelectedOrderId(null);
-      await loadOrders();
+      const plan = [...groups.values()];
+      if (plan.some((group) => group.orderIds.length > 30)) throw new Error("합배송 대상이 30개 주문을 넘었습니다. 포장 단위를 확인해 주세요.");
+      setDeliveryPlan(plan);
+    } catch (error) {
+      setDeliveryPlanError(error.message || "합배송 대상을 확인하지 못했습니다.");
     } finally {
-      setBusyOrderId(null);
+      setDeliveryPlanLoading(false);
     }
   };
+  const handleCjDelivery = (orderId) => openDeliveryPlan([orderId]);
 
   // 송장 재출력 — 이미 발급된 운송장(배송중/배송완료)의 라벨을 다시 연다.
   // 채번·예약접수는 하지 않고(중복 접수 방지) 기존 운송장번호 + 주소정제 재조회로 라벨만 렌더.
@@ -665,7 +676,7 @@ function AdminOrdersPage() {
 
   // 청크 1개 요청. 네트워크성 실패만 재시도 — 이미 채번된 주문은 서버가 skipped로 흘려보내므로
   // 재시도로 이중 접수되지 않는다.
-  const requestCjDeliveryChunk = async (accessToken, ids, reprint) => {
+  const requestCjDeliveryChunk = async (accessToken, ids, reprint, group = false, expectedRevision) => {
     const MAX = 4;
     const transientRe = /fetch failed|timeout|ECONN|EAI_AGAIN|socket|reset|network|Failed to fetch|Load failed/i;
     for (let attempt = 1; attempt <= MAX; attempt += 1) {
@@ -677,7 +688,7 @@ function AdminOrdersPage() {
             "Content-Type": "application/json",
             Authorization: `Bearer ${accessToken}`,
           },
-          body: JSON.stringify(reprint ? { orderIds: ids, reprint: true } : { orderIds: ids }),
+          body: JSON.stringify(reprint ? { orderIds: ids, reprint: true } : { orderIds: ids, group, expectedRevision }),
         });
         const result = await resp.json().catch(() => ({}));
         if (resp.ok && Array.isArray(result.results)) {
@@ -710,7 +721,7 @@ function AdminOrdersPage() {
   // 발급(reprint=false) / 재출력(reprint=true) 공용.
   // 재출력은 채번·예약접수·상태변경·알림톡이 전부 없어서 순수하게 라벨만 다시 뽑는다.
   const handleBulkCj = async ({ reprint }) => {
-    const targets = reprint ? selectedCjReprintTargets : selectedCjTargets;
+    const targets = reprint ? selectedCjReprintTargets : deliveryPlan.flatMap((group) => group.orders);
     if (targets.length === 0) return;
 
     const { data: { session } } = await supabase.auth.getSession();
@@ -724,10 +735,20 @@ function AdminOrdersPage() {
     setBulkCjProgress({ done: 0, total: targets.length });
 
     const ids = targets.map((o) => o.id);
-    const results = await runCjDeliveryInChunks(session.access_token, ids, {
-      reprint,
-      onProgress: (done) => setBulkCjProgress({ done, total: ids.length }),
-    });
+    const results = [];
+    if (reprint) {
+      results.push(...await runCjDeliveryInChunks(session.access_token, ids, {
+        reprint, onProgress: (done) => setBulkCjProgress({ done, total: ids.length }),
+      }));
+    } else {
+      let done = 0;
+      // 그룹을 청크로 쪼개지 않는다: 같은 박스는 반드시 한 요청/한 예약이다.
+      for (const group of deliveryPlan) {
+        results.push(...await requestCjDeliveryChunk(session.access_token, group.orderIds, false, true, group.revision));
+        done += group.orderIds.length;
+        setBulkCjProgress({ done, total: ids.length });
+      }
+    }
 
     // 이미 운송장이 있어 발급을 건너뛴 건(status: "skipped")은 라벨 라우팅 데이터가 없다.
     // 재출력 경로(채번·접수 없음)로 한 번 더 받아 라벨을 채운다. (재출력 모드는 애초에 불필요)
@@ -747,7 +768,7 @@ function AdminOrdersPage() {
 
     // 재출력은 주소정제가 실패해도(addr=null) 운송장번호·수취인 기준으로 라벨이 뜬다 —
     // 단건 '송장 재출력' 버튼과 같은 기준으로 맞춘다. 신규 발급은 분류코드가 필수라 addr 요구.
-    const labels = results.filter((r) => r.success && r.order && (reprint || r.addr));
+    const labels = uniqueDeliveryLabels(results.filter((r) => r.success && r.order && (reprint || r.addr)));
     const describe = (r) => ({
       orderId: r.orderId,
       orderNumber:
@@ -770,12 +791,12 @@ function AdminOrdersPage() {
     if (!reprint) {
       // 배송 시작 알림톡 — 이번 호출로 운송장이 확정된 건.
       // skipped(응답 유실 후 재시도로 기존 채번을 되받은 경우)도 포함해야 알림이 누락되지 않는다.
-      const notifiable = results.filter(
+      const notifiable = uniqueDeliveryLabels(results.filter(
         (r) => r.success && r.trackingNumber && (r.status === "registered" || r.status === "skipped"),
-      );
+      ));
       await Promise.allSettled(
         notifiable.map((r) => {
-          const order = targets.find((o) => o.id === r.orderId);
+          const order = r.order ?? targets.find((o) => o.id === r.orderId);
           return order
             ? notifyShippingStarted({ order, trackingNumber: r.trackingNumber })
             : Promise.resolve();
@@ -2135,7 +2156,7 @@ function AdminOrdersPage() {
             <button
               className="text-xs font-semibold text-white bg-slate-900 hover:bg-slate-700 rounded-md px-3 py-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
               disabled={bulkProcessing}
-              onClick={() => setBulkCjConfirmOpen(true)}
+              onClick={() => openDeliveryPlan(selectedCjTargets.map((order) => order.id))}
               type="button"
             >
               {bulkCjProgress
@@ -2506,57 +2527,70 @@ function AdminOrdersPage() {
         </div>
       </AdminDialog>
 
-      {/* CJ 송장 일괄 출력 확인 모달 — 발급은 되돌릴 수 없으므로 대상·부작용을 한 번 보여준다 */}
+      {/* 서버에서 확정한 박스별 합배송 대상 — 필터 밖 주문도 표시 */}
       <AdminDialog
-        busy={bulkProcessing}
+        busy={bulkProcessing || deliveryPlanLoading}
         onClose={() => setBulkCjConfirmOpen(false)}
         open={bulkCjConfirmOpen}
         size="md"
-        title={`CJ 송장 일괄 출력 — ${selectedCjTargets.length}건`}
+        title="CJ 송장 출력 · 자동 합배송"
       >
         <div className="p-6 space-y-4">
-          <p className="text-sm text-slate-700">
-            선택한 <strong>{selectedCjTargets.length}건</strong>의 운송장을 한 번에 발급하고,
-            인쇄 창에서 <strong>{selectedCjTargets.length}장</strong>을 한 번의 인쇄 작업으로 출력합니다.
-          </p>
-          <div className="max-h-56 overflow-y-auto rounded-lg border border-slate-100 divide-y divide-slate-50">
-            {selectedCjTargets.map((order, index) => {
-              const locs = [
-                ...new Set((order.items ?? []).map((i) => i.book_location).filter(Boolean)),
-              ];
-              return (
-                <div className="flex items-center gap-2 px-3 py-2 text-sm" key={order.id}>
-                  <span className="w-5 shrink-0 text-xs font-bold text-slate-400">{index + 1}</span>
-                  <span className="font-mono text-xs font-bold">{order.order_number}</span>
-                  <span className="truncate text-xs text-slate-500">
-                    {order.shipping_recipient_name}
-                  </span>
-                  <span className="ml-auto shrink-0 font-mono text-[11px] font-bold text-indigo-600">
-                    {locs.length > 0 ? `위치 ${locs.join(" · ")}` : ""}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-          <p className="text-xs text-amber-700">
-            발급 즉시 각 주문이 &lsquo;배송중&rsquo;으로 전환되고 구매자에게 배송 시작 알림톡이 발송됩니다.
-            라벨은 위 순서(목록과 동일)대로 출력됩니다.
-          </p>
+          {deliveryPlanLoading ? <InlineLoading label="동일 구매자·배송지 주문 확인 중..." /> : null}
+          {deliveryPlanError ? <p className="text-sm text-red-600" role="alert">{deliveryPlanError}</p> : null}
+          {!deliveryPlanLoading && !deliveryPlanError ? (
+            <>
+              <p className="text-sm text-slate-700">
+                주문 <strong>{deliveryPlanCount}건</strong>을 <strong>{deliveryPlan.length}박스</strong>로 묶어
+                운송장 <strong>{deliveryPlan.length}장</strong>을 출력합니다.
+              </p>
+              <p className="text-xs text-slate-500">
+                동일 구매자·수취인·연락처·상세주소의 배송준비 주문을 자동으로 포함했습니다.
+                아래 교재를 박스별로 함께 포장해 주세요.
+              </p>
+              <div className="max-h-80 overflow-y-auto rounded-lg border border-slate-100 divide-y divide-slate-100">
+                {deliveryPlan.map((group, index) => (
+                  <div className="px-3 py-3 space-y-2 text-sm" key={group.orderIds.join(",")}>
+                    <div className="flex items-center justify-between gap-2 font-bold">
+                      <span>박스 {index + 1} · {group.order.shipping_recipient_name}</span>
+                      <span className="text-indigo-600">
+                        {group.orderIds.length > 1 ? `합배송 ${group.orderIds.length}건 · ` : ""}{group.order.item_count}권
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-600">
+                      {group.order.shipping_address_line1} {group.order.shipping_address_line2}
+                    </p>
+                    {group.orders.map((order) => {
+                      const items = (order.order_items ?? []).filter((item) => !item.refunded_at);
+                      return (
+                        <div key={order.id} className="text-xs space-y-1">
+                          <p className="font-mono font-bold">{order.order_number}</p>
+                          {items.map((item) => (
+                            <p key={item.id} className="text-slate-600">
+                              {item.title} · {item.quantity}권
+                              {item.books?.location ? ` · 위치 ${item.books.location}` : ""}
+                            </p>
+                          ))}
+                        </div>
+                      );
+                    })}
+                    {group.order.shipping_memo ? <p className="text-xs text-amber-700">배송메모: {group.order.shipping_memo}</p> : null}
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-amber-700">
+                발급하면 묶인 모든 주문에 같은 운송장번호가 기록되고 배송중으로 전환됩니다.
+                배송 시작 알림은 박스당 한 번 발송됩니다.
+              </p>
+            </>
+          ) : null}
           <div className="flex gap-2">
-            <button
-              className="btn-ghost flex-1"
-              onClick={() => setBulkCjConfirmOpen(false)}
-              type="button"
-            >
-              취소
-            </button>
-            <button
-              className="btn-primary flex-1"
-              disabled={bulkProcessing || selectedCjTargets.length === 0}
-              onClick={() => handleBulkCj({ reprint: false })}
-              type="button"
-            >
-              {bulkProcessing ? <BusyText>발급 중...</BusyText> : `${selectedCjTargets.length}건 발급하고 인쇄`}
+            <button className="btn-ghost flex-1" onClick={() => setBulkCjConfirmOpen(false)} type="button"
+              disabled={deliveryPlanLoading || bulkProcessing}>취소</button>
+            <button className="btn-primary flex-1"
+              disabled={bulkProcessing || deliveryPlanLoading || Boolean(deliveryPlanError) || !deliveryPlan.length}
+              onClick={() => handleBulkCj({ reprint: false })} type="button">
+              {bulkProcessing ? <BusyText>발급 중...</BusyText> : `송장 ${deliveryPlan.length}장 발급하고 인쇄`}
             </button>
           </div>
         </div>
