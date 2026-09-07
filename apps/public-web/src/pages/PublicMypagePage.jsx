@@ -1172,7 +1172,7 @@ function PublicMypagePage() {
             : undefined,
       },
       title: "구매를 확정하시겠습니까?",
-      body: "확정 후에는 반품이 불가합니다.",
+      body: "상품을 확인하셨나요? 구매확정하면 판매자 정산 절차가 시작됩니다. 문제가 있다면 먼저 환불을 신청해주세요. 확정 후에도 하자·오배송은 고객센터로 문의할 수 있습니다.",
       confirmLabel: "확정하기",
       confirmTone: "primary",
     });
@@ -3538,8 +3538,11 @@ function PurchasesView({
                     {order.canConfirm && order.autoConfirmDaysRemaining != null ? (
                       <p className="public-mypage-purchase-card__auto-confirm">
                         {order.autoConfirmDaysRemaining <= 0
-                          ? "곧 자동으로 구매 확정 · 확정 후에는 반품할 수 없어요"
-                          : `${order.autoConfirmDaysRemaining}일 뒤 자동으로 구매 확정 · 확정 후에는 반품할 수 없어요`}
+                          ? "곧 자동으로 구매 확정돼요."
+                          : `${order.autoConfirmDaysRemaining}일 뒤 자동으로 구매 확정돼요.`}
+                        <br />
+                        상품에 문제가 있다면 먼저 환불을 신청해주세요. 확정 후에도 하자·오배송은
+                        고객센터로 문의할 수 있어요.
                       </p>
                     ) : null}
                   </article>

@@ -744,7 +744,21 @@ function DetailShippingContent() {
           <strong>포장을 개봉해 사용 흔적이 생겼거나 필기·표시가 추가된 경우</strong>에는 단순
           변심에 의한 교환·반품이 제한될 수 있습니다.
         </li>
-        <li>교환·반품 신청은 마이페이지 &gt; 구매내역에서 해주세요.</li>
+        <li>
+          회원은{" "}
+          <Link className="underline underline-offset-2" to="/mypage#purchases">
+            마이페이지 &gt; 구매내역
+          </Link>
+          에서 환불을 신청해주세요.
+        </li>
+        <li>
+          비회원은{" "}
+          <Link className="underline underline-offset-2" to="/order/lookup">
+            비회원 주문 조회
+          </Link>
+          에서 주문을 확인한 뒤, 조회 화면의 카카오톡 1:1문의로 주문번호와 함께 교환·반품·환불을
+          문의해주세요.
+        </li>
       </ul>
     </>
   );

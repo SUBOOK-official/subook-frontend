@@ -1684,7 +1684,7 @@
   }
 }
 
-/* 배송완료 후 D+7 자동 구매확정 안내 (확정 후 반품 불가 고지) */
+/* 배송완료 후 D+7 자동 구매확정 일정과 상품 문제 접수 안내 */
 .public-mypage-purchase-card__auto-confirm {
   margin-top: 8px;
   font-size: 13px;

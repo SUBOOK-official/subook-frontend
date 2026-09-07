@@ -321,7 +321,7 @@ function PublicGuestOrderLookupPage() {
               </div>
 
               <p className="guest-lookup-help">
-                주문 취소·변경이 필요하면{" "}
+                주문 취소·변경이나 교환·반품·환불이 필요하면{" "}
                 {/* GA4 contact_click — 어떤 주문 상태에서 문의로 새는지 */}
                 <a
                   href={KAKAO_CHANNEL_URL}
