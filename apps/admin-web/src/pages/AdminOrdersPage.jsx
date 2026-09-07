@@ -160,6 +160,38 @@ const PAYMENT_METHOD_LABEL = {
   naver_pay: "네이버페이",
 };
 
+// 환불 신청/처리 상태와 관계없이 무통장 주문의 송금 계좌를 확인할 수 있어야 한다.
+function OrderRefundAccount({ order }) {
+  if (order.payment_method !== "bank_transfer") {
+    return null;
+  }
+
+  const hasAccount = order.refund_bank_name || order.refund_account_number || order.refund_account_holder;
+  const isComplete = order.refund_bank_name && order.refund_account_number && order.refund_account_holder;
+
+  return (
+    <div>
+      <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">환불 계좌</h4>
+      <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm space-y-1">
+        {hasAccount && (
+          <>
+            <p className="break-all font-semibold text-slate-800">
+              {order.refund_bank_name || "은행 미입력"}{" "}
+              {order.refund_account_number || "계좌번호 미입력"}
+            </p>
+            <p className="text-slate-600">예금주: {order.refund_account_holder || "미입력"}</p>
+          </>
+        )}
+        {!isComplete && (
+          <p className="text-xs text-rose-600">
+            환불 계좌 정보 미입력 — 구매자에게 입금자 본인 명의 계좌를 확인해 주세요.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // 택배사별 송장번호 패턴 검증.
 // CJ대한통운: 10~12자리 숫자 (12자리가 신규 표준이지만 10자리 구건도 호환)
 // 한진택배: 10~12자리 숫자
@@ -1607,6 +1639,8 @@ function AdminOrdersPage() {
         </div>
       </div>
 
+      <OrderRefundAccount order={selectedOrder} />
+
       {/* 배송지 */}
       <div>
         <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">배송지</h4>
@@ -1670,19 +1704,6 @@ function AdminOrdersPage() {
           <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">
             {selectedOrder.refund_request_reason || "사유 미기재"}
           </p>
-          {/* 무통장입금 환불계좌 — 주문 시 구매자가 입력 (2026-07-12부터 필수 수집) */}
-          {selectedOrder.refund_bank_name ? (
-            <p className="mt-2 text-sm font-semibold text-slate-800">
-              환불 계좌: {selectedOrder.refund_bank_name} {selectedOrder.refund_account_number}{" "}
-              (예금주 {selectedOrder.refund_account_holder})
-            </p>
-          ) : (
-            selectedOrder.payment_method === "bank_transfer" && (
-              <p className="mt-2 text-xs text-rose-600">
-                환불 계좌 미입력 주문 — 구매자에게 입금자 본인 명의 계좌를 확인해 주세요.
-              </p>
-            )
-          )}
           <p className="mt-2 text-xs text-rose-600">
             처리 전까지 자동 구매확정·정산 송금이 보류됩니다 — 아래 "환불처리"로 진행하거나, 협의 종결 시 신청 반려로 재개하세요.
           </p>
@@ -2959,6 +2980,8 @@ function AdminOrdersPage() {
           const busy = busyOrderId === refundModal.id;
           return (
             <div className="p-6 space-y-5">
+              <OrderRefundAccount order={refundModal} />
+
               <div>
                 <p className="text-xs font-semibold text-slate-600 mb-1.5">
                   환불할 품목 선택 * ({checkedItems.length}/{unrefunded.length})
