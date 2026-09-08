@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import AdminShell from "../components/AdminShell";
 import AdminDialog from "../components/AdminDialog";
-import IntakeWorkbench from "../components/IntakeWorkbench";
+import IntakeWorkbench from "../components/IntakeCollectionWorkbench";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { formatCurrency } from "@shared-domain/format";
 import { pickupRequestStatusLabel, shipmentStatusLabel } from "@shared-domain/status";
