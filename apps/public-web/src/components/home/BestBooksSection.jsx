@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import {
   fetchHomeBestBooks,
   getCachedHomeBestBooks,
+  HOME_BEST_BOOKS_CACHE_TTL_MS,
+  isHomeBestBooksCacheStale,
 } from "../../lib/publicHomeBestBooks";
 import { trackException } from "../../lib/analytics";
 import ProductCarouselSection from "./ProductCarouselSection";
@@ -13,19 +15,19 @@ function BestBooksSection({ favoriteIds, onToggleFavorite }) {
 
   useEffect(() => {
     let isCancelled = false;
+    let isFetching = false;
     const cachedProducts = getCachedHomeBestBooks();
+    let lastFetchedAt = cachedProducts?.fetchedAt ?? 0;
 
-    if (cachedProducts) {
+    if (cachedProducts && !cachedProducts.isStale) {
       setProducts(cachedProducts.products);
       setIsLoading(false);
       setHasFatalError(false);
-
-      if (!cachedProducts.isStale) {
-        return undefined;
-      }
     }
 
     const loadBestBooks = async () => {
+      if (isFetching || document.visibilityState === "hidden") return;
+      isFetching = true;
       try {
         const result = await fetchHomeBestBooks();
 
@@ -34,6 +36,7 @@ function BestBooksSection({ favoriteIds, onToggleFavorite }) {
         }
 
         setProducts(result.products);
+        lastFetchedAt = result.fetchedAt;
         setIsLoading(false);
         setHasFatalError(false);
       } catch (error) {
@@ -47,17 +50,27 @@ function BestBooksSection({ favoriteIds, onToggleFavorite }) {
           errorMessage: error?.message,
         });
 
-        if (!cachedProducts) {
+        if (isHomeBestBooksCacheStale(lastFetchedAt)) {
+          setProducts([]);
           setHasFatalError(true);
           setIsLoading(false);
         }
+      } finally {
+        isFetching = false;
       }
     };
 
+    // 순위 캐시가 있어도 실제 판매 가능 재고를 즉시 재검증한다.
     loadBestBooks();
+    const intervalId = window.setInterval(loadBestBooks, HOME_BEST_BOOKS_CACHE_TTL_MS);
+    window.addEventListener("focus", loadBestBooks);
+    document.addEventListener("visibilitychange", loadBestBooks);
 
     return () => {
       isCancelled = true;
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", loadBestBooks);
+      document.removeEventListener("visibilitychange", loadBestBooks);
     };
   }, []);
 
@@ -70,7 +83,7 @@ function BestBooksSection({ favoriteIds, onToggleFavorite }) {
       isLoading={isLoading}
       onToggleFavorite={onToggleFavorite}
       products={products}
-      subtitle="지금 가장 많이 팔리는 교재"
+      subtitle="최근 30일, 가장 많은 주문에서 선택한 교재"
       title="BEST 교재"
       titleId="public-home-best-books-title"
     />

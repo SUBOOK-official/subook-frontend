@@ -6,7 +6,7 @@ import {
   normalizeHomeBestBooks,
 } from "./publicHomeBestBooksUtils.js";
 
-test("normalizeHomeBestBooks keeps only public, non-hidden products and caps the result at eight", () => {
+test("normalizeHomeBestBooks preserves server ranking, filters invalid products, and caps at eight", () => {
   const products = [
     { id: "book-1", salesCount: 4, viewCount: 100, favoriteCount: 9, createdAt: "2026-04-01T09:00:00+09:00" },
     { id: "book-2", salesCount: 9, viewCount: 20, favoriteCount: 2, createdAt: "2026-04-02T09:00:00+09:00" },
@@ -27,13 +27,13 @@ test("normalizeHomeBestBooks keeps only public, non-hidden products and caps the
 
   assert.equal(normalized.length, 8);
   assert.deepEqual(normalized.map((product) => product.id), [
-    "book-3",
+    "book-1",
     "book-2",
+    "book-3",
     "book-4",
     "book-5",
     "book-6",
     "book-7",
-    "book-1",
     "book-8",
   ]);
 });
@@ -50,7 +50,7 @@ test("normalizeHomeBestBooks keeps products whose isPublic is unknown (null)", (
   assert.deepEqual(normalized.map((product) => product.id), ["tri-null", "tri-true"]);
 });
 
-test("isHomeBestBooksCacheStale expires entries after one hour", () => {
+test("isHomeBestBooksCacheStale expires inventory after one minute", () => {
   const now = 10_000_000;
   const freshTimestamp = now - HOME_BEST_BOOKS_CACHE_TTL_MS + 1;
   const staleTimestamp = now - HOME_BEST_BOOKS_CACHE_TTL_MS;
@@ -58,4 +58,17 @@ test("isHomeBestBooksCacheStale expires entries after one hour", () => {
   assert.equal(isHomeBestBooksCacheStale(freshTimestamp, now), false);
   assert.equal(isHomeBestBooksCacheStale(staleTimestamp, now), true);
   assert.equal(isHomeBestBooksCacheStale(0, now), true);
+  assert.equal(isHomeBestBooksCacheStale(now + 1, now), true);
+  assert.equal(HOME_BEST_BOOKS_CACHE_TTL_MS, 60_000);
+});
+
+test("normalizeHomeBestBooks removes sold-out cached products without reordering the remainder", () => {
+  const products = [
+    { id: "first", popularityScore: 10, inspectedAt: "2026-01-01" },
+    { id: "sold-out-status", status: "sold_out" },
+    { id: "sold-out-flag", isSoldOut: true },
+    { id: "no-stock", availableCount: 0 },
+    { id: "second", popularityScore: 999, inspectedAt: "2026-09-08", isPublic: null },
+  ];
+  assert.deepEqual(normalizeHomeBestBooks(products).map(({ id }) => id), ["first", "second"]);
 });

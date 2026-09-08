@@ -1,6 +1,5 @@
-import { sortStorefrontProducts } from "./publicStoreSorting.js";
-
-export const HOME_BEST_BOOKS_CACHE_TTL_MS = 60 * 60 * 1000;
+// 캐시는 초기 표시용이다. 홈 진입 시 항상 재검증하고, 재고를 1분마다 갱신한다.
+export const HOME_BEST_BOOKS_CACHE_TTL_MS = 60 * 1000;
 
 function normalizeNonNegativeInteger(value) {
   if (value === null || value === undefined || value === "") {
@@ -24,7 +23,7 @@ export function isHomeBestBooksCacheStale(fetchedAt, now = Date.now()) {
     return true;
   }
 
-  return now - normalizedFetchedAt >= HOME_BEST_BOOKS_CACHE_TTL_MS;
+  return normalizedFetchedAt > now || now - normalizedFetchedAt >= HOME_BEST_BOOKS_CACHE_TTL_MS;
 }
 
 export function normalizeHomeBestBooks(products) {
@@ -38,9 +37,14 @@ export function normalizeHomeBestBooks(products) {
           return false;
         }
 
-        return String(product.status ?? "").toLowerCase() !== "hidden";
+        return (
+          !["hidden", "sold_out"].includes(String(product.status ?? "").toLowerCase()) &&
+          product.isSoldOut !== true &&
+          product.availableCount !== 0
+        );
       })
     : [];
 
-  return sortStorefrontProducts(safeProducts, "popular").slice(0, 8);
+  // 서버가 모든 동점 기준과 페이지네이션을 결정한다. 검수일 등으로 재정렬하지 않는다.
+  return safeProducts.slice(0, 8);
 }

@@ -5,8 +5,8 @@ import {
   normalizeHomeBestBooks,
 } from "./publicHomeBestBooksUtils";
 
-// v4: isPublic 강제 false 버그로 빈 배열이 캐시된 이력이 있어 키를 올려 즉시 무효화
-const HOME_BEST_BOOKS_CACHE_KEY = "subook.public.home.best-books.v4";
+// v5: 누적 판매 점수와 1시간 재고 캐시를 무효화한다.
+const HOME_BEST_BOOKS_CACHE_KEY = "subook.public.home.best-books.v5";
 const HOME_BEST_BOOK_LIMIT = 12;
 
 function hasWindowStorage() {
