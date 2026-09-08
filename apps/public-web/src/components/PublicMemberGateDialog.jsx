@@ -11,6 +11,7 @@ import { LockIcon } from "./icons";
 // 기존 로그인/회원가입 2버튼은 이메일 링크 하나로 축소 (가입은 /login의 회원가입 링크로 도달,
 // 호출부가 넘기는 onSignup prop은 받되 사용하지 않음).
 function PublicMemberGateDialog({ gateReason = "", onClose, onGuestCheckout, onLogin, open }) {
+  const canGuestCheckout = typeof onGuestCheckout === "function";
   const [offsetY, setOffsetY] = useState(0);
   const startYRef = useRef(null);
   const dialogRef = useRef(null);
@@ -113,6 +114,7 @@ function PublicMemberGateDialog({ gateReason = "", onClose, onGuestCheckout, onL
       onClick={() => handleDismiss("backdrop")}
     >
       <section
+        aria-describedby="public-member-gate-description"
         aria-labelledby="public-member-gate-title"
         aria-modal="true"
         className="public-sheet public-member-gate"
@@ -134,13 +136,23 @@ function PublicMemberGateDialog({ gateReason = "", onClose, onGuestCheckout, onL
 
         <div className="public-member-gate__copy">
           <h2 className="public-member-gate__title" id="public-member-gate-title">
-            <span>로그인이 필요해요</span>
-            <LockIcon size={18} />
+            <span>{canGuestCheckout ? "주문 방법을 선택해주세요" : "로그인이 필요해요"}</span>
+            {canGuestCheckout ? null : <LockIcon size={18} />}
           </h2>
-          <p className="public-member-gate__description">
-            수북 회원이 되면
-            <br />
-            교재를 사고팔 수 있어요!
+          <p className="public-member-gate__description" id="public-member-gate-description">
+            {canGuestCheckout ? (
+              <>
+                원하시는 방법으로 주문을 이어가세요.
+                <br />
+                로그인 없이도 주문할 수 있어요.
+              </>
+            ) : (
+              <>
+                수북 회원이 되면
+                <br />
+                교재를 사고팔 수 있어요!
+              </>
+            )}
           </p>
         </div>
 
@@ -153,10 +165,11 @@ function PublicMemberGateDialog({ gateReason = "", onClose, onGuestCheckout, onL
             onProviderClick={(provider) => trackLoginGateCta(provider, gateReason)}
             placement="top"
             providers={["kakao"]}
+            providerLabels={canGuestCheckout ? { kakao: "카카오로 로그인하고 주문" } : undefined}
             redirectTo={oauthRedirectTo}
           />
           {/* 바로구매 게이트 전용 — 비회원 주문. 구매 의도가 관문에서 죽지 않게 공동 1순위 위계 */}
-          {onGuestCheckout ? (
+          {canGuestCheckout ? (
             <button className="public-member-gate__guest" onClick={handleGuestCheckout} type="button">
               비회원으로 주문하기
             </button>
@@ -168,10 +181,11 @@ function PublicMemberGateDialog({ gateReason = "", onClose, onGuestCheckout, onL
             onProviderClick={(provider) => trackLoginGateCta(provider, gateReason)}
             placement="top"
             providers={["google"]}
+            providerLabels={canGuestCheckout ? { google: "Google로 로그인하고 주문" } : undefined}
             redirectTo={oauthRedirectTo}
           />
           <button className="public-member-gate__email-link" onClick={handleEmailLogin} type="button">
-            이메일로 로그인 · 회원가입
+            {canGuestCheckout ? "이메일로 로그인하고 주문" : "이메일로 로그인 · 회원가입"}
           </button>
         </div>
 
@@ -180,7 +194,7 @@ function PublicMemberGateDialog({ gateReason = "", onClose, onGuestCheckout, onL
           onClick={() => handleDismiss("later_button")}
           type="button"
         >
-          나중에 할게요
+          {canGuestCheckout ? "쇼핑 계속하기" : "나중에 할게요"}
         </button>
       </section>
     </div>,

@@ -136,6 +136,8 @@ function PublicOAuthButtons({
   onProviderClick = null,
   // 일부 provider만 렌더링(선택) — 예: ["kakao"]. 미지정이면 전체.
   providers = null,
+  // 화면 목적에 맞춘 버튼 문구. 미지정 화면은 기존 로그인 문구를 유지한다.
+  providerLabels = {},
 }) {
   const [activeProvider, setActiveProvider] = useState("");
   const [notice, setNotice] = useState("");
@@ -243,7 +245,7 @@ function PublicOAuthButtons({
                   <span className="public-auth-social__button-brand" aria-hidden="true">
                     {BrandIcon ? <BrandIcon /> : null}
                   </span>
-                  <span>{providerConfig.label}</span>
+                  <span>{providerLabels[providerConfig.provider] ?? providerConfig.label}</span>
                 </>
               )}
             </button>
