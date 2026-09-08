@@ -10,20 +10,20 @@ import { BOOK_TYPE_OPTIONS, BRAND_OPTIONS, SUBJECT_OPTIONS } from '../lib/produc
 import { COVER_BUCKET, DETAIL_BUCKET, MAX_DETAIL_PHOTOS, uploadImageToBucket } from '../lib/adminImageUpload';
 import { prepareStudioImagePayload, requestStudioGeneration, studioResultToFile } from '../lib/studioClient';
 import { requestCoverScan } from '../lib/coverScanClient';
-import { blankIntake, INTAKE_STEPS, intakeError, intakePayload, intakeBatchVariants, intakeBookCount, resolveIntakeVariant } from '../lib/intakeWorkbench';
+import { blankIntake, INTAKE_STEPS, intakeError, intakePayload, intakeBatchVariants, intakeBookCount, isIntakeBatch, resolveIntakeVariant, restoreIntake, suggestIntakeOption, updateIntake } from '../lib/intakeWorkbench';
 
 const inputClass = 'mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm disabled:bg-slate-100';
 const secondary = 'rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold disabled:opacity-40';
 const primary = 'rounded-lg bg-blue-700 px-5 py-3 text-sm font-bold text-white disabled:opacity-40';
 function Field({ label, children }) { return <label className="block text-sm font-semibold text-slate-700">{label}{children}</label>; }
 function SelectField({ label, value, options, onChange }) {
-  return <Field label={label}><select className={inputClass} value={value} onChange={(event) => onChange(event.target.value)}><option value="">선택</option>{options.map((option) => <option key={option}>{option}</option>)}</select></Field>;
+  return <Field label={label}><select aria-label={label} className={inputClass} value={value} onChange={(event) => onChange(event.target.value)}><option value="">선택</option>{options.map((option) => <option key={option}>{option}</option>)}</select></Field>;
 }
 function readWorkspace(key) {
   try {
     const draft = JSON.parse(localStorage.getItem(key));
     if (draft?.version === 1 && draft.active?.requestKey && Array.isArray(draft.held)) return {
-      ...draft, active: { ...blankIntake(), ...draft.active }, held: draft.held.map((held) => ({ ...blankIntake(), ...held })),
+      ...draft, active: restoreIntake(draft.active), held: draft.held.map(restoreIntake),
     };
   } catch { /* 저장소를 사용할 수 없으면 새 작업으로 시작하고 저장 시 오류 안내 */ }
   return { version: 1, active: blankIntake(), held: [], completed: [], pending: null };
@@ -42,8 +42,8 @@ export default function IntakeWorkbench({ shipment, onChangeCustomer, legacyDraf
   const storageKey = `subook.admin.intake.v1.${shipment.id}`;
   const [workspace, setWorkspace] = useState(() => readWorkspace(storageKey));
   const item = workspace.active;
-  const isBatch = item.mode === 'batch';
-  const bookCount = isBatch ? intakeBookCount(item) : 1;
+  const isBatch = isIntakeBatch(item);
+  const bookCount = intakeBookCount(item);
   const completedCount = workspace.completed.reduce((sum, entry) => sum + (entry.book_count || 1), 0);
   const itemRef = useRef(item);
   itemRef.current = item;
@@ -69,7 +69,7 @@ export default function IntakeWorkbench({ shipment, onChangeCustomer, legacyDraf
   const comparisonItem = isBatch && comparisonRow ? resolveIntakeVariant(item, comparisonRow) : item;
   const locked = Boolean(busy || workspace.pending);
   const patch = useCallback((values) => {
-    setWorkspace((state) => ({ ...state, active: { ...state.active, ...values } }));
+    setWorkspace((state) => ({ ...state, active: updateIntake(state.active, values) }));
     setMessage('');
   }, []);
   const persist = useCallback((state) => {
@@ -145,7 +145,8 @@ export default function IntakeWorkbench({ shipment, onChangeCustomer, legacyDraf
         ? `${extracted.published_year} ${extracted.title || ''}`.trim() : extracted.title || '';
       patch({ product_id: null, title, subject: SUBJECT_OPTIONS.includes(extracted.subject) ? extracted.subject : '',
         brand: BRAND_OPTIONS.includes(extracted.brand) ? extracted.brand : '', book_type: BOOK_TYPE_OPTIONS.includes(extracted.book_type) ? extracted.book_type : '',
-        published_year: extracted.published_year || '', instructor_name: extracted.instructor_name || '', option: extracted.option || '', options: [], price: '', original_price: '' });
+        published_year: extracted.published_year || '', instructor_name: extracted.instructor_name || '',
+        variants: suggestIntakeOption(itemRef.current, extracted.option), options: [], price: '', original_price: '' });
     });
   // runJob은 busyRef로 동시 촬영을 차단한다. 현재 책은 itemRef로 읽는다.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -165,7 +166,7 @@ export default function IntakeWorkbench({ shipment, onChangeCustomer, legacyDraf
         book_type: row.book_type || '', published_year: row.published_year || '', instructor_name: row.instructor_name || '',
         cover_image_url: row.cover_image_url || itemRef.current.scan_image_url || '',
         original_price: row.representative_original_price || '', price: '',
-        option: options.length === 1 ? options[0].option || '' : '', options, step: 1 });
+        variants: suggestIntakeOption(itemRef.current, options.length === 1 ? options[0].option : ''), options, step: 1 });
       setSearch(''); setCandidates([]);
     });
   }
@@ -176,7 +177,7 @@ export default function IntakeWorkbench({ shipment, onChangeCustomer, legacyDraf
   }
   function hold() {
     if (!item.title.trim() && !item.scan_image_url) { setMessage('촬영하거나 교재를 입력한 뒤 보류하세요.'); return; }
-    const state = { ...workspace, held: [...workspace.held, item], active: blankIntake(item.location, item.mode) };
+    const state = { ...workspace, held: [...workspace.held, item], active: blankIntake(item.location) };
     if (!persist(state)) return;
     setWorkspace(state); setSearch(''); setCandidates([]); setMessage('');
   }
@@ -213,7 +214,7 @@ export default function IntakeWorkbench({ shipment, onChangeCustomer, legacyDraf
       }
       if (!data?.success) throw new Error('등록 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인하세요.');
       const completed = { ...data, requestKey: pending.requestKey, location: item.location };
-      const nextState = { ...state, pending: null, active: blankIntake(item.location, item.mode), completed: [completed, ...state.completed].slice(0, 100) };
+      const nextState = { ...state, pending: null, active: blankIntake(item.location), completed: [completed, ...state.completed].slice(0, 100) };
       persist(nextState); setWorkspace(nextState); setLastResult(completed); setCandidates([]); setSearch('');
     } catch (error) { setMessage(error.message); }
     finally { busyRef.current = false; setBusy(''); }
@@ -237,8 +238,7 @@ export default function IntakeWorkbench({ shipment, onChangeCustomer, legacyDraf
     </div>
     <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-4">
       <p className="font-bold text-blue-900">먼저 같은 교재 종류끼리 분류해 주세요</p>
-      <p className="mt-1 text-sm text-slate-700">학년도·과목·교재명이 같은 책을 모으세요. 예: 서바이벌 모의고사 1~30회는 대표 표지·내지를 한 번 촬영하고 여러 옵션으로 등록할 수 있습니다.</p>
-      <div className="mt-3 grid gap-2 sm:grid-cols-2">{[['single','한 권 등록'],['batch','같은 교재 여러 옵션 등록']].map(([mode,label]) => <button type="button" key={mode} disabled={locked || item.step>1} aria-pressed={item.mode===mode} className={`${secondary} ${item.mode===mode ? 'border-blue-700 text-blue-700 ring-1 ring-blue-700' : ''}`} onClick={() => patch({ mode, condition_grade: item.condition_grade==='DISCARD' && mode==='batch' ? '' : item.condition_grade })}>{label}</button>)}</div>
+      <p className="mt-1 text-sm text-slate-700">학년도·과목·교재명이 같은 책을 모으세요. 대표 표지·내지를 한 번 촬영한 뒤, 교재 확인에서 단원·회차·구성을 옵션으로 추가하면 됩니다.</p>
     </div>
     <ol className="mb-5 grid grid-cols-5 gap-1 rounded-xl border border-slate-200 bg-white p-2" aria-label="등록 진행 단계">{INTAKE_STEPS.map((label,index) => <li key={label} aria-current={item.step === index ? 'step' : undefined}><button type="button" disabled={locked || index > item.step} onClick={() => patch({ step: index })} className={`w-full rounded-lg px-2 py-3 text-sm font-bold disabled:cursor-default ${item.step === index ? 'bg-blue-700 text-white' : index < item.step ? 'text-blue-700' : 'text-slate-400'}`}><span className="mr-1">{index+1}</span><span className="hidden sm:inline">{label}</span></button></li>)}</ol>
     {lastResult ? <div role="status" className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4"><div className="flex items-center justify-between gap-3"><div><p className="font-bold text-emerald-800">{lastResult.batch ? `${lastResult.option_count}개 옵션 · ${lastResult.book_count}권 등록 완료` : <>{lastResult.discarded ? '판매불가 기록 완료' : '등록 완료'} · 일련번호 <span className="text-xl">{lastResult.serial_number}</span></>}</p><p className="mt-1 text-sm text-emerald-800">{lastResult.title} · {lastResult.location || '위치 미지정'} · {lastResult.discarded ? '비공개' : lastResult.is_public ? '스토어 공개' : '비공개'}</p></div><button type="button" onClick={() => setLastResult(null)} aria-label="등록 완료 알림 닫기" className={secondary}>확인</button></div>{lastResult.batch ? <details className="mt-3 text-sm text-emerald-900"><summary className="cursor-pointer font-semibold">옵션별 일련번호 확인</summary><div className="mt-2 grid max-h-64 gap-2 overflow-auto sm:grid-cols-3">{lastResult.books.map((book) => <p key={book.book_id}>{book.option} · <strong>{book.serial_number}</strong></p>)}</div></details> : null}</div> : null}
@@ -255,21 +255,20 @@ export default function IntakeWorkbench({ shipment, onChangeCustomer, legacyDraf
         {workspace.pending ? <div role="alert" className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm"><p>등록 요청의 결과를 확인하고 있습니다. 같은 요청으로 다시 확인해도 재고가 중복 생성되지 않습니다.</p><button type="button" className={`${primary} mt-3`} disabled={Boolean(busy)} onClick={submit}>등록 결과 다시 확인</button></div> : null}
         <fieldset disabled={locked} className="mt-5 min-w-0 space-y-5 disabled:opacity-60">
           {item.step===0 ? <>
-            <p className="text-sm text-slate-600">{isBatch ? '같은 교재 중 대표 한 권의 표지를 촬영하세요. 이 사진을 모든 회차·옵션에 함께 사용합니다.' : '표지가 화면에 꽉 차도록 놓고 촬영하세요.'}</p>
+            <p className="text-sm text-slate-600">표지가 화면에 꽉 차도록 놓고 촬영하세요. 같은 교재가 여러 구성이면 대표 한 권을 촬영하고, 다음 단계에서 옵션을 추가하세요.</p>
             {item.scan_image_url ? <img src={item.scan_image_url} alt="촬영한 표지" className="mx-auto max-h-72 rounded-lg object-contain" /> : <div className="flex min-h-52 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-sm text-slate-500">촬영하면 교재 후보가 여기에 표시됩니다.</div>}
             <button type="button" className={secondary} onClick={() => patch({ step: 1 })}>직접 검색·입력으로 시작</button>
           </> : null}
           {item.step===1 ? <>
-            {candidates.length ? <div><p className="mb-2 text-sm font-semibold">표지 인식 후보 — 학년도·회차를 확인하세요</p><div className="space-y-2">{candidates.map((candidate) => <button key={candidate.id} type="button" onClick={() => chooseProduct(candidate)} className="w-full rounded-lg border border-blue-200 bg-blue-50 p-3 text-left text-sm font-semibold">{candidate.title}</button>)}</div></div> : null}
+            {candidates.length ? <div><p className="mb-2 text-sm font-semibold">표지 인식 후보 — 학년도·구성을 확인하세요</p><div className="space-y-2">{candidates.map((candidate) => <button key={candidate.id} type="button" onClick={() => chooseProduct(candidate)} className="w-full rounded-lg border border-blue-200 bg-blue-50 p-3 text-left text-sm font-semibold">{candidate.title}</button>)}</div></div> : null}
             <Field label="기존 교재 검색"><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} className={inputClass} placeholder="교재명 · 강사 · 과목" /></Field>
             {searching ? <p className="text-sm text-slate-500">검색 중…</p> : null}{searchError ? <p role="alert" className="text-sm text-rose-700">{searchError}</p> : null}
             {results.length ? <div className="max-h-64 space-y-2 overflow-auto">{results.map((product) => <button key={product.id} type="button" onClick={() => chooseProduct(product)} className="flex w-full items-center gap-3 rounded-lg border border-slate-200 p-3 text-left">{product.cover_image_url ? <img src={product.cover_image_url} alt="" className="h-16 w-12 object-contain" /> : null}<span className="min-w-0"><span className="block text-sm font-bold">{product.title}</span><span className="text-xs text-slate-500">{product.published_year} · {product.brand} · {product.inventory_count ?? 0}권</span></span></button>)}{results.length===30 ? <p className="text-xs text-slate-500">검색 결과가 많습니다. 학년도·과목을 추가해 좁혀보세요.</p> : null}</div> : search && !searching && !searchError ? <p className="text-sm text-slate-500">검색 결과가 없습니다. 아래에 신규 교재 정보를 입력하세요.</p> : null}
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-4"><div className="mb-3 flex items-center justify-between"><span className="text-xs font-bold text-blue-700">{item.product_id ? '기존 교재에 재고 추가' : '신규 교재'}</span>{item.product_id ? <button type="button" onClick={() => patch({ product_id: null, options: [], price: '', cover_image_url: item.scan_image_url || '' })} className="text-xs underline">신규 교재로 변경</button> : null}</div>
-              <Field label="교재명"><input className={inputClass} value={item.title} disabled={Boolean(item.product_id)} onChange={(event) => patch({ title: event.target.value })} placeholder={isBatch ? '예: 2027 서바이벌 수학 모의고사 (회차는 옵션에 입력)' : '학년도·회차가 구분되는 정확한 교재명'} /></Field>
+              <Field label="교재명"><input className={inputClass} value={item.title} disabled={Boolean(item.product_id)} onChange={(event) => patch({ title: event.target.value })} placeholder="공통 교재명 (단원·회차·구성은 아래 옵션에 입력)" /></Field>
               {!item.product_id ? <div className="mt-4 grid grid-cols-2 gap-3"><SelectField label="과목" value={item.subject} options={SUBJECT_OPTIONS} onChange={(subject) => patch({ subject })} /><SelectField label="브랜드" value={item.brand} options={BRAND_OPTIONS} onChange={(brand) => patch({ brand })} /><SelectField label="유형" value={item.book_type} options={BOOK_TYPE_OPTIONS} onChange={(book_type) => patch({ book_type })} /><Field label="학년도"><input type="number" min="2000" max="2100" className={inputClass} value={item.published_year} onChange={(event) => patch({ published_year: event.target.value })} /></Field><Field label="강사명 (선택)"><input className={inputClass} value={item.instructor_name} onChange={(event) => patch({ instructor_name: event.target.value })} /></Field></div> : <p className="mt-2 text-sm text-slate-500">{item.published_year} · {item.subject} · {item.brand} · {item.book_type}</p>}
-              {!isBatch ? <div className="mt-4"><Field label="옵션·구성 (낱권·회차·세트)"><input list="intake-options" className={inputClass} value={item.option} onChange={(event) => patch({ option: event.target.value, price: '' })} placeholder="기본 구성은 비워두세요" /><datalist id="intake-options">{item.options.map((option,index) => <option key={index} value={option.option || ''} />)}</datalist></Field><p className="mt-2 text-xs text-slate-500">한 번 등록하면 재고 1개가 생성됩니다. 세트는 구성 전체를 확인하세요.</p></div> : <p className="mt-3 text-xs text-slate-600">상품명에는 공통 교재명을, 아래 옵션에는 각각의 회차를 입력하세요. 1~30회 전체를 한 세트로 등록하는 경우에는 한 권 등록을 사용하세요.</p>}
+              <div className="mt-5"><IntakeBatchOptions item={item} phase="options" onChange={(variants) => patch({ variants })} /></div>
             </div>
-            {isBatch ? <IntakeBatchOptions item={item} phase="options" onChange={(variants) => patch({ variants })} /> : null}
           </> : null}
           {item.step===2 ? <>
             <p className="font-semibold">{item.title} {isBatch ? `· ${item.variants.length}개 옵션 · ${bookCount}권 공통 상태` : item.option ? `· ${item.option}` : ''}</p>
