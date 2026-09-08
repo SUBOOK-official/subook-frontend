@@ -1,0 +1,38 @@
+.sell-guide__description {
+  margin: 0;
+  color: var(--public-ds-text-secondary);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.sell-guide__apply {
+  display: flex;
+  justify-content: center;
+  text-decoration: none;
+}
+
+.sell-guide__notes {
+  margin: 0;
+  padding-left: 20px;
+  color: var(--public-ds-text-secondary);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.sell-guide__notes li + li {
+  margin-top: 8px;
+}
+
+.sell-guide__next {
+  display: grid;
+  gap: 16px;
+  text-align: center;
+}
+
+.sell-guide__faq {
+  color: var(--public-ds-primary);
+  font-size: 14px;
+  line-height: 1.6;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}

@@ -690,7 +690,7 @@ function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
           <Link
             className="public-nav-link public-nav-link--cta"
             onClick={() => trackPickupCtaClick("header_nav")}
-            to="/pickup/new"
+            to="/sell"
           >
             교재 판매하기
           </Link>
@@ -916,7 +916,7 @@ function PublicSiteHeader({ onCartClick, searchSlot, hideSearch = false }) {
             ) : null}
             <Link
               className="public-nav-drawer__item"
-              to="/pickup/new"
+              to="/sell"
               onClick={() => { setIsMobileMenuOpen(false); trackPickupCtaClick("mobile_drawer"); }}
             >
               교재 판매하기

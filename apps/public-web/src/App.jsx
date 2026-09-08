@@ -26,6 +26,7 @@ const PublicOrderPage = lazy(() => import("./pages/PublicOrderPage"));
 const PublicPaymentFailPage = lazy(() => import("./pages/PublicPaymentFailPage"));
 const PublicPaymentSuccessPage = lazy(() => import("./pages/PublicPaymentSuccessPage"));
 const PublicPickupRequestPage = lazy(() => import("./pages/PublicPickupRequestPage"));
+const PublicSellGuidePage = lazy(() => import("./pages/PublicSellGuidePage"));
 const PublicPolicyPage = lazy(() => import("./pages/PublicPolicyPage"));
 const PublicProductDetailPage = lazy(() => import("./pages/PublicProductDetailPage"));
 const PublicResetPasswordPage = lazy(() => import("./pages/PublicResetPasswordPage"));
@@ -134,6 +135,7 @@ function App() {
           <Route element={<PublicPaymentFailPage />} path="/order/payment/fail" />
           <Route element={<PublicOrderPage />} path="/order" />
           <Route element={<PublicPickupRequestPage />} path="/pickup/new" />
+          <Route element={<PublicSellGuidePage />} path="/sell" />
           <Route element={<PublicPolicyPage type="privacy" />} path="/privacy" />
           <Route element={<PublicPolicyPage type="refund" />} path="/refund" />
           <Route element={<PublicSubjectPage />} path="/store/subject/:subject" />

@@ -15,7 +15,7 @@ import { usePublicWishlist } from "../contexts/PublicWishlistContext";
 import { trackEvent, trackPickupCtaClick } from "../lib/analytics";
 import { usePageMeta } from "../lib/usePageMeta";
 
-const PICKUP_REQUEST_PATH = "/pickup/new";
+const SELL_GUIDE_PATH = "/sell";
 
 // 2026-05-19 사업 방향성 전환: 신규 입고는 모두 안 쓴(미사용) 교재 중심.
 // 기존 중고 재고는 재고 소진까지 함께 노출. 슬라이드 카피도 새 책 톤으로.
@@ -90,13 +90,9 @@ function PublicHomePage() {
   };
 
   const handlePickupRequest = (ctaSource) => {
-    // GA4 pickup_cta_click — 로그인 관문 "앞"이라 비로그인 판매 의도까지 잡힌다.
+    // 공개 안내 진입 의도. 실제 신청은 안내 페이지 CTA에서 별도로 계측한다.
     trackPickupCtaClick(ctaSource);
-    if (!requireMember("pickupRequest", PICKUP_REQUEST_PATH)) {
-      return;
-    }
-
-    navigate(PICKUP_REQUEST_PATH);
+    navigate(SELL_GUIDE_PATH);
   };
 
   const handleHeroAction = (slide) => {

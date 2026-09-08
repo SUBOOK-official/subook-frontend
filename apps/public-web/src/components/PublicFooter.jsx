@@ -11,11 +11,11 @@ import {
 import brandLogoWhiteImage from "../assets/brand/logo-horizontal-white.png";
 
 const CONTACT_EMAIL = "subook2025@gmail.com";
-const PICKUP_REQUEST_PATH = "/pickup/new";
+const SELL_GUIDE_PATH = "/sell";
 
 // 푸터 링크 클릭 계측 — 셀러 CTA·문의 채널은 전용 이벤트, 나머지는 select_content(footer_nav).
 function trackFooterLinkClick(link) {
-  if (link.to === PICKUP_REQUEST_PATH) {
+  if (link.to === SELL_GUIDE_PATH) {
     trackPickupCtaClick("footer");
     return;
   }
@@ -60,7 +60,7 @@ function FooterChatIcon() {
 }
 
 const footerTopLinks = [
-  { label: "교재 판매하기", to: "/pickup/new" },
+  { label: "교재 판매하기", to: SELL_GUIDE_PATH },
   { label: "공지사항", to: "/notices" },
   { label: "자주 묻는 질문", to: "/faq" },
   { label: "비회원 주문 조회", to: "/order/lookup" },
