@@ -77,6 +77,7 @@ export default function IntakeCamera({ onCapture, disabled, label }) {
   }, [connected, disabled, onCapture, rotation]);
   useEffect(() => {
     const handleKey = (event) => {
+      if (document.querySelector('[aria-modal="true"]')) return;
       if (event.code !== 'Space' || event.repeat || event.ctrlKey || event.metaKey || event.altKey
         || event.target.closest('input,textarea,select,button,[contenteditable="true"]')) return;
       if (!connected || disabled) return;

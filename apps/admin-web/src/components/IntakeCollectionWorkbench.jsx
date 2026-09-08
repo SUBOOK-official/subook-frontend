@@ -4,6 +4,9 @@ import { supabase } from '@shared-supabase/adminSupabaseClient';
 import AdminShell from './AdminShell';
 import IntakeCamera from './IntakeCamera';
 import IntakeBookEditor from './IntakeBookEditor';
+import IntakeDetailCrop from './IntakeDetailCrop';
+import { cropIntakeDetail } from '../lib/intakePhotoCrop';
+import { quickIntakeInspection } from '../lib/intakePricing';
 import { BRAND_OPTIONS, BOOK_TYPE_OPTIONS, SUBJECT_OPTIONS } from '../lib/productCategories';
 import { SUBJECT_DETAIL_GROUPS, scanIntakeCatalog } from '../lib/intakeCatalog';
 import { intakeBookCount, suggestIntakeOption } from '../lib/intakeWorkbench';
@@ -41,27 +44,32 @@ function Photo({ photo, label, compact = false }) {
   return <div className={compact ? 'w-12 shrink-0' : 'min-w-0'}><div className={`flex items-center justify-center rounded-lg bg-slate-100 ${compact ? 'h-16' : 'h-28'}`}>{photo.url || localUrl ? <img src={photo.url || localUrl} alt={label} className="h-full w-full object-contain" /> : <span className="text-xs">사진 불러오는 중</span>}</div>{!compact ? <p className="mt-1 text-xs text-slate-500">{label} · {photo.uploadState === 'done' ? '업로드 완료' : photo.uploadState === 'error' ? '업로드 실패' : '기기에 저장됨'}</p> : null}</div>;
 }
 
-function BulkFields({ count, disabled, onApply }) {
+function BulkFields({ count, disabled, onApply, onInspect }) {
   const [values, setValues] = useState({});
-  const patch = (key, value) => setValues((previous) => ({ ...previous, [key]: value, ...(key === 'subject' ? { subject_detail: '' } : {}) }));
+  const patch = (key, value) => setValues((previous) => ({ ...previous, [key]: value, ...(key === 'subject' ? { subject_detail: '' } : {}), ...(key === 'discount_type' ? { discount_value: '', price: '' } : {}) }));
   const select = (key, label, options) => <label className="text-xs font-semibold">{label}<select aria-label={`일괄 ${label}`} className={inputClass} value={values[key] || ''} onChange={(event) => patch(key, event.target.value)}><option value="">변경 안 함</option>{options.map((option) => <option key={option}>{option}</option>)}</select></label>;
-  return <details className="rounded-xl border border-blue-200 bg-blue-50 p-4"><summary className="cursor-pointer font-bold text-blue-900">선택 {count}종 공통 정보 입력</summary>
+  return <><section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4"><div><h2 className="font-bold">선택 교재 빠른 검수</h2><p className="mt-1 text-xs text-slate-600">S등급 · 필기·손상 없음 · 구성 확인. 옵션별 예외와 판매불가 교재는 유지됩니다.</p></div><button type="button" disabled={disabled || !count} className={primary} onClick={onInspect}>선택 {count}종 새 책으로 검수 완료</button></section><details className="rounded-xl border border-blue-200 bg-blue-50 p-4"><summary className="cursor-pointer font-bold text-blue-900">선택 {count}종 공통 정보 입력</summary>
     <fieldset disabled={disabled} className="mt-4 space-y-3"><p className="text-xs text-slate-600">같은 값만 선택해서 적용하세요. 기존 교재의 상품명·카테고리와 옵션별 예외값은 유지됩니다.</p>
       <div className="grid gap-3 sm:grid-cols-3"><label className="text-xs font-semibold">학년도<input aria-label="일괄 학년도" className={inputClass} value={values.published_year || ''} onChange={(event) => patch('published_year', event.target.value)} placeholder="변경 안 함" /></label>{select('brand', '브랜드', BRAND_OPTIONS)}{select('subject', '과목', SUBJECT_OPTIONS)}
         {values.subject && SUBJECT_DETAIL_GROUPS[values.subject] ? <label className="text-xs font-semibold">하위 과목 (선택)<select aria-label="일괄 하위 과목" className={inputClass} value={values.subject_detail || ''} onChange={(event) => patch('subject_detail', event.target.value)}><option value="">선택 안 함 · {values.subject}</option>{SUBJECT_DETAIL_GROUPS[values.subject].map((group) => <optgroup key={group.label} label={group.label}>{group.options.map((option) => <option key={option}>{option}</option>)}</optgroup>)}</select></label> : null}
         {select('book_type', '유형', BOOK_TYPE_OPTIONS)}{select('condition_grade', '등급', ['S', 'A_PLUS', 'A'])}<label className="text-xs font-semibold">보관 위치<input aria-label="일괄 보관 위치" className={inputClass} value={values.location || ''} onChange={(event) => patch('location', event.target.value)} placeholder="변경 안 함" /></label>
-        <label className="text-xs font-semibold">권당 판매가<input aria-label="일괄 판매가" type="number" min="1" className={inputClass} value={values.price || ''} onChange={(event) => patch('price', event.target.value)} placeholder="변경 안 함" /></label>
+        <label className="text-xs font-semibold">권당 판매가<input aria-label="일괄 판매가" type="number" min="1" disabled={['amount', 'rate'].includes(values.discount_type)} className={`${inputClass} disabled:bg-slate-100`} value={values.price || ''} onChange={(event) => patch('price', event.target.value)} placeholder="변경 안 함" /></label>
+        <label className="text-xs font-semibold">일괄 할인 방식<select aria-label="일괄 할인 방식" className={inputClass} value={values.discount_type || ''} onChange={(event) => patch('discount_type', event.target.value)}><option value="">변경 안 함</option><option value="none">판매가 직접 입력</option><option value="amount">정액 할인 (원)</option><option value="rate">정률 할인 (%)</option></select></label>
+        {['amount', 'rate'].includes(values.discount_type) ? <label className="text-xs font-semibold">{values.discount_type === 'rate' ? '할인율 (%)' : '할인 금액 (원)'}<input type="number" min="0" aria-label="일괄 할인값" className={inputClass} value={values.discount_value ?? ''} onChange={(event) => patch('discount_value', event.target.value)} /></label> : null}
       </div>
+      {['amount', 'rate'].includes(values.discount_type) ? <p className="text-xs text-slate-600">각 교재의 정가에서 계산합니다. 정가가 없는 교재는 따로 입력하세요.</p> : null}
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={Boolean(values.confirmed)} onChange={(event) => patch('confirmed', event.target.checked)} />선택한 교재 모두 필기·손상 없음, 구성품 확인 완료</label>
       <button type="button" className={primary} disabled={!count} onClick={() => {
         const { confirmed, subject_detail, ...rest } = values;
         const payload = Object.fromEntries(Object.entries(rest).filter(([, value]) => value !== ''));
+        if (['amount', 'rate'].includes(payload.discount_type)) payload.discount_value = values.discount_value ?? '';
+        else delete payload.discount_value;
         if (payload.subject) payload.subject_detail = subject_detail || '';
         if (confirmed) Object.assign(payload, { writing_percentage: '0', has_damage: false, components_confirmed: true });
         onApply(payload);
       }}>선택 교재에 적용</button>
     </fieldset>
-  </details>;
+  </details></>;
 }
 
 export default function IntakeCollectionWorkbench({ shipment, onChangeCustomer, legacyDraft }) {
@@ -122,13 +130,14 @@ export default function IntakeCollectionWorkbench({ shipment, onChangeCustomer, 
           try {
             const blob = await readIntakePhoto(photo.id);
             if (!blob) throw new Error('촬영 원본을 찾지 못했습니다. 삭제 후 다시 촬영하세요.');
-            const prepared = await prepareStudioImagePayload(blob);
+            const cropped = photo.slot === 'cover' ? { blob, status: 'original' } : await cropIntakeDetail(blob, photo.cropMode || 'auto', photo.cropRect);
+            const prepared = await prepareStudioImagePayload(cropped.blob);
             const compressed = new File([studioResultToFile(prepared, 'capture')], 'capture.jpg', { type: prepared.mimeType });
             const url = await withTimeout(uploadImageToBucket(photo.slot === 'cover' ? COVER_BUCKET : DETAIL_BUCKET, compressed, `intake/${shipment.id}`));
             if (!mounted.current) return;
             await changeGroup(group.requestKey, (current) => {
-              if (!current.photos.some((entry) => entry.id === photo.id)) return current;
-              const photos = current.photos.map((entry) => entry.id === photo.id ? { ...entry, url, uploadState: 'done', error: '' } : entry);
+              if (!current.photos.some((entry) => entry.id === photo.id && (entry.processingRevision || 0) === (photo.processingRevision || 0))) return current;
+              const photos = current.photos.map((entry) => entry.id === photo.id ? { ...entry, url, uploadState: 'done', error: '', cropStatus: cropped.status } : entry);
               const updated = { ...current, photos };
               if (photo.slot === 'cover') {
                 updated.scan_image_url = url;
@@ -140,7 +149,7 @@ export default function IntakeCollectionWorkbench({ shipment, onChangeCustomer, 
               return updated;
             });
           } catch (error) {
-            if (mounted.current) await changeGroup(group.requestKey, (current) => ({ ...current, photos: current.photos.map((entry) => entry.id === photo.id ? { ...entry, uploadState: 'error', error: error.message } : entry) }));
+            if (mounted.current) await changeGroup(group.requestKey, (current) => ({ ...current, photos: current.photos.map((entry) => entry.id === photo.id && (entry.processingRevision || 0) === (photo.processingRevision || 0) ? { ...entry, uploadState: 'error', error: error.message } : entry) }));
           } finally {
             uploading.current.delete(photo.id);
             if (mounted.current) setWorkspace((current) => current ? { ...current } : current);
@@ -180,7 +189,7 @@ export default function IntakeCollectionWorkbench({ shipment, onChangeCustomer, 
     if (!id || locked || photoActionsRef.current.has(id)) return;
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 15 * 1024 * 1024) { setMessage('15MB 이하 JPG·PNG·WEBP 사진을 선택하세요.'); return; }
     setLocalSaving(true); setMessage('');
-    const photo = { id: crypto.randomUUID(), slot, uploadState: 'queued', recognitionState: slot === 'cover' ? 'queued' : 'none', revision: item.metadataRevision, url: '' };
+    const photo = { id: crypto.randomUUID(), slot, uploadState: 'queued', recognitionState: slot === 'cover' ? 'queued' : 'none', revision: item.metadataRevision, url: '', cropMode: workspace.autoCropDetails === false ? 'original' : 'auto' };
     const next = await mutate((state) => {
       const current = state.groups.find((group) => group.requestKey === id);
       if (!current || state.pending) return state;
@@ -204,6 +213,15 @@ export default function IntakeCollectionWorkbench({ shipment, onChangeCustomer, 
     mutate((state) => ({ ...state, groups: state.groups.map((group) => group.requestKey === item.requestKey ? { ...patchIntakeGroup(group, values), photos: group.photos.filter((photo) => !removed.some((entry) => entry.id === photo.id)) } : group) }), { deletePhotos: removed.map((photo) => photo.id) });
     setMessage('');
   };
+  function processDetail(photo, settings) {
+    if (locked || photoActionsRef.current.has(item.requestKey)) return;
+    changeGroup(item.requestKey, (group) => ({ ...group, photos: group.photos.map((entry) => entry.id === photo.id ? { ...entry, cropMode: settings.mode, cropRect: settings.rect || null, uploadState: 'queued', error: '', processingRevision: (entry.processingRevision || 0) + 1 } : entry) }));
+  }
+  function inspectSelected() {
+    if (locked || photoActionsRef.current.size) return;
+    mutate((state) => ({ ...state, groups: state.groups.map((group) => group.selected && !group.held && group.condition_grade !== 'DISCARD' ? patchIntakeGroup(group, quickIntakeInspection()) : group) }));
+    setMessage('선택한 교재를 새 책으로 검수 완료했습니다. 옵션별 예외와 판매불가 교재는 유지했습니다.');
+  }
   async function chooseProduct(product) {
     const id = item.requestKey;
     if (!beginPhotoAction(id)) return;
@@ -315,9 +333,11 @@ export default function IntakeCollectionWorkbench({ shipment, onChangeCustomer, 
     {workspace.pending ? <div role="alert" className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4"><p className="font-bold">등록 결과 확인이 필요합니다.</p><p className="mt-1 text-sm">보낸 교재와 사진을 그대로 보관하고 있습니다. 같은 요청으로 결과를 확인하면 중복 등록되지 않습니다.</p><button type="button" aria-label="등록 결과 다시 확인" className={`${primary} mt-3`} disabled={Boolean(busy || saveError)} onClick={submit}>{busy || '같은 요청으로 등록 결과 확인'}</button></div> : null}
     <div className={`grid items-start gap-5 ${workspace.phase === 'capture' ? 'xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,1fr)]' : 'xl:grid-cols-[320px_minmax(0,1fr)]'}`}>
       {workspace.phase === 'capture' ? <div className="min-w-0 space-y-4"><div className="rounded-xl border border-slate-200 bg-white p-4"><p className="text-sm text-blue-700">{groupName(item, workspace.groups.indexOf(item))}</p><h2 className="mt-1 text-xl font-bold">{workspace.captureSlot === 'cover' ? '대표 표지를 촬영하세요' : '대표 내지를 촬영하세요'}</h2><p className="mt-2 text-sm text-slate-500">표지 → 내지 → 다음 교재로 자동 이동합니다. 정보 인식은 촬영하는 동안 진행됩니다.</p></div>
+        <label className="flex items-center gap-2 rounded-lg bg-white p-3 text-sm"><input type="checkbox" disabled={locked} checked={workspace.autoCropDetails !== false} onChange={(event) => { const enabled = event.target.checked; mutate((state) => ({ ...state, autoCropDetails: enabled })); }} />내지 검은 배경 자동 정리 · 원본 보관</label>
         <IntakeCamera onCapture={capture} disabled={locked || photoActions.has(item.requestKey) || item.photos.some((photo) => photo.slot === workspace.captureSlot) || (workspace.captureSlot !== 'cover' && item.inspection_image_urls.length + item.photos.filter((photo) => photo.slot !== 'cover' && !photo.url).length >= 2)} label={workspace.captureSlot === 'cover' ? '표지 촬영' : '내지 촬영'} />
         <div className="flex flex-wrap gap-2"><button type="button" disabled={locked || workspace.groups.length >= MAX_INTAKE_GROUPS} className={secondary} onClick={() => mutate((state) => { const group = newIntakeGroup(item.location); return { ...state, groups: [...state.groups, group], activeId: group.requestKey, captureSlot: 'cover' }; })}>다음 교재 / 직접 입력</button><button type="button" disabled={locked} className={secondary} onClick={() => activate(item, 'review')}>이 교재 정보 확인</button></div>
         {item.photos.length ? <div className="grid grid-cols-3 gap-3">{item.photos.map((photo) => <div key={photo.id}><Photo photo={photo} label={photo.slot === 'cover' ? '대표 표지' : '대표 내지'} /><button type="button" disabled={locked || photoActions.has(item.requestKey)} className="mt-2 text-xs text-rose-700 underline" onClick={() => removePhoto(photo)}>사진 삭제</button>{photo.error ? <p className="mt-1 text-xs text-rose-700">{photo.error}</p> : null}{photo.uploadState === 'error' ? <button type="button" disabled={locked || photoActions.has(item.requestKey)} className="mt-2 text-xs underline" onClick={() => changeGroup(item.requestKey, (group) => ({ ...group, photos: group.photos.map((entry) => entry.id === photo.id ? { ...entry, uploadState: 'queued', error: '' } : entry) }))}>업로드 다시 시도</button> : null}</div>)}</div> : null}
+        <IntakeDetailCrop photos={item.photos} disabled={locked || photoActions.has(item.requestKey)} onProcess={processDetail} />
       </div> : null}
       <aside className="min-w-0 space-y-4 xl:sticky xl:top-4"><section className="rounded-xl border border-slate-200 bg-white p-4"><div className="flex items-center justify-between"><h2 className="font-bold">작업 목록 · {workspace.groups.length}종</h2>{workspace.phase === 'review' ? <button type="button" disabled={locked} className="text-xs text-blue-700 underline" onClick={() => mutate((state) => ({ ...state, groups: state.groups.map((group) => ({ ...group, selected: !group.held && !collectionGroupError(group) })) }))}>준비된 교재 선택</button> : null}</div>
         <div className="mt-3 max-h-[65vh] space-y-2 overflow-y-auto">{workspace.groups.map((group, index) => <div key={group.requestKey} className={`rounded-xl border p-3 ${group.requestKey === item.requestKey ? 'border-blue-500 bg-blue-50' : 'border-slate-200'}`}><div className="flex items-start gap-2"><input aria-label={`${groupName(group, index)} 등록 선택`} type="checkbox" disabled={locked || group.held} checked={group.selected && !group.held} onChange={(event) => changeGroup(group.requestKey, (current) => ({ ...current, selected: event.target.checked }))} className="mt-1" />{group.photos.find((photo) => photo.slot === 'cover') ? <Photo compact photo={group.photos.find((photo) => photo.slot === 'cover')} label={`${groupName(group, index)} 표지`} /> : group.cover_image_url ? <img src={group.cover_image_url} alt="" className="h-16 w-12 shrink-0 object-contain" /> : null}<button type="button" aria-label={`교재 ${index + 1} 선택`} disabled={locked} onClick={() => activate(group)} className="min-w-0 flex-1 text-left"><p className="break-words text-sm font-semibold">{groupName(group, index)}</p><p className="mt-1 text-xs text-slate-500">{group.variants.length}개 옵션 · {intakeBookCount(group)}권 · 사진 {group.photos.length || (Number(Boolean(group.cover_image_url)) + group.inspection_image_urls.length)}장</p><p className={`mt-1 text-xs ${collectionGroupError(group) ? 'text-amber-800' : 'text-emerald-700'}`}>{group.held ? '보류됨' : collectionGroupError(group) || '등록 준비 완료'}</p></button></div><div className="mt-2 flex gap-3 text-xs"><button type="button" disabled={locked} className="text-slate-500 underline" onClick={() => changeGroup(group.requestKey, (current) => ({ ...current, held: !current.held, selected: current.held }))}>{group.held ? '보류 해제' : '보류'}</button><button type="button" disabled={locked || photoActions.has(group.requestKey)} className="text-rose-700 underline" onClick={() => {
@@ -325,7 +345,7 @@ export default function IntakeCollectionWorkbench({ shipment, onChangeCustomer, 
           mutate((state) => { const remaining = state.groups.filter((entry) => entry.requestKey !== group.requestKey); if (!remaining.length) remaining.push(newIntakeGroup()); return { ...state, groups: remaining, activeId: state.activeId === group.requestKey ? remaining[0].requestKey : state.activeId, captureSlot: 'cover' }; }, { deletePhotos: group.photos.map((photo) => photo.id) });
         }}>삭제</button></div></div>)}</div>
       </section><p className="px-1 text-xs text-slate-500">사진·입력 내용은 이 브라우저에 자동 저장됩니다. 새로고침 후에도 이어서 작업할 수 있습니다.</p>{legacyDraft ? <Link className="block text-xs text-slate-500 underline" to={`/admin/register?mode=batch&shipmentId=${shipment.id}`}>이전 등록 화면의 초안 열기</Link> : null}</aside>
-      {workspace.phase === 'review' ? <div className="min-w-0 space-y-4"><BulkFields count={selected.length} disabled={locked || photoActions.size > 0} onApply={(values) => {
+      {workspace.phase === 'review' ? <div className="min-w-0 space-y-4"><BulkFields onInspect={inspectSelected} count={selected.length} disabled={locked || photoActions.size > 0} onApply={(values) => {
         mutate((state) => ({ ...state, groups: state.groups.map((group) => {
           if (!group.selected || group.held) return group;
           const patchValues = group.product_id ? Object.fromEntries(Object.entries(values).filter(([key]) => !['published_year', 'brand', 'subject', 'subject_detail', 'book_type'].includes(key))) : values;
@@ -334,7 +354,7 @@ export default function IntakeCollectionWorkbench({ shipment, onChangeCustomer, 
       }} />
         <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-lg font-bold">{groupName(item, workspace.groups.indexOf(item))}</h2><button type="button" disabled={locked || photoActions.has(item.requestKey)} className={secondary} onClick={() => activate(item, 'capture')}>이 교재 사진 촬영·수정</button></div>
         {photoActions.has(item.requestKey) ? <p role="status" className="text-sm text-blue-700">교재 정보·사진 처리 중… 다른 교재를 계속 확인할 수 있습니다.</p> : null}
-        <IntakeBookEditor key={item.requestKey} item={item} onChange={patch} disabled={locked || photoActions.has(item.requestKey)} onChooseProduct={chooseProduct} onConvertCover={convertCover} onRetryRecognition={retryRecognition} />
+        <IntakeBookEditor key={item.requestKey} item={item} onChange={patch} disabled={locked || photoActions.has(item.requestKey)} onChooseProduct={chooseProduct} onConvertCover={convertCover} onRetryRecognition={retryRecognition} onProcessDetail={processDetail} />
         <section className="sticky bottom-3 rounded-xl border border-blue-200 bg-white p-4 shadow-lg"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-bold">선택 {selected.length}종 · {selectedBooks}권</p><p className="mt-1 text-xs text-slate-500">누락된 정보는 목록에서 확인하세요. 최대 100종·300권씩 등록합니다.</p></div><button type="button" aria-label="선택 교재 일괄 등록" disabled={locked || photoActions.size > 0 || !selected.length} className={primary} onClick={submit}>{busy || `선택 ${selectedBooks}권 한 번에 등록`}</button></div></section>
       </div> : null}
     </div>

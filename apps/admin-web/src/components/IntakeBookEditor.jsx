@@ -3,6 +3,9 @@ import { supabase } from '@shared-supabase/adminSupabaseClient';
 import { formatCurrency } from '@shared-domain/format';
 import { bookConditionLabel } from '@shared-domain/status';
 import IntakeBatchOptions from './IntakeBatchOptions';
+import IntakePriceFields from './IntakePriceFields';
+import IntakeDetailCrop from './IntakeDetailCrop';
+import { quickIntakeInspection } from '../lib/intakePricing';
 import { BOOK_TYPE_OPTIONS, BRAND_OPTIONS, SUBJECT_OPTIONS } from '../lib/productCategories';
 import { SUBJECT_DETAIL_GROUPS } from '../lib/intakeCatalog';
 import { MAX_DETAIL_PHOTOS } from '../lib/adminImageUpload';
@@ -49,7 +52,7 @@ async function queryWithRetry(name, args, isActive) {
   }
 }
 
-export default function IntakeBookEditor({ item, onChange, disabled = false, onChooseProduct, onConvertCover, onRetryRecognition }) {
+export default function IntakeBookEditor({ item, onChange, disabled = false, onChooseProduct, onConvertCover, onRetryRecognition, onProcessDetail }) {
   const [search, setSearch] = useState('');
   const [searchRetry, setSearchRetry] = useState(0);
   const [results, setResults] = useState([]);
@@ -181,6 +184,9 @@ export default function IntakeBookEditor({ item, onChange, disabled = false, onC
 
     <section className={cardClass} aria-label="검수 상태">
       <h2 className="text-base font-bold">검수 상태</h2>
+      <div className="flex flex-wrap items-center gap-3"><button type="button" className="rounded-lg bg-blue-700 px-4 py-3 text-sm font-bold text-white" onClick={() => change(quickIntakeInspection())}>새 책 · 검수 완료</button><p className="text-xs text-slate-600">S등급 · 필기·손상 없음 · 구성 확인을 한 번에 적용합니다.</p></div>
+      {item.components_confirmed ? <p className="text-sm text-emerald-700">{bookConditionLabel[item.condition_grade]} · 필기 {item.writing_percentage}% · {item.has_damage ? '손상 있음' : '손상 없음'} · 구성 확인 완료{isBatch ? ' · 옵션별 예외 유지' : ''}</p> : null}
+      <details className="rounded-lg border border-slate-200 p-3"><summary className="cursor-pointer text-sm font-semibold">상태·구성이 다를 때 수정</summary><div className="mt-4 space-y-4">
       <div>
         <p className="mb-2 text-sm font-semibold">{isBatch ? '공통 등급' : '등급'}</p>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -205,14 +211,12 @@ export default function IntakeBookEditor({ item, onChange, disabled = false, onC
         <summary className="cursor-pointer text-sm font-semibold">상태가 다른 옵션 수정</summary>
         <div className="mt-3"><IntakeBatchOptions item={item} phase="inspection" onChange={(nextVariants) => change({ variants: nextVariants })} /></div>
       </details> : null}
+      </div></details>
     </section>
 
     {!discarded ? <section className={cardClass} aria-label="판매 가격">
       <h2 className="text-base font-bold">판매 가격</h2>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Field label={isBatch ? '공통 판매가 (권당, 원)' : '판매가 (원)'}><input type="number" min="1" aria-label={isBatch ? '공통 판매가 (권당, 원)' : '판매가 (원)'} className={`${inputClass} font-bold`} value={item.price ?? ''} disabled={disabled} onChange={(event) => change({ price: event.target.value })} placeholder="판매 기록 비교 또는 직접 입력" /></Field>
-        <Field label="정가 (원, 확인되는 경우만)"><input type="number" min="1" aria-label="정가 (원, 확인되는 경우만)" className={inputClass} value={item.original_price ?? ''} disabled={disabled} onChange={(event) => change({ original_price: event.target.value })} placeholder="정가 미상·비매품은 비워두세요" /></Field>
-      </div>
+      <IntakePriceFields item={item} onChange={change} batch={isBatch} />
       {prices?.recommended_price ? <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-blue-50 p-3">
         <p className="text-sm text-blue-700">동일 옵션·등급의 최근 판매가 중앙값 <strong>{formatCurrency(prices.recommended_price)}</strong></p>
         <button type="button" disabled={disabled} className={secondary} onClick={() => change({ price: String(prices.recommended_price) })}>{isBatch ? '공통 가격으로 적용' : '이 가격 적용'}</button>
@@ -261,6 +265,7 @@ export default function IntakeBookEditor({ item, onChange, disabled = false, onC
         {(item.inspection_image_urls || []).map((url, index) => <div key={`${url}-${index}`} className="min-w-0"><p className="mb-2 text-xs font-semibold">대표 내지 {index + 1}</p><img src={url} alt={`내지 사진 ${index + 1}`} className="h-36 w-full rounded-lg border border-slate-200 object-contain" /><button type="button" aria-label={`내지 사진 ${index + 1} 삭제`} disabled={disabled} className="mt-2 w-full text-xs text-rose-700 underline disabled:opacity-40" onClick={() => change({ inspection_image_urls: item.inspection_image_urls.filter((_, photoIndex) => photoIndex !== index) })}>삭제 후 다시 촬영</button></div>)}
       </div>
       <p className="text-xs text-slate-500">내지 {(item.inspection_image_urls || []).length}/{MAX_DETAIL_PHOTOS}장 · 대표 사진은 이 교재의 모든 옵션에 공통 적용됩니다.</p>
+      {onProcessDetail ? <IntakeDetailCrop photos={item.photos || []} disabled={disabled} onProcess={onProcessDetail} /> : null}
       {!discarded ? <>
         {!item.product_id && item.cover_image_url && onConvertCover ? <div className="flex flex-wrap items-center gap-3">
           <button type="button" disabled={disabled} className={secondary} onClick={onConvertCover}>표지를 AI 상품 사진으로 가공</button>

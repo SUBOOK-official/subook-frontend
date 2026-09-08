@@ -1,3 +1,4 @@
+import { intakeDiscountError } from './intakePricing.js';
 export const INTAKE_STEPS = ['표지 촬영', '교재 확인', '상태 확인', '가격 결정', '등록'];
 export const MAX_INTAKE_OPTIONS = 100;
 export const MAX_INTAKE_BOOKS = 300;
@@ -6,7 +7,7 @@ export function blankIntake(location = '') {
     requestKey: crypto.randomUUID(), step: 0, product_id: null, title: '', option: '',
     subject: '', brand: '', book_type: '', published_year: '', instructor_name: '',
     condition_grade: '', writing_percentage: '', has_damage: null, components_confirmed: false,
-    inspection_notes: '', discard_reason: '', price: '', original_price: '', location,
+    inspection_notes: '', discard_reason: '', price: '', original_price: '', discount_type: 'none', discount_value: '', location,
     serial_number: '', cover_image_url: '', scan_image_url: '', inspection_image_urls: [],
     is_public: true, options: [], variants: [newIntakeVariant()],
   };
@@ -32,6 +33,7 @@ function singleIntakeError(item, step) {
     if (item.writing_percentage === '' || !Number.isInteger(Number(item.writing_percentage)) || Number(item.writing_percentage) < 0 || Number(item.writing_percentage) > 100) return '필기 비율을 0~100 사이의 정수로 입력하세요.';
     if (item.has_damage === null || !item.components_confirmed) return '손상 여부와 답지·구성품 확인을 완료하세요.';
   }
+  if (step >= 3 && intakeDiscountError(item)) return intakeDiscountError(item);
   if (step >= 3 && (!Number.isSafeInteger(Number(item.price)) || Number(item.price) < 1 || Number(item.price) > 2147483647)) return '판매가를 1원 이상의 정수로 입력하세요.';
   if (item.original_price !== '' && (!Number.isSafeInteger(Number(item.original_price)) || Number(item.original_price) < 1 || Number(item.original_price) > 2147483647)) return '정가를 확인하거나 미상으로 비워두세요.';
   if (step >= 4) {
@@ -104,6 +106,8 @@ export function intakeBookCount(item) { return (item.variants || []).reduce((sum
 export function resolveIntakeVariant(item, row) {
   return { ...item, option: row.option,
     price: row.price === '' ? item.price : row.price,
+    discount_type: row.price === '' ? item.discount_type : 'none',
+    discount_value: row.price === '' ? item.discount_value : '',
     condition_grade: row.condition_grade || item.condition_grade,
     writing_percentage: row.writing_percentage === '' ? item.writing_percentage : row.writing_percentage,
     has_damage: row.has_damage === null ? item.has_damage : row.has_damage,
@@ -113,6 +117,7 @@ export function intakeBatchVariants(item) {
   return item.variants.map((row) => {
     const resolved = resolveIntakeVariant(item, row);
     return { option: row.option.trim(), quantity: Number(row.quantity), price: resolved.price,
+      discount_type: resolved.discount_type || 'none', discount_value: resolved.discount_value === '' ? null : resolved.discount_value ?? null,
       condition_grade: resolved.condition_grade, writing_percentage: resolved.writing_percentage,
       has_damage: resolved.has_damage, inspection_notes: resolved.inspection_notes };
   });
@@ -144,6 +149,6 @@ export function intakePayload(item) {
   const resolved = !isIntakeBatch(item) && item.variants?.[0] ? resolveIntakeVariant(item, item.variants[0]) : item;
   const keys = ['product_id','title','option','subject','brand','book_type','published_year','instructor_name',
     'condition_grade','writing_percentage','has_damage','components_confirmed','inspection_notes','discard_reason',
-    'price','original_price','location','serial_number','cover_image_url','inspection_image_urls','is_public'];
+    'price','original_price','discount_type','discount_value','location','serial_number','cover_image_url','inspection_image_urls','is_public'];
   return Object.fromEntries(keys.map((key) => [key, resolved[key]]));
 }

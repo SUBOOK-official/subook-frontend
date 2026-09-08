@@ -1,5 +1,6 @@
 import { blankIntake, restoreIntake, updateIntake, newIntakeVariant, intakeError, intakePayload, intakeBatchVariants, intakeBookCount, isIntakeBatch, MAX_INTAKE_BOOKS } from './intakeWorkbench.js';
 import { applyIntakeCatalog, normalizeIntakeCatalogDraft } from './intakeCatalog.js';
+import { applyIntakePricing } from './intakePricing.js';
 
 export const MAX_INTAKE_GROUPS = 100;
 export function newIntakeGroup(location = '') {
@@ -31,7 +32,7 @@ export function createIntakeCollection(legacy) {
     completed: structuredClone(previous.completed || []), pending: previous.pending ? { ...structuredClone(previous.pending), legacy: true } : null };
 }
 export function patchIntakeGroup(group, patch, manual = true) {
-  const catalog = updateIntake(applyIntakeCatalog(group, patch), {});
+  const catalog = updateIntake(applyIntakePricing(applyIntakeCatalog(group, patch), patch), {});
   const changesMetadata = ['title', 'title_core', 'subject', 'subject_detail', 'brand', 'book_type', 'published_year', 'instructor_name', 'product_id', 'variants']
     .some((key) => Object.prototype.hasOwnProperty.call(patch, key));
   return { ...catalog, metadataRevision: (group.metadataRevision || 0) + (manual && changesMetadata ? 1 : 0) };
