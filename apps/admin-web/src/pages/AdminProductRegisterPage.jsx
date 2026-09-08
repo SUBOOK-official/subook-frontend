@@ -1512,6 +1512,10 @@ function AdminProductRegisterPage() {
         {/* ── STEP 1: 고객 선택/생성 ─────────────────────────────── */}
         {step === "customer" ? (
           <div className="grid gap-5 lg:grid-cols-2">
+            <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 lg:col-span-2">
+              <p className="font-bold text-blue-900">등록 전, 같은 교재 종류끼리 먼저 분류해 주세요</p>
+              <p className="mt-1 text-sm text-slate-700">학년도·과목·교재명이 같은 책을 모으세요. 서바이벌 1~30회처럼 여러 회차가 들어오면 대표 표지·내지만 한 번 촬영하고, 여러 옵션을 한 번에 등록할 수 있습니다.</p>
+            </div>
             <section className="rounded-2xl border border-slate-200 bg-white p-6">
               <h2 className="text-lg font-black text-slate-900">최근 입고 · 등록할 수거 건</h2>
               <p className="mt-1 text-sm text-slate-500">
