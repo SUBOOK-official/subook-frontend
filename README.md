@@ -7,10 +7,13 @@ apps/
   admin-web/
   seller-lookup/
   public-web/
+  mobile/       # iOS / Android, React Native + Expo
 packages/
   shared-domain/
   shared-supabase/
 ```
+
+모바일 앱 개발·실행·스토어 출시 단계는 [apps/mobile/README.md](apps/mobile/README.md)를 참고하세요.
 
 ## 로컬 실행
 

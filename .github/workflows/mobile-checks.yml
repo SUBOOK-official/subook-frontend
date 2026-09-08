@@ -1,0 +1,53 @@
+name: Mobile checks
+
+on:
+  pull_request:
+    paths:
+      - "apps/mobile/**"
+      - "packages/**"
+      - "apps/public-web/src/assets/**"
+      - "apps/public-web/src/lib/storageImage.js"
+      - "apps/public-web/public/**"
+      - "package*.json"
+      - "eslint.config.js"
+      - ".github/workflows/mobile-checks.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/mobile/**"
+      - "packages/**"
+      - "apps/public-web/src/assets/**"
+      - "apps/public-web/src/lib/storageImage.js"
+      - "apps/public-web/public/**"
+      - "package*.json"
+      - "eslint.config.js"
+      - ".github/workflows/mobile-checks.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            apps/mobile/package-lock.json
+      - run: npm ci
+      - run: npm --prefix apps/mobile ci
+      - run: npm run lint
+      - run: npm run test:mobile
+      - run: npm --prefix apps/mobile run check
+      # 비밀 키/운영 데이터 없이 세 플랫폼의 JS/asset 번들만 검증한다.
+      - run: npm run build:mobile

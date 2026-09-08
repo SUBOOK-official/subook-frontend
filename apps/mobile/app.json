@@ -1,0 +1,20 @@
+{
+  "expo": {
+    "name": "수북",
+    "slug": "subook-mobile",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "../public-web/public/apple-touch-icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": false
+    },
+    "web": {
+      "favicon": "../public-web/public/favicon.png",
+      "name": "수북 앱 개발 미리보기"
+    },
+    "plugins": [
+      "expo-font"
+    ]
+  }
+}

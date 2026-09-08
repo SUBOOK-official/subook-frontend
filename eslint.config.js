@@ -8,6 +8,7 @@ const reactHooks = require("eslint-plugin-react-hooks");
 const reactRefresh = require("eslint-plugin-react-refresh");
 
 const lintTargets = [
+  "apps/mobile/**/*.{js,jsx,cjs}",
   "apps/public-web/src/**/*.{js,jsx}",
   "packages/shared-domain/src/**/*.{js,jsx}",
   "packages/shared-supabase/src/**/*.{js,jsx}",
@@ -19,6 +20,9 @@ export default [
       "**/dist/**",
       "**/node_modules/**",
       "**/.vite/**",
+      "**/.expo/**",
+      "apps/mobile/android/**",
+      "apps/mobile/ios/**",
       "**/.vercel/**",
       "**/coverage/**",
     ],
