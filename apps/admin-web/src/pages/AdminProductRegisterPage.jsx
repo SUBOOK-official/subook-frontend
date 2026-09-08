@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import AdminShell from "../components/AdminShell";
 import AdminDialog from "../components/AdminDialog";
+import IntakeWorkbench from "../components/IntakeWorkbench";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { formatCurrency } from "@shared-domain/format";
 import { pickupRequestStatusLabel, shipmentStatusLabel } from "@shared-domain/status";
@@ -353,7 +354,7 @@ function StepBadge({ index, label, active, done }) {
 }
 
 function AdminProductRegisterPage() {
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const shipmentIdParam = params.get("shipmentId");
 
@@ -376,6 +377,8 @@ function AdminProductRegisterPage() {
   // 고객(수거) 선택/생성
   const [custSearch, setCustSearch] = useState("");
   const [custResults, setCustResults] = useState([]);
+  const [custPage, setCustPage] = useState(0);
+  const [custHasMore, setCustHasMore] = useState(false);
   const [custLoading, setCustLoading] = useState(false);
   const [newCust, setNewCust] = useState({ seller_name: "", seller_phone: "", pickup_date: todayStr() });
   const [creatingCust, setCreatingCust] = useState(false);
@@ -489,23 +492,20 @@ function AdminProductRegisterPage() {
   useEffect(() => {
     if (step !== "customer" || !isSupabaseConfigured) return undefined;
     const q = custSearch.replace(/[,()%]/g, " ").trim();
-    if (!q) {
-      setCustResults([]);
-      return undefined;
-    }
     let active = true;
     setCustLoading(true);
     const timer = window.setTimeout(async () => {
-      const { data, error } = await supabase.rpc("admin_search_register_targets", {
-        p_search: q,
-        p_limit: 20,
-      });
+      const { data, error } = q
+        ? await supabase.rpc("admin_search_register_targets", { p_search: q, p_limit: 50 })
+        : await supabase.rpc("admin_recent_intake_targets", { p_limit: 30, p_offset: custPage * 30 });
       if (!active) return;
       if (error) {
         showToast(error.message || "고객 검색에 실패했습니다.", "error");
         setCustResults([]);
       } else {
-        setCustResults(Array.isArray(data) ? data : []);
+        const rows = Array.isArray(data) ? data : [];
+        setCustResults((previous) => q || custPage === 0 ? rows : [...previous, ...rows]);
+        setCustHasMore(!q && rows.length === 30);
       }
       setCustLoading(false);
     }, 250);
@@ -513,7 +513,7 @@ function AdminProductRegisterPage() {
       active = false;
       window.clearTimeout(timer);
     };
-  }, [custSearch, step, showToast]);
+  }, [custSearch, step, showToast, custPage]);
 
   // 새 고객 등록 폼 — 같은 번호의 진행 중 수거신청 / 회원 매칭 사전 조회 (디바운스)
   useEffect(() => {
@@ -1215,7 +1215,7 @@ function AdminProductRegisterPage() {
 
   // '상세 1번을 표지로 사용' 버튼 — 이미 올라간 상세 사진을 내려받아 표지 업로드
   // 경로(AI 토글 포함)로 태운다. 자동 승계를 놓쳤거나 표지를 지운 경우의 수동 경로.
-  const useDetailAsCover = async (kind, uid) => {
+  const applyDetailAsCover = async (kind, uid) => {
     const list = kind === "new" ? newRows : existingAdditions;
     const firstDetail = list.find((x) => x.uid === uid)?.detailUrls?.[0];
     if (!firstDetail) return;
@@ -1439,6 +1439,12 @@ function AdminProductRegisterPage() {
 
   const canChangeCustomer = !shipmentIdParam;
 
+  if (shipment && params.get("mode") !== "batch") {
+    return <IntakeWorkbench key={shipment.id} shipment={shipment}
+      legacyDraft={Boolean(initialDraft?.newRows?.some((row) => row.title?.trim()) || initialDraft?.existingAdditions?.length)}
+      onChangeCustomer={() => { setShipment(null); setStep("customer"); setParams({}); }} />;
+  }
+
   return (
     <AdminShell
       activeModule="register"
@@ -1455,9 +1461,9 @@ function AdminProductRegisterPage() {
       <div className="flex flex-wrap items-center gap-4 rounded-xl border border-slate-200 bg-white px-5 py-3">
         <StepBadge index={1} label="고객 선택" active={step === "customer"} done={Boolean(shipment)} />
         <span className="text-slate-300">›</span>
-        <StepBadge index={2} label="교재 목록" active={step === "list"} done={step === "photos"} />
+        <StepBadge index={2} label={params.get("mode") === "batch" ? "교재 목록" : "촬영 · 검수 · 가격"} active={step === "list"} done={step === "photos"} />
         <span className="text-slate-300">›</span>
-        <StepBadge index={3} label="사진 · 완료" active={step === "photos"} done={false} />
+        <StepBadge index={3} label={params.get("mode") === "batch" ? "사진 · 완료" : "권별 등록"} active={step === "photos"} done={false} />
         {shipment ? (
           <div className="ml-auto flex items-center gap-3">
             <span className="rounded-full bg-slate-900 px-3 py-1 text-sm font-bold text-white">
@@ -1507,23 +1513,23 @@ function AdminProductRegisterPage() {
         {step === "customer" ? (
           <div className="grid gap-5 lg:grid-cols-2">
             <section className="rounded-2xl border border-slate-200 bg-white p-6">
-              <h2 className="text-lg font-black text-slate-900">고객 · 수거신청 검색</h2>
+              <h2 className="text-lg font-black text-slate-900">최근 입고 · 등록할 수거 건</h2>
               <p className="mt-1 text-sm text-slate-500">
-                이름 · 전화번호 · 수거신청 번호로 검색하세요. 회원 수거신청도 함께 나옵니다.
+                최근 입고·검수 중인 수거 건입니다. 이름·전화번호·수거신청 번호로도 검색할 수 있습니다.
               </p>
               <input
                 type="search"
                 value={custSearch}
-                onChange={(e) => setCustSearch(e.target.value)}
+                onChange={(e) => { setCustSearch(e.target.value); setCustPage(0); }}
                 placeholder="예: 나유찬 / 010-1234-5678 / PU-2608-0005"
                 className="mt-3 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
               />
-              <div className="mt-3 max-h-80 space-y-2 overflow-y-auto">
+              <div className="mt-3 max-h-[32rem] space-y-2 overflow-y-auto">
                 {custLoading ? (
                   <p className="py-4 text-center text-sm text-slate-400"><InlineLoading label="검색 중..." /></p>
                 ) : custResults.length === 0 ? (
                   <p className="py-4 text-center text-sm text-slate-400">
-                    {custSearch.trim() ? "검색 결과가 없습니다." : "검색어를 입력하세요."}
+                    {custSearch.trim() ? "검색 결과가 없습니다." : "입고·검수 중인 수거 건이 없습니다. 이름이나 신청 번호로 검색하세요."}
                   </p>
                 ) : (
                   custResults.map((c) => {
@@ -1574,6 +1580,7 @@ function AdminProductRegisterPage() {
                   })
                 )}
               </div>
+              {custHasMore && !custSearch.trim() ? <button type="button" disabled={custLoading} onClick={() => setCustPage((page) => page + 1)} className="mt-3 w-full rounded-lg border border-slate-300 py-2 text-sm font-semibold disabled:opacity-50">최근 입고 더 보기</button> : null}
             </section>
 
             <section className="rounded-2xl border border-slate-200 bg-white p-6">
@@ -1809,7 +1816,6 @@ function AdminProductRegisterPage() {
                       >
                         <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-md border border-slate-200 bg-slate-100">
                           {p.cover_image_url ? (
-                            // eslint-disable-next-line jsx-a11y/img-redundant-alt
                             <img src={p.cover_image_url} alt="" className="h-full w-full object-cover" />
                           ) : (
                             <div className="flex h-full w-full items-center justify-center text-[10px] text-slate-400">
@@ -2220,7 +2226,6 @@ function AdminProductRegisterPage() {
                       {t.coverUrl ? (
                         <>
                           <div className="relative h-32 w-32 overflow-hidden rounded-lg border border-slate-200">
-                            {/* eslint-disable-next-line jsx-a11y/img-redundant-alt */}
                             <img src={t.coverUrl} alt="" className="h-full w-full object-cover" />
                             <button
                               type="button"
@@ -2263,7 +2268,7 @@ function AdminProductRegisterPage() {
                             <button
                               type="button"
                               disabled={t.coverBusy}
-                              onClick={() => useDetailAsCover(t.kind, t.uid)}
+                              onClick={() => applyDetailAsCover(t.kind, t.uid)}
                               className="mt-2 block text-[11px] font-bold text-indigo-600 underline hover:text-indigo-800 disabled:opacity-50"
                             >
                               상세 1번 사진을 표지로 사용
@@ -2279,7 +2284,6 @@ function AdminProductRegisterPage() {
                       <div className="flex flex-wrap gap-2">
                         {t.detailUrls.map((url) => (
                           <div key={url} className="relative h-24 w-24 overflow-hidden rounded-lg border border-slate-200">
-                            {/* eslint-disable-next-line jsx-a11y/img-redundant-alt */}
                             <img src={url} alt="" className="h-full w-full object-cover" />
                             <button
                               type="button"
@@ -2415,7 +2419,6 @@ function AdminProductRegisterPage() {
             <div className="flex items-start gap-4 border-b border-slate-200 pb-4">
               <div className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-md border border-slate-200 bg-slate-100">
                 {framePanel.product.cover_image_url ? (
-                  // eslint-disable-next-line jsx-a11y/img-redundant-alt
                   <img src={framePanel.product.cover_image_url} alt="" className="h-full w-full object-cover" />
                 ) : null}
               </div>

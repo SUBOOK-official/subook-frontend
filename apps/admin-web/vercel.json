@@ -33,6 +33,10 @@
     {
       "path": "/api/admin/cj-delivery-tracking",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/admin/cj-pickup-tracking",
+      "schedule": "15 * * * *"
     }
   ],
   "headers": [
@@ -43,7 +47,7 @@
         { "key": "X-Frame-Options", "value": "DENY" },
         { "key": "X-Content-Type-Options", "value": "nosniff" },
         { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-        { "key": "Permissions-Policy", "value": "geolocation=(), microphone=(), camera=(), payment=()" },
+        { "key": "Permissions-Policy", "value": "geolocation=(), microphone=(), camera=(self), payment=()" },
         { "key": "X-Robots-Tag", "value": "noindex, nofollow" }
       ]
     }

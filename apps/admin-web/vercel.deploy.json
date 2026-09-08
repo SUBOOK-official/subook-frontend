@@ -42,6 +42,10 @@
       "schedule": "0 * * * *"
     },
     {
+      "path": "/api/admin/cj-pickup-tracking",
+      "schedule": "15 * * * *"
+    },
+    {
       "path": "/api/admin/ops-health",
       "schedule": "0 0 * * *"
     }
@@ -68,7 +72,7 @@
         },
         {
           "key": "Permissions-Policy",
-          "value": "geolocation=(), microphone=(), camera=(), payment=()"
+          "value": "geolocation=(), microphone=(), camera=(self), payment=()"
         },
         {
           "key": "X-Robots-Tag",
