@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { formatCurrency } from "@shared-domain/format";
 import { formatPhoneNumber, isValidKoreanMobile } from "../lib/publicAuthFormUtils";
+import { focusOrderValidationError, getOrderInputField, getOrderValidationErrors } from "../lib/orderValidation";
 import ContentContainer from "../components/ContentContainer";
 import PublicFooter from "../components/PublicFooter";
 import PublicPageFrame from "../components/PublicPageFrame";
@@ -201,7 +202,7 @@ function toAnalyticsLine(item) {
 }
 
 // 은행 선택 커스텀 드롭다운 — 네이티브 select 대신 앱 스타일의 옵션 리스트.
-function BankSelect({ value, onChange, options, placeholder = "은행 선택" }) {
+function BankSelect({ value, onChange, options, placeholder = "은행 선택", inputProps, onBlur }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
 
@@ -222,8 +223,11 @@ function BankSelect({ value, onChange, options, placeholder = "은행 선택" })
   }, [open]);
 
   return (
-    <div className="order-bank-select" ref={rootRef}>
+    <div className="order-bank-select" ref={rootRef} onBlur={(event) => {
+      if (!event.currentTarget.contains(event.relatedTarget)) onBlur?.();
+    }}>
       <button
+        {...inputProps}
         aria-expanded={open}
         aria-haspopup="listbox"
         className={`order-bank-select__trigger${value ? "" : " is-placeholder"}`}
@@ -789,6 +793,27 @@ function PublicOrderPage() {
   const [agreementRefund, setAgreementRefund] = useState(false);
   // PG('card') vs 계좌이체. PG는 즉시결제라 '24시간 미입금 자동취소' 동의가 불필요하다.
   const isPg = PG_READY && paymentMethod !== "bank_transfer";
+  const [touchedFields, setTouchedFields] = useState({});
+  const [hasValidationAttempt, setHasValidationAttempt] = useState(false);
+  const validationErrors = getOrderValidationErrors({ shipping, refundAccount, isPg, agreementOrder, agreementPayment, agreementRefund });
+  const fieldErrors = Object.fromEntries(validationErrors
+    .filter(({ field }) => hasValidationAttempt || touchedFields[getOrderInputField(field)])
+    .map(({ field, message }) => [getOrderInputField(field), message]));
+  const markFieldTouched = (field) => setTouchedFields((prev) => ({ ...prev, [field]: true }));
+  const fieldProps = (field) => ({
+    id: `checkout-${field}`,
+    "aria-invalid": Boolean(fieldErrors[field]),
+    "aria-describedby": fieldErrors[field] ? `checkout-${field}-error` : undefined,
+  });
+  const renderFieldError = (field) => {
+    // 입력 중 오류 표시로 다음 버튼이 움직여 클릭을 놓치지 않도록 안내 공간을 확보한다.
+    const isAgreement = field.startsWith("agreement_");
+    if (isAgreement && !fieldErrors[field]) return null;
+    return (
+      <p className={`order-field-error${isAgreement ? "" : " order-field-error--reserved"}`}
+        id={`checkout-${field}-error`}>{fieldErrors[field] || "\u00a0"}</p>
+    );
+  };
   const requiredAgreementsOk = isPg
     ? agreementOrder && agreementRefund
     : agreementOrder && agreementPayment && agreementRefund;
@@ -1314,6 +1339,7 @@ function PublicOrderPage() {
   // GA4 form_progress — 배송 필드 최초 입력 완료(blur 시 값 있음)를 필드별 1회.
   // 어느 칸에서 멈추는지(퍼널 감사 요청)를 보기 위한 것이라 값은 절대 보내지 않는다.
   const handleShippingFieldBlur = (fieldName) => (event) => {
+    markFieldTouched(fieldName);
     if (!event.target.value.trim()) return;
     if (!formProgressGuardRef.current(fieldName)) return;
     trackFormProgress("checkout", fieldName, checkoutContext());
@@ -1322,6 +1348,7 @@ function PublicOrderPage() {
   // GA4 refund_account_filled — 환불계좌 칸을 실제로 채웠는지만 필드별 1회.
   // 계좌번호·예금주 값은 어떤 형태로도 보내지 않는다.
   const handleRefundFieldBlur = (fieldName) => (event) => {
+    markFieldTouched(fieldName === "holder" ? "refund_account_holder" : "refund_account_number");
     if (!event.target.value.trim()) return;
     if (!refundFieldGuardRef.current(fieldName)) return;
     trackEvent("refund_account_filled", { fieldName, ...checkoutContext() });
@@ -1361,61 +1388,6 @@ function PublicOrderPage() {
     setPaymentMethod(methodId);
   };
 
-  // 반환값: null(통과) 또는 { field, message }.
-  // field는 GA4 checkout_error(error_field)용 기계 판독 코드, message는 사용자 토스트 문구
-  // (문구·검증 순서는 기존과 동일 — 계측을 위해 반환 형태만 바뀌었다).
-  const validate = () => {
-    if (!shipping.recipientName.trim()) {
-      return { field: "recipient_name", message: "수령인 이름을 입력해주세요." };
-    }
-    if (!shipping.recipientPhone.trim()) {
-      return { field: "recipient_phone", message: "수령인 연락처를 입력해주세요." };
-    }
-    // 배송 안내 SMS·알림톡 발송 대상이므로 휴대폰 형식을 검증한다(수거요청 페이지와 동일 기준).
-    if (!isValidKoreanMobile(shipping.recipientPhone)) {
-      return {
-        field: "phone_format",
-        message: "휴대폰 번호를 정확히 입력해주세요. (예: 010-1234-5678)",
-      };
-    }
-    if (!shipping.postalCode.trim() || !shipping.addressLine1.trim()) {
-      return { field: "address", message: "배송지 주소를 입력해주세요." };
-    }
-    if (!agreementOrder) {
-      return {
-        field: "agreement_order",
-        message: "[필수] 주문 내용 확인 및 개인정보 수집·이용 동의에 체크해주세요.",
-      };
-    }
-    if (!isPg && !agreementPayment) {
-      return {
-        field: "agreement_payment",
-        message: "[필수] 미입금 시 주문 자동 취소 동의에 체크해주세요.",
-      };
-    }
-    if (!agreementRefund) {
-      return {
-        field: "agreement_refund",
-        message: "[필수] 환불·교환 정책 확인 동의에 체크해주세요.",
-      };
-    }
-    // 무통장입금은 환불계좌를 주문 시점에 필수 수집 (2026-07-12 정책 — 환불 시 계좌 확인 지연 방지)
-    if (!isPg) {
-      if (!refundAccount.bank.trim()) {
-        return { field: "refund_bank", message: "환불받을 계좌의 은행을 선택해주세요." };
-      }
-      if (refundAccount.number.replace(/[^0-9]/g, "").length < 6) {
-        return {
-          field: "refund_account_number",
-          message: "환불받을 계좌번호를 정확히 입력해주세요.",
-        };
-      }
-      if (!refundAccount.holder.trim()) {
-        return { field: "refund_account_holder", message: "환불받을 계좌의 예금주를 입력해주세요." };
-      }
-    }
-    return null;
-  };
 
   const handleSubmit = async () => {
     // 동기 ref 가드: 빠른 더블 클릭 시 첫 호출이 끝나기 전 두 번째 클릭 차단.
@@ -1439,8 +1411,12 @@ function PublicOrderPage() {
       ...checkoutContext(),
     });
 
-    const validationError = validate();
+    const validationError = validationErrors[0];
     if (validationError) {
+      setHasValidationAttempt(true);
+      requestAnimationFrame(() => {
+        focusOrderValidationError(validationError.field);
+      });
       // GA4 checkout_error — 제출 시도가 검증에서 막힌 지점 (미입력 필드·동의 누락 분포)
       trackCheckoutError("validation", validationError.message, {
         errorField: validationError.field,
@@ -1827,6 +1803,8 @@ function PublicOrderPage() {
                   {savedAddresses.length > 0 && (
                     <button
                       className="order-addr-change-btn"
+                      id="checkout-address-change"
+                      aria-describedby={selectedAddressId != null ? "checkout-saved-address-errors" : undefined}
                       onClick={() => {
                         // GA4 dialog_open(address_book) — 저장된 주소를 바꾸러 들어간 비율
                         trackDialogOpen("address_book", {
@@ -1858,6 +1836,11 @@ function PublicOrderPage() {
                         [{shipping.postalCode}] {shipping.addressLine1} {shipping.addressLine2}
                       </span>
                     </div>
+                    <div id="checkout-saved-address-errors">
+                      {['recipient_name', 'recipient_phone', 'address'].map((field) => fieldErrors[field] ? (
+                        <p className="order-field-error" key={field}>{fieldErrors[field]} 주소 변경에서 수정해 주세요.</p>
+                      ) : null)}
+                    </div>
                   </div>
                 ) : (
                   <div className="order-form">
@@ -1867,31 +1850,43 @@ function PublicOrderPage() {
                       </p>
                     )}
                     <div className="order-form__row">
-                      <label className="order-form__label">수령인</label>
-                      <input
-                        className="order-form__input"
-                        onBlur={handleShippingFieldBlur("recipient_name")}
-                        onChange={(e) => setShipping((p) => ({ ...p, recipientName: e.target.value }))}
-                        placeholder="이름"
-                        type="text"
-                        value={shipping.recipientName}
-                      />
+                      <label className="order-form__label" htmlFor="checkout-recipient_name">수령인 <span className="order-field-required">필수</span></label>
+                      <div className="order-field-control">
+                        <input
+                          {...fieldProps("recipient_name")}
+                          aria-required="true"
+                          className="order-form__input"
+                          onBlur={handleShippingFieldBlur("recipient_name")}
+                          onChange={(e) => setShipping((p) => ({ ...p, recipientName: e.target.value }))}
+                          placeholder="이름"
+                          type="text"
+                          value={shipping.recipientName}
+                        />
+                        {renderFieldError("recipient_name")}
+                      </div>
                     </div>
                     <div className="order-form__row">
-                      <label className="order-form__label">연락처</label>
-                      <input
-                        className="order-form__input"
-                        inputMode="tel"
-                        onBlur={handleShippingFieldBlur("recipient_phone")}
-                        onChange={(e) => setShipping((p) => ({ ...p, recipientPhone: formatPhoneNumber(e.target.value) }))}
-                        placeholder="010-0000-0000"
-                        type="tel"
-                        value={shipping.recipientPhone}
-                      />
+                      <label className="order-form__label" htmlFor="checkout-recipient_phone">연락처 <span className="order-field-required">필수</span></label>
+                      <div className="order-field-control">
+                        <input
+                          {...fieldProps("recipient_phone")}
+                          aria-required="true"
+                          className="order-form__input"
+                          inputMode="tel"
+                          onBlur={handleShippingFieldBlur("recipient_phone")}
+                          onChange={(e) => setShipping((p) => ({ ...p, recipientPhone: formatPhoneNumber(e.target.value) }))}
+                          placeholder="010-0000-0000"
+                          type="tel"
+                          value={shipping.recipientPhone}
+                        />
+                        {renderFieldError("recipient_phone")}
+                      </div>
                     </div>
                     <div className="order-form__row">
-                      <label className="order-form__label">주소</label>
-                      <div className="order-form__address-group">
+                      <label className="order-form__label" htmlFor="checkout-address">주소 <span className="order-field-required">필수</span></label>
+                      <div className="order-form__address-group" onBlur={(event) => {
+                        if (!event.currentTarget.contains(event.relatedTarget)) markFieldTouched("address");
+                      }}>
                         <div className="order-form__postal-row">
                           <input
                             className="order-form__input order-form__input--postal"
@@ -1901,6 +1896,9 @@ function PublicOrderPage() {
                             value={shipping.postalCode}
                           />
                           <button
+                            {...fieldProps("address")}
+                            aria-label="주소 검색 (필수)"
+                            aria-describedby={fieldErrors.address ? "checkout-address-hint checkout-address-error" : "checkout-address-hint"}
                             className="order-form__search-btn"
                             onClick={handleSearchAddress}
                             type="button"
@@ -1908,6 +1906,7 @@ function PublicOrderPage() {
                             주소 검색
                           </button>
                         </div>
+                        <p className="order-field-hint" id="checkout-address-hint">주소 검색으로 기본 주소를 찾은 뒤 상세 주소를 확인해 주세요.</p>
                         <input
                           className="order-form__input"
                           disabled
@@ -1923,6 +1922,7 @@ function PublicOrderPage() {
                           type="text"
                           value={shipping.addressLine2}
                         />
+                        {renderFieldError("address")}
                       </div>
                     </div>
                   </div>
@@ -2079,37 +2079,55 @@ function PublicOrderPage() {
                     입금하시는 분 본인 명의 계좌로 입력해 주세요.
                   </p>
                   <div className="order-refund-account">
-                    <BankSelect
-                      onChange={(bank) => {
-                        // GA4 refund_account_bank_select — 은행명은 개인정보가 아니라 그대로 기록
-                        trackEvent("refund_account_bank_select", {
-                          bankName: bank,
-                          ...checkoutContext(),
-                        });
-                        setRefundAccount((prev) => ({ ...prev, bank }));
-                      }}
-                      options={BANK_OPTIONS}
-                      value={refundAccount.bank}
-                    />
-                    <input
-                      className="order-refund-account__input"
-                      enterKeyHint="next"
-                      inputMode="numeric"
-                      onBlur={handleRefundFieldBlur("account_number")}
-                      onChange={(e) => setRefundAccount((prev) => ({ ...prev, number: e.target.value }))}
-                      placeholder="계좌번호 (‘-’ 없이 숫자만)"
-                      type="text"
-                      value={refundAccount.number}
-                    />
-                    <input
-                      className="order-refund-account__input"
-                      enterKeyHint="done"
-                      onBlur={handleRefundFieldBlur("holder")}
-                      onChange={(e) => setRefundAccount((prev) => ({ ...prev, holder: e.target.value }))}
-                      placeholder="예금주"
-                      type="text"
-                      value={refundAccount.holder}
-                    />
+                    <div className="order-field-control">
+                      <label className="order-refund-label" htmlFor="checkout-refund_bank">은행 <span className="order-field-required">필수</span></label>
+                      <BankSelect
+                        inputProps={fieldProps("refund_bank")}
+                        onBlur={() => markFieldTouched("refund_bank")}
+                        onChange={(bank) => {
+                          // GA4 refund_account_bank_select — 은행명은 개인정보가 아니라 그대로 기록
+                          trackEvent("refund_account_bank_select", {
+                            bankName: bank,
+                            ...checkoutContext(),
+                          });
+                          setRefundAccount((prev) => ({ ...prev, bank }));
+                        }}
+                        options={BANK_OPTIONS}
+                        value={refundAccount.bank}
+                      />
+                      {renderFieldError("refund_bank")}
+                    </div>
+                    <div className="order-field-control">
+                      <label className="order-refund-label" htmlFor="checkout-refund_account_number">계좌번호 <span className="order-field-required">필수</span></label>
+                      <input
+                        {...fieldProps("refund_account_number")}
+                        aria-required="true"
+                        className="order-refund-account__input"
+                        enterKeyHint="next"
+                        inputMode="numeric"
+                        onBlur={handleRefundFieldBlur("account_number")}
+                        onChange={(e) => setRefundAccount((prev) => ({ ...prev, number: e.target.value }))}
+                        placeholder="계좌번호 (‘-’ 없이 숫자만)"
+                        type="text"
+                        value={refundAccount.number}
+                      />
+                      {renderFieldError("refund_account_number")}
+                    </div>
+                    <div className="order-field-control">
+                      <label className="order-refund-label" htmlFor="checkout-refund_account_holder">예금주 <span className="order-field-required">필수</span></label>
+                      <input
+                        {...fieldProps("refund_account_holder")}
+                        aria-required="true"
+                        className="order-refund-account__input"
+                        enterKeyHint="done"
+                        onBlur={handleRefundFieldBlur("holder")}
+                        onChange={(e) => setRefundAccount((prev) => ({ ...prev, holder: e.target.value }))}
+                        placeholder="예금주"
+                        type="text"
+                        value={refundAccount.holder}
+                      />
+                      {renderFieldError("refund_account_holder")}
+                    </div>
                   </div>
                 </div>
               )}
@@ -2288,6 +2306,7 @@ function PublicOrderPage() {
                   <label className="order-sidebar__agreement-check">
                     <input
                       checked={agreementOrder}
+                      {...fieldProps("agreement_order")}
                       onChange={(e) => {
                         // GA4 agreement_toggle — 어떤 필수 동의에서 멈추는지(검증 실패와 대조)
                         trackEvent("agreement_toggle", {
@@ -2316,10 +2335,12 @@ function PublicOrderPage() {
                       에 동의합니다.
                     </span>
                   </label>
+                  {renderFieldError("agreement_order")}
                   {!isPg && (
                     <label className="order-sidebar__agreement-check">
                       <input
                         checked={agreementPayment}
+                        {...fieldProps("agreement_payment")}
                         onChange={(e) => {
                           trackEvent("agreement_toggle", {
                             formName: "checkout",
@@ -2337,9 +2358,11 @@ function PublicOrderPage() {
                       </span>
                     </label>
                   )}
+                  {!isPg && renderFieldError("agreement_payment")}
                   <label className="order-sidebar__agreement-check">
                     <input
                       checked={agreementRefund}
+                      {...fieldProps("agreement_refund")}
                       onChange={(e) => {
                         trackEvent("agreement_toggle", {
                           formName: "checkout",
@@ -2366,6 +2389,7 @@ function PublicOrderPage() {
                       의한 환불이 제한될 수 있음에 동의합니다.
                     </span>
                   </label>
+                  {renderFieldError("agreement_refund")}
                 </div>
 
                 <button

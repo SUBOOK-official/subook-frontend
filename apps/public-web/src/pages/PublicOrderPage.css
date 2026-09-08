@@ -207,6 +207,50 @@
   gap: 6px;
 }
 
+.order-field-control {
+  flex: 1;
+  min-width: 0;
+}
+
+.order-refund-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--public-ds-text);
+}
+
+.order-field-required {
+  font-size: 11px;
+  color: var(--public-ds-text-secondary);
+  white-space: nowrap;
+}
+
+.order-field-error {
+  margin: 6px 0 0;
+  color: var(--public-ds-danger);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.order-field-hint {
+  margin: 6px 0;
+  color: var(--public-ds-text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.order-field-error--reserved {
+  min-height: 3em;
+}
+
+.order-form__input[aria-invalid="true"],
+.order-refund-account__input[aria-invalid="true"],
+.order-bank-select__trigger[aria-invalid="true"],
+.order-form__search-btn[aria-invalid="true"] {
+  border-color: var(--public-ds-danger);
+}
+
 @media (min-width: 768px) {
   .order-form__row {
     flex-direction: row;
