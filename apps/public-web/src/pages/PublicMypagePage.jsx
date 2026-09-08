@@ -31,6 +31,7 @@ import {
 } from "../components/icons";
 import { supabase as publicSupabase } from "@shared-supabase/publicSupabaseClient";
 import ReviewComposerSheet from "../components/ReviewComposerSheet";
+import MypageRestockKeywords from "../components/MypageRestockKeywords";
 import { MypagePointsCard, PointsHistorySheet } from "../components/MypagePoints";
 import { fetchMyReviews } from "../lib/publicReviews";
 import { fetchMyPoints } from "../lib/publicPoints";
@@ -1900,16 +1901,26 @@ function PublicMypagePage() {
 
     if (activeTabKey === "wishlist") {
       return (
-        <WishlistTab
-          isLoading={isWishlistLoading || isWishlistProductsLoading}
-          onToggleFavorite={handleToggleWishlistProduct}
-          onToggleRestockAlert={isDemoPreview ? null : handleToggleRestockAlert}
-          restockBusyProductId={restockBusyProductId}
-          restockSubscribedIds={restockSubscribedIds}
-          wishlistError={wishlistError}
-          wishlistProducts={wishlistProducts}
-        />
+        <div className="public-mypage-stack">
+          <section className="public-mypage-section">
+            <MypageSectionHeader title="기다리는 교재가 있나요?" description="교재명·강사명으로 신청한 입고 알림을 확인하고 관리하세요."
+              action={<button className="public-auth-button public-auth-button--secondary" type="button" onClick={() => moveToTab("restock")}>키워드 입고 알림 관리</button>} />
+          </section>
+          <WishlistTab
+            isLoading={isWishlistLoading || isWishlistProductsLoading}
+            onToggleFavorite={handleToggleWishlistProduct}
+            onToggleRestockAlert={isDemoPreview ? null : handleToggleRestockAlert}
+            restockBusyProductId={restockBusyProductId}
+            restockSubscribedIds={restockSubscribedIds}
+            wishlistError={wishlistError}
+            wishlistProducts={wishlistProducts}
+          />
+        </div>
       );
+    }
+
+    if (activeTabKey === "restock") {
+      return <MypageRestockKeywords key={isDemoPreview ? "demo" : effectiveUser?.id} isDemoPreview={isDemoPreview} />;
     }
 
     if (activeTabKey === "coupons") {

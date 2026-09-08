@@ -1,0 +1,21 @@
+.restock-keywords h2 { margin: 0 0 12px; font-size: 21px; }
+.restock-keywords p { line-height: 1.6; }
+.restock-keywords a { color: var(--public-ds-text); text-decoration: underline; text-underline-offset: 3px; }
+.restock-keywords__hint { color: var(--public-ds-text-secondary); font-size: 13px; }
+.restock-keywords form { margin-top: 24px; }
+.restock-keywords label { display: block; margin-bottom: 10px; font-weight: 600; }
+.restock-keywords__form-row { display: flex; gap: 8px; }
+.restock-keywords__form-row input { flex: 1; min-width: 0; padding: 12px; border: 1px solid var(--public-ds-border); border-radius: 8px; font: inherit; background: var(--public-ds-surface, #fff); }
+.restock-keywords__form-row input[aria-invalid="true"] { border-color: var(--public-ds-danger); }
+.restock-keywords__form-row button { width: auto; flex-shrink: 0; padding: 12px 16px; }
+.restock-keywords__error { color: var(--public-ds-danger); font-size: 14px; }
+.restock-keywords__status { font-size: 14px; }
+.restock-keywords__list-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 24px; }
+.restock-keywords h3 { font-size: 16px; margin: 0; }
+.restock-keywords__list { padding: 0; margin: 12px 0 0; list-style: none; }
+.restock-keywords__list li { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--public-ds-border); }
+.restock-keywords__list li span { overflow-wrap: anywhere; min-width: 0; }
+.restock-keywords__list button, .restock-keywords__list-heading button { flex-shrink: 0; padding: 10px 14px; min-height: 44px; border: 1px solid var(--public-ds-border); border-radius: 8px; background: var(--public-ds-surface, #fff); font: inherit; font-size: 13px; cursor: pointer; }
+.restock-keywords button:disabled { opacity: .5; cursor: not-allowed; }
+.restock-keywords__empty { padding: 24px 0; color: var(--public-ds-text-secondary); }
+@media (max-width: 480px) { .restock-keywords label span { display: block; margin-top: 4px; } }

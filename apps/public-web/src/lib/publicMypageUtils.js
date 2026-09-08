@@ -78,6 +78,7 @@ export const SIDEBAR_GROUPS = [
     items: [
       { key: "purchases", label: "구매 내역" },
       { key: "wishlist", label: "찜한 교재" },
+      { key: "restock", label: "키워드 입고 알림" },
       { key: "coupons", label: "쿠폰" },
     ],
   },

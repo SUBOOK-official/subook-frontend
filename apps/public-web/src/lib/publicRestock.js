@@ -1,5 +1,8 @@
 import { isSupabaseConfigured, supabase } from "@shared-supabase/publicSupabaseClient";
 import { trackRestockSubscribe } from "./analytics";
+import { createRestockKeywordService } from "./restockKeywordService";
+
+export const restockKeywordService = createRestockKeywordService(supabase);
 
 // 재입고 알림 구독 헬퍼 — 찜 목록(마이페이지)의 품절 카드에서 바로 신청/해제할 때 사용.
 // 상품 상세 페이지는 자체 인라인 호출을 유지하고 있으므로 여기 로직과 RPC 이름을 맞출 것.
