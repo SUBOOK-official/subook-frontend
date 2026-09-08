@@ -943,6 +943,7 @@ function AdminProductRegisterPage() {
         originalPrice: prev?.original_price ?? o.original_price ?? repOriginal,
         discountType: prev?.discount_type || "none",
         discountValue: prev?.discount_value ?? "",
+        priceHistory: o,
       };
     });
     // 옵션이 없는 교재(깡통 상품)도 옵션명 없이 '기본 옵션'으로 수량만 추가할 수 있게
@@ -961,8 +962,9 @@ function AdminProductRegisterPage() {
         isDefaultSynthetic: true,
       }];
     }
-    // 신규 옵션 기본 판매가 — 이미 판매 중인 옵션이 있으면 그 판매가를 따라간다 (없으면 정가)
+    // 신규 옵션 기본 판매가 — 기존 옵션의 현재가·최근 판매가·이전 등록가를 참고한다.
     const defaultNewPrice =
+      existingOptions.find((o) => o.stock_count > 0 && String(o.price ?? "").trim() !== "")?.price ??
       existingOptions.find((o) => String(o.price ?? "").trim() !== "")?.price ??
       repOriginal;
     // 카탈로그에 아직 없는(= 이번에 새로 만든) 옵션들 — 입력했던 순서대로 복원
@@ -2433,9 +2435,13 @@ function AdminProductRegisterPage() {
               <h3 className="text-sm font-black text-slate-900">재고 수량 추가하기</h3>
               {framePanel.existingOptions.some((o) => o.isDefaultSynthetic) ? (
                 <p className="mt-1 text-xs text-slate-500">
-                  옵션이 없는 교재입니다 — 옵션명 없이 <strong>기본 옵션</strong>으로 수량만 추가됩니다.
+                  등록된 옵션 이력이 없습니다. 옵션명 없이 추가하려면 <strong>기본 옵션</strong>에 수량을 입력하세요.
                 </p>
-              ) : null}
+              ) : (
+                <p className="mt-1 text-xs text-slate-500">
+                  품절된 옵션도 다시 추가할 수 있습니다. 판매가는 현재 판매 중 최저가 → 최근 판매가 → 이전 등록가 순으로 채워집니다.
+                </p>
+              )}
               {framePanel.existingOptions.length === 0 ? (
                 <p className="mt-2 text-sm text-slate-400">기존 옵션이 없습니다. 아래에서 새 옵션을 추가하세요.</p>
               ) : (
@@ -2454,13 +2460,45 @@ function AdminProductRegisterPage() {
                   <tbody>
                     {framePanel.existingOptions.map((o, idx) => (
                       <tr key={`${o.option}-${idx}`} className="border-b border-slate-100">
-                        <td className="py-2 font-semibold text-slate-800">{o.option || "기본 옵션"}</td>
-                        <td className="py-2 text-center text-slate-500">{o.stock_count}권</td>
+                        <td className="py-3 pr-3 text-slate-800">
+                          <p className="font-semibold">{o.option || "기본 옵션"}</p>
+                          {o.priceHistory?.current_price != null ? (
+                            <p className="mt-1 text-xs text-slate-500">현재 판매 중 최저가 {formatCurrency(o.priceHistory.current_price)}</p>
+                          ) : null}
+                          {o.priceHistory?.last_sold_price != null ? (
+                            <>
+                              <p className="mt-1 text-xs font-bold text-indigo-700">최근 판매가 {formatCurrency(o.priceHistory.last_sold_price)}</p>
+                              <p className="mt-0.5 text-xs text-slate-500">
+                                {[
+                                  o.priceHistory.last_sold_at && new Date(o.priceHistory.last_sold_at).toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul" }),
+                                  o.priceHistory.last_sold_grade && `${o.priceHistory.last_sold_grade} 등급`,
+                                  `판매 ${o.priceHistory.sales_count}건`,
+                                ].filter(Boolean).join(" · ")}
+                              </p>
+                              {o.priceHistory.sales_min_price !== o.priceHistory.sales_max_price ? (
+                                <p className="mt-0.5 text-xs text-slate-500">
+                                  판매 이력 {formatCurrency(o.priceHistory.sales_min_price)} ~ {formatCurrency(o.priceHistory.sales_max_price)}
+                                </p>
+                              ) : null}
+                            </>
+                          ) : o.priceHistory ? (
+                            <p className="mt-1 text-xs text-slate-500">
+                              {o.priceHistory.last_recorded_price != null && !o.priceHistory.current_price
+                                ? `이전 등록가 ${formatCurrency(o.priceHistory.last_recorded_price)} · ` : ""}
+                              실제 판매 기록 없음
+                            </p>
+                          ) : null}
+                        </td>
+                        <td className="py-2 text-center text-slate-500">
+                          <p>{o.stock_count}권</p>
+                          {o.stock_count === 0 && !o.isDefaultSynthetic ? <p className="mt-1 text-xs">품절</p> : null}
+                        </td>
                         <td className="py-2">
                           <input
                             type="number"
                             min="0"
                             value={o.quantity}
+                            aria-label={`${o.option || "기본 옵션"} 추가 수량`}
                             onChange={(e) => updateExistingOpt(idx, "quantity", e.target.value)}
                             placeholder="0"
                             className="w-full rounded border border-slate-200 px-2 py-1.5"
@@ -2471,6 +2509,7 @@ function AdminProductRegisterPage() {
                             type="number"
                             min="0"
                             value={o.originalPrice}
+                            aria-label={`${o.option || "기본 옵션"} 정가`}
                             onChange={(e) => updateExistingOpt(idx, "originalPrice", e.target.value)}
                             placeholder="원"
                             className="w-full rounded border border-slate-200 px-2 py-1.5"
@@ -2479,6 +2518,7 @@ function AdminProductRegisterPage() {
                         <td className="py-2">
                           <select
                             value={o.discountType}
+                            aria-label={`${o.option || "기본 옵션"} 할인 방식`}
                             onChange={(e) => updateExistingOpt(idx, "discountType", e.target.value)}
                             className="w-full rounded border border-slate-200 px-1 py-1.5"
                           >
@@ -2492,6 +2532,7 @@ function AdminProductRegisterPage() {
                             type="number"
                             min="0"
                             value={o.discountValue}
+                            aria-label={`${o.option || "기본 옵션"} 할인 값`}
                             disabled={o.discountType === "none"}
                             onChange={(e) => updateExistingOpt(idx, "discountValue", e.target.value)}
                             placeholder={o.discountType === "rate" ? "%" : o.discountType === "amount" ? "원" : "-"}
@@ -2504,6 +2545,7 @@ function AdminProductRegisterPage() {
                               type="number"
                               min="0"
                               value={o.price}
+                              aria-label={`${o.option || "기본 옵션"} 판매가`}
                               onChange={(e) => updateExistingOpt(idx, "price", e.target.value)}
                               placeholder="원"
                               className="w-full rounded border border-slate-200 px-2 py-1.5"
@@ -2527,7 +2569,7 @@ function AdminProductRegisterPage() {
             <div className="mt-6">
               <h3 className="text-sm font-black text-slate-900">신규 옵션 추가하기</h3>
               <p className="mt-1 text-xs text-slate-500">
-                수량 1 · 판매가(판매 중 가격)는 미리 채워져요 — 옵션명만 입력하면 됩니다. 판매가를 고치면
+                수량 1 · 판매가(기존 옵션 참고 가격)는 미리 채워져요 — 옵션명만 입력하면 됩니다. 판매가를 고치면
                 아직 손대지 않은 행에도 같이 적용되고, 정가+할인을 입력하면 판매가가 자동 계산돼요.
               </p>
               <table className="mt-2 w-full text-sm">
