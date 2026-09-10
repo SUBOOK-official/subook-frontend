@@ -4,6 +4,7 @@ import PublicSiteHeader from "../components/PublicSiteHeader";
 import PublicFooter from "../components/PublicFooter";
 import PublicPickupGuide from "../components/PublicPickupGuide";
 import { PICKUP_INTRO_NOTES } from "../lib/pickupGuideContent";
+import { PICKUP_FEE_POLICY, PICKUP_FEE_POLICY_NOTICE, PICKUP_FEE_POLICY_VERSION } from "@shared-domain/settlement";
 import {
   AlertTriangleIcon,
   ArrowRightIcon,
@@ -1266,7 +1267,7 @@ function StepSettlement({
                 type="checkbox"
               />
               <span>
-                (필수) 위탁판매 약관 동의 — 수수료(1만원 초과 40%, 이하 45%) ·
+                (필수) 위탁판매 약관 동의 — 수수료(1만원 이상 {PICKUP_FEE_POLICY.standardPercent}%, 미만 {PICKUP_FEE_POLICY.lowPricePercent}%) ·
                 매월 1일 정산
               </span>
             </label>
@@ -1322,8 +1323,9 @@ function StepSettlement({
             <div className="pickup-policy-box__section">
               <p className="pickup-policy-box__heading">수수료 안내</p>
               <ul className="pickup-policy-box__list">
-                <li>1만원 초과 교재: 판매가의 40%</li>
-                <li>1만원 이하 교재·모의고사: 판매가의 45%</li>
+                <li>1만원 이상 교재: 판매가의 {PICKUP_FEE_POLICY.standardPercent}%</li>
+                <li>1만원 미만 교재·모의고사: 판매가의 {PICKUP_FEE_POLICY.lowPricePercent}%</li>
+                <li>{PICKUP_FEE_POLICY_NOTICE}</li>
               </ul>
             </div>
             <div className="pickup-policy-box__section">
@@ -1895,7 +1897,7 @@ function PublicPickupRequestPage() {
     )
       return;
     const timer = setTimeout(() => {
-      writeDraft({ address, account, policyAgreed, step: currentStep });
+      writeDraft({ address, account, policyAgreed, feePolicyVersion: PICKUP_FEE_POLICY_VERSION, step: currentStep });
     }, 500);
     return () => clearTimeout(timer);
   }, [address, account, policyAgreed, currentStep]);
@@ -1921,7 +1923,8 @@ function PublicPickupRequestPage() {
     }
     if (
       draftPrompt.policyAgreed &&
-      typeof draftPrompt.policyAgreed === "object"
+      typeof draftPrompt.policyAgreed === "object" &&
+      draftPrompt.feePolicyVersion === PICKUP_FEE_POLICY_VERSION
     ) {
       setPolicyAgreed((prev) => ({ ...prev, ...draftPrompt.policyAgreed }));
     }

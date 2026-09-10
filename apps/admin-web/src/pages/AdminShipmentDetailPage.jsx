@@ -1,11 +1,13 @@
 ﻿import { Fragment, useEffect, useMemo, useState } from "react";
+import { useCallback } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import AdminShell from "../components/AdminShell";
 import BulkPriceDeltaModal from "../components/BulkPriceDeltaModal";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import ProductMasterEditModal from "../components/ProductMasterEditModal";
 import { formatCurrency, formatDate } from "@shared-domain/format";
-import { bookConditionLabel, bookStatusLabel, shipmentStatusLabel } from "@shared-domain/status";
+import { getSettlementInfo } from "@shared-domain/settlement";
+import { bookStatusLabel, shipmentStatusLabel } from "@shared-domain/status";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import StatusBadge from "@shared-domain/StatusBadge";
 import NotificationResultModal from "../components/NotificationResultModal";
@@ -182,7 +184,7 @@ function buildPublicStorePayload(draft) {
 }
 
 function getPublicStoreValidationMessage(book, draft) {
-  if (!Boolean(draft.is_public)) {
+  if (!draft.is_public) {
     return "";
   }
 
@@ -209,16 +211,15 @@ function getPublicStoreValidationMessage(book, draft) {
 }
 
 // calculate_settlement_fee_percent(백엔드)와 동일 규칙 — 검수 화면 순정산 미리보기용.
-// 현행(2026-02-03 이후 수거): 1만원 미만 45% / 이상 40%. 이전 수거는 35/30.
+// 접수 시 고정한 정책을 사용한다. 입고일이 늦어져도 기존 수거에 인상률을 적용하지 않는다.
 // 박스비는 주문 단위로 차감돼 행 단위에선 계산 불가 — 캡션으로 '별도 차감' 고지.
-function estimateSellerNet(priceValue, pickupDate) {
+function estimateSellerNet(priceValue, shipment) {
   const amount = Number(String(priceValue ?? "").replaceAll(",", ""));
   if (!Number.isFinite(amount) || amount <= 0) {
     return null;
   }
-  const isLegacyRate = pickupDate ? new Date(pickupDate) < new Date("2026-02-03") : false;
-  const feePercent = isLegacyRate ? (amount < 10000 ? 35 : 30) : (amount < 10000 ? 45 : 40);
-  return { feePercent, net: Math.round(amount * (1 - feePercent / 100)) };
+  const { feePercent } = getSettlementInfo(amount, shipment?.pickup_date, shipment?.fee_policy_version);
+  return { feePercent, net: amount - Math.round(amount * feePercent / 100) };
 }
 
 function BookPriceEditor({
@@ -402,7 +403,6 @@ function AdminShipmentDetailPage() {
   const parsedShipmentId = useMemo(() => Number(shipmentId), [shipmentId]);
   const isScheduled = shipment?.status === "scheduled";
   const isInspecting = shipment?.status === "inspecting";
-  const isInspected = shipment?.status === "inspected";
   const sortedBooks = useMemo(() => [...books].sort(compareBooksForDisplay), [books]);
   const filteredBooks = useMemo(() => {
     const normalizedQuery = bookSearchQuery.trim().toLowerCase();
@@ -530,7 +530,7 @@ function AdminShipmentDetailPage() {
       const togglePublic = async () => {
         if (!focusedBook) return;
         const currentDraft = getBookPublicDraftValue(focusedBook);
-        const nextValue = !Boolean(currentDraft.is_public);
+        const nextValue = !currentDraft.is_public;
         // 공개 ON 전환 시 검증 — 미연결/필수값 누락이면 트리거 영문 에러 대신 명확히 안내.
         if (nextValue) {
           const validationMessage = getPublicStoreValidationMessage(focusedBook, {
@@ -857,7 +857,7 @@ function AdminShipmentDetailPage() {
     return true;
   };
 
-  const fetchDetail = async () => {
+  const fetchDetail = useCallback(async () => {
     if (!isSupabaseConfigured) {
       setIsLoading(false);
       return;
@@ -901,11 +901,11 @@ function AdminShipmentDetailPage() {
     setBookPublicDrafts({});
     setUpdatingBookPublicId(null);
     setIsLoading(false);
-  };
+  }, [parsedShipmentId]);
 
   useEffect(() => {
     fetchDetail();
-  }, [parsedShipmentId]);
+  }, [fetchDetail]);
 
   const performUpdateShipmentStatus = async ({ nextStatus, successMessage }) => {
     if (!isSupabaseConfigured || !shipment) {
@@ -1564,7 +1564,7 @@ function AdminShipmentDetailPage() {
                         isInvalid={isPriceInvalid}
                         isLocked={isBookPriceLocked(book)}
                         isSaving={updatingBookPriceId === book.id}
-                        netPreview={estimateSellerNet(priceDraftValue, shipment?.pickup_date)}
+                        netPreview={estimateSellerNet(priceDraftValue, shipment)}
                         onChange={(value) => handlePriceDraftChange(book.id, value)}
                         onReset={() => resetBookPriceDraft(book.id)}
                         onSave={() => handleSaveBookPrice(book)}
@@ -1770,7 +1770,7 @@ function AdminShipmentDetailPage() {
                                   isInvalid={isPriceInvalid}
                                   isLocked={isBookPriceLocked(book)}
                                   isSaving={updatingBookPriceId === book.id}
-                                  netPreview={estimateSellerNet(priceDraftValue, shipment?.pickup_date)}
+                                  netPreview={estimateSellerNet(priceDraftValue, shipment)}
                                   onChange={(value) => handlePriceDraftChange(book.id, value)}
                                   onReset={() => resetBookPriceDraft(book.id)}
                                   onSave={() => handleSaveBookPrice(book)}

@@ -21,6 +21,7 @@
     "lint": "npm run lint:public && npm run lint:mobile",
     "lint:public": "node ./node_modules/eslint/bin/eslint.js --max-warnings=0 \"apps/public-web/src/**/*.{js,jsx}\" \"packages/shared-domain/src/**/*.{js,jsx}\" \"packages/shared-supabase/src/**/*.{js,jsx}\"",
     "deploy:public": "powershell -ExecutionPolicy Bypass -File ./scripts/deploy_public_web.ps1",
+    "deploy:seller": "powershell -ExecutionPolicy Bypass -File ./scripts/deploy_public_web.ps1 -App seller-lookup",
     "deploy:public:preview": "powershell -ExecutionPolicy Bypass -File ./scripts/deploy_public_web.ps1 -Preview",
     "deploy:admin": "powershell -ExecutionPolicy Bypass -File ./scripts/deploy_admin_web.ps1",
     "deploy:admin:preview": "powershell -ExecutionPolicy Bypass -File ./scripts/deploy_admin_web.ps1 -Preview",

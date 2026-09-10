@@ -168,10 +168,10 @@ function SellerLookupPage() {
         return sum;
       }
 
-      const settlement = getSettlementInfo(book.price, shipment?.pickup_date);
+      const settlement = getSettlementInfo(book.price, shipment?.pickup_date, shipment?.fee_policy_version);
       return sum + (settlement?.netAmount ?? 0);
     }, 0);
-  }, [books, shipment?.pickup_date]);
+  }, [books, shipment?.pickup_date, shipment?.fee_policy_version]);
 
   const sortedBooks = useMemo(() => [...books].sort(compareBooksForDisplay), [books]);
 
@@ -236,7 +236,7 @@ function SellerLookupPage() {
 
     try {
       const { data: shipmentRows, error: shipmentError } = await supabase.rpc(
-        "lookup_seller_shipment",
+        "lookup_seller_shipment_v2",
         {
           p_seller_name: sellerName,
           p_seller_phone: sellerPhone,
@@ -413,7 +413,7 @@ function SellerLookupPage() {
             ) : null}
 
             {visibleBooks.map((book) => {
-              const settlement = getSettlementInfo(book.price, shipment.pickup_date);
+              const settlement = getSettlementInfo(book.price, shipment.pickup_date, shipment.fee_policy_version);
               const bookLabel = formatBookLabel(book);
 
               return (

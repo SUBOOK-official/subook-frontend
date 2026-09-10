@@ -6,6 +6,7 @@ import processImg4 from "../assets/process4.jpg";
 import bookImg1 from "../assets/book1.jpg";
 import bookImg2 from "../assets/book2.jpg";
 import bookImg3 from "../assets/book3.jpg";
+import { PICKUP_FEE_POLICY, PICKUP_FEE_POLICY_NOTICE } from "@shared-domain/settlement";
 
 // 공개 판매 안내와 신청서가 같은 조건·사진을 사용한다.
 export default function PublicPickupGuide() {
@@ -78,7 +79,9 @@ export default function PublicPickupGuide() {
             <div className="pickup-guide-list__text">
               <strong>판매 수수료</strong>
               <span>
-                판매가 1만원 초과 교재 40% · 1만원 이하 교재·모의고사 45%
+                판매가 1만원 이상 교재 {PICKUP_FEE_POLICY.standardPercent}% · 1만원 미만 교재·모의고사 {PICKUP_FEE_POLICY.lowPricePercent}%
+                <br />
+                {PICKUP_FEE_POLICY_NOTICE}
               </span>
             </div>
           </li>

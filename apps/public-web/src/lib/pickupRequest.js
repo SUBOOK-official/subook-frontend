@@ -1,4 +1,5 @@
 import { isSupabaseConfigured, supabase } from "@shared-supabase/publicSupabaseClient";
+import { PICKUP_FEE_POLICY_VERSION } from "@shared-domain/settlement";
 
 const SUBJECTS = ["국어", "수학", "영어", "과학", "사회", "한국사", "기타"];
 const BRANDS = ["시대인재", "강남대성", "대성마이맥", "이투스", "EBS", "기타"];
@@ -128,7 +129,7 @@ async function submitPickupRequest({
   const resolvedBankName = resolvedAccountId ? null : settlementAccount.bank_name;
   const resolvedAccountHolder = resolvedAccountId ? null : settlementAccount.account_holder;
 
-  const { data, error } = await supabase.rpc("submit_pickup_request", {
+  const { data, error } = await supabase.rpc("submit_pickup_request_v2", {
     p_pickup_recipient_name: pickupAddress.recipient_name,
     p_pickup_recipient_phone: pickupAddress.recipient_phone,
     p_pickup_postal_code: pickupAddress.postal_code,
@@ -146,6 +147,7 @@ async function submitPickupRequest({
     p_expected_book_count: Number.isFinite(expectedBookCount) ? expectedBookCount : null,
     p_box_count: Number.isFinite(boxCount) ? boxCount : null,
     p_policy_agreed: Boolean(policyAgreed),
+    p_fee_policy_version: PICKUP_FEE_POLICY_VERSION,
   });
 
   if (error) {

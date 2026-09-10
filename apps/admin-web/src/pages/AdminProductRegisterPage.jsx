@@ -4,6 +4,7 @@ import AdminShell from "../components/AdminShell";
 import AdminDialog from "../components/AdminDialog";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { formatCurrency } from "@shared-domain/format";
+import { PICKUP_FEE_POLICY } from "@shared-domain/settlement";
 import { pickupRequestStatusLabel, shipmentStatusLabel } from "@shared-domain/status";
 import { CheckIcon, CloseIcon, PlusIcon } from "../components/icons";
 import { BOOK_TYPE_OPTIONS, BRAND_OPTIONS, SUBJECT_OPTIONS } from "../lib/productCategories";
@@ -379,7 +380,7 @@ function AdminProductRegisterPage() {
   const [custPage, setCustPage] = useState(0);
   const [custHasMore, setCustHasMore] = useState(false);
   const [custLoading, setCustLoading] = useState(false);
-  const [newCust, setNewCust] = useState({ seller_name: "", seller_phone: "", pickup_date: todayStr() });
+  const [newCust, setNewCust] = useState({ seller_name: "", seller_phone: "", pickup_date: todayStr(), fee_policy: "" });
   const [creatingCust, setCreatingCust] = useState(false);
   // 새 고객 등록 폼에 입력된 번호의 사전 조회 결과
   // { members: [...], pending_requests: [...], existing_shipments: [...] }
@@ -818,17 +819,18 @@ function AdminProductRegisterPage() {
   //  셀러 마이페이지에서 자기 검수 결과를 영영 못 본다)
   const handleCreateCustomer = async (event) => {
     event.preventDefault();
-    if (!newCust.seller_name.trim() || !newCust.seller_phone.trim() || !newCust.pickup_date) {
-      showToast("이름 · 전화번호 · 수거 일자를 입력하세요.", "error");
+    if (!newCust.seller_name.trim() || !newCust.seller_phone.trim() || !newCust.pickup_date || !newCust.fee_policy) {
+      showToast("이름 · 전화번호 · 수거 일자 · 수수료 적용 기준을 입력하세요.", "error");
       return;
     }
     // 후보 회원이 여럿이면 자동 연결이 불가능하므로 운영자가 고른 값을 넘긴다.
     const exactMembers = (sellerContext?.members ?? []).filter((m) => m.name_matches);
     setCreatingCust(true);
-    const { data, error } = await supabase.rpc("admin_create_direct_shipment", {
+    const { data, error } = await supabase.rpc("admin_create_direct_shipment_v2", {
       p_seller_name: newCust.seller_name.trim(),
       p_seller_phone: newCust.seller_phone.trim(),
       p_pickup_date: newCust.pickup_date,
+      p_new_fee_policy: newCust.fee_policy === "new",
       p_user_id: exactMembers.length === 1 ? exactMembers[0].user_id : null,
     });
     setCreatingCust(false);
@@ -1670,6 +1672,20 @@ function AdminProductRegisterPage() {
                     onChange={(e) => setNewCust((f) => ({ ...f, pickup_date: e.target.value }))}
                     className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
                   />
+                </label>
+                <label className="block">
+                  <span className="text-xs font-bold text-slate-700">수수료 적용 기준 *</span>
+                  <select
+                    required
+                    value={newCust.fee_policy}
+                    onChange={(e) => setNewCust((f) => ({ ...f, fee_policy: e.target.value }))}
+                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  >
+                    <option value="">접수 시점을 확인하고 선택하세요</option>
+                    <option value="new">인상 후 신규 접수 (1만원 이상 {PICKUP_FEE_POLICY.standardPercent}% / 미만 {PICKUP_FEE_POLICY.lowPricePercent}%)</option>
+                    <option value="existing">인상 전 접수 (기존 요율 유지)</option>
+                  </select>
+                  <span className="mt-1 block text-xs text-slate-500">이미 맡긴 교재를 뒤늦게 등록할 때는 인상 전 접수를 선택하세요. 온라인 신청 건은 해당 신청에서 등록해 주세요.</span>
                 </label>
                 <button
                   type="submit"

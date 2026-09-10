@@ -1,4 +1,7 @@
 const POLICY_CHANGE_DATE = "2026-02-03";
+export const PICKUP_FEE_POLICY_VERSION = "2026-09";
+export const PICKUP_FEE_POLICY = Object.freeze({ standardPercent: 45, lowPricePercent: 50, priceThreshold: 10000 });
+export const PICKUP_FEE_POLICY_NOTICE = "변경된 수수료는 정책 시행 후 새로 접수한 수거 건부터 적용됩니다. 이전에 접수한 수거 건은 입고·판매·정산 시점과 관계없이 기존 요율을 유지합니다.";
 
 function normalizeDateOnly(dateInput) {
   if (!dateInput) {
@@ -35,7 +38,7 @@ function toValidPrice(priceInput) {
   return Math.trunc(numericPrice);
 }
 
-export function getSettlementInfo(priceInput, pickupDate) {
+export function getSettlementInfo(priceInput, pickupDate, feePolicyVersion = null) {
   const price = toValidPrice(priceInput);
   if (price === null) {
     return null;
@@ -43,11 +46,14 @@ export function getSettlementInfo(priceInput, pickupDate) {
 
   // Old policy applies only when pickup date is strictly before 2026-02-03.
   const pickupDateOnly = normalizeDateOnly(pickupDate);
-  const isLegacyPolicy = pickupDateOnly ? pickupDateOnly < POLICY_CHANGE_DATE : false;
-  const isLowPrice = price < 10000;
+  const isNewPolicy = feePolicyVersion === PICKUP_FEE_POLICY_VERSION;
+  const isLegacyPolicy = !isNewPolicy && (pickupDateOnly ? pickupDateOnly < POLICY_CHANGE_DATE : false);
+  const isLowPrice = price < PICKUP_FEE_POLICY.priceThreshold;
 
   let feePercent;
-  if (isLegacyPolicy) {
+  if (isNewPolicy) {
+    feePercent = isLowPrice ? PICKUP_FEE_POLICY.lowPricePercent : PICKUP_FEE_POLICY.standardPercent;
+  } else if (isLegacyPolicy) {
     feePercent = isLowPrice ? 35 : 30;
   } else {
     feePercent = isLowPrice ? 45 : 40;

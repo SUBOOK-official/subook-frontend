@@ -5,6 +5,7 @@ import PublicFooter from "../components/PublicFooter";
 import PublicPageFrame from "../components/PublicPageFrame";
 import { usePageMeta } from "../lib/usePageMeta";
 import { trackTabChange } from "../lib/analytics";
+import { PICKUP_FEE_POLICY, PICKUP_FEE_POLICY_NOTICE } from "@shared-domain/settlement";
 import "./PublicPolicyPage.css";
 
 // 2026-07-07 문구 피드백: 법무 윤문본 전문으로 교체.
@@ -28,7 +29,7 @@ const POLICY_EFFECTIVE_DATES = {
 // 정책별 최종 개정일 — 개정 시 여기 갱신 (null이면 표기 생략).
 const POLICY_LAST_REVISED_DATES = {
   privacy: "2026년 8월 30일", // 이벤트 출시 알림 신청(비회원 휴대전화번호) 수집·보유기간 고지 추가
-  terms: null,
+  terms: "2026년 9월 10일", // 새로 접수한 수거의 수수료 인상, 기존 수거 요율 유지
   refund: "2026년 8월 19일", // 주문 취소 절차를 실제 시스템(입금대기만 직접 취소)과 일치시키고 카드결제 환불 방법 반영
 };
 
@@ -366,6 +367,7 @@ const termsSections = [
     title: "제14조(정산과 책임)",
     paragraphs: [
       "① 판매 정산은 구매확정이 완료된 판매분에 한하여 매월 1일에 처리되며, 판매 수수료와 필요한 비용이 차감될 수 있습니다.",
+      `판매 수수료는 교재 판매가 1만원 이상 ${PICKUP_FEE_POLICY.standardPercent}%, 1만원 미만 ${PICKUP_FEE_POLICY.lowPricePercent}%입니다. ${PICKUP_FEE_POLICY_NOTICE}`,
       "② 천재지변, 통신 장애, 물류사 사정 등 회사의 합리적인 통제 범위를 벗어난 사유(이하 \"불가항력 사유\")로 발생한 지연에 대해서는 회사는 지연에 대한 책임을 지지 않습니다. 다만 회사는 불가항력 사유가 해소되는 즉시 정산 처리를 재개하며, 지연 사실을 회원에게 지체 없이 안내합니다.",
     ],
   },

@@ -3,7 +3,9 @@ param(
   [switch]$Preview,
   [switch]$SkipBuild,
   [switch]$KeepStaging,
-  [switch]$AllowDirty
+  [switch]$AllowDirty,
+  [ValidateSet("public-web", "seller-lookup")]
+  [string]$App = "public-web"
 )
 
 $ErrorActionPreference = "Stop"
@@ -75,6 +77,12 @@ function Remove-StagingDirectory {
     [string]$Path
   )
 
+  $resolvedStagingPath = [System.IO.Path]::GetFullPath($Path)
+  $tempRoot = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath()).TrimEnd('\') + '\'
+  if (-not $resolvedStagingPath.StartsWith($tempRoot, [System.StringComparison]::OrdinalIgnoreCase) -or
+      -not ([System.IO.Path]::GetFileName($resolvedStagingPath) -like 'subook-*-deploy-*')) {
+    throw "Refusing to remove an unexpected staging path: $resolvedStagingPath"
+  }
   if (-not (Test-Path -LiteralPath $Path)) {
     return
   }
@@ -96,7 +104,8 @@ function Remove-StagingDirectory {
 
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $frontendRoot = Split-Path -Parent $scriptRoot
-$publicWebRoot = Join-Path $frontendRoot "apps/public-web"
+$publicWebRoot = Join-Path $frontendRoot "apps/$App"
+$buildScript = if ($App -eq "seller-lookup") { "build:seller" } else { "build:public" }
 $projectLinkPath = Join-Path $publicWebRoot ".vercel/project.json"
 $deployConfigPath = Join-Path $publicWebRoot "vercel.deploy.json"
 $sharedDomainPath = Join-Path $frontendRoot "packages/shared-domain/src"
@@ -109,7 +118,7 @@ $npxCommand = Get-Command "npx.cmd" -ErrorAction SilentlyContinue
 # 2026-08-24: 다른 세션이 남긴 미커밋 WIP가 배포에 편승해 상품 상세가 전면
 # 크래시(수리 f2fe411)한 사고 재발 방지 — 배포에 실리는 경로에 미커밋 변경이
 # 있으면 파일 목록을 출력하고 중단한다. 의도적인 dirty 배포만 -AllowDirty로 우회.
-$cleanTreePathSpecs = @("apps/public-web", "packages")
+$cleanTreePathSpecs = @("apps/$App", "packages", "scripts/deploy_public_web.ps1")
 
 if ($AllowDirty) {
   Write-Warning "[deploy:public] -AllowDirty: skipping the uncommitted change guard."
@@ -167,7 +176,7 @@ if ([string]::IsNullOrWhiteSpace($projectName)) {
 }
 
 $targetLabel = if ($Preview) { "preview" } else { "production" }
-$stagingRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("subook-public-web-deploy-" + [guid]::NewGuid().ToString("N"))
+$stagingRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("subook-$App-deploy-" + [guid]::NewGuid().ToString("N"))
 $stagingFrontendRoot = Join-Path $stagingRoot "frontend"
 $stagingProjectLinkDir = Join-Path $stagingRoot ".vercel"
 $stagingProjectLinkPath = Join-Path $stagingProjectLinkDir "project.json"
@@ -195,7 +204,7 @@ if (-not $SkipBuild) {
   Write-Step "Running local preflight build."
   Push-Location $frontendRoot
   try {
-    & ($npmCommand.Source) "run" "build:public"
+    & ($npmCommand.Source) "run" $buildScript
     if ($LASTEXITCODE -ne 0) {
       throw "Local preflight build failed."
     }
@@ -252,7 +261,7 @@ if (Test-Path -LiteralPath $publicWebMiddlewarePath) {
 
 Assert-PathExists -Path (Join-Path $stagingFrontendRoot "packages/shared-domain/src") -Description "staging shared-domain" -Directory
 Assert-PathExists -Path (Join-Path $stagingFrontendRoot "packages/shared-supabase/src") -Description "staging shared-supabase" -Directory
-Assert-PathExists -Path (Join-Path $stagingFrontendRoot "apps/public-web/src") -Description "staging public web app" -Directory
+Assert-PathExists -Path (Join-Path $stagingFrontendRoot "apps/$App/src") -Description "staging web app" -Directory
 
 $deployArguments = @("vercel", "deploy", "-y", "-A", "vercel.deploy.json", "--logs")
 if ($Preview) {
