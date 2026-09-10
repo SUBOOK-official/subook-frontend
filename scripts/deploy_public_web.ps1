@@ -250,6 +250,18 @@ $publicWebApiPath = Join-Path $publicWebRoot "api"
 if (Test-Path -LiteralPath $publicWebApiPath -PathType Container) {
   Write-Step "Copying API functions into staging root."
   Copy-Item -LiteralPath $publicWebApiPath -Destination (Join-Path $stagingRoot "api") -Recurse
+
+  # shared-*를 쓰는 API는 원래 frontend 경로의 모듈을 재수출한다.
+  # 원본 상대 import를 보존하므로 서버/브라우저의 Meta ID·재고 규칙을 복제하지 않는다.
+  if ($App -eq "public-web") {
+    $metaCatalogEntry = Join-Path $stagingRoot "api/meta-catalog.js"
+    Assert-PathExists -Path $metaCatalogEntry -Description "Meta catalog API"
+    [System.IO.File]::WriteAllText(
+      $metaCatalogEntry,
+      "export { default } from '../frontend/apps/public-web/api/meta-catalog.js';" + [Environment]::NewLine,
+      (New-Object System.Text.UTF8Encoding($false))
+    )
+  }
 }
 
 # 홈(/) 봇 프리렌더용 Routing Middleware — Vercel은 프로젝트 루트의 middleware.js만 인식
