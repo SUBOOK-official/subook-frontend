@@ -8,6 +8,7 @@ import { PublicAuthProvider } from "./contexts/PublicAuthContext";
 import { PublicWishlistProvider } from "./contexts/PublicWishlistContext";
 import { initSentry, Sentry } from "./lib/sentryInit";
 import { installChunkReloadGuard } from "./lib/chunkReloadGuard";
+import { installMetaPixel } from "./lib/metaPixel";
 import "./index.css";
 
 // 도메인 전환 등 점검 모드: VITE_MAINTENANCE=1 로 빌드하면 전 경로가 점검 안내만 노출.
@@ -40,6 +41,8 @@ if (isMaintenance && typeof window !== "undefined") {
 const showMaintenance = isMaintenance && !staffBypass;
 
 if (!showMaintenance) {
+  installMetaPixel({ production: import.meta.env.PROD });
+
   // Sentry 초기화 (VITE_SENTRY_DSN 있을 때만 실제 활성화)
   initSentry();
 
