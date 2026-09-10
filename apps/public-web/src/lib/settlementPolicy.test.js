@@ -23,3 +23,10 @@ test("정책 스냅샷이 날짜보다 우선하며 잘못된 금액을 계산�
   assert.equal(getSettlementInfo(10000, null, "unknown").feePercent, 40);
   for (const value of [null, undefined, "", -1, "invalid"]) assert.equal(getSettlementInfo(value), null);
 });
+
+test("신규 수거 예상액은 수수료를 원 단위 반올림한 서버 정산과 일치한다", () => {
+  assert.equal(getSettlementInfo(9999, null, PICKUP_FEE_POLICY_VERSION).netAmount, 4999);
+  assert.equal(getSettlementInfo(10001, null, PICKUP_FEE_POLICY_VERSION).netAmount, 5501);
+  assert.equal(getSettlementInfo(10010, null, PICKUP_FEE_POLICY_VERSION).netAmount, 5505);
+  assert.equal(getSettlementInfo(10001, null).netAmount, 6000);
+});

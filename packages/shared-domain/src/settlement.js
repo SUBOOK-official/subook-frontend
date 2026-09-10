@@ -59,7 +59,10 @@ export function getSettlementInfo(priceInput, pickupDate, feePolicyVersion = nul
     feePercent = isLowPrice ? 45 : 40;
   }
 
-  const netAmount = Math.floor(price * ((100 - feePercent) / 100));
+  // 신규 정책 예상액은 자동 정산의 수수료 반올림과 일치시킨다. 기존 조회 금액은 유지한다.
+  const netAmount = isNewPolicy
+    ? price - Math.round(price * feePercent / 100)
+    : Math.floor(price * ((100 - feePercent) / 100));
 
   return {
     netAmount,
