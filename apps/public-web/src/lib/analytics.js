@@ -1,8 +1,9 @@
 import { getMetaContentId } from "../../../../packages/shared-domain/src/metaCatalog.js";
+import { isMetaTrackingAllowed } from "./metaPixel.js";
 
 // GA4 + Meta Pixel 이벤트 헬퍼 — 태그 미로드 환경(애드블록, 미설정 로컬/데모)에서는
-// 조용히 no-op. 태그 본체는 index.html에 설치되어 있고(GA4 G-EMNCLZKPMS,
-// Meta Pixel 27962792746720705), SPA 라우트 전환의 page_view/PageView는 양쪽 모두
+// 조용히 no-op. GA4는 index.html, Meta는 main.jsx의 운영 도메인 가드로 설치된다.
+// (GA4 G-EMNCLZKPMS, Meta Pixel 27962792746720705). SPA page_view/PageView는 양쪽 모두
 // 자동 수집이라 여기서 다루지 않는다(수동 추가 시 이중 집계 — 금지).
 // 향상된 측정(자동 수집)이 켜져 있어 scroll(90%)·외부 링크 click·form_start/form_submit·
 // view_search_results(?q=)도 자동이다 — 같은 의미의 수동 이벤트를 만들지 말 것.
@@ -84,7 +85,7 @@ function gtagEvent(eventName, params) {
 }
 
 function fbqEvent(eventName, params) {
-  if (typeof window === "undefined" || typeof window.fbq !== "function") return;
+  if (!isMetaTrackingAllowed() || typeof window.fbq !== "function") return;
   try {
     window.fbq("track", eventName, params);
   } catch {
@@ -392,9 +393,8 @@ function trackAddPaymentInfo({ lines, paymentType, coupon, ...extra }) {
   });
 }
 
-// 주문 성공 — 무통장은 주문 생성 시점(입금 확인 전, OrderPage), 카드(PG)는 결제 승인
-// 후 주문완료 페이지 진입 시점(OrderCompletePage, 중복 방지 가드 포함)에 호출된다.
-// Meta Purchase는 value+currency 필수 규격.
+// GA4 기존 purchase 기준은 유지한다. Meta Purchase는 DB의 실제 결제 완료 이벤트가
+// 전담한다. 여기서 다시 전송하면 서버/기존 게이트웨이와 구매가 중복 집계될 수 있다.
 function trackPurchase({ transactionId, value, shipping, items, coupon, ...extra }) {
   if (!transactionId || !Array.isArray(items) || items.length === 0) return;
   gtagEvent(
@@ -411,12 +411,6 @@ function trackPurchase({ transactionId, value, shipping, items, coupon, ...extra
       extra,
     ),
   );
-  fbqEvent("Purchase", {
-    ...toMetaContentParams(items),
-    num_items: sumLineQuantity(items),
-    currency: CURRENCY,
-    value: Number(value) || 0,
-  });
 }
 
 // 쿠폰 적용/해제 — 주문서 쿠폰 선택 모달. 쿠폰별 사용률·주문 기여 관찰용.

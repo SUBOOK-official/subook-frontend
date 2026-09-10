@@ -18,6 +18,8 @@ import {
 import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { supabase as publicSupabase } from "@shared-supabase/publicSupabaseClient";
+import { attachMetaCheckoutContext } from "@shared-supabase/metaCheckoutClient";
+import { isMetaTrackingAllowed, readMetaCheckoutCookies } from "../lib/metaPixel";
 import {
   makeOnceGuard,
   trackAddPaymentInfo,
@@ -1511,6 +1513,18 @@ function PublicOrderPage() {
       return;
     }
 
+    // 기존 주문/결제 RPC는 유지한다. 새 체크아웃의 브라우저 문맥만 본인 확인 후
+    // 보관하고, 실제 Purchase는 DB 결제 완료 시점에 전송한다(최대 3초, 실패 허용).
+    if (import.meta.env.PROD && isMetaTrackingAllowed()) {
+      const recorded = await attachMetaCheckoutContext({
+        client: publicSupabase,
+        orderNumber: data.order_number,
+        guestPhone: isGuestCheckout ? shipping.recipientPhone : null,
+        ...readMetaCheckoutCookies(),
+      });
+      if (!recorded) trackException("meta_checkout_context_unavailable");
+    }
+
     // 주소록이 비어 있으면 이번 배송지를 기본 배송지로 자동 등록 (2026-07-12 정책).
     // best-effort — 실패해도 주문 흐름에는 영향 없음. 게스트는 주소록이 없다.
     if (!isGuestCheckout && savedAddresses.length === 0) {
@@ -1634,7 +1648,7 @@ function PublicOrderPage() {
       return;
     }
 
-    // purchase 계측(GA4+Meta) — 무통장: 주문 생성 시점(입금 확인 전), 금액은 서버 확정값.
+    // GA4 purchase — 기존 주문 생성 기준 유지. Meta Purchase는 서버 입금 확인 시점.
     // 카드(PG) 경로는 여기 도달하지 않고 주문완료 페이지(OrderCompletePage)에서 발화한다.
     trackPurchase({
       transactionId: data.order_number ?? String(data.order_id),

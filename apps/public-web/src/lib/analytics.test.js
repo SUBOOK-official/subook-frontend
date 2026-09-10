@@ -17,6 +17,7 @@ let calls = [];
 beforeEach(() => {
   calls = [];
   globalThis.window = {
+    location: { origin: "https://subook.kr" },
     gtag: (...args) => {
       calls.push(args);
     },
@@ -97,14 +98,14 @@ test("trackPurchase: checkout_type 등 extra 전달, items index 포함", () => 
   assert.equal(params.shipping, 3000);
 });
 
-test("Meta: 조회·장바구니·구매는 옵션 book_id가 아닌 동일한 상품 ID를 전송한다", () => {
+test("Meta: 조회·장바구니 상품 ID 매칭을 유지하고 구매는 브라우저에서 전송하지 않는다", () => {
   const metaCalls = [];
   window.fbq = (...args) => metaCalls.push(args);
   const line = { productId: 2370, bookId: 7085, title: "교재", price: 59000, quantity: 1 };
   trackViewItem(line);
   trackAddToCart([line]);
   trackPurchase({ transactionId: "TEST-ONLY", value: 59000, items: [line] });
-  assert.deepEqual(metaCalls.map((call) => call[1]), ["ViewContent", "AddToCart", "Purchase"]);
+  assert.deepEqual(metaCalls.map((call) => call[1]), ["ViewContent", "AddToCart"]);
   for (const [method, , params] of metaCalls) {
     assert.equal(method, "track");
     assert.deepEqual(params.content_ids, ["gxav9zwrza"]);
@@ -114,6 +115,14 @@ test("Meta: 조회·장바구니·구매는 옵션 book_id가 아닌 동일한 �
     assert.equal(params.value, 59000);
   }
   assert.ok(calls.every(([, , params]) => params.items[0].item_id === "2370"));
+});
+
+test("Meta: 픽셀이 다른 경로로 설치됐더라도 개발 도메인의 전환은 보내지 않는다", () => {
+  const metaCalls = [];
+  window.fbq = (...args) => metaCalls.push(args);
+  window.location.origin = "http://localhost:5183";
+  trackViewItem({ productId: 2370, price: 59000, quantity: 1 });
+  assert.equal(metaCalls.length, 0);
 });
 
 test("trackSelectContent: content_id 없으면 생략", () => {

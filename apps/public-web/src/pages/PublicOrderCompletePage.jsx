@@ -246,7 +246,7 @@ function PublicOrderCompletePage() {
               paymentMethod: data.order.payment_method,
               createdAt: data.order.created_at,
             });
-            // 게스트 카드 결제 완료: purchase 계측(GA4+Meta). 조회 RPC가 items를 함께
+            // 게스트 카드 결제 완료: GA4 purchase. Meta Purchase는 서버가 전담한다. 조회 RPC가 items를 함께
             // 반환하므로 추가 조회 없이 발화한다 (product_id 포함 — 카탈로그 매칭).
             fireCardPurchaseOnce(
               data.order,
