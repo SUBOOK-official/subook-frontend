@@ -251,16 +251,12 @@ if (Test-Path -LiteralPath $publicWebApiPath -PathType Container) {
   Write-Step "Copying API functions into staging root."
   Copy-Item -LiteralPath $publicWebApiPath -Destination (Join-Path $stagingRoot "api") -Recurse
 
-  # shared-*를 쓰는 API는 원래 frontend 경로의 모듈을 재수출한다.
-  # 원본 상대 import를 보존하므로 서버/브라우저의 Meta ID·재고 규칙을 복제하지 않는다.
+  # shared-*를 쓰는 API는 원래 frontend 경로의 ESM 모듈을 동적으로 로드한다.
+  # CommonJS 스테이징 → ESM 워크스페이스 경계를 보존한다 (ERR_REQUIRE_ESM 방지).
   if ($App -eq "public-web") {
     $metaCatalogEntry = Join-Path $stagingRoot "api/meta-catalog.js"
     Assert-PathExists -Path $metaCatalogEntry -Description "Meta catalog API"
-    [System.IO.File]::WriteAllText(
-      $metaCatalogEntry,
-      "export { default } from '../frontend/apps/public-web/api/meta-catalog.js';" + [Environment]::NewLine,
-      (New-Object System.Text.UTF8Encoding($false))
-    )
+    Copy-Item -LiteralPath (Join-Path $publicWebRoot "meta-catalog.entry.cjs") -Destination $metaCatalogEntry -Force
   }
 }
 

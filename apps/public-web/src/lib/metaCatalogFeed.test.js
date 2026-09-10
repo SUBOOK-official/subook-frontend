@@ -3,6 +3,10 @@ import assert from "node:assert/strict";
 import { buildMetaCatalogFeed, serializeMetaCatalogRows } from "../../../../packages/shared-domain/src/metaCatalogFeed.js";
 import { readMetaCatalogSnapshot } from "../../../../packages/shared-supabase/src/metaCatalogFeedClient.js";
 import handler from "../../api/meta-catalog.js";
+import { mkdtemp, mkdir, copyFile, writeFile, rm, realpath } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { pathToFileURL } from "node:url";
 
 const product = (id, extra = {}) => ({ id, title: `교재 ${id}`, brand: "전일학원", subject: "국어", book_type: "모의고사", status: "selling", cover_image_url: "https://subook.kr/cover.png", ...extra });
 const book = (id, productId, extra = {}) => ({ id, product_id: productId, price: 59000, original_price: 108000, status: "on_sale", is_public: true, condition_grade: "S", ...extra });
@@ -134,4 +138,33 @@ test("API: 기본 범위, CSV/HEAD, 쿼리 거부, 오류 시 503/no-store", asy
   assert.equal(error.code, 503);
   assert.equal(error.headers["Cache-Control"], "no-store");
   assert.deepEqual(error.body, { error: "catalog temporarily unavailable", code: 503 });
+});
+
+test("실제 배포처럼 CommonJS 루트에서 ESM 워크스페이스의 피드 함수를 실행한다", async (t) => {
+  const tempParent = await realpath(tmpdir());
+  const stage = await mkdtemp(join(tempParent, "subook-meta-entry-test-"));
+  t.after(async () => {
+    const target = await realpath(stage);
+    assert.equal(dirname(target), tempParent);
+    assert.ok(target.startsWith(join(tempParent, "subook-meta-entry-test-")));
+    await rm(target, { recursive: true, force: true });
+  });
+  const files = [
+    "apps/public-web/api/meta-catalog.js",
+    "packages/shared-supabase/src/metaCatalogFeedClient.js",
+    "packages/shared-domain/src/metaCatalogFeed.js",
+    "packages/shared-domain/src/metaCatalog.js",
+  ];
+  for (const file of files) {
+    const dest = join(stage, "frontend", file);
+    await mkdir(dirname(dest), { recursive: true });
+    await copyFile(new URL(`../../../../${file}`, import.meta.url), dest);
+  }
+  await writeFile(join(stage, "frontend/package.json"), '{"type":"module"}');
+  await mkdir(join(stage, "api"));
+  await copyFile(new URL("../../meta-catalog.entry.cjs", import.meta.url), join(stage, "api/meta-catalog.js"));
+  const { default: stagedHandler } = await import(pathToFileURL(join(stage, "api/meta-catalog.js")).href);
+  let status;
+  await stagedHandler({ method: "POST" }, { setHeader() {}, status(code) { status = code; return this; }, end() {} });
+  assert.equal(status, 405);
 });

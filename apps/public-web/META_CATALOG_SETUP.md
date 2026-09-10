@@ -49,7 +49,7 @@
 - backend migration `20260910173143_meta_catalog_snapshots.sql`: 전용 캐시 테이블과 service_role 전용 RPC. RLS 활성화, anon/authenticated 권한 없음. 기존 상품/결제 테이블을 바꾸지 않는다.
 - 늦게 끝난 이전 요청은 관측 시각 비교로 최신 가격·재고를 덮지 못한다.
 - 새 환경 변수를 추가하지 않는다. 기존 프리렌더의 Supabase URL과 `SUPABASE_SERVICE_ROLE_KEY` 또는 `SUPABASE_SERVICE_KEY`를 사용한다.
-- public 배포 스크립트는 API 진입점에서 원래 frontend 경로를 재수출해 shared 모듈의 상대 import를 보존한다.
+- public 배포 스크립트는 CommonJS API 진입점에서 원래 frontend ESM 모듈을 동적으로 import해 shared 모듈 경로를 보존한다. 정적 재수출은 Vercel의 CommonJS 변환 뒤 ERR_REQUIRE_ESM을 일으키므로 사용하지 않는다.
 - API 연결 전에 backend migration을 적용한다. 중지 시 Meta의 해당 피드 예약을 비활성화하고 원인을 해결한다. 전용 캐시를 지울 필요는 없다.
 
 ## 공식 근거
