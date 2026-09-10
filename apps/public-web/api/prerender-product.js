@@ -313,6 +313,9 @@ function buildHtml({ product, stock, relatedBooks }) {
       ? {
           "@context": "https://schema.org",
           "@type": "Product",
+          // SPA/Meta 픽셀과 동일 ID. JSON-LD 자동 수집에 productID·url이 필요하다.
+          productID: String(product.id),
+          url: canonicalUrl,
           name: product.title,
           // 콜라보 교재는 AI 요약을 화면에서 빼므로 JSON-LD에서도 쓰지 않는다
           description:

@@ -4,10 +4,12 @@ import {
   makeOnceGuard,
   sanitizeParams,
   trackBuyClick,
+  trackAddToCart,
   trackEvent,
   trackException,
   trackPurchase,
   trackSelectContent,
+  trackViewItem,
 } from "./analytics.js";
 
 // gtag 호출을 가로채는 최소 window 스텁 — 모듈은 호출 시점에만 window를 읽는다.
@@ -93,6 +95,24 @@ test("trackPurchase: checkout_type 등 extra 전달, items index 포함", () => 
   assert.equal(params.checkout_type, "guest");
   assert.equal(params.items[0].index, 0);
   assert.equal(params.shipping, 3000);
+});
+
+test("Meta: 조회·장바구니·구매는 옵션 book_id가 아닌 동일한 상품 ID를 전송한다", () => {
+  const metaCalls = [];
+  window.fbq = (...args) => metaCalls.push(args);
+  const line = { productId: 2370, bookId: 7085, title: "교재", price: 59000, quantity: 1 };
+  trackViewItem(line);
+  trackAddToCart([line]);
+  trackPurchase({ transactionId: "TEST-ONLY", value: 59000, items: [line] });
+  assert.deepEqual(metaCalls.map((call) => call[1]), ["ViewContent", "AddToCart", "Purchase"]);
+  for (const [method, , params] of metaCalls) {
+    assert.equal(method, "track");
+    assert.deepEqual(params.content_ids, ["2370"]);
+    assert.equal(params.content_type, "product");
+    assert.deepEqual(params.contents, [{ id: "2370", quantity: 1, item_price: 59000 }]);
+    assert.equal(params.currency, "KRW");
+    assert.equal(params.value, 59000);
+  }
 });
 
 test("trackSelectContent: content_id 없으면 생략", () => {

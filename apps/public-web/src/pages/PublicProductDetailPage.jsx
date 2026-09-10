@@ -1152,6 +1152,10 @@ function PublicProductDetailPage() {
       ? {
           "@context": "https://schema.org",
           "@type": "Product",
+          // Meta 픽셀 content_ids와 같은 상품 ID로 자동 카탈로그 수집·매칭.
+          // https://developers.facebook.com/documentation/ads-commerce/catalog/guides/microdata-tags
+          productID: String(product.productId ?? product.id),
+          url: `${metaOrigin}/store/${product.productId ?? product.id}`,
           name: product.title,
           // 콜라보 교재는 AI 요약을 화면에서 빼므로 JSON-LD에서도 쓰지 않는다
           // (봇/사람이 보는 내용을 어긋나게 두지 않는다)
@@ -1193,6 +1197,30 @@ function PublicProductDetailPage() {
         ]
       : undefined,
   });
+  const viewedProductRef = useRef(null);
+  useEffect(() => {
+    const loadedProductId = product?.productId ?? product?.id;
+    if (
+      !product?.title ||
+      String(loadedProductId) !== String(productId) ||
+      viewedProductRef.current === product
+    ) return;
+    viewedProductRef.current = product;
+    // usePageMeta가 JSON-LD를 붙인 뒤 발화해야 픽셀이 현재 상품 정보를 읽는다.
+    // 조회 성공당 1회: 추가 렌더/StrictMode 중복과 라우트 전환 중 이전 상품 발화를 방지.
+    trackViewItem(
+      {
+        productId: loadedProductId,
+        title: product.title,
+        brand: product.brand,
+        subject: product.subject,
+        conditionGrade: product.conditionGradeLabel,
+        price: product.price,
+        quantity: 1,
+      },
+      isPreReleaseProduct(product) ? { isPrerelease: true } : undefined,
+    );
+  }, [product, productId]);
   const [relatedProducts, setRelatedProducts] = useState([]);
   // 시리즈·강사 랜딩 교차링크 — 큐레이션에 있는 상품에만 노출 (프리렌더 nav와 동일 대상)
   const collectionLinks = useMemo(() => {
@@ -1361,24 +1389,6 @@ function PublicProductDetailPage() {
             : [],
         );
         setSelectedImageIndex(0);
-        // GA4 view_item — 상세 로드 성공 시 1회 (대표가 기준)
-        if (detailResult.product?.title) {
-          const preRelease = isPreReleaseProduct(detailResult.product);
-          trackViewItem(
-            {
-              productId:
-                detailResult.product.productId ?? detailResult.product.id ?? productId,
-              title: detailResult.product.title,
-              brand: detailResult.product.brand,
-              subject: detailResult.product.subject,
-              conditionGrade: detailResult.product.conditionGradeLabel,
-              price: detailResult.product.price,
-              quantity: 1,
-            },
-            preRelease ? { isPrerelease: true } : undefined,
-          );
-        }
-
         if (!detailResult.product) {
           if (detailResult.error) {
             setError("교재 상세 정보를 불러오지 못했습니다.");
