@@ -107,12 +107,13 @@ test("Meta: 조회·장바구니·구매는 옵션 book_id가 아닌 동일한 �
   assert.deepEqual(metaCalls.map((call) => call[1]), ["ViewContent", "AddToCart", "Purchase"]);
   for (const [method, , params] of metaCalls) {
     assert.equal(method, "track");
-    assert.deepEqual(params.content_ids, ["2370"]);
+    assert.deepEqual(params.content_ids, ["gxav9zwrza"]);
     assert.equal(params.content_type, "product");
-    assert.deepEqual(params.contents, [{ id: "2370", quantity: 1, item_price: 59000 }]);
+    assert.deepEqual(params.contents, [{ id: "gxav9zwrza", quantity: 1, item_price: 59000 }]);
     assert.equal(params.currency, "KRW");
     assert.equal(params.value, 59000);
   }
+  assert.ok(calls.every(([, , params]) => params.items[0].item_id === "2370"));
 });
 
 test("trackSelectContent: content_id 없으면 생략", () => {

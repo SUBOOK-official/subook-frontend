@@ -37,6 +37,7 @@ import {
   readPendingMemberAction,
 } from "../lib/pendingMemberAction";
 import { usePageMeta } from "../lib/usePageMeta";
+import { getMetaContentId } from "@shared-domain/metaCatalog";
 import {
   COLLAB_OPEN_LABEL,
   findFeaturedProductEntry,
@@ -1154,7 +1155,7 @@ function PublicProductDetailPage() {
           "@type": "Product",
           // Meta 픽셀 content_ids와 같은 상품 ID로 자동 카탈로그 수집·매칭.
           // https://developers.facebook.com/documentation/ads-commerce/catalog/guides/microdata-tags
-          productID: String(product.productId ?? product.id),
+          productID: getMetaContentId(product.productId ?? product.id),
           url: `${metaOrigin}/store/${product.productId ?? product.id}`,
           name: product.title,
           // 콜라보 교재는 AI 요약을 화면에서 빼므로 JSON-LD에서도 쓰지 않는다

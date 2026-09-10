@@ -14,6 +14,14 @@
 const SITE_ORIGIN = "https://subook.kr";
 const REQUEST_TIMEOUT_MS = 8_000;
 
+// shared-domain/src/metaCatalog.js와 동기 유지. 기존 수동 카탈로그 항목의 ID.
+// 이 함수는 스테이징 /api로 복사되므로 shared-domain 상대 import를 쓸 수 없다.
+const META_CATALOG_CONTENT_IDS = {
+  "2370": "gxav9zwrza",
+  "2371": "417vdy5t1z",
+  "2437": "n7llsz4qrh",
+};
+
 // 전일학원 콜라보 교재 — 출판사 신품이라 중고 검수 등급이 없고, 상세는 디자인
 // 이미지로만 구성된다(AI 요약 미노출). SPA는 src/lib/publicFeaturedProducts.js가
 // 원본이지만 이 파일은 의존성 없음 제약이 있어 제목만 복제한다.
@@ -314,7 +322,7 @@ function buildHtml({ product, stock, relatedBooks }) {
           "@context": "https://schema.org",
           "@type": "Product",
           // SPA/Meta 픽셀과 동일 ID. JSON-LD 자동 수집에 productID·url이 필요하다.
-          productID: String(product.id),
+          productID: META_CATALOG_CONTENT_IDS[String(product.id)] ?? String(product.id),
           url: canonicalUrl,
           name: product.title,
           // 콜라보 교재는 AI 요약을 화면에서 빼므로 JSON-LD에서도 쓰지 않는다

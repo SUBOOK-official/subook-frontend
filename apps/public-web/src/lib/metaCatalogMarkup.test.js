@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import handler from "../../api/prerender-product.js";
+import { getMetaContentId } from "../../../../packages/shared-domain/src/metaCatalog.js";
 
 test("Meta 크롤러의 Product JSON-LD는 픽셀과 같은 ID·URL·가격·재고를 가진다", async (t) => {
   const previousUrl = process.env.SUPABASE_URL;
@@ -29,12 +30,12 @@ test("Meta 크롤러의 Product JSON-LD는 픽셀과 같은 ID·URL·가격·재
       status(code) { assert.equal(code, 200); return this; },
       send(value) { html = value; },
     };
-    await handler({ method: "GET", query: { id: "2370" } }, res);
+    await handler({ method: "GET", query: { id: String(product.id) } }, res);
     const scripts = [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)];
     return scripts.flatMap(([, json]) => JSON.parse(json)).find((item) => item["@type"] === "Product");
   }
   const available = await readProduct();
-  assert.equal(available.productID, "2370");
+  assert.equal(available.productID, "gxav9zwrza");
   assert.equal(available.url, "https://subook.kr/store/2370");
   assert.equal(available.offers.price, 59000);
   assert.equal(available.offers.priceCurrency, "KRW");
@@ -44,4 +45,19 @@ test("Meta 크롤러의 Product JSON-LD는 픽셀과 같은 ID·URL·가격·재
   assert.equal(soldOut.productID, available.productID);
   assert.equal(soldOut.url, available.url);
   assert.equal(soldOut.offers.availability, "https://schema.org/OutOfStock");
+  for (const id of [2370, 2371, 2437, 2343]) {
+    product.id = id;
+    const markup = await readProduct();
+    assert.equal(markup.productID, getMetaContentId(id));
+    assert.equal(markup.url, `https://subook.kr/store/${id}`);
+  }
+});
+
+test("수동 카탈로그 3종 매핑 및 일반 상품 ID 유지", () => {
+  assert.equal(getMetaContentId(2370), "gxav9zwrza");
+  assert.equal(getMetaContentId("2371"), "417vdy5t1z");
+  assert.equal(getMetaContentId(2437), "n7llsz4qrh");
+  assert.equal(getMetaContentId(2343), "2343");
+  assert.equal(getMetaContentId(null), null);
+  assert.equal(getMetaContentId(""), null);
 });

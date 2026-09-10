@@ -1,3 +1,5 @@
+import { getMetaContentId } from "../../../../packages/shared-domain/src/metaCatalog.js";
+
 // GA4 + Meta Pixel 이벤트 헬퍼 — 태그 미로드 환경(애드블록, 미설정 로컬/데모)에서는
 // 조용히 no-op. 태그 본체는 index.html에 설치되어 있고(GA4 G-EMNCLZKPMS,
 // Meta Pixel 27962792746720705), SPA 라우트 전환의 page_view/PageView는 양쪽 모두
@@ -140,7 +142,7 @@ function sumLineValue(lines) {
   );
 }
 
-// Meta content_ids/contents — id는 GA4 item_id와 동일하게 상품 단위(productId).
+// Meta content_ids/contents — 상품 단위(productId)를 카탈로그 콘텐츠 ID로 변환.
 // 카탈로그(다이내믹) 광고 매칭은 이 id와 카탈로그 콘텐츠 ID(retailer_id)의 일치가 전제다.
 // productId 없는 라인(비회원 조회 RPC 응답 등)은 매칭이 불가능하므로 제외하고,
 // 전부 없으면 키 자체를 생략한다(빈 배열·빈 문자열 id 전송 방지).
@@ -150,10 +152,10 @@ function toMetaContentParams(lines) {
   );
   if (withIds.length === 0) return {};
   return {
-    content_ids: withIds.map((line) => String(line.productId)),
+    content_ids: withIds.map((line) => getMetaContentId(line.productId)),
     content_type: "product",
     contents: withIds.map((line) => ({
-      id: String(line.productId),
+      id: getMetaContentId(line.productId),
       quantity: Number(line.quantity) || 1,
       item_price: Number(line.price) || 0,
     })),
@@ -309,7 +311,7 @@ function trackAddToWishlist(productId, meta = {}) {
     items: [toGaItem({ ...line, productId, quantity: 1 })],
   });
   fbqEvent("AddToWishlist", {
-    content_ids: [String(productId)],
+    content_ids: [getMetaContentId(productId)],
     content_type: "product",
   });
 }
