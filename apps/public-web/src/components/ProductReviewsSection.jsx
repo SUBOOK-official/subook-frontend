@@ -49,12 +49,15 @@ export function useProductReviews(productId) {
   const [summary, setSummary] = useState(() => normalizeReviewSummary(null));
   const [status, setStatus] = useState("idle"); // idle | loading | ready | error
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState("");
   const requestIdRef = useRef(0);
 
   const load = useCallback(async () => {
     const requestId = requestIdRef.current + 1;
     requestIdRef.current = requestId;
     setStatus("loading");
+    setIsLoadingMore(false);
+    setLoadMoreError("");
     const result = await fetchPublicReviews({ productId, limit: REVIEW_PAGE_SIZE, offset: 0 });
     if (requestIdRef.current !== requestId) {
       return;
@@ -74,10 +77,11 @@ export function useProductReviews(productId) {
   }, [load]);
 
   const loadMore = useCallback(async () => {
-    if (isLoadingMore) {
+    if (status !== "ready" || isLoadingMore || summary.items.length >= summary.total) {
       return;
     }
     setIsLoadingMore(true);
+    setLoadMoreError("");
     const requestId = requestIdRef.current;
     const result = await fetchPublicReviews({
       productId,
@@ -91,51 +95,36 @@ export function useProductReviews(productId) {
       setSummary((previous) => ({
         ...previous,
         total: result.summary.total,
+        purchaseTotal: result.summary.purchaseTotal,
+        sampleCount: result.summary.sampleCount,
         average: result.summary.average,
         ratingCounts: result.summary.ratingCounts,
+        sameProductCount: result.summary.sameProductCount,
         items: mergeReviewItems(previous.items, result.summary.items),
       }));
     } else {
-      // GA4 exception — 더보기 실패는 화면에 아무 표시가 없어 계측으로만 보인다
+      setLoadMoreError("후기를 더 불러오지 못했어요. 다시 시도해 주세요.");
       trackException("reviews_load_more_failed", {
         ...(productId != null ? { itemId: String(productId) } : {}),
       });
     }
     setIsLoadingMore(false);
-  }, [isLoadingMore, productId, summary.items.length]);
+  }, [isLoadingMore, productId, status, summary.items.length, summary.total]);
 
-  return { summary, status, isLoadingMore, loadMore, reload: load };
-}
-
-function RatingBars({ ratingCounts, total }) {
-  return (
-    <dl className="public-reviews__bars">
-      {[5, 4, 3, 2, 1].map((star) => {
-        const count = ratingCounts?.[star] ?? 0;
-        const ratio = total > 0 ? Math.round((count / total) * 100) : 0;
-        return (
-          <div className="public-reviews__bar-row" key={star}>
-            <dt>{star}점</dt>
-            <dd>
-              <div aria-hidden="true" className="public-reviews__bar-track">
-                <div className="public-reviews__bar-fill" style={{ width: `${ratio}%` }} />
-              </div>
-            </dd>
-            <dd>{count}</dd>
-          </div>
-        );
-      })}
-    </dl>
-  );
+  return { summary, status, isLoadingMore, loadMoreError, loadMore, reload: load };
 }
 
 // 통합 후기임을 먼저 알려주는 콜아웃 — "이 책의 평점"으로 오해하지 않게.
-function UnifiedNotice({ sameProductCount }) {
+function UnifiedNotice({ sameProductCount, sampleCount }) {
   return (
     <div className="public-reviews__callout" role="note">
       <InfoIcon className="public-reviews__callout-icon" size={18} />
       <div>
-        <p className="public-reviews__callout-title">수북에서 교재를 구매한 모든 분들의 후기입니다</p>
+        <p className="public-reviews__callout-title">
+          {sampleCount > 0
+            ? `수북 구매 후기와 샘플 후기 ${sampleCount}개를 함께 보여드립니다`
+            : "수북에서 교재를 구매한 모든 분들의 후기입니다"}
+        </p>
         <p className="public-reviews__callout-body">
           이 교재 하나에 대한 후기가 아니라, <strong>수북 전체 구매 후기</strong>를 모아 보여드려요.
           검수 상태·배송·포장이 어땠는지 참고해 주세요. 이 교재를 구매한 분의 후기는{" "}
@@ -216,8 +205,12 @@ function ReviewCard({ review, onOpenPhoto, onOpenItems, productId }) {
       <div className="public-review-card__head">
         <ReviewStars rating={review.rating} />
         <span className="public-review-card__author">{review.author}</span>
-        <span className="public-review-card__date">{formatReviewDate(review.createdAt)}</span>
-        {review.isSameProduct ? (
+        {review.createdAt ? (
+          <span className="public-review-card__date">{formatReviewDate(review.createdAt)}</span>
+        ) : null}
+        {review.isSample ? (
+          <span className="public-review-card__sample-badge">샘플 후기</span>
+        ) : review.isSameProduct ? (
           <span className="public-review-card__same-badge">이 교재 구매</span>
         ) : null}
       </div>
@@ -286,7 +279,7 @@ function ReviewCard({ review, onOpenPhoto, onOpenItems, productId }) {
 }
 
 function ProductReviewsSection({ reviews, onOpenPhoto, productId }) {
-  const { summary, status, isLoadingMore, loadMore } = reviews;
+  const { summary, status, isLoadingMore, loadMoreError, loadMore } = reviews;
   const [itemsReview, setItemsReview] = useState(null);
   const hasMore = summary.items.length < summary.total;
   const headingRef = useRef(null);
@@ -297,12 +290,13 @@ function ProductReviewsSection({ reviews, onOpenPhoto, productId }) {
     headingRef,
     () => {
       const itemIdParam = productId != null ? { itemId: String(productId) } : {};
-      if (summary.total === 0) {
+      const purchaseReviewCount = summary.purchaseTotal ?? summary.total;
+      if (purchaseReviewCount === 0) {
         trackEmptyState("reviews", itemIdParam);
         return;
       }
       trackEvent("view_review_list", {
-        reviewCount: summary.total,
+        reviewCount: purchaseReviewCount,
         ...(summary.average != null
           ? { averageRating: Number(summary.average.toFixed(1)) }
           : {}),
@@ -316,7 +310,7 @@ function ProductReviewsSection({ reviews, onOpenPhoto, productId }) {
   return (
     <>
       <h3 className="public-detail-tab-content__heading" ref={headingRef}>
-        수북 구매 후기
+        수북 구매 후기{status === "ready" && summary.total > 0 ? ` (${summary.total})` : ""}
       </h3>
 
       {status === "loading" && summary.items.length === 0 ? (
@@ -330,17 +324,7 @@ function ProductReviewsSection({ reviews, onOpenPhoto, productId }) {
         <p className="public-reviews__empty">아직 등록된 후기가 없어요.</p>
       ) : (
         <>
-          <UnifiedNotice sameProductCount={summary.sameProductCount} />
-          <div className="public-reviews__summary">
-            <div className="public-reviews__score">
-              <span className="public-reviews__score-value">
-                {summary.average != null ? summary.average.toFixed(1) : "-"}
-              </span>
-              <ReviewStars rating={Math.round(summary.average ?? 0)} size={18} />
-              <span className="public-reviews__score-count">전체 후기 {summary.total}개</span>
-            </div>
-            <RatingBars ratingCounts={summary.ratingCounts} total={summary.total} />
-          </div>
+          <UnifiedNotice sameProductCount={summary.sameProductCount} sampleCount={summary.sampleCount} />
           <ul className="public-reviews__list">
             {summary.items.map((review) => (
               <ReviewCard
@@ -352,6 +336,9 @@ function ProductReviewsSection({ reviews, onOpenPhoto, productId }) {
               />
             ))}
           </ul>
+          {loadMoreError ? (
+            <p className="public-reviews__error" role="alert">{loadMoreError}</p>
+          ) : null}
           {hasMore ? (
             <button
               className="public-reviews__more"

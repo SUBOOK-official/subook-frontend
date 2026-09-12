@@ -1,6 +1,7 @@
 // 통합 구매 후기 — Supabase RPC·스토리지 연동
 import { isSupabaseConfigured, supabase } from "@shared-supabase/publicSupabaseClient";
 import { resizeReviewImage } from "./reviewImage";
+import { getReviewPageRequest, getSampleReviews, mergeSampleReviewPage } from "./publicReviewSamples";
 import {
   REVIEW_PAGE_SIZE,
   REVIEW_PHOTO_MAX_COUNT,
@@ -30,17 +31,19 @@ export async function fetchPublicReviews({ productId = null, limit = REVIEW_PAGE
   }
 
   const numericProductId = Number(productId);
+  const samples = getSampleReviews(productId);
+  const request = getReviewPageRequest({ limit, offset }, samples.length);
   const { data, error } = await supabase.rpc("get_public_reviews", {
     p_product_id: Number.isFinite(numericProductId) && numericProductId > 0 ? numericProductId : null,
-    p_limit: limit,
-    p_offset: offset,
+    p_limit: request.serverLimit,
+    p_offset: request.serverOffset,
   });
 
   if (error) {
     return { summary: normalizeReviewSummary(null), error: toError(error, "후기를 불러오지 못했어요.") };
   }
 
-  return { summary: normalizeReviewSummary(data), error: null };
+  return { summary: mergeSampleReviewPage(normalizeReviewSummary(data), samples, request), error: null };
 }
 
 // 마이페이지 — 주문별 작성/수정 버튼 분기용
