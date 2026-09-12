@@ -100,9 +100,11 @@ export function mergePartnerReviewPage(summary, partnerReviews, request) {
   const start = request.offset - request.serverOffset;
   return {
     ...summary,
-    // 평균·별점 분포·동일 상품 실구매 수는 서버 원장 값 그대로 유지한다.
+    // 평균·별점 분포와 분석용 구매 후기 수는 서버 원장 값 그대로 유지한다.
     purchaseTotal: summary.total,
+    purchaseSameProductCount: summary.sameProductCount,
     total: summary.total + partnerReviews.length,
+    sameProductCount: (summary.sameProductCount ?? 0) + partnerReviews.filter((review) => review.isSameProduct).length,
     items: [...summary.items, ...partnerReviews].sort(compareReviews).slice(start, start + request.limit),
   };
 }

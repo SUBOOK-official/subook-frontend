@@ -52,8 +52,7 @@ test("외부 후기와 주문 후기가 날짜 사이에 섞여도 50건 이후�
   }
 });
 
-test("외부 수집 후기는 주문 원장의 평점·동일상품 구매 수·분석용 구매 후기 수를 바꾸지 않는다", () => {
-  const partnerReviews = getPartnerReviews(2370);
+test("교재에 연결된 외부 후기는 화면의 동일상품 후기 수에 합산하고 주문 분석값은 유지한다", () => {
   const summary = {
     total: 2,
     average: 2.5,
@@ -61,10 +60,15 @@ test("외부 수집 후기는 주문 원장의 평점·동일상품 구매 수·
     sameProductCount: 1,
     items: [],
   };
-  const merged = mergePartnerReviewPage(summary, partnerReviews, getReviewPageRequest({}, partnerReviews.length));
-  assert.equal(merged.purchaseTotal, 2);
-  assert.equal(merged.average, 2.5);
-  assert.deepEqual(merged.ratingCounts, { 1: 1, 4: 1 });
-  assert.equal(merged.sameProductCount, 1);
+  for (const [productId, partnerCount] of [[2370, 4], [2371, 3], [2437, 0]]) {
+    const partnerReviews = getPartnerReviews(productId);
+    const merged = mergePartnerReviewPage(summary, partnerReviews, getReviewPageRequest({}, partnerReviews.length));
+    assert.equal(merged.purchaseTotal, 2);
+    assert.equal(merged.purchaseSameProductCount, 1);
+    assert.equal(merged.average, 2.5);
+    assert.deepEqual(merged.ratingCounts, { 1: 1, 4: 1 });
+    assert.equal(merged.sameProductCount, 1 + partnerCount);
+  }
   assert.equal(summary.total, 2);
+  assert.equal(summary.sameProductCount, 1);
 });

@@ -96,6 +96,7 @@ export function useProductReviews(productId) {
         ...previous,
         total: result.summary.total,
         purchaseTotal: result.summary.purchaseTotal,
+        purchaseSameProductCount: result.summary.purchaseSameProductCount,
         average: result.summary.average,
         ratingCounts: result.summary.ratingCounts,
         sameProductCount: result.summary.sameProductCount,
@@ -203,7 +204,7 @@ function ReviewCard({ review, onOpenPhoto, onOpenItems, productId }) {
         {review.createdAt ? (
           <span className="public-review-card__date">{formatReviewDate(review.createdAt)}</span>
         ) : null}
-        {review.isSameProduct && !review.isPartnerReview ? (
+        {review.isSameProduct ? (
           <span className="public-review-card__same-badge">이 교재 구매</span>
         ) : null}
       </div>
@@ -293,7 +294,7 @@ function ProductReviewsSection({ reviews, onOpenPhoto, productId }) {
         ...(summary.average != null
           ? { averageRating: Number(summary.average.toFixed(1)) }
           : {}),
-        sameProductCount: summary.sameProductCount ?? 0,
+        sameProductCount: summary.purchaseSameProductCount ?? summary.sameProductCount ?? 0,
         ...itemIdParam,
       });
     },
