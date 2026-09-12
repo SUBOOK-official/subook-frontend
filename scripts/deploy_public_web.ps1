@@ -10,6 +10,8 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+. (Join-Path $PSScriptRoot "deploy_staging.ps1")
+
 function Write-Step {
   param(
     [Parameter(Mandatory = $true)]
@@ -71,37 +73,6 @@ function Invoke-RobocopyChecked {
   }
 }
 
-function Remove-StagingDirectory {
-  param(
-    [Parameter(Mandatory = $true)]
-    [string]$Path
-  )
-
-  $resolvedStagingPath = [System.IO.Path]::GetFullPath($Path)
-  $tempRoot = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath()).TrimEnd('\') + '\'
-  if (-not $resolvedStagingPath.StartsWith($tempRoot, [System.StringComparison]::OrdinalIgnoreCase) -or
-      -not ([System.IO.Path]::GetFileName($resolvedStagingPath) -like 'subook-*-deploy-*')) {
-    throw "Refusing to remove an unexpected staging path: $resolvedStagingPath"
-  }
-  if (-not (Test-Path -LiteralPath $Path)) {
-    return
-  }
-
-  for ($attempt = 1; $attempt -le 5; $attempt += 1) {
-    try {
-      Remove-Item -LiteralPath $Path -Recurse -Force
-      return
-    } catch {
-      if ($attempt -eq 5) {
-        Write-Warning "Could not remove staging directory: $Path"
-        return
-      }
-
-      Start-Sleep -Seconds 1
-    }
-  }
-}
-
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $frontendRoot = Split-Path -Parent $scriptRoot
 $publicWebRoot = Join-Path $frontendRoot "apps/$App"
@@ -118,7 +89,7 @@ $npxCommand = Get-Command "npx.cmd" -ErrorAction SilentlyContinue
 # 2026-08-24: 다른 세션이 남긴 미커밋 WIP가 배포에 편승해 상품 상세가 전면
 # 크래시(수리 f2fe411)한 사고 재발 방지 — 배포에 실리는 경로에 미커밋 변경이
 # 있으면 파일 목록을 출력하고 중단한다. 의도적인 dirty 배포만 -AllowDirty로 우회.
-$cleanTreePathSpecs = @("apps/$App", "packages", "scripts/deploy_public_web.ps1")
+$cleanTreePathSpecs = @("apps/$App", "packages", "scripts/deploy_public_web.ps1", "scripts/deploy_staging.ps1")
 
 if ($AllowDirty) {
   Write-Warning "[deploy:public] -AllowDirty: skipping the uncommitted change guard."
@@ -219,25 +190,7 @@ Write-Step "Creating staging directory: $stagingRoot"
 New-Item -ItemType Directory -Path $stagingRoot | Out-Null
 New-Item -ItemType Directory -Path $stagingFrontendRoot | Out-Null
 
-$robocopyArguments = @(
-  "/E"
-  "/XD"
-  (Join-Path $frontendRoot "node_modules")
-  (Join-Path $frontendRoot ".vercel")
-  (Join-Path $publicWebRoot "node_modules")
-  (Join-Path $publicWebRoot ".vite")
-  (Join-Path $publicWebRoot "dist")
-  (Join-Path $publicWebRoot ".vercel")
-  "/XF"
-  ".env"
-  ".env.*"
-  "*.log"
-  "/NFL"
-  "/NDL"
-  "/NJH"
-  "/NJS"
-  "/NP"
-)
+$robocopyArguments = Get-DeployCopyArguments
 
 Write-Step "Copying the frontend workspace into staging."
 Invoke-RobocopyChecked -Source $frontendRoot -Destination $stagingFrontendRoot -ExtraArguments $robocopyArguments
