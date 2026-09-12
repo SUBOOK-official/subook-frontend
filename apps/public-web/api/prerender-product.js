@@ -374,6 +374,8 @@ function buildHtml({ product, stock, relatedBooks }) {
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/png" sizes="64x64" href="https://subook.kr/favicon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="https://subook.kr/apple-touch-icon.png" />
     <title>${escapeHtml(pageTitle)}</title>
     <meta name="description" content="${escapeHtml(description)}" />
     <link rel="canonical" href="${canonicalUrl}" />
