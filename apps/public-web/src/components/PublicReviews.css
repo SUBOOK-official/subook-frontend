@@ -173,8 +173,7 @@ a.public-review-items__row:hover {
   color: var(--public-ds-text-muted);
 }
 
-.public-review-card__same-badge,
-.public-review-card__sample-badge {
+.public-review-card__same-badge {
   display: inline-flex;
   align-items: center;
   padding: 2px 8px;
@@ -183,11 +182,6 @@ a.public-review-items__row:hover {
   color: var(--public-ds-primary);
   font-size: 11px;
   font-weight: 700;
-}
-
-.public-review-card__sample-badge {
-  background: var(--public-ds-divider);
-  color: var(--public-ds-text-secondary);
 }
 
 .public-review-card__product {

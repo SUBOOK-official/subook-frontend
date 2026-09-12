@@ -96,7 +96,6 @@ export function useProductReviews(productId) {
         ...previous,
         total: result.summary.total,
         purchaseTotal: result.summary.purchaseTotal,
-        sampleCount: result.summary.sampleCount,
         average: result.summary.average,
         ratingCounts: result.summary.ratingCounts,
         sameProductCount: result.summary.sameProductCount,
@@ -115,18 +114,14 @@ export function useProductReviews(productId) {
 }
 
 // 통합 후기임을 먼저 알려주는 콜아웃 — "이 책의 평점"으로 오해하지 않게.
-function UnifiedNotice({ sameProductCount, sampleCount }) {
+function UnifiedNotice({ sameProductCount }) {
   return (
     <div className="public-reviews__callout" role="note">
       <InfoIcon className="public-reviews__callout-icon" size={18} />
       <div>
-        <p className="public-reviews__callout-title">
-          {sampleCount > 0
-            ? `수북 구매 후기와 샘플 후기 ${sampleCount}개를 함께 보여드립니다`
-            : "수북에서 교재를 구매한 모든 분들의 후기입니다"}
-        </p>
+        <p className="public-reviews__callout-title">수북 전체 후기를 모았습니다</p>
         <p className="public-reviews__callout-body">
-          이 교재 하나에 대한 후기가 아니라, <strong>수북 전체 구매 후기</strong>를 모아 보여드려요.
+          이 교재 하나에 대한 후기가 아니라, <strong>수북 전체 후기</strong>를 모아 보여드려요.
           검수 상태·배송·포장이 어땠는지 참고해 주세요. 이 교재를 구매한 분의 후기는{" "}
           <strong>이 교재 구매</strong> 표시와 함께 맨 위에 보여드립니다.
         </p>
@@ -208,9 +203,7 @@ function ReviewCard({ review, onOpenPhoto, onOpenItems, productId }) {
         {review.createdAt ? (
           <span className="public-review-card__date">{formatReviewDate(review.createdAt)}</span>
         ) : null}
-        {review.isSample ? (
-          <span className="public-review-card__sample-badge">샘플 후기</span>
-        ) : review.isSameProduct ? (
+        {review.isSameProduct && !review.isPartnerReview ? (
           <span className="public-review-card__same-badge">이 교재 구매</span>
         ) : null}
       </div>
@@ -324,7 +317,7 @@ function ProductReviewsSection({ reviews, onOpenPhoto, productId }) {
         <p className="public-reviews__empty">아직 등록된 후기가 없어요.</p>
       ) : (
         <>
-          <UnifiedNotice sameProductCount={summary.sameProductCount} sampleCount={summary.sampleCount} />
+          <UnifiedNotice sameProductCount={summary.sameProductCount} />
           <ul className="public-reviews__list">
             {summary.items.map((review) => (
               <ReviewCard
