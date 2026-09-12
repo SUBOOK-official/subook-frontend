@@ -4,6 +4,7 @@ import AdminRoute from "./components/AdminRoute";
 import { InlineLoading } from "./components/Loading";
 
 const AdminAnalyticsPage = lazy(() => import("./pages/AdminAnalyticsPage"));
+const AdminPerformancePage = lazy(() => import("./pages/AdminPerformancePage"));
 const AdminDashboardPage = lazy(() => import("./pages/AdminDashboardPage"));
 const AdminEventSubscriptionsPage = lazy(() => import("./pages/AdminEventSubscriptionsPage"));
 const AdminFaqsPage = lazy(() => import("./pages/AdminFaqsPage"));
@@ -92,6 +93,14 @@ function App() {
               </AdminRoute>
             }
             path="/admin/analytics"
+          />
+          <Route
+            element={
+              <AdminRoute>
+                <AdminPerformancePage />
+              </AdminRoute>
+            }
+            path="/admin/performance"
           />
           <Route
             element={

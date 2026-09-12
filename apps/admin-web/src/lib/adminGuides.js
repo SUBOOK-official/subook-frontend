@@ -19,6 +19,15 @@ import imgNotificationLogs from "../assets/guide/notification-logs.jpg";
 import imgAnalytics from "../assets/guide/analytics.jpg";
 
 export const adminGuides = {
+  performance: {
+    title: "성과 대시보드",
+    intro: "실제 결제 실적과 방문·광고 성과를 함께 확인합니다.",
+    sections: [
+      { heading: "기간 선택", body: ["기본은 오늘을 포함한 최근 7일입니다. 날짜를 직접 지정하거나 일별 상세의 날짜를 눌러 하루 성과를 볼 수 있습니다.", "각 카드의 증감은 직전 동일 길이 기간과 비교합니다. 오늘을 포함하면 집계 중인 오늘과 이전 날짜의 하루 전체를 비교합니다."] },
+      { heading: "숫자의 기준", body: ["매출과 주문은 실제 결제가 확인된 주문 DB 기준입니다. 순매출은 그 결제분의 현재 누적 환불액을 차감합니다.", "GA4는 무통장 주문을 입금 전에 구매로 기록합니다. 방문·퍼널 지표와 실제 결제 실적은 다를 수 있습니다.", "Meta 기여 실적과 주문 DB에서 확인된 Meta 유입은 귀속 기준이 다릅니다. 유입 보존은 2026-09-12부터 시작했습니다."] },
+      { heading: "광고와 연결 상태", body: ["캠페인 이름을 누르면 광고세트, 광고세트 이름을 누르면 개별 광고를 볼 수 있습니다.", "연동이 준비되지 않았거나 분모가 0인 지표는 —로 표시됩니다. 외부 지표는 최대 15분 캐시하며 각 출처의 데이터 처리 지연이 있을 수 있습니다."] },
+    ],
+  },
   overview: {
     title: "오늘 할 일",
     intro:

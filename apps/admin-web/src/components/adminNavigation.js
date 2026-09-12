@@ -75,6 +75,7 @@ export const adminNavigationGroups = [
       { key: "studio", label: "사진 스튜디오 (AI)", to: "/admin/studio", icon: CameraIcon },
       { key: "notification-logs", label: "알림 발송 로그", to: "/admin/notification-logs", icon: BellIcon },
       { key: "analytics", label: "분석", to: "/admin/analytics", icon: TrendingUpIcon },
+      { key: "performance", label: "성과 대시보드", to: "/admin/performance", icon: TrendingUpIcon },
     ],
   },
 ];
@@ -98,6 +99,10 @@ export function resolveActiveAdminModule({ pathname, explicitModule }) {
 
   if (pathname.startsWith("/admin/analytics")) {
     return "analytics";
+  }
+
+  if (pathname.startsWith("/admin/performance")) {
+    return "performance";
   }
 
   if (pathname.startsWith("/admin/faqs")) {
