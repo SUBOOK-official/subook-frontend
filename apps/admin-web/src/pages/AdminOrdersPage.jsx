@@ -77,6 +77,24 @@ function formatCompactDate(value) {
   return `${date.getFullYear()}.${pad(date.getMonth() + 1)}.${pad(date.getDate())}`;
 }
 
+function getAttributionTouch(attribution, scope = "last") {
+  if (!attribution || typeof attribution !== "object") return null;
+  const touch = scope === "first" ? attribution.first_touch : attribution.last_touch;
+  return touch && typeof touch === "object" ? touch : null;
+}
+
+function formatAttributionSource(touch) {
+  if (!touch) return "";
+  return [touch.source, touch.medium].filter(Boolean).join(" / ");
+}
+
+function isSameAttributionTouch(first, last) {
+  if (!first || !last) return false;
+  return first.source === last.source
+    && first.medium === last.medium
+    && (first.campaign ?? "") === (last.campaign ?? "");
+}
+
 // 워크플로우: pending → (무통장 입금확인 / PG 결제승인) → preparing → shipping → delivered → confirmed
 // '결제완료(paid)' 대기 단계는 2026-07 폐지 — 결제가 확인되면 곧바로 '상품 준비 중'으로 간다.
 //   · 무통장(bank_transfer): 입금확인 버튼(admin_confirm_payment)이 pending→preparing 전이
@@ -459,20 +477,35 @@ function AdminOrdersPage() {
     if (!ordersResult.error) {
       // RPC 응답이 배열(레거시) 또는 { items, total_count }(신규) 모두 호환
       const raw = ordersResult.data;
+      let nextOrders = [];
+      let nextTotalCount = 0;
       if (Array.isArray(raw)) {
-        setOrders(raw);
+        nextOrders = raw;
         // 페이지가 가득 차면 정확한 총량을 알 수 없음 — 0을 넣으면 totalPages=1이 되어
         // 다음 페이지로 못 가므로, "최소 한 페이지 더 있음"으로 표현한다.
-        setTotalCount(
-          raw.length < PAGE_SIZE ? (currentPage - 1) * PAGE_SIZE + raw.length : currentPage * PAGE_SIZE + 1,
-        );
+        nextTotalCount =
+          raw.length < PAGE_SIZE ? (currentPage - 1) * PAGE_SIZE + raw.length : currentPage * PAGE_SIZE + 1;
       } else if (raw && typeof raw === "object") {
-        setOrders(Array.isArray(raw.items) ? raw.items : []);
-        setTotalCount(Number(raw.total_count) || 0);
-      } else {
-        setOrders([]);
-        setTotalCount(0);
+        nextOrders = Array.isArray(raw.items) ? raw.items : [];
+        nextTotalCount = Number(raw.total_count) || 0;
       }
+
+      // 대형 list_admin_orders RPC를 다시 정의하지 않고 현재 페이지 주문의 출처만 별도 조회한다.
+      // 마이그레이션 적용 전/일시 오류에는 기존 주문 목록을 그대로 보여준다.
+      if (nextOrders.length > 0) {
+        const attributionResult = await supabase.rpc("get_admin_order_attributions", {
+          p_order_ids: nextOrders.map((order) => order.id),
+        });
+        if (currentRequestId !== requestIdRef.current) return;
+        if (!attributionResult.error && attributionResult.data && typeof attributionResult.data === "object") {
+          nextOrders = nextOrders.map((order) => ({
+            ...order,
+            attribution: attributionResult.data[String(order.id)] ?? null,
+          }));
+        }
+      }
+      setOrders(nextOrders);
+      setTotalCount(nextTotalCount);
     }
 
     setIsLoading(false);
@@ -1660,6 +1693,51 @@ function AdminOrdersPage() {
         </div>
       </div>
 
+      {/* 최초·최종 유입 — GA 세션 귀속이 비어도 주문 당시의 1차 출처 스냅샷을 확인한다. */}
+      {(() => {
+        const firstTouch = getAttributionTouch(selectedOrder.attribution, "first");
+        const lastTouch = getAttributionTouch(selectedOrder.attribution, "last");
+        const primaryTouch = lastTouch ?? firstTouch;
+        if (!primaryTouch) {
+          return (
+            <div>
+              <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">유입 정보</h4>
+              <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-400">
+                수집 정보 없음 · 기능 적용 이전 주문이거나 브라우저 저장이 제한된 주문
+              </div>
+            </div>
+          );
+        }
+        const firstDiffers = firstTouch && lastTouch && !isSameAttributionTouch(firstTouch, lastTouch);
+        return (
+          <div>
+            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">유입 정보</h4>
+            <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm space-y-1">
+              <p className="font-bold text-slate-900">
+                최종 유입 · {formatAttributionSource(primaryTouch) || "출처 미상"}
+              </p>
+              {primaryTouch.campaign && (
+                <p className="text-slate-600">캠페인 · {primaryTouch.campaign}</p>
+              )}
+              {firstDiffers && (
+                <p className="text-slate-600">최초 유입 · {formatAttributionSource(firstTouch)}</p>
+              )}
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+                {primaryTouch.referrer_host && <span>리퍼러 {primaryTouch.referrer_host}</span>}
+                {primaryTouch.landing_path && <span>랜딩 {primaryTouch.landing_path}</span>}
+                {primaryTouch.source_platform && <span>플랫폼 {primaryTouch.source_platform}</span>}
+                {Array.isArray(primaryTouch.click_id_types) && primaryTouch.click_id_types.length > 0 && (
+                  <span>광고 클릭 {primaryTouch.click_id_types.join(", ")}</span>
+                )}
+                {selectedOrder.attribution?.recorded_at && (
+                  <span>기록 {formatDateTime(selectedOrder.attribution.recorded_at)}</span>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       <OrderRefundAccount order={selectedOrder} />
 
       {/* 배송지 */}
@@ -2270,6 +2348,14 @@ function AdminOrdersPage() {
                           </span>
                         )}
                       </div>
+                      {getAttributionTouch(order.attribution) && (
+                        <div
+                          className="mt-1 max-w-[170px] truncate font-sans text-[11px] font-semibold text-indigo-600"
+                          title={formatAttributionSource(getAttributionTouch(order.attribution))}
+                        >
+                          {formatAttributionSource(getAttributionTouch(order.attribution))}
+                        </div>
+                      )}
                     </td>
                     <td className="px-3 py-3 max-w-[170px]">
                       <div className="text-sm font-semibold flex items-center gap-1.5">

@@ -16,6 +16,7 @@ import {
   trackSelectContent,
 } from "../lib/analytics";
 import { usePageMeta } from "../lib/usePageMeta";
+import { getOrderAttributionAnalyticsParams } from "../lib/orderAttribution";
 import { fetchGuestOrder, readGuestOrderRef } from "../lib/guestOrder";
 import {
   BANK_ACCOUNT,
@@ -71,6 +72,7 @@ function fireCardPurchaseOnce(orderRow, itemLines, extra = {}) {
     // GA4 — 카드 결제 purchase의 수단·회원 구분·쿠폰 할인액 (쿠폰 코드는 보내지 않는다)
     paymentType: "card",
     ...(Number.isFinite(couponDiscount) ? { discountAmount: couponDiscount } : {}),
+    ...getOrderAttributionAnalyticsParams(),
     ...extra,
   });
   markTrackedPurchase(key);

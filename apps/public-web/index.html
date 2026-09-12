@@ -15,7 +15,9 @@
         dataLayer.push(arguments);
       }
       gtag("js", new Date());
-      gtag("config", "G-EMNCLZKPMS");
+      // main.jsx가 개인정보가 될 수 있는 운영용 쿼리를 제거하고 대체 출처를 설정한 뒤
+      // 초기 page_view를 한 번 보낸다. SPA History page_view는 향상된 측정이 계속 처리한다.
+      gtag("config", "G-EMNCLZKPMS", { send_page_view: false });
     </script>
 
     <!-- Meta 픽셀은 main.jsx에서 운영 도메인·빌드 확인 후 초기화한다. -->

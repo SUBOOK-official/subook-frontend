@@ -9,6 +9,10 @@ import { PublicWishlistProvider } from "./contexts/PublicWishlistContext";
 import { initSentry, Sentry } from "./lib/sentryInit";
 import { installChunkReloadGuard } from "./lib/chunkReloadGuard";
 import { installMetaPixel } from "./lib/metaPixel";
+import {
+  applyOrderAttributionAnalyticsContext,
+  captureOrderAttribution,
+} from "./lib/orderAttribution";
 import "./index.css";
 
 // 도메인 전환 등 점검 모드: VITE_MAINTENANCE=1 로 빌드하면 전 경로가 점검 안내만 노출.
@@ -41,6 +45,10 @@ if (isMaintenance && typeof window !== "undefined") {
 const showMaintenance = isMaintenance && !staffBypass;
 
 if (!showMaintenance) {
+  // 외부 유입 직후 가장 먼저 최초·최종 터치를 보존한다. OAuth/PG 복귀 리퍼러는
+  // 기존 유입을 덮지 않으며, 원시 클릭 ID나 임의 쿼리 문자열은 저장하지 않는다.
+  const attribution = captureOrderAttribution({ production: import.meta.env.PROD });
+  applyOrderAttributionAnalyticsContext({ attribution });
   installMetaPixel({ production: import.meta.env.PROD });
 
   // Sentry 초기화 (VITE_SENTRY_DSN 있을 때만 실제 활성화)
@@ -56,6 +64,12 @@ if (!showMaintenance) {
       try { Sentry?.captureException?.(event.reason); } catch { /* noop */ }
     });
   }
+}
+
+// 초기 page_view를 앱 초기화 뒤 보내 저장한 대체 출처도 같은 이벤트에 포함한다.
+// 이후 SPA 경로 변경은 GA4 향상된 측정의 History 이벤트가 계속 담당한다.
+if (typeof window !== "undefined" && typeof window.gtag === "function") {
+  window.gtag("event", "page_view");
 }
 
 ReactDOM.createRoot(document.getElementById("root")).render(

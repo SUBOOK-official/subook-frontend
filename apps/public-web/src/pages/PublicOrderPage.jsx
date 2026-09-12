@@ -19,7 +19,12 @@ import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { supabase as publicSupabase } from "@shared-supabase/publicSupabaseClient";
 import { attachMetaCheckoutContext } from "@shared-supabase/metaCheckoutClient";
+import { attachOrderAttributionContext } from "@shared-supabase/orderAttributionClient";
 import { isMetaTrackingAllowed, readMetaCheckoutCookies } from "../lib/metaPixel";
+import {
+  getOrderAttributionAnalyticsParams,
+  readOrderAttribution,
+} from "../lib/orderAttribution";
 import {
   makeOnceGuard,
   trackAddPaymentInfo,
@@ -1513,16 +1518,36 @@ function PublicOrderPage() {
       return;
     }
 
-    // 기존 주문/결제 RPC는 유지한다. 새 체크아웃의 브라우저 문맥만 본인 확인 후
-    // 보관하고, 실제 Purchase는 DB 결제 완료 시점에 전송한다(최대 3초, 실패 허용).
-    if (import.meta.env.PROD && isMetaTrackingAllowed()) {
-      const recorded = await attachMetaCheckoutContext({
-        client: publicSupabase,
-        orderNumber: data.order_number,
-        guestPhone: isGuestCheckout ? shipping.recipientPhone : null,
-        ...readMetaCheckoutCookies(),
-      });
-      if (!recorded) trackException("meta_checkout_context_unavailable");
+    // 결제 전 브라우저 문맥을 주문번호에 연결한다. 두 요청은 병렬·best-effort라
+    // 계측 장애가 주문을 막지 않으며, 카드 세션은 실제 주문 생성 시 DB 트리거가 이어 붙인다.
+    if (import.meta.env.PROD) {
+      const attribution = readOrderAttribution();
+      const contextTasks = [];
+      if (attribution) {
+        contextTasks.push(
+          attachOrderAttributionContext({
+            client: publicSupabase,
+            orderNumber: data.order_number,
+            guestPhone: isGuestCheckout ? shipping.recipientPhone : null,
+            attribution,
+          }).then((recorded) => {
+            if (!recorded) trackException("order_attribution_context_unavailable");
+          }),
+        );
+      }
+      if (isMetaTrackingAllowed()) {
+        contextTasks.push(
+          attachMetaCheckoutContext({
+            client: publicSupabase,
+            orderNumber: data.order_number,
+            guestPhone: isGuestCheckout ? shipping.recipientPhone : null,
+            ...readMetaCheckoutCookies(),
+          }).then((recorded) => {
+            if (!recorded) trackException("meta_checkout_context_unavailable");
+          }),
+        );
+      }
+      await Promise.all(contextTasks);
     }
 
     // 주소록이 비어 있으면 이번 배송지를 기본 배송지로 자동 등록 (2026-07-12 정책).
@@ -1659,6 +1684,7 @@ function PublicOrderPage() {
       paymentType: "bank_transfer",
       discountAmount: couponDiscount,
       pointsUsed: isGuestCheckout ? 0 : effectivePoints,
+      ...getOrderAttributionAnalyticsParams(),
       ...checkoutContext(),
     });
 
