@@ -83,6 +83,25 @@ test("mapOrderToDisplayOrder exposes payment detail fields for the order detail 
   assert.equal(order.totalAmount, 24000);
 });
 
+test("mapOrderToDisplayOrder keeps the ordered option label separate from the condition grade", () => {
+  const order = mapOrderToDisplayOrder({
+    id: "order-option",
+    items: [
+      {
+        id: 11,
+        title: "서바이벌 모의고사",
+        option_label: "12회",
+        condition_grade: "A_PLUS",
+        quantity: 1,
+        total_price: 10000,
+      },
+    ],
+  });
+
+  assert.equal(order.items[0].optionLabel, "12회");
+  assert.equal(order.items[0].gradeLabel, "A+ (사용감 적음)");
+});
+
 test("mapOrderToDisplayOrder exposes per-item refund state for partially refunded orders", () => {
   // 품목별 부분환불(2026-08-01): 주문 status는 유지되고 품목 refunded_at + 주문 refunded_amount만 채워진다.
   const order = mapOrderToDisplayOrder({

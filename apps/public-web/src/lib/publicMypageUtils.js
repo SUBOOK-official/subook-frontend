@@ -888,7 +888,11 @@ export function mapOrderToDisplayOrder(order) {
     id: item.id,
     productId: item.product_id ?? null,
     title: item.title ?? "교재",
-    gradeLabel: toGradeLabel(item.condition_grade) ?? item.option_label ?? "-",
+    // 주문 당시 선택한 회차/번호와 상태 등급은 서로 다른 정보다.
+    // 등급이 있으면 option_label이 사라지던 기존 매핑 때문에 구매 내역에서
+    // 어떤 옵션을 주문했는지 확인할 수 없었다.
+    optionLabel: item.option_label ?? null,
+    gradeLabel: toGradeLabel(item.condition_grade) ?? null,
     quantity: item.quantity ?? 1,
     price: item.total_price ?? item.unit_price ?? 0,
     coverImageUrl: item.cover_image_url ?? null,
