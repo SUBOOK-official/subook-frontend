@@ -3441,7 +3441,7 @@ function PurchasesView({
                         <p className="public-mypage-purchase-card__meta">
                           {[
                             item.optionLabel ? `옵션: ${item.optionLabel}` : null,
-                            item.gradeLabel ? `${item.gradeLabel}등급` : null,
+                            item.gradeLabel ? `등급: ${item.gradeLabel}` : null,
                           ].filter(Boolean).join(" · ") || "옵션 정보 없음"}
                           <span className="public-mypage-purchase-card__divider">/</span>
                           {item.quantity}
