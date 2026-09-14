@@ -155,7 +155,7 @@ function PublicHomePage() {
         onToggleFavorite={handleToggleFavorite}
       />
       <HomeStoreGrid favoriteIds={favoriteIds} onToggleFavorite={handleToggleFavorite} />
-      <PickupCTA onRequestPickup={() => handlePickupRequest("home_bottom_cta")} />
+      <PickupCTA />
 
       <PublicFooter />
       {memberGateDialog}
