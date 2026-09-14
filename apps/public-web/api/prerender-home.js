@@ -280,6 +280,7 @@ ${latestSection}
         <p>시리즈별 교재: ${seriesLinks}</p>
         <p>강사별 교재: ${instructorLinks}</p>
         <p><a href="${SITE_ORIGIN}/pickup/new">교재 판매(수거 신청)</a> ·
+        <a href="${SITE_ORIGIN}/b2b">학원·교육기관 B2B 교재 공급</a> ·
         <a href="${SITE_ORIGIN}/faq">자주 묻는 질문</a> ·
         <a href="${SITE_ORIGIN}/notices">공지사항</a></p>
       </nav>

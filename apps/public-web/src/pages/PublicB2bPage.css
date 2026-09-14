@@ -1,0 +1,337 @@
+.public-b2b {
+  max-width: 848px;
+  margin: 0 auto;
+  padding: 64px 24px 88px;
+  color: var(--public-ds-text);
+}
+
+.public-b2b__intro {
+  text-align: center;
+}
+
+.public-b2b__intro h1 {
+  margin: 0;
+  color: var(--public-ds-primary);
+  font-size: clamp(28px, 4vw, 40px);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  word-break: keep-all;
+}
+
+.public-b2b__lead {
+  margin: 20px 0 12px;
+  font-size: 17px;
+  line-height: 1.7;
+  word-break: keep-all;
+}
+
+.public-b2b__audience {
+  margin: 0;
+  color: var(--public-ds-text-muted);
+  font-size: 14px;
+  word-break: keep-all;
+}
+
+.public-b2b__benefits {
+  display: grid;
+  gap: 24px;
+  margin: 40px 0 52px;
+  padding: 28px;
+  border-radius: var(--public-radius-xl);
+  background: var(--public-ds-secondary);
+}
+
+.public-b2b__benefit {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.public-b2b__benefit-image {
+  display: block;
+  width: 160px;
+  height: 160px;
+  flex-shrink: 0;
+  border-radius: var(--public-radius-lg);
+  object-fit: cover;
+}
+
+.public-b2b__benefit h2 {
+  margin: 0 0 6px;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.public-b2b__benefit p {
+  margin: 0;
+  color: var(--public-ds-text-secondary);
+  font-size: 14px;
+  line-height: 1.75;
+  word-break: keep-all;
+}
+
+.public-b2b__form-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 28px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--public-ds-border);
+}
+
+.public-b2b__form-heading h2 {
+  margin: 0;
+  font-size: 23px;
+  font-weight: 700;
+}
+
+.public-b2b__form-heading > span {
+  color: var(--public-ds-text-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.public-b2b__form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px 20px;
+}
+
+.public-b2b__field {
+  display: block;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.public-b2b__field > span {
+  color: var(--public-ds-text-muted);
+  font-weight: 400;
+}
+
+.public-b2b__field--wide {
+  grid-column: 1 / -1;
+}
+
+.public-b2b__field input,
+.public-b2b__field textarea {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  padding: 14px 16px;
+  border: 1px solid var(--public-ds-border);
+  border-radius: var(--public-radius-sm);
+  outline: none;
+  background: var(--public-ds-card);
+  box-shadow: none;
+  color: var(--public-ds-text);
+  font: inherit;
+  font-weight: 400;
+}
+
+.public-b2b__field input:focus,
+.public-b2b__field textarea:focus {
+  border-color: var(--public-ds-primary);
+  box-shadow: var(--public-focus-ring);
+}
+
+.public-b2b__field input::placeholder,
+.public-b2b__field textarea::placeholder {
+  color: var(--public-ds-text-muted);
+}
+
+.public-b2b__field textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+.public-b2b__quantity {
+  position: relative;
+}
+
+.public-b2b__quantity input {
+  padding-right: 44px;
+}
+
+.public-b2b__quantity > span {
+  position: absolute;
+  top: 50%;
+  right: 16px;
+  transform: translateY(-50%);
+  color: var(--public-ds-text-muted);
+  font-weight: 400;
+}
+
+.public-b2b__honeypot {
+  position: fixed;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.public-b2b__consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--public-ds-border);
+  border-radius: var(--public-radius-md);
+  background: var(--public-ds-card);
+  cursor: pointer;
+}
+
+.public-b2b__consent > input {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  margin: 1px 0 0;
+  accent-color: var(--public-ds-primary);
+}
+
+.public-b2b__consent > span {
+  display: grid;
+  gap: 6px;
+}
+
+.public-b2b__consent strong {
+  font-size: 14px;
+}
+
+.public-b2b__consent small {
+  color: var(--public-ds-text-secondary);
+  font-size: 12px;
+  line-height: 1.65;
+  word-break: keep-all;
+}
+
+.public-b2b__consent a,
+.public-b2b__message a {
+  color: var(--public-ds-primary);
+  font-weight: 700;
+  text-underline-offset: 2px;
+}
+
+.public-b2b__submit-area {
+  margin-top: 8px;
+  text-align: center;
+}
+
+.public-b2b__submit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  padding: 17px;
+  border: 1px solid var(--public-ds-primary);
+  border-radius: var(--public-radius-sm);
+  background: var(--public-ds-primary);
+  color: var(--public-ds-card);
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 180ms ease;
+}
+
+.public-b2b__submit:hover {
+  opacity: 0.88;
+}
+
+.public-b2b__submit:focus-visible {
+  outline: none;
+  box-shadow: var(--public-focus-ring);
+}
+
+.public-b2b__submit:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.public-b2b__submit-area > p {
+  margin: 14px 0 0;
+  color: var(--public-ds-text-muted);
+  font-size: 13px;
+  line-height: 1.7;
+  word-break: keep-all;
+}
+
+.public-b2b__message {
+  display: grid;
+  gap: 5px;
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid var(--public-ds-border);
+  border-radius: var(--public-radius-md);
+  background: var(--public-ds-secondary);
+  color: var(--public-ds-text-secondary);
+  font-size: 13px;
+  line-height: 1.65;
+  text-align: left;
+}
+
+.public-b2b__message strong {
+  color: var(--public-ds-success);
+  font-size: 14px;
+}
+
+.public-b2b__message--error strong {
+  color: var(--public-ds-danger);
+}
+
+@media (max-width: 767px) {
+  .public-b2b {
+    padding: 36px 20px 52px;
+  }
+
+  .public-b2b__lead {
+    margin-top: 14px;
+    font-size: 14px;
+  }
+
+  .public-b2b__audience {
+    font-size: 12px;
+  }
+
+  .public-b2b__benefits {
+    gap: 22px;
+    margin: 28px 0 36px;
+    padding: 22px 18px;
+  }
+
+  .public-b2b__benefit {
+    gap: 16px;
+  }
+
+  .public-b2b__benefit-image {
+    width: 88px;
+    height: 88px;
+  }
+
+  .public-b2b__benefit h2 {
+    font-size: 15px;
+  }
+
+  .public-b2b__benefit p {
+    font-size: 13px;
+  }
+
+  .public-b2b__form-heading h2 {
+    font-size: 19px;
+  }
+
+  .public-b2b__form {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 22px;
+  }
+
+  .public-b2b__field input,
+  .public-b2b__field textarea {
+    font-size: 16px;
+  }
+
+  .public-b2b__submit-area > p {
+    font-size: 12px;
+  }
+}

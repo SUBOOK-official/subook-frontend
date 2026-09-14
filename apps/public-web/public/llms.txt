@@ -25,6 +25,7 @@
 - 강사별 목록 (/store/instructor/{강사명}): [박종민](https://subook.kr/store/instructor/박종민) · [이동준](https://subook.kr/store/instructor/이동준) · [안가람](https://subook.kr/store/instructor/안가람) · [김현우](https://subook.kr/store/instructor/김현우) · [김범찬](https://subook.kr/store/instructor/김범찬) · [이신혁](https://subook.kr/store/instructor/이신혁) · [김강민](https://subook.kr/store/instructor/김강민) · [손창빈](https://subook.kr/store/instructor/손창빈) · [현우진](https://subook.kr/store/instructor/현우진) · [강민철](https://subook.kr/store/instructor/강민철) · [백호](https://subook.kr/store/instructor/백호)
 - [교재 판매 (수거 신청)](https://subook.kr/pickup/new)
 - [자주 묻는 질문](https://subook.kr/faq)
+- [학원·교육기관 B2B 교재 공급](https://subook.kr/b2b)
 - [공지사항](https://subook.kr/notices)
 - [이용약관](https://subook.kr/terms) · [개인정보처리방침](https://subook.kr/privacy) · [환불정책](https://subook.kr/refund)
 

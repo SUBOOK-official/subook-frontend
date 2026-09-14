@@ -602,6 +602,23 @@ function trackGenerateLead({ boxCount, expectedBookCount, ...extra }) {
   fbqEvent("Lead", {});
 }
 
+// B2B 교재 공급 문의 제출 성공. 기관명·담당자·연락처 등 PII는 계측하지 않는다.
+function trackB2bInquiryLead({ expectedBookCount, ...extra }) {
+  gtagEvent(
+    "generate_lead",
+    withExtra(
+      {
+        lead_type: "b2b_inquiry",
+        ...(Number.isFinite(Number(expectedBookCount))
+          ? { expected_book_count: Number(expectedBookCount) }
+          : {}),
+      },
+      extra,
+    ),
+  );
+  fbqEvent("Lead", {});
+}
+
 // 전일학원 출시 알림 신청 성공 = 이벤트 리드 확보. GA4 generate_lead + Meta Lead.
 function trackJeonilLaunchAlert(extra) {
   gtagEvent("generate_lead", withExtra({ lead_type: "jeonil_launch_alert" }, extra));
@@ -987,6 +1004,7 @@ export {
   trackAddToCart,
   trackAddToWishlist,
   trackBeginCheckout,
+  trackB2bInquiryLead,
   trackBuyClick,
   trackCarouselNavigate,
   trackCartOpen,
