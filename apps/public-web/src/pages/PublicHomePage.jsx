@@ -4,6 +4,7 @@ import PublicFooter from "../components/PublicFooter";
 import PublicSiteHeader from "../components/PublicSiteHeader";
 import PublicPageFrame from "../components/PublicPageFrame";
 import BestBooksSection from "../components/home/BestBooksSection";
+import B2bCTA from "../components/home/B2bCTA";
 import HeroBanner from "../components/home/HeroBanner";
 import HomeStoreGrid from "../components/home/HomeStoreGrid";
 import LatestArrivalsSection from "../components/home/LatestArrivalsSection";
@@ -155,7 +156,8 @@ function PublicHomePage() {
         onToggleFavorite={handleToggleFavorite}
       />
       <HomeStoreGrid favoriteIds={favoriteIds} onToggleFavorite={handleToggleFavorite} />
-      <PickupCTA />
+      <PickupCTA onRequestPickup={() => handlePickupRequest("home_bottom_cta")} />
+      <B2bCTA />
 
       <PublicFooter />
       {memberGateDialog}

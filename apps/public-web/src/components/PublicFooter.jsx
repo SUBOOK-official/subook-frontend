@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import ContentContainer from "./ContentContainer";
-import { KAKAO_CHANNEL_URL } from "../lib/supportChannels";
+import { KAKAO_CHANNEL_URL, SUPPORT_EMAIL } from "../lib/supportChannels";
 import {
   trackContactClick,
   trackCopyClick,
@@ -10,7 +10,6 @@ import {
 } from "../lib/analytics";
 import brandLogoWhiteImage from "../assets/brand/logo-horizontal-white.png";
 
-const CONTACT_EMAIL = "subook2025@gmail.com";
 const SELL_GUIDE_PATH = "/sell";
 
 // 푸터 링크 클릭 계측 — 셀러 CTA·문의 채널은 전용 이벤트, 나머지는 select_content(footer_nav).
@@ -61,6 +60,7 @@ function FooterChatIcon() {
 
 const footerTopLinks = [
   { label: "교재 판매하기", to: SELL_GUIDE_PATH },
+  { label: "학원·교육기관 B2B", to: "/b2b" },
   { label: "공지사항", to: "/notices" },
   { label: "자주 묻는 질문", to: "/faq" },
   { label: "비회원 주문 조회", to: "/order/lookup" },
@@ -135,20 +135,20 @@ function PublicFooter() {
     // GA4 contact_click — 이메일 문의 시도(주소 값 자체는 전송하지 않는다)
     trackContactClick("email", "footer_social");
     if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-      navigator.clipboard.writeText(CONTACT_EMAIL).then(
+      navigator.clipboard.writeText(SUPPORT_EMAIL).then(
         () => {
           trackCopyClick("contact_email", "footer", "ok");
-          flashEmailFeedback(`이메일 주소를 복사했어요 · ${CONTACT_EMAIL}`);
+          flashEmailFeedback(`이메일 주소를 복사했어요 · ${SUPPORT_EMAIL}`);
         },
         () => {
           trackCopyClick("contact_email", "footer", "fail");
-          flashEmailFeedback(`문의 이메일 · ${CONTACT_EMAIL}`);
+          flashEmailFeedback(`문의 이메일 · ${SUPPORT_EMAIL}`);
         },
       );
       return;
     }
     trackCopyClick("contact_email", "footer", "unsupported");
-    flashEmailFeedback(`문의 이메일 · ${CONTACT_EMAIL}`);
+    flashEmailFeedback(`문의 이메일 · ${SUPPORT_EMAIL}`);
   };
 
   return (
@@ -206,11 +206,11 @@ function PublicFooter() {
         <div className="public-footer__side">
           <div className="public-footer__socials">
             <a
-              aria-label={`이메일 문의 (${CONTACT_EMAIL})`}
+              aria-label={`이메일 문의 (${SUPPORT_EMAIL})`}
               className="public-footer__social"
-              href={`mailto:${CONTACT_EMAIL}`}
+              href={`mailto:${SUPPORT_EMAIL}`}
               onClick={handleEmailClick}
-              title={CONTACT_EMAIL}
+              title={SUPPORT_EMAIL}
             >
               <FooterMailIcon />
             </a>

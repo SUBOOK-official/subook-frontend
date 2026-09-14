@@ -9905,8 +9905,8 @@ img {
 
 /* 홈 하단 학원·교육기관 공급 문의 */
 .public-home-b2b-banner {
-  background: #edf6fc;
-  border-top-color: #e1edf5;
+  background: var(--public-ds-secondary);
+  border-top-color: var(--public-ds-border);
 }
 .public-home-b2b-banner .public-home-sell-banner__button {
   text-decoration: none;
@@ -9914,13 +9914,13 @@ img {
   padding-bottom: 24px;
 }
 .public-home-b2b-banner .public-home-sell-banner__label {
-  color: #142644;
+  color: var(--public-ds-primary);
   font-weight: 700;
 }
 .public-home-b2b-banner .public-home-sell-banner__text { gap: 8px; }
-.public-home-b2b-banner .public-home-sell-banner__sub { color: #52677a; }
-.public-home-b2b-banner .public-home-sell-banner__arrow { color: #142644; }
+.public-home-b2b-banner .public-home-sell-banner__sub { color: var(--public-ds-text-secondary); }
+.public-home-b2b-banner .public-home-sell-banner__arrow { color: var(--public-ds-primary); }
 .public-home-b2b-banner .public-home-sell-banner__button:focus-visible {
-  outline: 2px solid #142644;
-  outline-offset: -2px;
+  outline: none;
+  box-shadow: var(--public-focus-ring);
 }
