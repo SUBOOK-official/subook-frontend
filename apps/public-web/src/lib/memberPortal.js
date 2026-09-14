@@ -431,8 +431,13 @@ async function fetchOrders() {
     return { orders: [], source: "fallback", error };
   }
 
+  const progress = await supabase.rpc("get_my_order_return_progress");
+  const latestReturn = new Map();
+  for (const row of Array.isArray(progress.data) ? progress.data : []) {
+    if (!latestReturn.has(row.order_id)) latestReturn.set(row.order_id, row);
+  }
   return {
-    orders: Array.isArray(data) ? data : [],
+    orders: (Array.isArray(data) ? data : []).map(order => ({ ...order, return_progress: latestReturn.get(order.id) ?? null })),
     source: "supabase",
     error: null,
   };

@@ -1,6 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import AdminDialog from "../components/AdminDialog";
+import AdminReturnRefundDialog from "../components/AdminReturnRefundDialog";
 import AdminShell from "../components/AdminShell";
 import AdminPagination from "../components/AdminPagination";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
@@ -94,27 +95,27 @@ const NEXT_STATUS_ACTIONS = {
   // 레거시(폐지 전 paid에 남은 주문 전용) — 신규 주문은 이 상태를 거치지 않는다.
   paid: [
     { status: "preparing", label: "상품 준비 중", style: "btn-primary" },
-    { action: "refund", label: "환불처리", style: "btn-danger" },
+    { action: "refund", label: "반품·환불", style: "btn-danger" },
   ],
   preparing: [
     // CJ 송장 출력: 채번+예약접수(cj-delivery) 자동 처리 후 표준 라벨 인쇄, 배송중 전환.
     { action: "cj_delivery", label: "CJ 송장 출력", style: "btn-primary" },
     // 수동 송장입력(다른 택배/직접 발번 대비 fallback).
     { status: "shipping", label: "송장 직접입력", style: "btn-secondary", requiresTracking: true },
-    { action: "refund", label: "환불처리", style: "btn-danger" },
+    { action: "refund", label: "반품·환불", style: "btn-danger" },
   ],
   shipping: [
     // 이미 발급된 운송장 라벨을 다시 열어 재인쇄 (채번/접수 없이 라우팅 재조회만).
     { action: "cj_reprint", label: "송장 재출력", style: "btn-secondary" },
     { status: "delivered", label: "배송완료", style: "btn-primary" },
-    { action: "refund", label: "환불처리", style: "btn-danger" },
+    { action: "refund", label: "반품·환불", style: "btn-danger" },
   ],
   delivered: [
     { action: "cj_reprint", label: "송장 재출력", style: "btn-secondary" },
-    { action: "refund", label: "환불처리", style: "btn-danger" },
+    { action: "refund", label: "반품·환불", style: "btn-danger" },
   ],
   confirmed: [
-    { action: "refund", label: "환불처리", style: "btn-danger" },
+    { action: "refund", label: "반품·환불", style: "btn-danger" },
   ],
   // 취소 주문 복원 (2026-08-31) — 입금 확인이 늦어 24시간 자동취소된 무통장 주문을 되살린다.
   //   결제·환불 이력이 남은 취소 주문(레거시)은 제외(unpaidOnly) — 되살리면 PG·입금 정합이 깨진다.
@@ -296,13 +297,6 @@ function AdminOrdersPage() {
 
   // 환불 모달 (품목 선택 부분환불 — 2026-08-01)
   const [refundModal, setRefundModal] = useState(null);
-  const [refundCheckedIds, setRefundCheckedIds] = useState(() => new Set());
-  const [refundAmountInput, setRefundAmountInput] = useState("");
-  const [refundAmountTouched, setRefundAmountTouched] = useState(false);
-  const [refundReasonInput, setRefundReasonInput] = useState("");
-  // 반품 회수 옵션 (2026-08-24 반품 수거 자동화)
-  const [refundHoldRestock, setRefundHoldRestock] = useState(false);
-  const [refundRegisterReturn, setRefundRegisterReturn] = useState(false);
   // 반품 수거 접수/취소/회수확인 진행 상태 (상세 패널 버튼 공용)
   const [returnBusy, setReturnBusy] = useState(false);
 
@@ -949,38 +943,7 @@ function AdminOrdersPage() {
     await loadOrders();
   };
 
-  // ── 환불 (품목 선택 부분환불 — 2026-08-01) ────────────────────────────────
-  // 서버리스가 [DB 검증 → PG (부분)취소 → DB 확정] 순서로 처리한다.
-  // itemIds/refundAmount를 함께 넘기면 품목 단위 환불, 모든 품목 선택 시 전액 환불과 동일.
-  // 반환 형태 { data, error }는 기존과 동일 — RECOVERY_REQUIRED_ACK 메시지도 그대로 전달돼
-  // 호출부가 손실확인 모달로 분기한다.
-  const submitRefund = async (orderId, { itemIds, refundAmount, reason, acknowledgeRecovery, restock }) => {
-    setBusyOrderId(orderId);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        return { data: null, error: { message: "인증이 만료되었습니다. 다시 로그인해 주세요." } };
-      }
-      const resp = await fetch("/api/admin/payment-cancel", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ orderId, reason, acknowledgeRecovery, itemIds, refundAmount, restock }),
-      });
-      const result = await resp.json().catch(() => ({}));
-      if (!resp.ok || result.error) {
-        return { data: null, error: { message: result.error || "환불 처리에 실패했습니다." } };
-      }
-      return { data: result.data ?? null, error: null };
-    } catch (err) {
-      return { data: null, error: { message: err?.message || "환불 처리 중 오류가 발생했습니다." } };
-    } finally {
-      setBusyOrderId(null);
-    }
-  };
-
+  // 반품 접수·도착·검수와 실제 환불 실행은 전용 대화상자에서 단계별로 처리한다.
   // 환불 성공 후 처리 (알림톡 + 토스트 + 목록 갱신)
   const finishRefund = async (data, order, reason) => {
     const cancelled = data?.cancelled_settlements ?? 0;
@@ -989,18 +952,19 @@ function AdminOrdersPage() {
     const amount = Number(data?.refund_amount ?? order.total_amount ?? 0);
     // 레거시 admin_refund_order 응답에는 order_fully_refunded가 없음 → 전액으로 간주
     const isFull = data?.order_fully_refunded !== false;
-    // 환불 완료 알림톡 발송 — 이전엔 토스트만 떠서 사용자가 "왜 환불 안 됐냐" 문의 폭주.
+    let notificationSent = false;
     try {
-      await notifyRefundCompleted({ order, reason, amount });
+      const notification = await notifyRefundCompleted({ order, reason, amount });
+      notificationSent = notification?.success === true;
     } catch (notifyErr) {
       console.warn("환불 알림톡 발송 실패", notifyErr);
     }
     showToast(
-      `${isFull ? "전액" : "부분"} 환불 완료 (${formatCurrency(amount)}). 정산 자동 처리: 취소 ${cancelled}건${
+      `${isFull ? "전체 품목" : "일부 품목"} 환불 완료 (${formatCurrency(amount)}). 정산 자동 처리: 취소 ${cancelled}건${
         recovery > 0 ? ` / 회사 손실 ${recovery}건 (정산 완료분 — 회사 부담)` : ""
-      }.${held > 0 ? ` 재고 ${held}권 회수 대기(재입고 보류).` : ""}${
+      }.${held > 0 ? ` 재고 ${held}권 보류(회수·재검수 필요).` : ""}${
         isFull ? "" : " 주문은 기존 상태로 유지됩니다."
-      } 구매자에게 환불 안내 알림톡 발송.`,
+      } ${notificationSent ? "구매자 환불 안내 발송 요청 완료." : "환불은 완료됐지만 구매자 안내 발송 결과는 알림 로그에서 확인해주세요."}`,
       "success",
     );
     closeRefundModal();
@@ -1033,7 +997,7 @@ function AdminOrdersPage() {
     }
   };
 
-  // 반품 수거 접수 — 환불 모달 체크박스와 상세 패널 버튼 공용. 접수는 멱등(-RT 키)이라 재시도 안전.
+  // 반품 접수 화면과 상세 패널에서 같은 -RT 키로 수거를 접수한다.
   const registerReturnPickup = async (orderId) => {
     setReturnBusy(true);
     const { result, error } = await requestCjReturn(orderId, {});
@@ -1172,138 +1136,10 @@ function AdminOrdersPage() {
     });
   };
 
-  // 정산완료(송금됨) 품목을 환불하면 그 정산금은 회사 손실. 셀러 정산은 회수하지 않음.
-  const confirmRecoveryLoss = (order, params, { registerReturn = false } = {}) => {
-    setDestructiveModal({
-      title: (
-        <>
-          <AlertTriangleIcon size={16} /> 회사 손실 확인
-        </>
-      ),
-      description:
-        "선택한 품목 중 셀러에게 정산금이 이미 송금 완료된 건이 있습니다.\n\n" +
-        "환불을 진행하면 이미 지급된 정산금은 회사가 손실로 부담합니다.\n" +
-        "(셀러 정산은 회수하지 않습니다.)\n\n" +
-        "정말로 손실을 감수하고 환불하시겠습니까?",
-      confirmPhrase: "손실 감수",
-      confirmLabel: "손실 감수하고 환불",
-      run: async () => {
-        const { data, error } = await submitRefund(order.id, { ...params, acknowledgeRecovery: true });
-        if (error) {
-          showToast(error.message || "환불 처리에 실패했습니다.", "error");
-          return;
-        }
-        await finishRefund(data, order, params.reason);
-        if (registerReturn) {
-          await registerReturnPickup(order.id);
-        }
-      },
-    });
-  };
-
-  // 기본 환불액: 선택 품목 합 (미환불 품목을 전부 선택하면 잔액 전액 = 배송비 포함), 잔액 캡
-  const computeRefundDefault = (order, checkedSet) => {
-    const unrefunded = (order.items ?? []).filter((i) => !i.refunded_at);
-    const remaining = Math.max(0, Number(order.total_amount ?? 0) - Number(order.refunded_amount ?? 0));
-    const checkedItems = unrefunded.filter((i) => checkedSet.has(i.id));
-    const itemsTotal = checkedItems.reduce((sum, i) => sum + Number(i.total_price ?? 0), 0);
-    const isFinal = checkedItems.length === unrefunded.length && checkedItems.length > 0;
-    return isFinal ? remaining : Math.min(itemsTotal, remaining);
-  };
-
-  // 환불 모달 열기 — 미환불 품목 전체 선택 + 기본 금액(잔액 전액)으로 시작
-  const openRefundModal = (order) => {
-    const unrefunded = (order.items ?? []).filter((i) => !i.refunded_at);
-    if (unrefunded.length === 0) {
-      showToast("환불 가능한 품목이 없습니다.", "error");
-      return;
-    }
-    const allChecked = new Set(unrefunded.map((i) => i.id));
-    setRefundModal(order);
-    setRefundCheckedIds(allChecked);
-    setRefundAmountTouched(false);
-    setRefundReasonInput("");
-    setRefundAmountInput(String(computeRefundDefault(order, allChecked)));
-    // 실물이 이미 구매자에게 나간 주문은 회수 전 재판매 노출을 막는 게 기본값 (2026-08-24)
-    setRefundHoldRestock(["shipping", "delivered", "confirmed"].includes(order.status));
-    setRefundRegisterReturn(false);
-  };
-
-  const closeRefundModal = () => {
-    setRefundModal(null);
-    setRefundCheckedIds(new Set());
-    setRefundAmountInput("");
-    setRefundAmountTouched(false);
-    setRefundReasonInput("");
-    setRefundHoldRestock(false);
-    setRefundRegisterReturn(false);
-  };
-
-  // 품목 체크 토글 — 금액을 직접 수정하기 전까지는 선택 변경에 맞춰 기본값을 따라간다
-  const toggleRefundItem = (order, itemId) => {
-    const next = new Set(refundCheckedIds);
-    if (next.has(itemId)) next.delete(itemId);
-    else next.add(itemId);
-    setRefundCheckedIds(next);
-    if (!refundAmountTouched) {
-      setRefundAmountInput(String(computeRefundDefault(order, next)));
-    }
-  };
-
-  // 환불 제출 — 클라이언트 검증 후 서버리스 호출 (서버가 RPC로 재검증)
-  const handleRefundSubmit = async () => {
-    const order = refundModal;
-    if (!order) return;
-    const itemIds = [...refundCheckedIds];
-    const amount = Number(String(refundAmountInput).replace(/[^0-9]/g, ""));
-    const reason = refundReasonInput.trim();
-    const remaining = Math.max(0, Number(order.total_amount ?? 0) - Number(order.refunded_amount ?? 0));
-    if (itemIds.length === 0) {
-      showToast("환불할 품목을 선택해주세요.", "error");
-      return;
-    }
-    if (!Number.isInteger(amount) || amount <= 0) {
-      showToast("환불 금액을 확인해주세요.", "error");
-      return;
-    }
-    if (amount > remaining) {
-      showToast(`환불 금액이 남은 환불 가능 금액(${formatCurrency(remaining)})을 초과합니다.`, "error");
-      return;
-    }
-    if (reason.length < 5) {
-      showToast("환불 사유를 5자 이상 입력해주세요.", "error");
-      return;
-    }
-    const params = {
-      itemIds,
-      refundAmount: amount,
-      reason,
-      acknowledgeRecovery: false,
-      // 재입고 보류 체크 시 복원하지 않는다 — 회수 확인 후 '회수 완료' 버튼으로 복원/폐기
-      restock: !refundHoldRestock,
-    };
-    const registerReturn = refundRegisterReturn;
-    const { data, error } = await submitRefund(order.id, params);
-    if (error) {
-      if ((error.message || "").includes("RECOVERY_REQUIRED_ACK")) {
-        // 이미 송금된 정산이 있음 — 손실 확인 모달로 전환 (환불 모달은 뒤에 유지)
-        confirmRecoveryLoss(order, params, { registerReturn });
-        return;
-      }
-      showToast(error.message || "환불 처리에 실패했습니다.", "error");
-      return;
-    }
-    await finishRefund(data, order, reason);
-    if (registerReturn) {
-      await registerReturnPickup(order.id);
-    }
-  };
-
-  // 환불 처리 진입 — 품목 선택 모달 (전액/부분 공용)
+  const closeRefundModal = () => setRefundModal(null);
   const handleRefund = (orderId) => {
-    const order = orders.find((o) => o.id === orderId);
-    if (!order) return;
-    openRefundModal(order);
+    const order = orders.find(row => row.id === orderId);
+    if (order) setRefundModal(order);
   };
 
   // 송장 입력 모달 열기
@@ -1608,7 +1444,7 @@ function AdminOrdersPage() {
               {Number(selectedOrder.refunded_amount ?? 0) > 0 && (
                 <div className="flex justify-between items-center">
                   <span className="text-xs font-bold text-rose-600">
-                    환불 완료 {selectedOrder.status === "refunded" ? "(전액)" : "(부분)"}
+                    환불 완료 {selectedOrder.status === "refunded" ? "(전체 품목)" : "(일부 품목)"}
                   </span>
                   <span className="font-bold text-rose-600">
                     −{formatCurrency(selectedOrder.refunded_amount)}
@@ -1787,7 +1623,7 @@ function AdminOrdersPage() {
             <div className="rounded-lg bg-slate-50 px-3 py-2.5 text-sm space-y-2">
               {heldItems.length > 0 && (
                 <p className="font-semibold text-amber-700">
-                  회수 대기 {heldItems.length}권 — 재입고 보류 중 (실물 확인 후 아래 버튼으로 처리)
+                  회수·재검수 대기 {heldItems.length}권 — 재고 보류 중 (상태 확인 후 아래 버튼으로 처리)
                 </p>
               )}
               {hasReturnReg ? (
@@ -2990,208 +2826,17 @@ function AdminOrdersPage() {
         </div>
       )}
 
-      {/* 환불 모달 — 품목 선택 부분환불 (2026-08-01). 전액/부분 공용 진입점. */}
-      <AdminDialog
-        busy={refundModal ? busyOrderId === refundModal.id : false}
-        dirty={Boolean(refundReasonInput.trim())}
-        onClose={closeRefundModal}
-        open={Boolean(refundModal)}
-        size="md"
-        title={refundModal ? `환불 처리 — ${refundModal.order_number}` : ""}
-      >
-        {refundModal ? (() => {
-          const items = refundModal.items ?? [];
-          const unrefunded = items.filter((i) => !i.refunded_at);
-          const refundedItems = items.filter((i) => i.refunded_at);
-          const remaining = Math.max(
-            0,
-            Number(refundModal.total_amount ?? 0) - Number(refundModal.refunded_amount ?? 0),
-          );
-          const checkedItems = unrefunded.filter((i) => refundCheckedIds.has(i.id));
-          const itemsTotal = checkedItems.reduce((sum, i) => sum + Number(i.total_price ?? 0), 0);
-          const isFinal = checkedItems.length === unrefunded.length && checkedItems.length > 0;
-          const amountNum = Number(String(refundAmountInput).replace(/[^0-9]/g, ""));
-          const amountValid = Number.isInteger(amountNum) && amountNum > 0 && amountNum <= remaining;
-          const busy = busyOrderId === refundModal.id;
-          return (
-            <div className="p-6 space-y-5">
-              <OrderRefundAccount order={refundModal} />
-
-              <div>
-                <p className="text-xs font-semibold text-slate-600 mb-1.5">
-                  환불할 품목 선택 * ({checkedItems.length}/{unrefunded.length})
-                </p>
-                <div className="max-h-56 overflow-y-auto rounded-lg border border-slate-100 divide-y divide-slate-50">
-                  {unrefunded.map((item) => (
-                    <label
-                      className="flex cursor-pointer items-center gap-2.5 px-3 py-2 text-sm hover:bg-slate-50"
-                      key={item.id}
-                    >
-                      <input
-                        checked={refundCheckedIds.has(item.id)}
-                        disabled={busy}
-                        onChange={() => toggleRefundItem(refundModal, item.id)}
-                        type="checkbox"
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate font-semibold">{item.title}</span>
-                        {(item.option_label || item.condition_grade) && (
-                          <span className="block text-xs text-slate-400">
-                            {[item.option_label, item.condition_grade].filter(Boolean).join(" · ")}
-                          </span>
-                        )}
-                      </span>
-                      <span className="whitespace-nowrap font-bold">{formatCurrency(item.total_price)}</span>
-                    </label>
-                  ))}
-                  {/* 이미 환불된 품목 — 선택 불가, 이력만 표시 */}
-                  {refundedItems.map((item) => (
-                    <div className="flex items-center gap-2.5 px-3 py-2 text-sm opacity-60" key={item.id}>
-                      <input checked disabled readOnly type="checkbox" />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate font-semibold line-through">{item.title}</span>
-                        <span className="block text-xs font-bold text-rose-600">
-                          환불됨 · {formatDate(item.refunded_at)}
-                          {item.refund_amount != null ? ` · ${formatCurrency(item.refund_amount)}` : ""}
-                        </span>
-                      </span>
-                      <span className="whitespace-nowrap font-bold line-through">
-                        {formatCurrency(item.total_price)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-1.5 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">남은 환불 가능 금액</span>
-                  <span className="font-bold">{formatCurrency(remaining)}</span>
-                </div>
-                <div className="flex justify-between text-xs text-slate-400">
-                  <span>선택 품목 합계</span>
-                  <span>{formatCurrency(itemsTotal)}</span>
-                </div>
-                {Number(refundModal.coupon_discount_amount ?? 0) > 0 && (
-                  <p className="text-xs text-amber-700">
-                    <AlertTriangleIcon size={13} /> 쿠폰 할인(
-                    {formatCurrency(refundModal.coupon_discount_amount)})이 적용된 주문입니다. 부분환불 시
-                    할인 몫을 환불 금액에서 차감할지 확인하세요.
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold text-slate-600">
-                  환불 금액 * {isFinal ? "(전체 선택 — 배송비 포함 잔액 전액)" : "(기본값: 선택 품목 합계)"}
-                </label>
-                <input
-                  className="input-base font-mono"
-                  disabled={busy}
-                  inputMode="numeric"
-                  onChange={(e) => {
-                    setRefundAmountTouched(true);
-                    setRefundAmountInput(e.target.value);
-                  }}
-                  type="text"
-                  value={refundAmountInput}
-                />
-                {!amountValid && refundAmountInput.trim() !== "" && (
-                  <p className="mt-1 text-xs text-rose-600">
-                    1원 이상, 남은 환불 가능 금액({formatCurrency(remaining)}) 이하로 입력하세요.
-                  </p>
-                )}
-                <button
-                  className="mt-1 text-xs font-semibold text-blue-600 hover:underline"
-                  disabled={busy}
-                  onClick={() => {
-                    setRefundAmountTouched(false);
-                    setRefundAmountInput(String(computeRefundDefault(refundModal, refundCheckedIds)));
-                  }}
-                  type="button"
-                >
-                  기본값으로 되돌리기
-                </button>
-              </div>
-
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold text-slate-600">
-                  환불 사유 * (최소 5자)
-                </label>
-                <textarea
-                  className="input-base"
-                  disabled={busy}
-                  onChange={(e) => setRefundReasonInput(e.target.value)}
-                  placeholder="예) 단순 변심 / 상품 불량 / 배송 사고"
-                  rows={2}
-                  value={refundReasonInput}
-                />
-              </div>
-
-              {/* 반품 회수 옵션 (2026-08-24) — 배송 나간 주문은 재입고 보류가 기본값 */}
-              <div className="space-y-2 rounded-lg border border-slate-100 px-3 py-2.5">
-                <label className="flex cursor-pointer items-start gap-2 text-sm">
-                  <input
-                    checked={refundHoldRestock}
-                    className="mt-0.5"
-                    disabled={busy}
-                    onChange={(e) => setRefundHoldRestock(e.target.checked)}
-                    type="checkbox"
-                  />
-                  <span className="min-w-0">
-                    <span className="font-semibold">재입고 보류 (실물 회수 후 복원)</span>
-                    <span className="block text-xs text-slate-400">
-                      해제 시 환불 즉시 재판매로 풀립니다 — 책이 아직 구매자에게 있으면 보류를 유지하고,
-                      회수 후 주문 상세의 &apos;회수 완료&apos; 버튼으로 복원/폐기하세요.
-                    </span>
-                  </span>
-                </label>
-                <label className="flex cursor-pointer items-start gap-2 text-sm">
-                  <input
-                    checked={refundRegisterReturn}
-                    className="mt-0.5"
-                    disabled={busy}
-                    onChange={(e) => setRefundRegisterReturn(e.target.checked)}
-                    type="checkbox"
-                  />
-                  <span className="min-w-0">
-                    <span className="font-semibold">CJ 반품 수거 접수 (기사 방문)</span>
-                    <span className="block text-xs text-slate-400">
-                      환불 처리 직후 구매자 배송지로 CJ 반품 수거를 접수합니다.
-                    </span>
-                  </span>
-                </label>
-              </div>
-
-              <div className="whitespace-pre-line rounded-lg bg-slate-50 px-3 py-2.5 text-xs text-slate-600">
-                {`[자동 처리]\n`
-                  + `· ${refundModal.payment_method === "bank_transfer" ? "" : "PG 결제 부분/전액 취소 후 "}선택 품목 환불 · 해당 정산 pending/approved → cancelled\n`
-                  + `· ${refundHoldRestock ? "reserved 재고 → 회수 대기 (재입고 보류)" : "reserved 재고 → 판매중 복원"}\n`
-                  + `· 쿠폰 복구는 모든 품목이 환불 완료될 때만\n`
-                  + `· 구매자에게 환불 안내 알림톡 발송`
-                  + `${refundModal.payment_method === "bank_transfer" ? "\n※ 계좌이체 주문 — 처리 후 환불 계좌로 직접 송금해야 합니다." : ""}`
-                  + `\n※ 셀러에게 이미 송금 완료된 정산이 있으면 다음 단계에서 손실 확인을 받습니다.`}
-              </div>
-
-              <div className="flex gap-2">
-                <button className="btn-ghost flex-1" disabled={busy} onClick={closeRefundModal} type="button">
-                  취소
-                </button>
-                <button
-                  className="btn-danger flex-1"
-                  disabled={busy || checkedItems.length === 0 || !amountValid || refundReasonInput.trim().length < 5}
-                  onClick={handleRefundSubmit}
-                  type="button"
-                >
-                  {busy
-                    ? <BusyText>처리 중...</BusyText>
-                    : `${isFinal ? "전액" : "부분"} 환불 진행 (${formatCurrency(amountNum || 0)})`}
-                </button>
-              </div>
-            </div>
-          );
-        })() : null}
-      </AdminDialog>
+      {refundModal ? (
+        <AdminReturnRefundDialog
+          key={refundModal.id}
+          order={refundModal}
+          onClose={closeRefundModal}
+          onCompleted={finishRefund}
+          onChanged={async () => { await loadOrders(); await loadSummary(); }}
+          onRegisterPickup={registerReturnPickup}
+          refundAccount={<OrderRefundAccount order={refundModal} />}
+        />
+      ) : null}
 
       <DestructiveConfirmModal
         busy={bulkProcessing || busyOrderId != null}

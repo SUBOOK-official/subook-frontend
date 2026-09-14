@@ -944,11 +944,12 @@ export function mapOrderToDisplayOrder(order) {
     trackingNumber: order.tracking_number ?? null,
     trackingCompany: order.tracking_carrier ?? "CJ대한통운",
     autoConfirmDaysRemaining,
-    canConfirm,
+    canConfirm: canConfirm && (!order.return_progress || ["refunded", "cancelled"].includes(order.return_progress.status)),
     canCancel,
     canRequestRefund,
     canReturn,
     refundRequestedAt,
+    returnProgress: order.return_progress ?? null,
     refundRequestReason: order.refund_request_reason ?? null,
     // 환불 누계 (부분환불이면 status 유지 + 이 값만 증가 — 상세보기 시트의 환불 금액 행)
     refundedAmount: order.refunded_amount ?? 0,

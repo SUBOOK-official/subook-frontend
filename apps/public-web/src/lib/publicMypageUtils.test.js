@@ -10,6 +10,19 @@ import {
   mapRecentShipmentRowToDisplay,
 } from "./publicMypageUtils.js";
 
+test("진행 중 반품은 구매확정 차단, 일부 환불·접수 종결 뒤 잔여 주문 확정 허용", () => {
+  const order = { id: 1, status: "delivered", items: [] };
+  assert.equal(mapOrderToDisplayOrder(order).canConfirm, true);
+  for (const status of ["requested", "received", "review_hold", "approved", "processing", "attention"]) {
+    assert.equal(mapOrderToDisplayOrder({ ...order, return_progress: { status } }).canConfirm, false);
+  }
+  for (const status of ["refunded", "cancelled"]) {
+    const display = mapOrderToDisplayOrder({ ...order, return_progress: { status } });
+    assert.equal(display.canConfirm, true);
+    assert.equal(display.returnProgress.status, status);
+  }
+});
+
 test("isHiddenUnpaidCardOrder hides card attempts that never paid, keeps everything else", () => {
   // 결제창 이탈/실패 (pending·미결제 카드) → 숨김
   assert.equal(

@@ -1,3 +1,4 @@
+import { getBuyerReturnLabel } from "@shared-domain/returns";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { formatCurrency } from "@shared-domain/format";
@@ -3545,7 +3546,7 @@ function PurchasesView({
                       {/* 환불 처리 전 대기 상태만 표시 — refunded면 상단 status 배지가 이미 알려주므로 중복 제거 */}
                       {order.refundRequestedAt && order.status !== "refunded" ? (
                         <span className="public-mypage-purchase-card__refund-status">
-                          환불 신청 접수됨
+                          {getBuyerReturnLabel(order.returnProgress?.status) || "환불 신청 접수됨"}
                         </span>
                       ) : null}
                     </div>
