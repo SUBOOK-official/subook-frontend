@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import AdminShell from "../components/AdminShell";
 import AdminDialog from "../components/AdminDialog";
+import RegisterSalesHistory from "../components/RegisterSalesHistory";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { formatCurrency } from "@shared-domain/format";
 import { PICKUP_FEE_POLICY } from "@shared-domain/settlement";
@@ -2445,6 +2446,9 @@ function AdminProductRegisterPage() {
                 </p>
               </div>
             </div>
+
+            {/* 판매 내역 + 같은 제목 다른 상품 — 판매가 정할 때 참고 (2026-09-15) */}
+            <RegisterSalesHistory productId={framePanel.product.id} />
 
             {/* 기존 옵션 재고 추가 — 정가/할인 입력 시 판매가 자동 계산 (신규 등록과 동일 규칙) */}
             <div className="mt-5">
