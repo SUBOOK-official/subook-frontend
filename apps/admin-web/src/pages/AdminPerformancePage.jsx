@@ -28,9 +28,9 @@ function MetricCard({ label, value, previous, format = "count", source, hint, in
 
 // 조회 실패 원인 코드 한 줄 (예: account · HTTP 400 · code 190/460 · OAuthException)
 function diagnosticLabel(diagnostic) {
-  const { stage, httpStatus, code, subcode, type, cause, traceId, reason } = diagnostic;
+  const { stage, httpStatus, code, subcode, type, cause, traceId, reason, detail } = diagnostic;
   return [stage, httpStatus && `HTTP ${httpStatus}`, code != null && `code ${code}${subcode != null ? `/${subcode}` : ""}`, type, cause,
-    traceId && `trace ${traceId}`].filter(Boolean).join(" · ") || reason;
+    detail, traceId && `trace ${traceId}`].filter(Boolean).join(" · ") || reason;
 }
 
 function SourceStatus({ label, data, loading }) {

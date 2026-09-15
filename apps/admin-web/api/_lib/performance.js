@@ -37,6 +37,9 @@ export function providerErrorDetail(body) {
     providerSubcode: Number.isInteger(error.error_subcode) ? error.error_subcode : undefined,
     providerType: pick(error.type, /^[A-Za-z_]{1,40}$/) ?? pick(error.status, /^[A-Z_]{1,40}$/),
     traceId: pick(error.fbtrace_id, /^[A-Za-z0-9_-]{1,64}$/),
+    // 권한 오류는 문장에 빠진 권한 이름이 들어 있어 조치에 필요하다. 토큰처럼 긴 문자열은 가리고 길이를 제한한다.
+    providerMessage: typeof error.message === "string"
+      ? error.message.replace(/[A-Za-z0-9_\-.]{24,}/g, "[redacted]").slice(0, 200) : undefined,
   };
 }
 
@@ -54,6 +57,7 @@ export async function fetchReportJson(url, options = {}, fetcher = fetch) {
       if (attempt === 1 || error.noRetry) throw Object.assign(new Error("PROVIDER_REQUEST_FAILED"), {
         httpStatus: Number.isInteger(error.httpStatus) ? error.httpStatus : undefined,
         providerCode: error.providerCode, providerSubcode: error.providerSubcode, providerType: error.providerType, traceId: error.traceId,
+        providerMessage: error.providerMessage,
         // 네트워크·시간 초과처럼 응답 자체가 없을 때 구분용 (TimeoutError, TypeError 등 이름만)
         cause: error.noRetry ? undefined : String(error.name || "Error").slice(0, 40),
       });
@@ -324,6 +328,7 @@ export async function optionalProvider(loader, name) {
     const diagnostic = Object.fromEntries(Object.entries({
       reason: allowed.includes(error.message) ? error.message : "UNEXPECTED", stage: error.stage, httpStatus: error.httpStatus,
       code: error.providerCode, subcode: error.providerSubcode, type: error.providerType, traceId: error.traceId, cause: error.cause,
+      detail: error.providerMessage,
     }).filter(([, value]) => value !== undefined));
     console.warn(`performance_${name.toLowerCase()}_failed`, diagnostic);
     const metaMessage = name === "Meta" ? describeMetaFailure(error) : null;
