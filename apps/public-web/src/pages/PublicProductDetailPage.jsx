@@ -42,6 +42,7 @@ import {
   COLLAB_OPEN_LABEL,
   findFeaturedProductEntry,
   getFeaturedDetailKey,
+  isLowStockCount,
   isPreReleaseProduct,
   resolveFeaturedCoverUrl,
 } from "../lib/publicFeaturedProducts";
@@ -241,7 +242,8 @@ function OptionChevronIcon() {
 // 라벨에서 등급('S (새 책)')은 빼고 회차명만 노출. 전량 품절 회차는 비활성화.
 // 네이티브 <select>는 OS 다크모드 등 환경에 따라 팝업 배색을 브라우저가 강제해 디자인을
 // 완전히 통제할 수 없어, 버튼 + listbox 조합의 커스텀 드롭다운으로 직접 구현한다.
-function VariantSelect({ groups, onAdd, disabled, productId }) {
+// showLowStock: 콜라보(hideStockCount) 상품은 재고 1~5개 회차에 '품절임박'을 붙인다.
+function VariantSelect({ groups, onAdd, disabled, productId, showLowStock = false }) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef(null);
   const labelId = "public-detail-option-label";
@@ -343,6 +345,10 @@ function VariantSelect({ groups, onAdd, disabled, productId }) {
                   <span className="public-detail-option-row__option-badge">
                     품절
                   </span>
+                ) : showLowStock && isLowStockCount(group.availableCount) ? (
+                  <span className="public-detail-option-row__option-badge">
+                    품절임박
+                  </span>
                 ) : null}
               </li>
             ))}
@@ -362,6 +368,7 @@ function SelectedOptionRow({
   quantity,
   removable = true,
   showStock = true,
+  showLowStock = false,
   onDecrease,
   onIncrease,
   onRemove,
@@ -378,6 +385,10 @@ function SelectedOptionRow({
           {showStock ? (
             <span className="public-detail-selected-option__stock">
               {group.availableCount}개 남음
+            </span>
+          ) : showLowStock && isLowStockCount(group.availableCount) ? (
+            <span className="public-detail-selected-option__stock">
+              품절임박
             </span>
           ) : null}
         </span>
@@ -2027,6 +2038,7 @@ function PublicProductDetailPage() {
     // 옵션이 하나뿐(무옵션 단일상품/단일회차)이면 제거(✕)를 숨기고, 무옵션 그룹은 상품명을 라벨로.
     const isSingleOption = variantGroups.length === 1;
     const showStock = featuredEntry?.hideStockCount !== true;
+    const showLowStock = featuredEntry?.hideStockCount === true;
     return (
       <div className="public-detail-selected-options">
         {selections.map((selection) => {
@@ -2045,6 +2057,7 @@ function PublicProductDetailPage() {
               onRemove={() => handleRemoveVariant(selection.key)}
               quantity={selection.quantity}
               removable={!isSingleOption}
+              showLowStock={showLowStock}
               showStock={showStock}
             />
           );
@@ -2225,6 +2238,13 @@ function PublicProductDetailPage() {
                   />
                 )}
 
+                {/* 콜라보 상품은 전체 남은 수량이 1~5개면 품절임박 (수량 숫자는 숨김 유지) */}
+                {productHasStock && !isPreRelease && featuredEntry?.hideStockCount === true &&
+                isLowStockCount(variantGroups.reduce((total, group) => total + group.availableCount, 0)) ? (
+                  <div className="public-detail-urgency-badge" role="status">
+                    품절임박
+                  </div>
+                ) : null}
                 {/* 품절 상태만 명시 — 재고 있는 동안은 회차별 "N개 남음"이 선택 목록에서 안내한다.
                     (모든 상품에 똑같은 "단 N권" 시급성을 붙이면 cried-wolf가 되어 학생들이 무시한다.)
                     출시 전 상품은 아직 재고 개념이 없어 품절 표시를 하지 않는다. */}
@@ -2262,6 +2282,7 @@ function PublicProductDetailPage() {
                         groups={variantGroups}
                         onAdd={handleAddVariant}
                         productId={product.id}
+                        showLowStock={featuredEntry?.hideStockCount === true}
                       />
                     ) : null}
                     {renderSelectedOptions()}

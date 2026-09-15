@@ -93,6 +93,17 @@ export const FEATURED_PRODUCTS = [
   },
 ];
 
+// 품절임박 기준 (2026-09-15) — 남은 수량을 숨기는 콜라보 상품(hideStockCount)은
+// 상품 상세에서 옵션(또는 상품 전체) 재고가 1~5개가 되면 숫자 대신 '품절임박'을 보여준다.
+// (목록 카드 데이터에는 남은 수량이 없어 상세에서만 표시)
+// 일반 중고 교재는 대부분 1~3권이라 모두 임박으로 보이게 되므로 적용하지 않는다.
+export const LOW_STOCK_THRESHOLD = 5;
+
+export function isLowStockCount(count, threshold = LOW_STOCK_THRESHOLD) {
+  const value = Number(count);
+  return Number.isFinite(value) && value > 0 && value <= threshold;
+}
+
 // 공백 제거 + 소문자화. "2027 J1 원트 미니 모의고사 국어"와
 // "2027 J1 원트 미니모의고사 국어"가 같은 키가 되도록 한다.
 export function normalizeFeaturedTitleKey(value) {

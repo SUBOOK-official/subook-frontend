@@ -4,6 +4,7 @@ import {
   FEATURED_PRODUCTS,
   findFeaturedProductEntry,
   getFeaturedDetailKey,
+  isLowStockCount,
   isPreReleaseProduct,
   mapFeaturedProductsByKey,
   matchesFeaturedEntry,
@@ -192,4 +193,12 @@ test("mapFeaturedProductsByKey keeps the first match per key", () => {
   assert.equal(byKey["by-title-a"].id, 40);
   assert.equal(byKey["not-pinned"].id, 42);
   assert.equal(byKey["by-title-b"], undefined);
+});
+
+test("품절임박은 남은 수량 1~5개일 때만 참이다", () => {
+  assert.equal(isLowStockCount(5), true);
+  assert.equal(isLowStockCount(1), true);
+  assert.equal(isLowStockCount(6), false);
+  assert.equal(isLowStockCount(0), false, "품절은 임박이 아니다");
+  assert.equal(isLowStockCount(null), false);
 });
