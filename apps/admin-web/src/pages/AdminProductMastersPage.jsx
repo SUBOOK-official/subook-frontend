@@ -65,6 +65,28 @@ const CONDITION_LABEL = {
 // 내부 은어 대신 셀러가 이해할 문구만 둔다.
 const DISCARD_REASON_PRESETS = ["답지 없음", "파손·오염", "필기 과다", "분실"];
 
+// 재고 점검 항목 (2026-09-15) — 주문이 들어온 뒤에야 위치 미지정이 발견되던 문제 대응.
+// key는 admin_get_inventory_issue_summary 응답·admin_list_products_with_inventory p_issue와 같다.
+// 점검 대상 권: 판매중 + 출고 전(입금대기·결제완료·준비중) 주문에 잡힌 권.
+const INVENTORY_ISSUES = [
+  { key: "missing_location", label: "위치 미지정", hint: "판매중·출고 전 주문 권 중 창고 위치가 비어 있음", fix: "상품을 눌러 권별 현황에서 위치를 입력" },
+  { key: "missing_serial", label: "일련번호 없음", hint: "판매중·출고 전 주문 권 중 일련번호가 없음", fix: "상품을 눌러 권별 현황에서 번호를 입력" },
+  { key: "missing_detail_photo", label: "상세 사진 없음", hint: "판매중 권 중 상세 사진이 0장", fix: "'수정'에서 상세 사진 등록" },
+  { key: "missing_price", label: "판매가 없음", hint: "판매중인데 가격이 비어 있어 스토어에 노출할 수 없음", fix: "'수정'에서 판매가 입력" },
+  { key: "hidden_on_sale", label: "판매중 비노출", hint: "판매중 재고인데 스토어에 노출되지 않음", fix: "가격 확인 후 '공개'" },
+  { key: "missing_cover", label: "표지 없음", hint: "판매중 재고가 있는데 상품 표지가 없음", fix: "'수정'에서 표지 등록" },
+];
+
+// 목록 행에 붙일 점검 배지 — 0건 항목은 뺀다
+function productIssueBadges(issues) {
+  if (!issues) return [];
+  return INVENTORY_ISSUES.flatMap((issue) => {
+    const value = issues[issue.key];
+    if (issue.key === "missing_cover") return value ? [{ key: issue.key, label: issue.label }] : [];
+    return Number(value) > 0 ? [{ key: issue.key, label: `${issue.label} ${value}권` }] : [];
+  });
+}
+
 // 상태 변경 이력 UI는 2026-08-10 제거 (상세 모달에서 비노출).
 // 기록 자체(book_change_logs·product_status_logs)와 admin_get_product_status_history RPC는
 // 감사 목적으로 그대로 유지 — 다시 노출하려면 이 페이지에 조회/렌더만 붙이면 된다.
@@ -97,7 +119,9 @@ function AdminProductMastersPage() {
   const PRODUCTS_PAGE_SIZE = 50;
   const [summary, setSummary] = useState({ total: 0, selling: 0, sold_out: 0, hidden: 0 });
   const [search, setSearch] = useState("");
-  const [filters, setFilters] = useState({ brand: "", subject: "", book_type: "", status: "" });
+  const [filters, setFilters] = useState({ brand: "", subject: "", book_type: "", status: "", issue: "" });
+  // 재고 점검 요약 (항목별 권수·상품수)
+  const [issueSummary, setIssueSummary] = useState(null);
   // 정렬 — 기본 '최근 수정순' (2026-07-22 운영자 피드백: 기존 상품에 재고를 추가하면
   // 등록순 정렬에선 과거 위치에 묻혀 못 찾음. updated_at은 books 변경 트리거가 유지)
   const [sortKey, setSortKey] = useState("updated");
@@ -391,10 +415,12 @@ function AdminProductMastersPage() {
     if (filters.subject) params.p_subject = filters.subject;
     if (filters.book_type) params.p_book_type = filters.book_type;
     if (filters.status) params.p_status = filters.status;
+    if (filters.issue) params.p_issue = filters.issue;
 
-    const [listRes, summaryRes] = await Promise.all([
+    const [listRes, summaryRes, issueRes] = await Promise.all([
       supabase.rpc("admin_list_products_with_inventory", params),
       supabase.rpc("admin_get_products_summary"),
+      supabase.rpc("admin_get_inventory_issue_summary"),
     ]);
     if (currentRequestId !== requestIdRef.current) return;
 
@@ -424,6 +450,8 @@ function AdminProductMastersPage() {
     if (!summaryRes.error && summaryRes.data) {
       setSummary(summaryRes.data);
     }
+    // 점검 요약은 부가 정보 — 실패해도 목록은 그대로 보여준다
+    setIssueSummary(!issueRes.error && issueRes.data ? issueRes.data : null);
     setIsLoading(false);
   }, [search, filters, showToast, currentPage, sortKey]);
 
@@ -586,7 +614,8 @@ function AdminProductMastersPage() {
   };
 
   const filterEmpty =
-    !search.trim() && !filters.brand && !filters.subject && !filters.book_type && !filters.status;
+    !search.trim() && !filters.brand && !filters.subject && !filters.book_type && !filters.status && !filters.issue;
+  const activeIssue = INVENTORY_ISSUES.find((issue) => issue.key === filters.issue) ?? null;
 
   const productCount = products.length;
   const detailProduct = detailData?.product ?? null;
@@ -650,6 +679,77 @@ function AdminProductMastersPage() {
             );
           })}
         </div>
+
+        {/* 재고 점검 (2026-09-15) — 항목을 누르면 해당 상품만 목록에 남는다 */}
+        {issueSummary ? (
+          <div className="rounded-lg border border-slate-200 bg-white p-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="mr-1 text-xs font-bold text-slate-700">재고 점검</span>
+              <button
+                className={`rounded-full border px-3 py-1 text-xs font-bold transition ${
+                  filters.issue === "any"
+                    ? "border-slate-900 bg-slate-900 text-white"
+                    : "border-slate-300 bg-white text-slate-700 hover:border-slate-500"
+                }`}
+                onClick={() => {
+                  setFilters((f) => ({ ...f, issue: f.issue === "any" ? "" : "any" }));
+                  setCurrentPage(1);
+                }}
+                title="아래 항목 중 하나라도 해당하는 상품"
+                type="button"
+              >
+                전체 {issueSummary.any?.products ?? 0}종
+              </button>
+              {INVENTORY_ISSUES.map((issue) => {
+                const counts = issueSummary[issue.key] ?? {};
+                const products = Number(counts.products ?? 0);
+                const books = counts.books;
+                const pendingBooks = Number(counts.pending_books ?? 0);
+                const isActive = filters.issue === issue.key;
+                return (
+                  <button
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold transition disabled:cursor-default ${
+                      isActive
+                        ? "border-amber-600 bg-amber-600 text-white"
+                        : products > 0
+                          ? "border-amber-300 bg-amber-50 text-amber-800 hover:border-amber-500"
+                          : "border-slate-200 bg-slate-50 text-slate-400"
+                    }`}
+                    disabled={products === 0 && !isActive}
+                    key={issue.key}
+                    onClick={() => {
+                      setFilters((f) => ({ ...f, issue: f.issue === issue.key ? "" : issue.key }));
+                      setCurrentPage(1);
+                    }}
+                    title={issue.hint}
+                    type="button"
+                  >
+                    {issue.label}
+                    <span className="tabular-nums">
+                      {books != null ? `${books}권 · ${products}종` : `${products}종`}
+                    </span>
+                    {pendingBooks > 0 ? (
+                      <span
+                        className={`rounded-full px-1.5 py-0.5 text-[10px] ${
+                          isActive ? "bg-white/20 text-white" : "bg-rose-100 text-rose-700"
+                        }`}
+                      >
+                        출고 대기 {pendingBooks}권
+                      </span>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+            {activeIssue ? (
+              <p className="mt-2 text-xs text-slate-500">
+                {activeIssue.hint} · {activeIssue.fix}
+              </p>
+            ) : filters.issue === "any" ? (
+              <p className="mt-2 text-xs text-slate-500">점검 항목 중 하나라도 해당하는 상품입니다.</p>
+            ) : null}
+          </div>
+        ) : null}
 
         {/* 검색 + 필터 */}
         <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-white p-4 text-sm">
@@ -900,6 +1000,32 @@ function AdminProductMastersPage() {
                           .filter(Boolean)
                           .join(" · ")}
                       </div>
+                      {(() => {
+                        const badges = productIssueBadges(product.issues);
+                        const pendingLocation = Number(product.issues?.missing_location_pending ?? 0);
+                        if (badges.length === 0) return null;
+                        return (
+                          <div className="mt-1.5 flex flex-wrap gap-1">
+                            {pendingLocation > 0 ? (
+                              <span className="rounded bg-rose-100 px-1.5 py-0.5 text-[11px] font-bold text-rose-700">
+                                출고 대기 {pendingLocation}권 위치 미지정
+                              </span>
+                            ) : null}
+                            {badges.map((badge) => (
+                              <span
+                                className={`rounded px-1.5 py-0.5 text-[11px] font-bold ${
+                                  badge.key === filters.issue
+                                    ? "bg-amber-600 text-white"
+                                    : "bg-amber-50 text-amber-800"
+                                }`}
+                                key={badge.key}
+                              >
+                                {badge.label}
+                              </span>
+                            ))}
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td className="px-3 py-3 text-right font-bold text-slate-900">
                       {priceRangeLabel(product.min_price, product.max_price)}
@@ -1061,6 +1187,27 @@ function AdminProductMastersPage() {
                           ) : (
                             <span className="text-slate-400">-</span>
                           )}
+                          {/* 권별 점검 표시 (2026-09-15) */}
+                          {(() => {
+                            const marks = [];
+                            if (book.picking_pending) marks.push({ key: "pending", label: "출고 대기", tone: "bg-rose-100 text-rose-700" });
+                            if (book.status === "on_sale" && Number(book.detail_photo_count ?? 0) === 0) {
+                              marks.push({ key: "photo", label: "사진 없음", tone: "bg-amber-50 text-amber-800" });
+                            }
+                            if (book.status === "on_sale" && !(Number(book.price) > 0)) {
+                              marks.push({ key: "price", label: "가격 없음", tone: "bg-amber-50 text-amber-800" });
+                            }
+                            if (marks.length === 0) return null;
+                            return (
+                              <div className="mt-1 flex flex-wrap gap-1">
+                                {marks.map((mark) => (
+                                  <span className={`whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] font-bold ${mark.tone}`} key={mark.key}>
+                                    {mark.label}
+                                  </span>
+                                ))}
+                              </div>
+                            );
+                          })()}
                         </td>
                         <td className="whitespace-nowrap px-3 py-2">
                           {invEdit?.bookId === book.id ? (
@@ -1108,13 +1255,25 @@ function AdminProductMastersPage() {
                               title="위치/일련번호 수정"
                               type="button"
                             >
-                              {book.location || book.serial_number != null ? (
+                              {/* 위치가 비면 점검 대상이라 amber로 강조 (판매중·출고 대기 권) */}
+                              {book.location ? (
                                 <span className="font-mono text-xs font-bold text-indigo-700">
-                                  {book.location ?? "미지정"}
+                                  {book.location}
                                   {book.serial_number != null ? ` · No.${book.serial_number}` : ""}
                                 </span>
                               ) : (
-                                <span className="text-xs text-slate-400">미지정</span>
+                                <span
+                                  className={`text-xs font-bold ${
+                                    book.status === "on_sale" || book.picking_pending
+                                      ? "rounded bg-amber-50 px-1.5 py-0.5 text-amber-700"
+                                      : "text-slate-400"
+                                  }`}
+                                >
+                                  위치 미지정
+                                  {book.serial_number != null ? (
+                                    <span className="font-mono"> · No.{book.serial_number}</span>
+                                  ) : null}
+                                </span>
                               )}
                               <span className="shrink-0 text-[10px] font-semibold text-slate-300 group-hover:text-slate-500">
                                 수정
