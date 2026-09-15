@@ -19,6 +19,8 @@ import { CjWaybillFormPrintModal } from "../components/CjWaybillFormLabel";
 import { AlertTriangleIcon, CheckIcon } from "../components/icons";
 import { downloadSalesSheetXlsx } from "../lib/salesSheetExport";
 import { BusyText, InlineLoading, LoadingOverlay } from "../components/Loading";
+import OrderItemGroupList from "../components/OrderItemGroupList";
+import { summarizeOrderItems } from "../lib/orderItemGroups";
 import { uniqueDeliveryLabels } from "../../api/_lib/deliveryGroups.js";
 
 const PAGE_SIZE = 30;
@@ -1372,46 +1374,8 @@ function AdminOrdersPage() {
 
       {/* 주문 상품 */}
       <div>
-        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">주문 상품</h4>
-        <div className="space-y-2">
-          {selectedOrder.items?.map((item) => (
-            <div
-              className={`flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2${item.refunded_at ? " opacity-70" : ""}`}
-              key={item.id}
-            >
-              <div>
-                <span className="text-sm font-semibold">{item.title}</span>
-                {item.option_label && (
-                  <span className="ml-2 text-xs text-slate-400">{item.option_label}</span>
-                )}
-                {item.condition_grade && (
-                  <span className="ml-2 text-xs text-slate-400">{item.condition_grade}</span>
-                )}
-                <span className="ml-2 text-xs text-slate-400">×{item.quantity}</span>
-                {/* 품목별 환불 상태 (2026-08-01 부분환불) */}
-                {item.refunded_at && (
-                  <span className="ml-2 inline-flex items-center rounded-full bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-700">
-                    환불됨{item.refund_amount != null ? ` ${formatCurrency(item.refund_amount)}` : ""}
-                  </span>
-                )}
-                {/* 피킹 정보 — 위치로 가서 일련번호로 실물 확인 (2026-07-18) */}
-                {item.book_location || item.book_serial_number != null ? (
-                  <span className="ml-2 inline-flex items-center rounded bg-indigo-50 px-1.5 py-0.5 font-mono text-[11px] font-bold text-indigo-700">
-                    {item.book_location ?? "위치 미지정"}
-                    {item.book_serial_number != null ? ` · No.${item.book_serial_number}` : ""}
-                  </span>
-                ) : (
-                  <span className="ml-2 inline-flex items-center rounded bg-amber-50 px-1.5 py-0.5 text-[11px] font-bold text-amber-700">
-                    위치 미지정
-                  </span>
-                )}
-              </div>
-              <span className={`text-sm font-bold${item.refunded_at ? " text-slate-400 line-through" : ""}`}>
-                {formatCurrency(item.total_price)}
-              </span>
-            </div>
-          ))}
-        </div>
+        {/* 같은 교재 묶음 + 총 권수 (2026-09-15) */}
+        <OrderItemGroupList items={selectedOrder.items} />
         {(() => {
           // 쿠폰 할인액 — coupon_discount_amount가 쿠폰 전용 필드, discount_amount는 총 할인(현재 동일 값)
           const couponDiscount = Number(
@@ -2126,22 +2090,41 @@ function AdminOrdersPage() {
                       </div>
                     </td>
                     <td className="px-3 py-3 max-w-[200px]">
-                      <div className="text-sm truncate">
-                        {order.items?.[0]?.title ?? "—"}
-                        {order.item_count > 1 && (
-                          <span className="text-slate-400"> 외 {order.item_count - 1}건</span>
-                        )}
-                      </div>
                       {(() => {
+                        // 같은 교재는 한 종으로 세고, 총 권수는 환불 품목을 뺀 수량 합 (2026-09-15)
+                        const itemSummary = summarizeOrderItems(order.items);
+                        const firstGroup = itemSummary.groups.find((group) => group.bookCount > 0) ?? itemSummary.groups[0];
                         // 피킹 힌트 — 아이템들의 창고 위치를 중복 제거해 표시
                         const locs = [
-                          ...new Set((order.items ?? []).map((i) => i.book_location).filter(Boolean)),
+                          ...new Set((order.items ?? []).filter((i) => !i.refunded_at).map((i) => i.book_location).filter(Boolean)),
                         ];
-                        return locs.length > 0 ? (
-                          <div className="mt-0.5 truncate font-mono text-[11px] font-bold text-indigo-600">
-                            위치 {locs.join(" · ")}
-                          </div>
-                        ) : null;
+                        return (
+                          <>
+                            <div className="text-sm truncate">
+                              {firstGroup?.title ?? "—"}
+                              {itemSummary.titleCount > 1 && (
+                                <span className="text-slate-400"> 외 {itemSummary.titleCount - 1}종</span>
+                              )}
+                            </div>
+                            {itemSummary.groups.length > 0 ? (
+                              <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px]">
+                                <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 font-bold text-slate-700 tabular-nums">
+                                  총 {itemSummary.bookCount}권
+                                </span>
+                                {itemSummary.missingLocationCount > 0 ? (
+                                  <span className="shrink-0 rounded bg-amber-100 px-1.5 py-0.5 font-bold text-amber-800 tabular-nums">
+                                    위치 미지정 {itemSummary.missingLocationCount}
+                                  </span>
+                                ) : null}
+                                {locs.length > 0 ? (
+                                  <span className="truncate font-mono font-bold text-indigo-600">
+                                    {locs.join(" · ")}
+                                  </span>
+                                ) : null}
+                              </div>
+                            ) : null}
+                          </>
+                        );
                       })()}
                     </td>
                     <td className="px-3 py-3 text-right font-bold whitespace-nowrap">
