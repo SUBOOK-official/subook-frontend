@@ -6,6 +6,10 @@ import { summarizeOrderItems } from "../lib/orderItemGroups";
 // 묶음 안: 회차(옵션)마다 칩 한 개 — 피킹에 필요한 위치·일련번호를 칩에 같이 둔다.
 // 환불 품목은 취소선으로 남기고 권수·합계에서는 뺀다.
 function PickingLabel({ item }) {
+  // 수북 자체 판매 교재는 창고 위치·일련번호를 관리하지 않는다
+  if (!item.book_location && item.is_direct_sale) {
+    return <span className="rounded bg-slate-100 px-1 font-bold text-slate-600">자체 판매</span>;
+  }
   if (!item.book_location) {
     return (
       <span className="rounded bg-amber-100 px-1 font-bold text-amber-800">
@@ -74,7 +78,7 @@ export default function OrderItemGroupList({ items }) {
                       className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs ${
                         refunded
                           ? "border-rose-200 bg-white text-slate-400"
-                          : item.book_location
+                          : item.book_location || item.is_direct_sale
                             ? "border-slate-200 bg-white text-slate-700"
                             : "border-amber-300 bg-amber-50 text-slate-700"
                       }`}

@@ -52,3 +52,12 @@ test('제목이 비거나 목록이 아니어도 깨지지 않는다', () => {
   assert.equal(groups.length, 2);
   assert.equal(groups[0].title, '제목 없음');
 });
+
+test('자체 판매 교재 품목은 위치가 없어도 위치 미지정으로 세지 않는다', () => {
+  const summary = summarizeOrderItems([
+    item(1, '원트 미니모의고사', '1-30회분 SET', { book_location: null, book_serial_number: null, is_direct_sale: true }),
+    item(2, '중고 교재', '3', { book_location: null }),
+  ]);
+  assert.equal(summary.missingLocationCount, 1);
+  assert.equal(summary.groups[0].missingLocationCount, 0);
+});

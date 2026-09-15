@@ -2,6 +2,7 @@
 // 한 고객이 같은 교재의 여러 회차를 한꺼번에 사는 주문이 많아, 한 줄씩 나열하면
 // 총 권수·교재 수를 파악하기 어렵다는 운영 피드백 대응.
 // 환불된 품목은 묶음 안에 남기되(이력 확인용) 권수·금액 합계에서는 뺀다.
+// 수북 자체 판매 교재(is_direct_sale) 품목은 창고 위치가 없는 게 정상이라 위치 미지정으로 세지 않는다.
 
 const optionCollator = new Intl.Collator("ko", { numeric: true, sensitivity: "base" });
 
@@ -49,7 +50,7 @@ export function groupOrderItems(items = []) {
       bookCount: activeItems.reduce((sum, item) => sum + quantityOf(item), 0),
       amount: activeItems.reduce((sum, item) => sum + amountOf(item), 0),
       refundedCount: sortedItems.length - activeItems.length,
-      missingLocationCount: activeItems.filter((item) => !item.book_location).length,
+      missingLocationCount: activeItems.filter((item) => !item.book_location && !item.is_direct_sale).length,
       // 묶음 전체가 같은 값이면 제목 옆에 한 번만, 섞여 있으면 품목마다 표시한다
       sharedGrade: grades.length === 1 ? grades[0] : null,
       sharedUnitPrice: unitPrices.length === 1 ? Number(unitPrices[0]) : null,

@@ -69,9 +69,9 @@ const DISCARD_REASON_PRESETS = ["답지 없음", "파손·오염", "필기 과�
 // key는 admin_get_inventory_issue_summary 응답·admin_list_products_with_inventory p_issue와 같다.
 // 점검 대상 권: 판매중 + 출고 전(입금대기·결제완료·준비중) 주문에 잡힌 권.
 const INVENTORY_ISSUES = [
-  { key: "missing_location", label: "위치 미지정", hint: "판매중·출고 전 주문 권 중 창고 위치가 비어 있음", fix: "상품을 눌러 권별 현황에서 위치를 입력" },
-  { key: "missing_serial", label: "일련번호 없음", hint: "판매중·출고 전 주문 권 중 일련번호가 없음", fix: "상품을 눌러 권별 현황에서 번호를 입력" },
-  { key: "missing_detail_photo", label: "상세 사진 없음", hint: "판매중 권 중 상세 사진이 0장", fix: "'수정'에서 상세 사진 등록" },
+  { key: "missing_location", label: "위치 미지정", hint: "판매중·출고 전 주문 권 중 창고 위치가 비어 있음(자체 판매 교재 제외)", fix: "상품을 눌러 권별 현황에서 위치를 입력" },
+  { key: "missing_serial", label: "일련번호 없음", hint: "판매중·출고 전 주문 권 중 일련번호가 없음(자체 판매 교재 제외)", fix: "상품을 눌러 권별 현황에서 번호를 입력" },
+  { key: "missing_detail_photo", label: "상세 사진 없음", hint: "판매중 권 중 상세 사진이 0장(자체 판매 교재 제외)", fix: "'수정'에서 상세 사진 등록" },
   { key: "missing_price", label: "판매가 없음", hint: "판매중인데 가격이 비어 있어 스토어에 노출할 수 없음", fix: "'수정'에서 판매가 입력" },
   { key: "hidden_on_sale", label: "판매중 비노출", hint: "판매중 재고인데 스토어에 노출되지 않음", fix: "가격 확인 후 '공개'" },
   { key: "missing_cover", label: "표지 없음", hint: "판매중 재고가 있는데 상품 표지가 없음", fix: "'수정'에서 표지 등록" },
@@ -136,6 +136,8 @@ function AdminProductMastersPage() {
   // 권별 위치/일련번호 인라인 수정 (2026-07-18 재고 실사 이관)
   const [invEdit, setInvEdit] = useState(null);
   const [invSaving, setInvSaving] = useState(false);
+  // 수북 자체 판매 교재 지정 (2026-09-15) — 위치·일련번호·상세 사진 점검 제외
+  const [directSaleBusy, setDirectSaleBusy] = useState(false);
   // 수정 모달 (제목/가격/사진 — 2026-07-06 피드백)
   const [editTarget, setEditTarget] = useState(null);
   const requestIdRef = useRef(0);
@@ -584,6 +586,28 @@ function AdminProductMastersPage() {
     });
   };
 
+  // 수북 자체 판매 교재 지정/해제 — 콜라보 신품처럼 창고 위치·일련번호·상세 사진이 없는 게 정상인 교재
+  const handleDirectSaleToggle = async () => {
+    if (!detailTarget || directSaleBusy) return;
+    const next = detailData?.product?.is_direct_sale !== true;
+    setDirectSaleBusy(true);
+    const { error } = await supabase.rpc("admin_set_product_direct_sale", {
+      p_product_id: detailTarget.id,
+      p_is_direct_sale: next,
+    });
+    setDirectSaleBusy(false);
+    if (error) {
+      showToast(error.message || "자체 판매 설정을 바꾸지 못했습니다.", "error");
+      return;
+    }
+    showToast(
+      next ? "자체 판매 교재로 지정했습니다. 위치·일련번호·상세 사진 점검에서 빠집니다." : "자체 판매 지정을 해제했습니다.",
+      "success",
+    );
+    await openDetail(detailTarget);
+    await loadProducts();
+  };
+
   // 권별 위치/일련번호 저장 — 빈 입력은 값 비우기(clear)로 처리
   const handleInventoryMetaSave = async () => {
     if (!invEdit) return;
@@ -983,6 +1007,14 @@ function AdminProductMastersPage() {
                     <td className="px-3 py-3">
                       <div className="font-bold text-slate-900">
                         {product.title}
+                        {product.is_direct_sale ? (
+                          <span
+                            className="ml-2 inline-flex rounded bg-indigo-50 px-1.5 py-0.5 align-middle text-[11px] font-bold text-indigo-700"
+                            title="수북 자체 판매 교재 — 위치·일련번호·상세 사진 점검 제외"
+                          >
+                            자체 판매
+                          </span>
+                        ) : null}
                         {product.option ? (
                           <span className="ml-2 text-xs font-normal text-slate-500">
                             ({product.option})
@@ -1129,9 +1161,29 @@ function AdminProductMastersPage() {
                   {detailTarget.option ? (
                     <p className="mt-1 text-xs text-slate-500">옵션: {detailTarget.option}</p>
                   ) : null}
+                  {detailProduct?.is_direct_sale ? (
+                    <p className="mt-1.5 inline-flex rounded bg-indigo-50 px-1.5 py-0.5 text-[11px] font-bold text-indigo-700">
+                      수북 자체 판매 교재 · 위치·일련번호·상세 사진 점검 제외
+                    </p>
+                  ) : null}
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                {detailProduct ? (
+                  <button
+                    className={`whitespace-nowrap rounded-md border px-3 py-1.5 text-xs font-semibold disabled:opacity-50 ${
+                      detailProduct.is_direct_sale
+                        ? "border-slate-300 text-slate-700 hover:border-slate-500 hover:bg-slate-50"
+                        : "border-indigo-300 text-indigo-700 hover:border-indigo-500 hover:bg-indigo-50"
+                    }`}
+                    disabled={directSaleBusy}
+                    onClick={handleDirectSaleToggle}
+                    title="수북 자체 판매 교재는 창고 위치·일련번호·상세 사진 점검과 주문 화면 위치 미지정 표시에서 빠집니다"
+                    type="button"
+                  >
+                    {directSaleBusy ? "처리 중" : detailProduct.is_direct_sale ? "자체 판매 해제" : "자체 판매로 지정"}
+                  </button>
+                ) : null}
                 <button
                   className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-slate-500 hover:bg-slate-50"
                   onClick={() => setEditTarget(detailTarget)}
@@ -1191,7 +1243,7 @@ function AdminProductMastersPage() {
                           {(() => {
                             const marks = [];
                             if (book.picking_pending) marks.push({ key: "pending", label: "출고 대기", tone: "bg-rose-100 text-rose-700" });
-                            if (book.status === "on_sale" && Number(book.detail_photo_count ?? 0) === 0) {
+                            if (!detailProduct?.is_direct_sale && book.status === "on_sale" && Number(book.detail_photo_count ?? 0) === 0) {
                               marks.push({ key: "photo", label: "사진 없음", tone: "bg-amber-50 text-amber-800" });
                             }
                             if (book.status === "on_sale" && !(Number(book.price) > 0)) {
@@ -1264,7 +1316,7 @@ function AdminProductMastersPage() {
                               ) : (
                                 <span
                                   className={`text-xs font-bold ${
-                                    book.status === "on_sale" || book.picking_pending
+                                    !detailProduct?.is_direct_sale && (book.status === "on_sale" || book.picking_pending)
                                       ? "rounded bg-amber-50 px-1.5 py-0.5 text-amber-700"
                                       : "text-slate-400"
                                   }`}
