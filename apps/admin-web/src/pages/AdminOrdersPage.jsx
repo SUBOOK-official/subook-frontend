@@ -2016,10 +2016,11 @@ function AdminOrdersPage() {
                   <th className="px-3 py-3">구매자</th>
                   <th className="px-3 py-3">상품</th>
                   <th className="px-3 py-3 text-right">금액</th>
-                  {/* 결제수단은 상태 아래 줄로 합쳤다 — 열을 하나 줄여야 관리(상세)가 안 밀린다 */}
+                  {/* 결제수단은 상태 아래 줄로 합쳤다 */}
                   <th className="px-3 py-3">상태/결제</th>
+                  {/* 관리(상세·배송조회·송장입력) 열은 2026-09-15 제거 — 화면 배율 100%에서 오른쪽이 잘렸다.
+                      행을 누르면 상세가 펼쳐지고, 송장입력·배송조회는 상세 안에 있다. */}
                   <th className="px-3 py-3">주문일</th>
-                  <th className="px-3 py-3">관리</th>
                 </tr>
               </thead>
               <tbody>
@@ -2032,7 +2033,8 @@ function AdminOrdersPage() {
                   return (
                   <Fragment key={order.id}>
                   <tr
-                    className={`border-b border-slate-50 transition ${
+                    aria-expanded={selectedOrderId === order.id}
+                    className={`cursor-pointer border-b border-slate-50 transition ${
                       selectedOrderId === order.id
                         ? "bg-blue-50"
                         : hasPendingRefundRequest
@@ -2041,8 +2043,21 @@ function AdminOrdersPage() {
                             ? "bg-amber-50"
                             : "hover:bg-slate-50"
                     }`}
+                    onClick={() => {
+                      // 주문번호 등을 드래그해 복사할 때는 펼치지 않는다
+                      if (window.getSelection()?.toString()) return;
+                      setSelectedOrderId(selectedOrderId === order.id ? null : order.id);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.target !== event.currentTarget) return;
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        setSelectedOrderId(selectedOrderId === order.id ? null : order.id);
+                      }
+                    }}
+                    tabIndex={0}
                   >
-                    <td className="px-2 py-3">
+                    <td className="px-2 py-3" onClick={(event) => event.stopPropagation()}>
                       <input
                         aria-label={`${order.order_number} 선택`}
                         checked={selectedIds.has(order.id)}
@@ -2138,42 +2153,9 @@ function AdminOrdersPage() {
                     </td>
                     <td className="px-3 py-3 text-xs text-slate-500 whitespace-nowrap">
                       {formatCompactDate(order.created_at)}
-                    </td>
-                    {/* 액션은 한 줄, 운송장번호는 그 아래 줄 — 한 줄에 다 넣으면 표가 가로로 넘쳐
-                        '상세'가 화면 밖으로 밀린다 */}
-                    <td className="px-3 py-3">
-                      <div className="flex items-center gap-2 whitespace-nowrap">
-                        {(order.status === "preparing" || order.status === "paid") && (
-                          <button
-                            className="text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-md px-2.5 py-1"
-                            onClick={() => openTrackingModal(order)}
-                            type="button"
-                          >
-                            송장입력
-                          </button>
-                        )}
-                        {order.tracking_number &&
-                          ["shipping", "delivered", "confirmed"].includes(order.status) && (
-                          <button
-                            className="text-xs font-semibold text-emerald-700 hover:underline"
-                            onClick={() => openDeliveryTrace(order)}
-                            title="CJ 실시간 배송 추적"
-                            type="button"
-                          >
-                            배송조회
-                          </button>
-                        )}
-                        <button
-                          className="text-xs font-semibold text-blue-600 hover:underline"
-                          onClick={() => setSelectedOrderId(selectedOrderId === order.id ? null : order.id)}
-                          type="button"
-                        >
-                          {selectedOrderId === order.id ? "닫기" : "상세"}
-                        </button>
-                      </div>
                       {order.tracking_number &&
                         ["shipping", "delivered", "confirmed"].includes(order.status) && (
-                        <div className="mt-0.5 font-mono text-[11px] text-slate-400">
+                        <div className="mt-0.5 font-mono text-[11px] text-slate-400" title="운송장번호">
                           {order.tracking_number}
                         </div>
                       )}
@@ -2182,7 +2164,7 @@ function AdminOrdersPage() {
                   {/* 상세 — 행 바로 아래에 붙여서 펼친다 */}
                   {selectedOrderId === order.id && (
                     <tr className="border-b-2 border-blue-100 bg-blue-50/40">
-                      <td className="p-0" colSpan={8}>
+                      <td className="p-0" colSpan={7}>
                         {renderOrderDetail(order)}
                       </td>
                     </tr>
