@@ -1503,7 +1503,7 @@ function AdminProductMastersPage() {
         </div>
       </AdminDialog>
 
-      {/* 상품 수정 모달 (제목/옵션/정가/사진 + 인스턴스별 판매가·상세사진) */}
+      {/* 상품 수정 모달 (AI 요약 + 제목/옵션/정가/사진 + 인스턴스별 판매가·상세사진) */}
       <ProductMasterEditModal
         onClose={() => setEditTarget(null)}
         onSaved={async (result) => {

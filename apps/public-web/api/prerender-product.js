@@ -408,7 +408,7 @@ function buildHtml({ product, stock, relatedBooks }) {
         </table>
         ${
           product.ai_summary && !isNewCollabBook
-            ? `<section><h2>교재 소개</h2><p>${aiSummaryToHtml(product.ai_summary)}</p></section>`
+            ? `<section><h2>교재 한눈에 보기</h2><p>${aiSummaryToHtml(product.ai_summary)}</p></section>`
             : ""
         }
         <p>

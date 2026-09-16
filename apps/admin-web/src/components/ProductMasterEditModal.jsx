@@ -38,6 +38,38 @@ function withCurrentOption(options, current) {
   return value && !options.includes(value) ? [value, ...options] : options;
 }
 
+function formatSummaryDate(value) {
+  if (!value) return "기록 없음";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "기록 없음";
+  return new Intl.DateTimeFormat("ko-KR", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
+}
+
+function normalizeSummarySources(value) {
+  if (!Array.isArray(value)) return [];
+  return value.filter((source) => {
+    if (!source || typeof source.uri !== "string" || !source.uri.trim()) return false;
+    try {
+      const url = new URL(source.uri);
+      return url.protocol === "https:" || url.protocol === "http:";
+    } catch {
+      return false;
+    }
+  });
+}
+
+function summarySourceLabel(source) {
+  if (typeof source?.title === "string" && source.title.trim()) return source.title.trim();
+  try {
+    return new URL(source.uri).hostname.replace(/^www\./, "");
+  } catch {
+    return source.uri;
+  }
+}
+
 // 숨김 file input + 버튼 트리거
 function FileButton({ accept = "image/*", busy = false, children, className = "", multiple = false, onFiles }) {
   const inputRef = useRef(null);
@@ -90,6 +122,11 @@ function ProductMasterEditModal({ onClose, onSaved, product }) {
   const [detailDirty, setDetailDirty] = useState(false);
   const [detailBusy, setDetailBusy] = useState(false);
   const [detailUniform, setDetailUniform] = useState(true);
+  // 고객 상품 상세에 노출되는 AI 교재 소개 — 생성 근거와 함께 운영자가 직접 검수·교정한다.
+  const [aiSummary, setAiSummary] = useState("");
+  const [initialAiSummary, setInitialAiSummary] = useState("");
+  const [aiSummarySources, setAiSummarySources] = useState([]);
+  const [aiSummaryGeneratedAt, setAiSummaryGeneratedAt] = useState(null);
   // 닫기 전 확인용 — 아무 필드든 건드리면 true
   const [touched, setTouched] = useState(false);
 
@@ -112,26 +149,46 @@ function ProductMasterEditModal({ onClose, onSaved, product }) {
     setDetailImages([]);
     setDetailDirty(false);
     setDetailUniform(true);
+    setAiSummary("");
+    setInitialAiSummary("");
+    setAiSummarySources([]);
+    setAiSummaryGeneratedAt(null);
     setErrorMessage("");
     setTouched(false);
     setIsLoading(true);
 
     (async () => {
-      const { data, error } = await supabase
-        .from("books")
-        .select("id,shipment_id,option,serial_number,location,price,original_price,condition_grade,status,is_public,inspection_image_urls,cover_image_url")
-        .eq("product_id", product.id)
-        .order("id", { ascending: true });
+      const [booksResult, summaryResult] = await Promise.all([
+        supabase
+          .from("books")
+          .select("id,shipment_id,option,serial_number,location,price,original_price,condition_grade,status,is_public,inspection_image_urls,cover_image_url")
+          .eq("product_id", product.id)
+          .order("id", { ascending: true }),
+        supabase
+          .from("products")
+          .select("ai_summary,ai_summary_sources,ai_summary_generated_at")
+          .eq("id", product.id)
+          .maybeSingle(),
+      ]);
 
       if (cancelled) return;
       setIsLoading(false);
 
-      if (error) {
-        setErrorMessage(error.message || "책 목록을 불러오지 못했습니다.");
+      if (booksResult.error || summaryResult.error) {
+        setErrorMessage(
+          booksResult.error?.message ||
+            summaryResult.error?.message ||
+            "상품 정보를 불러오지 못했습니다.",
+        );
         return;
       }
 
-      const rows = Array.isArray(data) ? data : [];
+      const rows = Array.isArray(booksResult.data) ? booksResult.data : [];
+      const summaryText = summaryResult.data?.ai_summary ?? "";
+      setAiSummary(summaryText);
+      setInitialAiSummary(summaryText);
+      setAiSummarySources(normalizeSummarySources(summaryResult.data?.ai_summary_sources));
+      setAiSummaryGeneratedAt(summaryResult.data?.ai_summary_generated_at ?? null);
       setBooks(
         rows.map((row) => ({
           id: row.id,
@@ -288,9 +345,16 @@ function ProductMasterEditModal({ onClose, onSaved, product }) {
       bookPayload.push(entry);
     }
 
+    const normalizedAiSummary = aiSummary.trim();
+    const aiSummaryChanged = normalizedAiSummary !== initialAiSummary.trim();
+    if (aiSummaryChanged && normalizedAiSummary.length < 40) {
+      setErrorMessage("AI 요약은 40자 이상 입력해 주세요.");
+      return;
+    }
+
     setIsSaving(true);
     setErrorMessage("");
-    const { data, error } = await supabase.rpc("admin_update_product_master", {
+    const { data, error } = await supabase.rpc("admin_update_product_master_with_ai_summary", {
       p_product_id: product.id,
       p_title: trimmedTitle,
       // 옵션 입력 UI 없음 — 프리필된 기존 값을 그대로 보내 products.option 유지
@@ -302,6 +366,8 @@ function ProductMasterEditModal({ onClose, onSaved, product }) {
       p_subject: subject.trim() || null,
       p_brand: brand.trim() || null,
       p_book_type: bookType.trim() || null,
+      p_ai_summary: normalizedAiSummary || null,
+      p_update_ai_summary: aiSummaryChanged,
     });
     setIsSaving(false);
 
@@ -442,6 +508,61 @@ function ProductMasterEditModal({ onClose, onSaved, product }) {
                   </label>
                 </div>
               </div>
+
+              <section className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-800">AI 교재 요약</h3>
+                    <p className="mt-1 text-xs text-slate-500">
+                      고객 상품 상세의 &apos;교재 한눈에 보기&apos;에 그대로 노출됩니다.
+                    </p>
+                  </div>
+                  <span className="text-xs font-semibold text-slate-500">
+                    생성 시각 {formatSummaryDate(aiSummaryGeneratedAt)}
+                  </span>
+                </div>
+                <label className="mt-3 block">
+                  <span className="sr-only">AI 교재 요약 내용</span>
+                  <textarea
+                    className="input-base min-h-36 resize-y leading-6"
+                    maxLength={2000}
+                    onChange={(event) => {
+                      setAiSummary(event.target.value);
+                      setTouched(true);
+                    }}
+                    placeholder="교재 특징, 난이도, 추천 대상과 활용 방법을 3~4문장으로 입력"
+                    value={aiSummary}
+                  />
+                </label>
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+                  <span>강조할 문구는 **별표 두 개**로 감싸세요.</span>
+                  <span>{aiSummary.length.toLocaleString("ko-KR")} / 2,000자</span>
+                </div>
+                {aiSummarySources.length > 0 ? (
+                  <div className="mt-4 border-t border-slate-200 pt-3">
+                    <p className="text-xs font-bold text-slate-600">AI 생성 시 참고한 검색 결과</p>
+                    <ul className="mt-2 space-y-1.5">
+                      {aiSummarySources.map((source, index) => (
+                        <li className="min-w-0 text-xs" key={`${source.uri}-${index}`}>
+                          <a
+                            className="block truncate font-semibold text-blue-700 underline underline-offset-2"
+                            href={source.uri}
+                            rel="noreferrer"
+                            target="_blank"
+                            title={source.uri}
+                          >
+                            {summarySourceLabel(source)}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  <p className="mt-3 text-xs font-semibold text-amber-700">
+                    저장된 검색 근거가 없습니다. 내용의 정확성을 직접 확인해 주세요.
+                  </p>
+                )}
+              </section>
 
               <div>
                 <span className="mb-1.5 block text-xs font-semibold text-slate-600">대표 사진</span>
