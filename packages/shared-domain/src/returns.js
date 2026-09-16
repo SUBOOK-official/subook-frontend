@@ -2,6 +2,7 @@ export const RETURN_SHIPPING_FEE = 6000;
 export const RETURN_REASONS = [
   { value: "buyer_remorse", label: "단순변심" },
   { value: "seller_fault", label: "상품 하자·오배송" },
+  { value: "not_delivered", label: "미발송·배송 누락 (회수 없음)" },
   { value: "other", label: "기타·별도 협의" },
 ];
 export const RETURN_STATUS_LABELS = {
@@ -20,7 +21,7 @@ export function getReturnRefundPreview(order, itemIds, reasonCode, requiresRetur
   const remaining = Math.max(0, Number(order?.total_amount ?? 0) - Number(order?.refunded_amount ?? 0));
   const isWholeOrder = items.length > 0 && items.every(item => !item.refunded_at && ids.has(item.id))
     && ids.size === items.length && Number(order?.refunded_amount ?? 0) === 0;
-  const automatic = isWholeOrder && ["buyer_remorse", "seller_fault"].includes(reasonCode);
+  const automatic = isWholeOrder && ["buyer_remorse", "seller_fault", "not_delivered"].includes(reasonCode);
   const deduction = automatic && requiresReturn && reasonCode === "buyer_remorse" ? RETURN_SHIPPING_FEE : 0;
   return { automatic, remaining, deduction, amount: automatic ? remaining - deduction : null };
 }

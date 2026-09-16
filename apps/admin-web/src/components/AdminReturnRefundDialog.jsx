@@ -3,7 +3,7 @@ import AdminDialog from "./AdminDialog";
 import { BusyText } from "./Loading";
 import { supabase } from "@shared-supabase/adminSupabaseClient";
 import { formatCurrency, formatDate } from "@shared-domain/format";
-import { RETURN_REASONS, RETURN_STATUS_LABELS, getReturnRefundPreview } from "@shared-domain/returns";
+import { RETURN_REASONS, RETURN_STATUS_LABELS, getReturnRefundPreview, requiresPhysicalReturn } from "@shared-domain/returns";
 
 export default function AdminReturnRefundDialog({ order, onClose, onCompleted, onChanged, onRegisterPickup, refundAccount }) {
   const [cases, setCases] = useState([]);
@@ -24,6 +24,7 @@ export default function AdminReturnRefundDialog({ order, onClose, onCompleted, o
   const [amountNote, setAmountNote] = useState("");
   const [transfer, setTransfer] = useState("");
   const [confirmed, setConfirmed] = useState(false);
+  const [directConfirmed, setDirectConfirmed] = useState(false);
   const [recoveryNeeded, setRecoveryNeeded] = useState(false);
   const [recoveryPhrase, setRecoveryPhrase] = useState("");
   const [closing, setClosing] = useState(false);
@@ -64,30 +65,60 @@ export default function AdminReturnRefundDialog({ order, onClose, onCompleted, o
   };
   const preview = getReturnRefundPreview(order, active ? active.items.map(i => i.id) : ids,
     active?.reason_code ?? reasonCode, active?.requires_return);
+  const noReturnSelected = !active && reasonCode === "not_delivered";
   const manualRequired = manual || !preview.automatic;
   const amountNum = Number(amount);
   const deductionNum = Number(deduction);
   const manualValid = !manualRequired || (amount.trim() !== "" && deduction.trim() !== ""
     && Number.isInteger(amountNum) && amountNum > 0 && Number.isInteger(deductionNum)
     && deductionNum >= 0 && deductionNum <= 6000 && amountNum + deductionNum <= preview.remaining && amountNote.trim().length >= 5);
+  const noReturnManualValid = preview.automatic || (amount.trim() !== "" && Number.isInteger(amountNum)
+    && amountNum > 0 && amountNum <= preview.remaining && amountNote.trim().length >= 5);
+  const noReturnRefundAmount = preview.automatic ? preview.amount : (noReturnManualValid ? amountNum : null);
   const draft = active && ["requested", "received", "review_hold"].includes(active.status);
   const allReceived = active && (!active.requires_return || active.items.every(i => i.received_at));
+  const executeRefund = async ({ returnId, action = "execute", transferReference = "", reasonText }) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) throw new Error("인증이 만료되었습니다. 다시 로그인해주세요.");
+    const response = await fetch("/api/admin/payment-cancel", {
+      method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+      signal: AbortSignal.timeout(65000),
+      body: JSON.stringify({ returnId, action, transferReference, acknowledgeRecovery: recoveryNeeded && recoveryPhrase === "손실 감수" }),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok || body.error) {
+      if ((body.error || "").includes("RECOVERY_REQUIRED_ACK")) setRecoveryNeeded(true);
+      throw new Error(body.error || "환불 결과를 확인하지 못했습니다. 다시 실행하기 전에 결제 결과를 확인해주세요.");
+    }
+    if (!body.data?.already_completed) await onCompleted(body.data, order, reasonText);
+    else { await onChanged?.(); onClose(); }
+  };
   const submit = async (action = "execute") => {
+    await run(() => executeRefund({
+      returnId: active.id,
+      action,
+      transferReference: transfer.trim(),
+      reasonText: active.reason,
+    }));
+  };
+  const submitNoReturn = async () => {
     await run(async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error("인증이 만료되었습니다. 다시 로그인해주세요.");
-      const response = await fetch("/api/admin/payment-cancel", {
-        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-        signal: AbortSignal.timeout(65000),
-        body: JSON.stringify({ returnId: active.id, action, transferReference: transfer.trim(), acknowledgeRecovery: recoveryNeeded && recoveryPhrase === "손실 감수" }),
-      });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok || body.error) {
-        if ((body.error || "").includes("RECOVERY_REQUIRED_ACK")) setRecoveryNeeded(true);
-        throw new Error(body.error || "환불 결과를 확인하지 못했습니다. 다시 실행하기 전에 결제 결과를 확인해주세요.");
+      const { data, error: prepareError } = await supabase.rpc("admin_prepare_no_return_refund", {
+        p_order_id: order.id,
+        p_item_ids: ids,
+        p_reason: reason,
+        p_restock: restock,
+        p_manual_amount: preview.automatic ? null : amountNum,
+        p_amount_note: preview.automatic ? null : amountNote,
+      }).abortSignal(AbortSignal.timeout(20000));
+      if (prepareError) throw prepareError;
+      setDirectConfirmed(false);
+      if (isBank) {
+        await load();
+        await onChanged?.();
+        return;
       }
-      if (!body.data?.already_completed) await onCompleted(body.data, order, active.reason);
-      else { await onChanged?.(); onClose(); }
+      await executeRefund({ returnId: data.return_id, reasonText: reason });
     });
   };
   const toggle = (list, id) => list.includes(id) ? list.filter(value => value !== id) : [...list, id];
@@ -100,7 +131,9 @@ export default function AdminReturnRefundDialog({ order, onClose, onCompleted, o
         {!loading && !error && !active && order.status === "refunded" ? <p>이미 환불 완료된 주문입니다.</p> : null}
         {!loading && !active && order.status !== "refunded" ? (
           <fieldset disabled={busy || loadFailed} className="space-y-4">
-            <p className="text-sm text-slate-600">접수 단계에서는 돈이 환불되지 않습니다. 배송된 교재는 도착·검수 승인 후 최종 환불을 실행합니다.</p>
+            <p className="text-sm text-slate-600">{noReturnSelected
+              ? "구매자에게 전달되지 않은 상품은 반품 수거·도착 확인 없이 바로 환불할 수 있습니다."
+              : "접수 단계에서는 돈이 환불되지 않습니다. 배송된 교재는 도착·검수 승인 후 최종 환불을 실행합니다."}</p>
             <div className="space-y-2">
               {(order.items ?? []).filter(i => !i.refunded_at).map(item => (
                 <label key={item.id} className="flex gap-2 rounded-lg bg-slate-50 p-3 text-sm">
@@ -112,7 +145,11 @@ export default function AdminReturnRefundDialog({ order, onClose, onCompleted, o
             <label className="block text-sm font-semibold">반품·취소 사유
               <select className="input-base mt-1" value={reasonCode} onChange={event => {
                 const value = event.target.value; setReasonCode(value);
-                setReason(value === "buyer_remorse" ? "단순변심으로 반품 요청" : value === "seller_fault" ? "상품 하자·오배송으로 반품 요청" : "");
+                setReason(value === "buyer_remorse" ? "단순변심으로 반품 요청"
+                  : value === "seller_fault" ? "상품 하자·오배송으로 반품 요청"
+                    : value === "not_delivered" ? "미발송·배송 누락으로 회수 없이 환불" : "");
+                setRestock(value === "not_delivered");
+                setDirectConfirmed(false);
               }}>{RETURN_REASONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}</select>
             </label>
             <label className="block text-sm font-semibold">상세 사유
@@ -121,18 +158,37 @@ export default function AdminReturnRefundDialog({ order, onClose, onCompleted, o
             <p className="text-sm text-slate-600">{preview.automatic
               ? `예상 환불액 ${formatCurrency(Math.max(0, preview.amount))} · 배송비 차감 ${formatCurrency(preview.deduction)}`
               : "일부 품목·기타 사유는 검수 후 할인과 배송비를 확인하여 최종 금액을 입력합니다."}</p>
-            <button type="button" className="btn-primary" disabled={!ids.length || reason.trim().length < 5}
-              onClick={() => run(() => mutate("admin_start_order_return", { p_order_id: order.id, p_item_ids: ids, p_reason_code: reasonCode, p_reason: reason }))}>
-              반품·취소 접수
-            </button>
+            {noReturnSelected ? (
+              <div className="space-y-3 rounded-lg bg-amber-50 p-3">
+                <p className="text-sm font-semibold text-amber-800">실제 미발송 또는 배송 누락이 확인된 경우에만 사용해주세요. CJ 반품 수거와 도착 확인을 생성하지 않습니다.</p>
+                {!preview.automatic ? <>
+                  <p className="text-sm text-slate-700">일부 품목 또는 기존 환불이 있는 주문은 실제 결제·할인 내역을 확인해 금액을 입력해주세요.</p>
+                  <label className="block text-sm">최종 환불액 (원)<input className="input-base mt-1" type="number" min="1" step="1" value={amount} onChange={e => setAmount(e.target.value)} /></label>
+                  <label className="block text-sm">계산·조정 근거<textarea className="input-base mt-1" value={amountNote} onChange={e => setAmountNote(e.target.value)} maxLength={1000} /></label>
+                </> : null}
+                <label className="flex gap-2 text-sm"><input type="checkbox" checked={restock} onChange={event => setRestock(event.target.checked)} />상품이 창고에 있어 환불 완료 후 재판매 가능 (미체크 시 재고 보류)</label>
+                <label className="flex gap-2 text-sm font-semibold"><input type="checkbox" checked={directConfirmed} onChange={event => setDirectConfirmed(event.target.checked)} />선택 상품이 구매자에게 전달되지 않아 회수가 불필요함을 확인했습니다.</label>
+                <button type="button" className="btn-danger" disabled={!ids.length || reason.trim().length < 5 || !directConfirmed || !noReturnManualValid || noReturnRefundAmount <= 0}
+                  onClick={submitNoReturn}>
+                  {isBank ? "회수 없이 환불 승인" : `${formatCurrency(noReturnRefundAmount)} 카드 환불 실행 (회수 없음)`}
+                </button>
+              </div>
+            ) : (
+              <button type="button" className="btn-primary" disabled={!ids.length || reason.trim().length < 5}
+                onClick={() => run(() => mutate("admin_start_order_return", { p_order_id: order.id, p_item_ids: ids, p_reason_code: reasonCode, p_reason: reason }))}>
+                반품·취소 접수
+              </button>
+            )}
           </fieldset>
         ) : null}
         {!loading && active ? (
           <>
             <div className="rounded-lg bg-slate-50 p-3 space-y-1 text-sm">
-              <strong>{RETURN_STATUS_LABELS[active.status]}</strong>
+              <strong>{active.status === "requested" && !active.requires_return ? "취소 확인 대기" : RETURN_STATUS_LABELS[active.status]}</strong>
               <p>{active.reason}</p>
-              <p className="text-slate-500">{active.requires_return ? "접수 → 도착 확인 → 검수 승인 → 환불 실행" : "발송 전 취소 · 실물 회수 불필요"}</p>
+              <p className="text-slate-500">{active.requires_return
+                ? "접수 → 도착 확인 → 검수 승인 → 환불 실행"
+                : requiresPhysicalReturn(order) ? "미발송·배송 누락 확인 · 실물 회수 불필요" : "발송 전 취소 · 실물 회수 불필요"}</p>
               {active.received_at ? <p>첫 반품 도착 {formatDate(active.received_at)} · 반환받은 날부터 3영업일 이내 환급 처리</p> : null}
             </div>
             <fieldset disabled={busy || loadFailed} className="space-y-2">

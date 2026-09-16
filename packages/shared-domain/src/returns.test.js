@@ -9,6 +9,10 @@ test("유료·무료배송 전체 반품은 실제 결제액에서 왕복 차감
 });
 test("하자·발송 전 0원 차감, 일부·기환불·기타 사유는 자동 계산 금지",()=>{
   assert.equal(getReturnRefundPreview(order,[1,2],"seller_fault").deduction,0);
+  const omitted=getReturnRefundPreview(order,[1,2],"not_delivered");
+  assert.equal(omitted.automatic,true);
+  assert.equal(omitted.deduction,0);
+  assert.equal(omitted.amount,23000);
   assert.equal(getReturnRefundPreview({...order,status:"preparing"},[1,2],"buyer_remorse").amount,23000);
   assert.equal(getReturnRefundPreview(order,[1],"buyer_remorse").automatic,false);
   assert.equal(getReturnRefundPreview({...order,refunded_amount:1000},[1,2],"buyer_remorse").automatic,false);
