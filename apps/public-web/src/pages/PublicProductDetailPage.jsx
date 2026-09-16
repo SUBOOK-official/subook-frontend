@@ -563,19 +563,6 @@ function AiSummarySection({ summary, productId }) {
       <div className="public-detail-ai-summary__header">
         <AiSummaryIcon />
         <span>AI 요약</span>
-        <button
-          className="public-detail-ai-summary__notice-btn"
-          onClick={() => {
-            setNoticeOpen(true);
-            trackEvent("ai_summary_notice_open", {
-              ...(productId != null ? { itemId: String(productId) } : {}),
-            });
-          }}
-          type="button"
-        >
-          <span>AI 안내</span>
-          <InfoIcon size={17} style={{ display: "block", verticalAlign: "middle" }} />
-        </button>
       </div>
       <div className="public-detail-ai-summary__body">
         {paragraphs.map((paragraph, index) => (
@@ -587,6 +574,23 @@ function AiSummarySection({ summary, productId }) {
           AI가 검색 결과를 바탕으로 생성한 소개예요. 실제 구성과 다를 수 있어요.
         </p>
       </div>
+      <button
+        className="public-detail-ai-summary__notice-btn"
+        onClick={() => {
+          setNoticeOpen(true);
+          trackEvent("ai_summary_notice_open", {
+            ...(productId != null ? { itemId: String(productId) } : {}),
+          });
+        }}
+        type="button"
+      >
+        <span>AI 안내</span>
+        <InfoIcon
+          className="public-detail-ai-summary__notice-icon"
+          size={17}
+          style={{ display: "block", verticalAlign: "middle" }}
+        />
+      </button>
       <AiSummaryNoticeDialog onClose={() => setNoticeOpen(false)} open={noticeOpen} />
     </div>
   );

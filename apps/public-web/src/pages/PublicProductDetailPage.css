@@ -992,10 +992,11 @@
 .public-detail-ai-summary__notice-btn {
   display: inline-flex;
   flex: 0 0 auto;
+  align-self: flex-end;
   align-items: center;
   justify-content: center;
   gap: 5px;
-  margin: -10px 0 -10px auto;
+  margin: -4px 0 -10px;
   padding: 0;
   min-width: 44px;
   min-height: 44px;
@@ -1013,6 +1014,11 @@
 .public-detail-ai-summary__notice-btn > span {
   display: block;
   line-height: 17px;
+}
+
+.public-detail-ai-summary__notice-icon {
+  /* LINE Seed KR의 실제 글자가 line box 위쪽에 있어 아이콘도 시각적 중심에 맞춘다. */
+  transform: translateY(-2px);
 }
 
 .public-detail-ai-summary__notice-btn:hover {
