@@ -60,9 +60,6 @@ function AiSummaryNoticeDialog({ onClose, open }) {
               분권·회차·부록 등 실제 구성은 판매 옵션, 상세 사진, 검수 정보를 구매 전에 확인해
               주세요.
             </li>
-            <li>
-              AI 요약과 판매 옵션·상세 사진이 다를 경우 판매 옵션과 상세 사진을 기준으로 합니다.
-            </li>
           </ul>
           <p className="public-ai-summary-notice__note">
             AI 요약은 교재 선택을 돕는 참고 정보이며 수북 운영자가 내용을 검수·수정할 수 있습니다.

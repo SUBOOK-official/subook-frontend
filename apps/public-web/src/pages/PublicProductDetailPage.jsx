@@ -12,13 +12,7 @@ import PublicFooter from "../components/PublicFooter";
 import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
 import AiSummaryNoticeDialog from "../components/AiSummaryNoticeDialog";
-import {
-  BellIcon,
-  CloseIcon,
-  InfoIcon,
-  ThumbDownIcon,
-  ThumbUpIcon,
-} from "../components/icons";
+import { BellIcon, CloseIcon, InfoIcon } from "../components/icons";
 import ProductReviewsSection, { useProductReviews } from "../components/ProductReviewsSection";
 import { usePublicWishlist } from "../contexts/PublicWishlistContext";
 import {
@@ -542,20 +536,7 @@ function renderEmphasis(text) {
 // 요약이 없는 상품은 섹션 자체를 숨긴다 (영원히 도는 skeleton 노출 방지).
 function AiSummarySection({ summary, productId }) {
   const containerRef = useRef(null);
-  const [feedback, setFeedback] = useState(null);
   const [noticeOpen, setNoticeOpen] = useState(false);
-
-  useEffect(() => {
-    setFeedback(null);
-    if (productId == null) return;
-
-    try {
-      const saved = window.localStorage.getItem(`subook_ai_summary_feedback_${productId}`);
-      if (saved === "helpful" || saved === "not_helpful") setFeedback(saved);
-    } catch {
-      // 저장소 접근 실패는 피드백 UI 사용을 막지 않는다.
-    }
-  }, [productId]);
 
   // GA4 — AI 요약이 실제로 화면에 들어온 시점 1회(생성 비용 대비 열람 여부 확인용)
   useInViewOnce(
@@ -572,65 +553,16 @@ function AiSummarySection({ summary, productId }) {
     return null;
   }
 
-  const submitFeedback = (value) => {
-    setFeedback(value);
-    if (productId != null) {
-      try {
-        window.localStorage.setItem(`subook_ai_summary_feedback_${productId}`, value);
-      } catch {
-        // 사생활 보호 모드 등 저장 실패 시 현재 화면 상태만 유지한다.
-      }
-    }
-    trackEvent("ai_summary_feedback", {
-      ...(productId != null ? { itemId: String(productId) } : {}),
-      feedback: value,
-    });
-  };
-
   const paragraphs = summary
     .split(/\n+/)
     .map((line) => line.trim())
     .filter(Boolean);
 
   return (
-    <div aria-label="교재 한눈에 보기" className="public-detail-ai-summary" ref={containerRef}>
+    <div aria-label="AI 요약" className="public-detail-ai-summary" ref={containerRef}>
       <div className="public-detail-ai-summary__header">
         <AiSummaryIcon />
-        <span>교재 한눈에 보기</span>
-      </div>
-      <div className="public-detail-ai-summary__body">
-        {paragraphs.map((paragraph, index) => (
-          <p className="public-detail-ai-summary__text" key={index}>
-            {renderEmphasis(paragraph)}
-          </p>
-        ))}
-      </div>
-      <div className="public-detail-ai-summary__footer">
-        <span className="public-detail-ai-summary__feedback-label">요약이 도움됐나요?</span>
-        <div className="public-detail-ai-summary__feedback-actions">
-          <button
-            aria-label="AI 요약이 도움됐어요"
-            aria-pressed={feedback === "helpful"}
-            className={`public-detail-ai-summary__feedback-btn${
-              feedback === "helpful" ? " is-active" : ""
-            }`}
-            onClick={() => submitFeedback("helpful")}
-            type="button"
-          >
-            <ThumbUpIcon size={19} />
-          </button>
-          <button
-            aria-label="AI 요약이 아쉬워요"
-            aria-pressed={feedback === "not_helpful"}
-            className={`public-detail-ai-summary__feedback-btn${
-              feedback === "not_helpful" ? " is-active" : ""
-            }`}
-            onClick={() => submitFeedback("not_helpful")}
-            type="button"
-          >
-            <ThumbDownIcon size={19} />
-          </button>
-        </div>
+        <span>AI 요약</span>
         <button
           className="public-detail-ai-summary__notice-btn"
           onClick={() => {
@@ -642,8 +574,18 @@ function AiSummarySection({ summary, productId }) {
           type="button"
         >
           <span>AI 안내</span>
-          <InfoIcon size={17} />
+          <InfoIcon size={17} style={{ display: "block", verticalAlign: "middle" }} />
         </button>
+      </div>
+      <div className="public-detail-ai-summary__body">
+        {paragraphs.map((paragraph, index) => (
+          <p className="public-detail-ai-summary__text" key={index}>
+            {renderEmphasis(paragraph)}
+          </p>
+        ))}
+        <p className="public-detail-ai-summary__caption">
+          AI가 검색 결과를 바탕으로 생성한 소개예요. 실제 구성과 다를 수 있어요.
+        </p>
       </div>
       <AiSummaryNoticeDialog onClose={() => setNoticeOpen(false)} open={noticeOpen} />
     </div>

@@ -514,7 +514,7 @@ function ProductMasterEditModal({ onClose, onSaved, product }) {
                   <div>
                     <h3 className="text-sm font-bold text-slate-800">AI 교재 요약</h3>
                     <p className="mt-1 text-xs text-slate-500">
-                      고객 상품 상세의 &apos;교재 한눈에 보기&apos;에 그대로 노출됩니다.
+                      고객 상품 상세의 &apos;AI 요약&apos;에 그대로 노출됩니다.
                     </p>
                   </div>
                   <span className="text-xs font-semibold text-slate-500">
