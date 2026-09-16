@@ -27,7 +27,7 @@ export function parsePerformanceQuery(query, now = new Date()) {
   return { from, to, previousFrom: shift(from, -days), previousTo: shift(from, -1), level, campaignId, adsetId };
 }
 
-// 응답 오류에서 진단용 고정 코드만 추린다. 오류 문장(message)은 토큰·계정 정보가 섞일 수 있어 버린다.
+// 응답 오류에서 진단용 코드와 민감 문자열을 가린 오류 문장만 추린다.
 export function providerErrorDetail(body) {
   const error = body?.error;
   if (!error || typeof error !== "object") return {};
@@ -314,6 +314,8 @@ export async function loadMetaPerformance(range, env = process.env, fetcher = fe
 export function describeMetaFailure(detail) {
   const code = detail?.providerCode;
   if (code === 190 || code === 102) return "Meta 조회 토큰이 만료되었거나 폐기되었습니다. 시스템 사용자 토큰을 다시 발급해주세요.";
+  // 같은 200 코드라도 API 자체 차단은 광고 자산의 조회 권한 부족과 조치가 다르다.
+  if (code === 200 && /\bAPI access blocked\b/i.test(detail?.providerMessage ?? "")) return "Meta가 API 접근을 차단했습니다. Meta 개발자 콘솔의 계정 확인 요청과 앱 제한 상태를 확인해주세요.";
   if (code === 10 || (code >= 200 && code <= 299)) return "Meta 광고 계정 조회 권한이 없습니다. 비즈니스 설정의 광고 계정 권한을 확인해주세요.";
   if ([4, 17, 32, 613].includes(code) || (code >= 80000 && code <= 80014)) return "Meta 조회 한도를 초과했습니다. 잠시 후 다시 시도해주세요.";
   if (code === 100) return "Meta가 조회 요청 형식을 거부했습니다. API 변경 여부를 확인해야 합니다.";
