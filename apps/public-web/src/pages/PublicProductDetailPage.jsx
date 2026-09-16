@@ -570,27 +570,32 @@ function AiSummarySection({ summary, productId }) {
             {renderEmphasis(paragraph)}
           </p>
         ))}
-        <p className="public-detail-ai-summary__caption">
-          AI가 검색 결과를 바탕으로 생성한 소개예요. 실제 구성과 다를 수 있어요.
-        </p>
+        <div className="public-detail-ai-summary__footer">
+          <p className="public-detail-ai-summary__caption">
+            AI가 검색 결과를 바탕으로 생성한 소개예요. 실제 구성과 다를 수 있어요.
+          </p>
+          <div className="public-detail-ai-summary__notice">
+            <span>AI 안내</span>
+            <button
+              aria-label="AI 안내 열기"
+              className="public-detail-ai-summary__notice-btn"
+              onClick={() => {
+                setNoticeOpen(true);
+                trackEvent("ai_summary_notice_open", {
+                  ...(productId != null ? { itemId: String(productId) } : {}),
+                });
+              }}
+              type="button"
+            >
+              <InfoIcon
+                className="public-detail-ai-summary__notice-icon"
+                size={17}
+                style={{ display: "block", verticalAlign: "middle" }}
+              />
+            </button>
+          </div>
+        </div>
       </div>
-      <button
-        className="public-detail-ai-summary__notice-btn"
-        onClick={() => {
-          setNoticeOpen(true);
-          trackEvent("ai_summary_notice_open", {
-            ...(productId != null ? { itemId: String(productId) } : {}),
-          });
-        }}
-        type="button"
-      >
-        <span>AI 안내</span>
-        <InfoIcon
-          className="public-detail-ai-summary__notice-icon"
-          size={17}
-          style={{ display: "block", verticalAlign: "middle" }}
-        />
-      </button>
       <AiSummaryNoticeDialog onClose={() => setNoticeOpen(false)} open={noticeOpen} />
     </div>
   );
