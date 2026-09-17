@@ -9,6 +9,7 @@ export default function AdminReturnRefundDialog({ order, onClose, onCompleted, o
   const [cases, setCases] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
+  const [pgProvider, setPgProvider] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [ids, setIds] = useState(() => (order.items ?? []).filter(i => !i.refunded_at).map(i => i.id));
@@ -24,6 +25,7 @@ export default function AdminReturnRefundDialog({ order, onClose, onCompleted, o
   const [amountNote, setAmountNote] = useState("");
   const [transfer, setTransfer] = useState("");
   const [confirmed, setConfirmed] = useState(false);
+  const [retryConfirmed, setRetryConfirmed] = useState(false);
   const [directConfirmed, setDirectConfirmed] = useState(false);
   const [recoveryNeeded, setRecoveryNeeded] = useState(false);
   const [recoveryPhrase, setRecoveryPhrase] = useState("");
@@ -31,12 +33,21 @@ export default function AdminReturnRefundDialog({ order, onClose, onCompleted, o
   const [closeNote, setCloseNote] = useState("");
   const active = cases.find(row => !["refunded", "cancelled"].includes(row.status));
   const isBank = order.payment_method === "bank_transfer";
+  const canRetryRemaining = active?.status === "attention" && !isBank && pgProvider === "nicepay"
+    && active.refunded_before > 0 && active.refund_amount > 0
+    && active.refund_amount === active.remaining_before
+    && active.remaining_before === Number(order.total_amount) - Number(order.refunded_amount)
+    && (order.items ?? []).every(item => item.refunded_at || active.items.some(selected => selected.id === item.id));
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const { data, error: loadError } = await supabase.rpc("admin_get_order_returns", { p_order_id: order.id })
-        .abortSignal(AbortSignal.timeout(15000));
+      const [{ data, error: loadError }, payment] = await Promise.all([
+        supabase.rpc("admin_get_order_returns", { p_order_id: order.id }).abortSignal(AbortSignal.timeout(15000)),
+        supabase.from("orders").select("pg_provider").eq("id", order.id).single().abortSignal(AbortSignal.timeout(15000)),
+      ]);
       if (loadError) throw loadError;
+      if (payment.error) throw payment.error;
+      setPgProvider(payment.data.pg_provider);
       setCases(Array.isArray(data) ? data : []); setLoadFailed(false);
       return true;
     } catch (err) {
@@ -264,6 +275,11 @@ export default function AdminReturnRefundDialog({ order, onClose, onCompleted, o
               <p className="text-amber-700">{active.failure_note || "환불 요청 결과를 확인하고 있습니다."}</p>
               <p>{isBank ? "다시 송금하지 마세요. 기존 송금 확인 기록으로 장부 반영을 재확인합니다." : "결제 취소를 다시 요청하지 않고, PG 거래내역을 조회해 승인된 환불액과 일치하는지 확인합니다."}</p>
               <button className="btn-secondary" type="button" disabled={busy} onClick={() => submit("reconcile")}>기존 환불 결과 확인</button>
+              {canRetryRemaining ? <fieldset disabled={busy} className="space-y-3 border-t border-slate-200 pt-3">
+                <p>기존 부분 환불을 제외한 잔액 {formatCurrency(active.refund_amount)}을 환불할 수 있습니다. 결제사에서 잔액을 확인한 뒤 진행하며, 이미 환불됐다면 완료 결과만 반영합니다.</p>
+                <label className="flex gap-2"><input type="checkbox" checked={retryConfirmed} onChange={event => setRetryConfirmed(event.target.checked)} />남은 {formatCurrency(active.refund_amount)} 전액을 환불하겠습니다.</label>
+                <button className="btn-danger" type="button" disabled={!retryConfirmed || busy} onClick={() => submit("retry_remaining")}>{busy ? <BusyText>처리 중...</BusyText> : `잔액 ${formatCurrency(active.refund_amount)} 환불 재시도`}</button>
+              </fieldset> : null}
             </div> : null}
             {["requested", "received", "review_hold", "approved"].includes(active.status) ? <div className="border-t border-slate-200 pt-3 space-y-2">
               <button className="btn-ghost" type="button" disabled={busy} onClick={() => setClosing(!closing)}>반품 반려·접수 종결</button>
