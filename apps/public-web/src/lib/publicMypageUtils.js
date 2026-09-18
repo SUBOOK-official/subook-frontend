@@ -828,6 +828,7 @@ export function mapPickupRequestToShipment(pr) {
     compact: false,
     trackingNumber: pr.tracking_number ?? null,
     trackingCompany: pr.tracking_carrier ?? "CJ대한통운",
+    boxTypeCodes: Array.isArray(pr.box_type_codes) ? pr.box_type_codes : [],
     // CJ 접수(운송장 발급) 전에만 셀러가 직접 취소 가능 — 원본 pickup_request 상태 기준
     canCancel: !isLegacyShipment && pr.status === "pending" && !pr.tracking_number,
     pickupRequestId: isLegacyShipment ? null : pr.id,

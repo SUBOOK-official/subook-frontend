@@ -8,11 +8,27 @@ import NotificationResultModal from "../components/NotificationResultModal";
 import { notifyPickupAccepted } from "../lib/adminNotification";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { formatDate } from "@shared-domain/format";
+import { PICKUP_BOX_TYPES, PICKUP_BOX_GUIDE, MAX_PICKUP_BOXES, pickupBoxLabel, resizePickupBoxTypes, validatePickupBoxes } from "@shared-domain/pickupBoxes";
 import { pickupRequestStatusLabel, shipmentStatusLabel } from "@shared-domain/status";
 import StatusBadge from "@shared-domain/StatusBadge";
 import { BusyText, InlineLoading, LoadingOverlay } from "../components/Loading";
 
 const PAGE_SIZE = 30;
+
+function PickupBoxSelects({ codes, onChange, disabled = false }) {
+  return <div className="space-y-3">
+    <p className="text-xs text-slate-600">{PICKUP_BOX_GUIDE}</p>
+    {codes.map((code, index) => <label className="block text-xs font-bold text-slate-700" key={index}>
+      박스 {index + 1} 규격
+      <select className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" disabled={disabled} value={code} onChange={(event) => {
+        const next = [...codes]; next[index] = event.target.value; onChange(next);
+      }}>
+        <option value="">규격 선택</option>
+        {PICKUP_BOX_TYPES.map((type) => <option key={type.code} value={type.code}>{pickupBoxLabel(type.code)}</option>)}
+      </select>
+    </label>)}
+  </div>;
+}
 
 const PICKUP_STATUS_OPTIONS = [
   { value: "pending", label: pickupRequestStatusLabel.pending },
@@ -155,6 +171,7 @@ function PickupDetailModal({ request, onClose }) {
               value={request.box_count != null ? `${request.box_count}개` : null}
             />
             <PickupDetailRow label="요청일" value={formatDateTime(request.created_at)} />
+            <PickupDetailRow label="박스 규격" value={request.box_type_codes?.map((code, index) => `박스 ${index + 1}: ${pickupBoxLabel(code)}`).join(" / ") || "미확인"} />
             <PickupDetailRow label="메모" value={request.pickup_memo} />
           </dl>
         </section>
@@ -659,6 +676,8 @@ function AdminPickupRequestsPage() {
 
   // CJ 재접수 — { pickupRequest, boxCount, desiredPickupDate } / 실행 중이면 reregisteringId
   const [reregisterModal, setReregisterModal] = useState(null);
+  const [boxTypeModal, setBoxTypeModal] = useState(null);
+  const [savingBoxTypes, setSavingBoxTypes] = useState(false);
   const [reregisteringId, setReregisteringId] = useState(null);
 
   // 알림톡/RPC 부분 실패를 전체 노출 — 이전엔 setError에 3건만 보여 4건 이후가 사라지는 P0 사고
@@ -743,7 +762,7 @@ function AdminPickupRequestsPage() {
     setIsLoading(true);
     setError("");
 
-    const { data, error: rpcError } = await supabase.rpc("list_admin_pickup_requests", {
+    const { data, error: rpcError } = await supabase.rpc("list_admin_pickup_requests_v2", {
       p_search: appliedSearch || null,
       p_statuses: statusFilters.length > 0 ? statusFilters : null,
       p_from_date: appliedFromDate || null,
@@ -925,6 +944,15 @@ function AdminPickupRequestsPage() {
       return;
     }
 
+    const missing = pickupRequests.find((row) => ids.includes(row.id) && validatePickupBoxes(row.box_count, row.box_type_codes));
+    if (missing) {
+      setError(`${missing.request_number}: 박스별 규격을 확인해 주세요. 접수된 박스가 있으면 CJ 재접수에서 변경하세요.`);
+      if (getBoxWaybillProgress(missing).registered === 0) {
+        setBoxTypeModal({ pickupRequest: missing, codes: resizePickupBoxTypes(missing.box_type_codes, missing.box_count) });
+      }
+      return;
+    }
+
     setDestructiveModal({
       title: `CJ 수거 접수 — ${ids.length}건`,
       description:
@@ -1031,8 +1059,25 @@ function AdminPickupRequestsPage() {
     setReregisterModal({
       pickupRequest,
       boxCount: String(Math.max(1, Number(pickupRequest.box_count) || 1)),
+      boxTypeCodes: resizePickupBoxTypes(pickupRequest.box_type_codes, Math.max(1, Number(pickupRequest.box_count) || 1)),
       desiredPickupDate: toDateInputValue(new Date()),
     });
+  };
+
+  const saveBoxTypes = async () => {
+    if (!boxTypeModal) return;
+    const boxError = validatePickupBoxes(boxTypeModal.pickupRequest.box_count, boxTypeModal.codes);
+    if (boxError) { setBoxTypeModal((prev) => ({ ...prev, error: boxError })); return; }
+    setSavingBoxTypes(true);
+    const { error: rpcError } = await supabase.rpc("admin_set_pickup_box_types", {
+      p_request_id: boxTypeModal.pickupRequest.id, p_box_type_codes: boxTypeModal.codes,
+    });
+    setSavingBoxTypes(false);
+    if (rpcError) { setBoxTypeModal((prev) => ({ ...prev, error: rpcError.message })); return; }
+    setBoxTypeModal(null);
+    setError("");
+    setNotice("박스 규격을 저장했습니다. 확인 후 CJ 수거 접수를 진행해 주세요.");
+    await loadPickupRequests();
   };
 
   // CJ 재접수 — 기존 예약을 전부 취소한 뒤 새 조건(박스 수·수거 예정일)으로 다시 접수한다.
@@ -1042,11 +1087,12 @@ function AdminPickupRequestsPage() {
       return;
     }
 
-    const { pickupRequest, boxCount, desiredPickupDate } = reregisterModal;
+    const { pickupRequest, boxCount, boxTypeCodes, desiredPickupDate } = reregisterModal;
     const parsedBoxCount = Number.parseInt(String(boxCount), 10);
 
-    if (!Number.isInteger(parsedBoxCount) || parsedBoxCount < 1) {
-      setError("박스 개수를 1개 이상으로 입력해 주세요.");
+    const boxError = validatePickupBoxes(parsedBoxCount, boxTypeCodes);
+    if (boxError) {
+      setReregisterModal((prev) => ({ ...prev, failure: { message: boxError, canSkipCancel: false } }));
       return;
     }
     if (!desiredPickupDate) {
@@ -1066,6 +1112,7 @@ function AdminPickupRequestsPage() {
           action: "reregister",
           pickupRequestIds: [pickupRequest.id],
           boxCount: parsedBoxCount,
+          boxTypeCodes,
           desiredPickupDate,
           skipCancel,
         }),
@@ -1587,6 +1634,12 @@ function AdminPickupRequestsPage() {
                           <p className="mt-1 text-xs text-slate-400">
                             총 {pickupRequest.item_count ?? 0}권
                           </p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            {pickupRequest.box_type_codes?.map((code, index) => `${index + 1}: ${PICKUP_BOX_TYPES.find((type) => type.code === code)?.name || "미확인"}`).join(" · ") || "박스 규격 미확인"}
+                          </p>
+                          {canRegisterCjPickup(pickupRequest) && boxProgress.registered === 0 && (
+                            <button className="mt-1 text-xs font-semibold text-blue-700" type="button" onClick={() => setBoxTypeModal({ pickupRequest, codes: resizePickupBoxTypes(pickupRequest.box_type_codes, pickupRequest.box_count) })}>박스 규격 설정</button>
+                          )}
                         </td>
                         <td className="px-4 py-4">
                           <StatusBadge status={pickupRequest.status} type="pickupRequest" />
@@ -1929,6 +1982,14 @@ function AdminPickupRequestsPage() {
       </AdminDialog>
 
       {/* CJ 재접수 — 기존 예약 전량 취소 후 새 조건으로 다시 접수 */}
+      <AdminDialog busy={savingBoxTypes} onClose={() => setBoxTypeModal(null)} open={Boolean(boxTypeModal)} size="md" title="수거 박스 규격">
+        {boxTypeModal && <div className="space-y-4 p-6">
+          <p className="text-sm font-bold">{boxTypeModal.pickupRequest.request_number} · {boxTypeModal.pickupRequest.box_count}박스</p>
+          <PickupBoxSelects codes={boxTypeModal.codes} disabled={savingBoxTypes} onChange={(codes) => setBoxTypeModal((prev) => ({ ...prev, codes }))} />
+          {boxTypeModal.error && <p className="text-sm text-rose-700" role="alert">{boxTypeModal.error}</p>}
+          <button className="btn-primary w-full" type="button" disabled={savingBoxTypes || Boolean(validatePickupBoxes(boxTypeModal.pickupRequest.box_count, boxTypeModal.codes))} onClick={saveBoxTypes}>{savingBoxTypes ? "저장 중..." : "규격 저장"}</button>
+        </div>}
+      </AdminDialog>
       <AdminDialog
         busy={reregisteringId !== null}
         onClose={() => setReregisterModal(null)}
@@ -1971,10 +2032,11 @@ function AdminPickupRequestsPage() {
                   min="1"
                   onChange={(event) =>
                     setReregisterModal((prev) =>
-                      prev ? { ...prev, boxCount: event.target.value.replace(/\D/g, "") } : prev,
+                      prev ? { ...prev, boxCount: event.target.value.replace(/\D/g, ""), boxTypeCodes: resizePickupBoxTypes(prev.boxTypeCodes, Number(event.target.value)) } : prev,
                     )
                   }
                   type="number"
+                  max={MAX_PICKUP_BOXES}
                   value={reregisterModal.boxCount}
                 />
                 <span className="mt-1 block text-[11px] text-slate-500">
@@ -2001,6 +2063,7 @@ function AdminPickupRequestsPage() {
               </label>
             </div>
 
+            <PickupBoxSelects codes={reregisterModal.boxTypeCodes} disabled={reregisteringId !== null} onChange={(codes) => setReregisterModal((prev) => ({ ...prev, boxTypeCodes: codes }))} />
             {reregisterModal.failure ? (
               <div className="space-y-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3">
                 <p className="text-xs font-bold text-rose-900">재접수하지 않았습니다</p>
@@ -2038,7 +2101,7 @@ function AdminPickupRequestsPage() {
               </button>
               <button
                 className="btn-primary flex-1"
-                disabled={reregisteringId !== null}
+                disabled={reregisteringId !== null || Boolean(validatePickupBoxes(reregisterModal.boxCount, reregisterModal.boxTypeCodes))}
                 onClick={() => void performReregisterPickup()}
                 type="button"
               >

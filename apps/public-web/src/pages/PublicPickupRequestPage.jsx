@@ -5,6 +5,7 @@ import PublicFooter from "../components/PublicFooter";
 import PublicPickupGuide from "../components/PublicPickupGuide";
 import { PICKUP_INTRO_NOTES } from "../lib/pickupGuideContent";
 import { PICKUP_FEE_POLICY, PICKUP_FEE_POLICY_NOTICE, PICKUP_FEE_POLICY_VERSION } from "@shared-domain/settlement";
+import { MAX_PICKUP_BOXES, PICKUP_BOX_TYPES, PICKUP_BOX_GUIDE, PICKUP_BOX_GUIDE_URL, pickupBoxLabel, resizePickupBoxTypes, validatePickupBoxes } from "@shared-domain/pickupBoxes";
 import {
   AlertTriangleIcon,
   ArrowRightIcon,
@@ -46,7 +47,7 @@ import { usePageMeta } from "../lib/usePageMeta";
 import "./PublicPickupRequestPage.css";
 
 const PICKUP_REQUEST_PATH = "/pickup/new";
-const STEPS = ["안내", "수거 정보", "예상 권수", "박스 수", "정산 정보", "검수 안내", "확인"];
+const STEPS = ["안내", "수거 정보", "예상 권수", "박스 규격", "정산 정보", "검수 안내", "확인"];
 
 // ─── 작성 중 신청서 임시 저장 ───
 const DRAFT_STORAGE_KEY = "subook.pickup.draft.v2";
@@ -447,6 +448,7 @@ function StepAddressForm({
       desired_pickup_date: prev.desired_pickup_date || "",
       expected_book_count: prev.expected_book_count || "",
       box_count: prev.box_count || "",
+      box_type_codes: prev.box_type_codes || [],
     }));
   };
 
@@ -470,6 +472,7 @@ function StepAddressForm({
       desired_pickup_date: prev.desired_pickup_date || "",
       expected_book_count: prev.expected_book_count || "",
       box_count: prev.box_count || "",
+      box_type_codes: prev.box_type_codes || [],
     }));
   };
 
@@ -868,8 +871,9 @@ function StepExpectedCount({ address, setAddress, onNext, onPrev }) {
 
 // ─── Step 3: 박스 개수 + 포장 안내 ───
 function StepBoxCount({ address, setAddress, onNext, onPrev }) {
-  const boxCountNumber = Number.parseInt(address.box_count, 10);
-  const isValid = Number.isFinite(boxCountNumber) && boxCountNumber > 0;
+  const boxCountNumber = Number(address.box_count);
+  const boxTypes = resizePickupBoxTypes(address.box_type_codes, boxCountNumber);
+  const isValid = !validatePickupBoxes(boxCountNumber, address.box_type_codes);
   // GA4 — 박스 수도 blur(입력 확정) 시점에만.
   const lastSentBoxRef = useRef(null);
   const handleBoxBlur = () => {
@@ -881,19 +885,20 @@ function StepBoxCount({ address, setAddress, onNext, onPrev }) {
   return (
     <div className="pickup-step">
       <div className="pickup-step__header">
-        <h2 className="pickup-step__title">박스는 몇 개인가요?</h2>
+        <h2 className="pickup-step__title">박스 수와 규격을 선택해 주세요</h2>
       </div>
 
       <div className="pickup-form-field">
-        <label className="pickup-field-label">박스 개수 *</label>
+        <label className="pickup-field-label" htmlFor="pickup-box-count">박스 개수 *</label>
         <input
+          id="pickup-box-count"
           className="pickup-input"
           inputMode="numeric"
           min="1"
           onBlur={handleBoxBlur}
           onChange={(e) => {
             const digits = e.target.value.replace(/\D/g, "").slice(0, 3);
-            setAddress((p) => ({ ...p, box_count: digits }));
+            setAddress((p) => ({ ...p, box_count: digits, box_type_codes: resizePickupBoxTypes(p.box_type_codes, Number(digits)) }));
           }}
           placeholder="예: 2"
           type="text"
@@ -902,7 +907,23 @@ function StepBoxCount({ address, setAddress, onNext, onPrev }) {
         <span className="pickup-field-hint">
           정산 시 박스 당 <strong>상품화 비용 5,000원</strong>이 차감돼요.
         </span>
+        {boxCountNumber > MAX_PICKUP_BOXES && <span className="pickup-field-hint" role="alert">한 번에 최대 {MAX_PICKUP_BOXES}박스까지 신청할 수 있습니다. 초과하면 신청을 나눠 주세요.</span>}
       </div>
+
+      <p className="pickup-field-hint">{PICKUP_BOX_GUIDE} <a href={PICKUP_BOX_GUIDE_URL} target="_blank" rel="noreferrer">CJ 공식 안내</a></p>
+      {boxTypes.map((code, index) => (
+        <div className="pickup-form-field" key={index}>
+          <label className="pickup-field-label" htmlFor={`pickup-box-${index}`}>박스 {index + 1} 규격 *</label>
+          <select className="pickup-input" id={`pickup-box-${index}`} value={code} onChange={(event) => {
+            const next = [...boxTypes];
+            next[index] = event.target.value;
+            setAddress((prev) => ({ ...prev, box_type_codes: next }));
+          }}>
+            <option value="">규격 선택</option>
+            {PICKUP_BOX_TYPES.map((type) => <option key={type.code} value={type.code}>{pickupBoxLabel(type.code)}</option>)}
+          </select>
+        </div>
+      ))}
 
       {/* 포장 안내 */}
       <div className="pickup-info-box">
@@ -918,7 +939,7 @@ function StepBoxCount({ address, setAddress, onNext, onPrev }) {
         <ul className="pickup-info-box__list">
           <li>빈 공간 없이 딱 맞는 박스에 담아주세요.</li>
           <li>교재가 흔들리지 않도록 포장해주세요.</li>
-          <li>한 박스당 20kg 이하까지 수거가 가능해요. (참고* 약 40~50권 이하)</li>
+          <li>포장을 마친 뒤 크기와 무게를 확인해 주세요. 20kg을 넘으면 박스를 나눠 주세요.</li>
         </ul>
       </div>
 
@@ -1466,6 +1487,8 @@ function StepConfirm({
             예상 권수 <strong>{expectedCount}권</strong> · 박스{" "}
             <strong>{boxCount}개</strong>
           </p>
+          {(address.box_type_codes || []).map((code, index) => <p key={index}>박스 {index + 1}: {pickupBoxLabel(code)}</p>)}
+          <button className="pickup-link-button" type="button" onClick={() => goEditStep(3)}>박스 규격 수정</button>
           <p className="pickup-confirm-detail__memo">
             어떤 교재인지는 따로 적지 않으셔도 돼요. 검수 과정에서 수북이 대신
             등록하고, 교재별 판매가는 마이페이지를 통해 안내해 드려요.
@@ -1760,7 +1783,7 @@ function PublicPickupRequestPage() {
   usePageMeta({
     title: "교재 위탁판매 신청",
     description:
-      "안 쓰는 수능 교재를 CJ 픽업으로 보내고 검수 후 정산까지. 예상 권수와 박스 수만 알려주면 끝.",
+      "안 쓰는 수능 교재를 CJ 픽업으로 보내고 검수 후 정산까지. 예상 권수와 박스별 규격을 입력해 수거를 신청하세요.",
   });
   const location = useLocation();
   const navigate = useNavigate();
@@ -1779,6 +1802,7 @@ function PublicPickupRequestPage() {
     desired_pickup_date: "",
     expected_book_count: "",
     box_count: "",
+    box_type_codes: [],
   });
   const [account, setAccount] = useState({
     account_id: null,
@@ -2000,6 +2024,12 @@ function PublicPickupRequestPage() {
   }, [isAuthenticated, isLoading]);
 
   const handleSubmit = async () => {
+    const boxError = validatePickupBoxes(address.box_count, address.box_type_codes);
+    if (boxError) {
+      showToast(boxError, "error");
+      goToStep(3);
+      return;
+    }
     setIsSubmitting(true);
     const allAgreed =
       policyAgreed.consignment && policyAgreed.privacy && policyAgreed.disposal;

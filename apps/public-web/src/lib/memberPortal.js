@@ -395,7 +395,7 @@ async function fetchPickupRequests() {
     return { pickupRequests: [], source: "local", error: null };
   }
 
-  const { data, error } = await supabase.rpc("get_my_pickup_requests", {
+  const { data, error } = await supabase.rpc("get_my_pickup_requests_v2", {
     p_limit: 20,
     p_offset: 0,
   });

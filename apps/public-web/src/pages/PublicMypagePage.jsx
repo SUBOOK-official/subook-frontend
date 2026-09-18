@@ -1,4 +1,5 @@
 import { getBuyerReturnLabel } from "@shared-domain/returns";
+import { pickupBoxLabel } from "@shared-domain/pickupBoxes";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { formatCurrency } from "@shared-domain/format";
@@ -2857,6 +2858,9 @@ function SalesTab({
                       })}
                     </div>
 
+                    {shipment.boxTypeCodes?.length > 0 && <p className="text-xs text-slate-500">
+                      {shipment.boxTypeCodes.map((code, index) => `박스 ${index + 1}: ${pickupBoxLabel(code)}`).join(" · ")}
+                    </p>}
                     {shipment.trackingNumber ? (
                       <p className="public-mypage-flow-card__tracking">
                         운송장: {shipment.trackingCompany} {shipment.trackingNumber}
