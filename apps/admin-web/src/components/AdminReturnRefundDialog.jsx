@@ -3,7 +3,27 @@ import AdminDialog from "./AdminDialog";
 import { BusyText } from "./Loading";
 import { supabase } from "@shared-supabase/adminSupabaseClient";
 import { formatCurrency, formatDate } from "@shared-domain/format";
+import { bookConditionLabel } from "@shared-domain/status";
 import { RETURN_REASONS, RETURN_STATUS_LABELS, getReturnRefundPreview, requiresPhysicalReturn } from "@shared-domain/returns";
+
+function ReturnItemDetails({ item, orderItem }) {
+  // 반품 조회는 품목 ID·제목·도착 상태만 제공하므로 주문 당시 옵션을 ID로 연결한다.
+  const details = { ...orderItem, ...item };
+  return (
+    <span className="min-w-0 flex-1">
+      <span className="block break-words">{details.title}</span>
+      <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+        <span className="rounded bg-indigo-50 px-1.5 py-0.5 font-semibold text-indigo-800 break-words">
+          옵션: {details.option_label?.trim() || "옵션 없음"}
+        </span>
+        {details.condition_grade ? <span className="text-slate-600">등급 {bookConditionLabel[details.condition_grade] || details.condition_grade}</span> : null}
+        {details.quantity != null ? <span className="text-slate-600">{details.quantity}권</span> : null}
+        {details.book_serial_number != null ? <span className="font-mono text-slate-600">No.{details.book_serial_number}</span> : null}
+        {details.book_location ? <span className="text-slate-500">위치 {details.book_location}</span> : null}
+      </span>
+    </span>
+  );
+}
 
 export default function AdminReturnRefundDialog({ order, onClose, onCompleted, onChanged, onRegisterPickup, refundAccount }) {
   const [cases, setCases] = useState([]);
@@ -31,6 +51,7 @@ export default function AdminReturnRefundDialog({ order, onClose, onCompleted, o
   const [recoveryPhrase, setRecoveryPhrase] = useState("");
   const [closing, setClosing] = useState(false);
   const [closeNote, setCloseNote] = useState("");
+  const orderItemsById = new Map((order.items ?? []).map(item => [String(item.id), item]));
   const active = cases.find(row => !["refunded", "cancelled"].includes(row.status));
   const isBank = order.payment_method === "bank_transfer";
   const canRetryRemaining = active?.status === "attention" && !isBank && pgProvider === "nicepay"
@@ -147,9 +168,10 @@ export default function AdminReturnRefundDialog({ order, onClose, onCompleted, o
               : "접수 단계에서는 돈이 환불되지 않습니다. 배송된 교재는 도착·검수 승인 후 최종 환불을 실행합니다."}</p>
             <div className="space-y-2">
               {(order.items ?? []).filter(i => !i.refunded_at).map(item => (
-                <label key={item.id} className="flex gap-2 rounded-lg bg-slate-50 p-3 text-sm">
-                  <input type="checkbox" checked={ids.includes(item.id)} onChange={() => setIds(toggle(ids, item.id))} />
-                  <span className="flex-1">{item.title}</span><span>{formatCurrency(item.total_price)}</span>
+                <label key={item.id} className="flex items-start gap-2 rounded-lg bg-slate-50 p-3 text-sm">
+                  <input className="mt-1 shrink-0" type="checkbox" checked={ids.includes(item.id)} onChange={() => setIds(toggle(ids, item.id))} />
+                  <ReturnItemDetails item={item} />
+                  <span className="shrink-0 whitespace-nowrap tabular-nums">{formatCurrency(item.total_price)}</span>
                 </label>
               ))}
             </div>
@@ -205,10 +227,10 @@ export default function AdminReturnRefundDialog({ order, onClose, onCompleted, o
             <fieldset disabled={busy || loadFailed} className="space-y-2">
               {active.items.map(item => (
                 <label key={item.id} className="flex items-start gap-2 text-sm rounded-lg border border-slate-200 p-3">
-                  {draft && active.requires_return && !item.received_at ? <input type="checkbox" checked={receivedIds.includes(item.id)}
+                  {draft && active.requires_return && !item.received_at ? <input className="mt-1 shrink-0" type="checkbox" checked={receivedIds.includes(item.id)}
                     onChange={() => setReceivedIds(toggle(receivedIds, item.id))} /> : null}
-                  <span className="flex-1">{item.title}</span>
-                  <span className="text-slate-500">{item.received_at ? "도착 확인됨" : active.requires_return ? "도착 대기" : "발송 전"}</span>
+                  <ReturnItemDetails item={item} orderItem={orderItemsById.get(String(item.id))} />
+                  <span className="shrink-0 text-slate-500">{item.received_at ? "도착 확인됨" : active.requires_return ? "도착 대기" : "발송 전"}</span>
                 </label>
               ))}
               {draft && active.requires_return && !allReceived ? (
@@ -292,7 +314,14 @@ export default function AdminReturnRefundDialog({ order, onClose, onCompleted, o
           </>
         ) : null}
         {cases.filter(row => ["refunded", "cancelled"].includes(row.status)).map(row => (
-          <p key={row.id} className="text-xs text-slate-500">{formatDate(row.completed_at)} · {RETURN_STATUS_LABELS[row.status]} · {row.items.map(i => i.title).join(", ")}{row.status === "refunded" ? ` · ${formatCurrency(row.refund_amount)}` : ""}</p>
+          <div key={row.id} className="space-y-2 border-t border-slate-200 pt-3 text-xs text-slate-500">
+            <p>{formatDate(row.completed_at)} · {RETURN_STATUS_LABELS[row.status]}{row.status === "refunded" ? ` · ${formatCurrency(row.refund_amount)}` : ""}</p>
+            <ul className="space-y-2">
+              {row.items.map(item => <li key={item.id} className="flex">
+                <ReturnItemDetails item={item} orderItem={orderItemsById.get(String(item.id))} />
+              </li>)}
+            </ul>
+          </div>
         ))}
         <button className="btn-ghost" type="button" disabled={busy} onClick={onClose}>닫기</button>
       </div>
