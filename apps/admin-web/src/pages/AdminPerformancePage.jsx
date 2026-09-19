@@ -8,21 +8,25 @@ import { PERFORMANCE_PRESETS, formatPerformanceValue as fmt, koreaToday, mergePe
 const buttonClass = "rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50";
 const emptyDrill = { level: "campaign" };
 const columns = [
-  ["grossRevenue", "매출", "money"], ["netRevenue", "순매출", "money"], ["orders", "주문수", "count"],
+  ["spend", "마케팅비 (Meta)", "money"], ["grossRevenue", "매출", "money"], ["netRevenue", "순매출", "money"], ["orders", "주문수", "count"],
   ["soldQuantity", "판매수량", "count"], ["aov", "AOV", "money"], ["visitors", "방문자", "count"],
-  ["cvr", "구매전환율", "percent"], ["spend", "광고비", "money"], ["cpa", "광고 CPA", "money"], ["roas", "광고 ROAS", "percent"],
+  ["repeatOrders", "재구매 주문", "count"], ["repeatOrderRate", "재구매 주문 비율", "percent"],
+  ["averageCommissionRate", "평균 수수료율", "percent"],
+  ["cvr", "구매전환율", "percent"], ["cpa", "광고 CPA", "money"], ["roas", "광고 ROAS", "percent"],
 ];
+const commissionLabels = { settled: "저장된 정산", jeonil: "전일학원", pickup: "수거 정책 기준", direct_purchase: "자체매입 · 수수료 대상 아님", unknown: "요율 미확인 · 평균 제외" };
 
-function MetricCard({ label, value, previous, format = "count", source, hint, inverse = false }) {
+function MetricCard({ label, value, previous, format = "count", source, hint, inverse = false, neutral = false, detailHref }) {
   const change = metricChange(value, previous, format === "percent");
   const good = change && (inverse ? change.value < 0 : change.value > 0);
   return <article className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
     <div className="flex items-center justify-between gap-2"><h2 className="text-sm font-semibold text-slate-600">{label}</h2><span className="text-[10px] font-semibold text-slate-400">{source}</span></div>
     <p className="mt-3 break-words text-lg font-black tracking-tight text-slate-950 tabular-nums sm:text-xl 2xl:text-2xl">{fmt(value, format)}</p>
-    <p className={`mt-2 text-xs font-semibold tabular-nums ${change?.value ? good ? "text-emerald-700" : "text-rose-700" : "text-slate-400"}`}>
+    <p className={`mt-2 text-xs font-semibold tabular-nums ${neutral ? "text-slate-500" : change?.value ? good ? "text-emerald-700" : "text-rose-700" : "text-slate-400"}`}>
       {change ? `${change.value > 0 ? "+" : ""}${change.value.toLocaleString("ko-KR", { maximumFractionDigits: 1 })}${change.unit} · 직전 기간 대비` : value == null ? "집계 전" : previous === 0 ? "직전 기간 실적 없음" : "비교 데이터 없음"}
     </p>
     <p className="mt-2 text-[11px] leading-relaxed text-slate-500">{hint}</p>
+    {detailHref && <a href={detailHref} className="mt-2 inline-block text-xs font-semibold text-slate-600 underline underline-offset-4">내역 보기</a>}
   </article>;
 }
 
@@ -154,20 +158,31 @@ export default function AdminPerformancePage() {
     {(salesError || providerError) && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">{salesError}{salesError && providerError ? " / " : ""}{providerError}</div>}
     {!providersLoading && [ga, meta].some((source) => source?.status !== "ready") && validProviders && <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-relaxed text-slate-600">{[ga, meta].filter((source) => source?.status !== "ready").map((source) => source?.message).filter(Boolean).join(" ")} 준비되지 않은 지표는 —로 표시합니다.</p>}
 
-    <section className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6" aria-label="핵심 성과" aria-busy={salesLoading || providersLoading}>
+    <section className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5" aria-label="핵심 성과" aria-busy={salesLoading || providersLoading}>
       <MetricCard label="매출" value={current?.grossRevenue} previous={previous?.grossRevenue} format="money" source="DB" hint="할인 후 실결제액 · 배송비 포함" />
       <MetricCard label="순매출" value={current?.netRevenue} previous={previous?.netRevenue} format="money" source="DB" hint={current ? `누적 환불 ${fmt(current.refunds, "money")} 차감` : "해당 결제분의 누적 환불 차감"} />
       <MetricCard label="주문수" value={current?.orders} previous={previous?.orders} source="DB" hint="결제 확인된 주문 · 환불 주문 포함" />
       <MetricCard label="판매 상품 수량" value={current?.soldQuantity} previous={previous?.soldQuantity} source="DB" hint={current ? `결제 ${fmt(current.paidQuantity)}권 − 환불 ${fmt(current.refundedQuantity)}권` : "주문상품 수량 합계 − 환불 수량"} />
       <MetricCard label="AOV" value={current?.aov} previous={previous?.aov} format="money" source="DB" hint="매출 ÷ 결제 주문수" />
       <MetricCard label="구매자수" value={current?.buyers} previous={previous?.buyers} source="DB" hint="기간 내 중복 제거 · 비회원 포함" />
+      <MetricCard label="재구매 주문 비율" value={current?.repeatOrderRate} previous={previous?.repeatOrderRate} format="percent" source="DB" hint={current?.repeatOrders != null ? `재구매 ${fmt(current.repeatOrders)}건 / 전체 ${fmt(current.orders)}건` : "두 번째 이후 결제 주문 ÷ 전체 주문"} />
       <MetricCard label="방문자" value={gaCurrent?.visitors} previous={gaPrevious?.visitors} source="GA4" hint="기간 내 중복 제거 방문자" />
       <MetricCard label="구매전환율" value={gaCurrent?.cvr} previous={gaPrevious?.cvr} format="percent" source="GA4" hint="구매 이벤트 세션 ÷ 전체 세션" />
       <MetricCard label="조회 → 장바구니" value={gaCurrent?.cartRate} previous={gaPrevious?.cartRate} format="percent" source="GA4" hint="조회 후 담기를 완료한 사용자 비율" />
       <MetricCard label="결제 이탈률" value={gaCurrent?.checkoutAbandonment} previous={gaPrevious?.checkoutAbandonment} format="percent" source="GA4" hint="결제 시작 후 구매 이벤트 없는 비율" inverse />
+      <MetricCard label="마케팅비 지출" value={metaCurrent?.spend} previous={metaPrevious?.spend} format="money" source="Meta" hint="선택 기간 Meta 광고비 합계" neutral detailHref="#performance-daily" />
       <MetricCard label="광고 CPA" value={metaCurrent?.cpa} previous={metaPrevious?.cpa} format="money" source="Meta" hint="광고비 ÷ Meta 기여 구매수" inverse />
       <MetricCard label="광고 ROAS" value={metaCurrent?.roas} previous={metaPrevious?.roas} format="percent" source="Meta" hint="Meta 기여 매출 ÷ 광고비 × 100" />
+      <MetricCard label="평균 수수료율" value={current?.averageCommissionRate} previous={previous?.averageCommissionRate} format="percent" source="DB" hint={`미환불 상품금액 가중 평균${current?.commissionExcludedQuantity > 0 ? ` · 자체매입 등 ${fmt(current.commissionExcludedQuantity)}권 제외` : ""}`} neutral detailHref="#performance-commission" />
     </section>
+
+    <details id="performance-commission" className="scroll-mt-6 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
+      <summary className="cursor-pointer font-semibold text-slate-800">평균 수수료율 산출 내역</summary>
+      <p className="mt-3 text-xs leading-relaxed">수수료 {fmt(current?.commissionAmount, "money")} ÷ 대상 상품금액 {fmt(current?.commissionSales, "money")} × 100. 환불 상품·배송비·박스비를 제외하고, 주문 쿠폰·포인트 차감 전 상품금액으로 계산합니다. 저장된 정산액을 우선 사용하며 미정산 상품은 수거 당시 정책, 전일학원은 50%를 적용합니다.</p>
+      {current?.commissionExcludedQuantity > 0 && <p className="mt-2 text-xs text-amber-700">수수료 대상이 아닌 자체매입 또는 요율 미확인 상품 {fmt(current.commissionExcludedQuantity)}권은 평균에서 제외했습니다.</p>}
+      <div className="mt-3 overflow-x-auto"><table className="w-full whitespace-nowrap text-right text-sm"><thead><tr className="border-b border-slate-200 text-xs text-slate-500"><th className="py-3 pr-4 text-left">적용 기준</th>{["수수료율", "수량", "상품금액", "수수료"].map((label) => <th key={label} className="px-3 py-3">{label}</th>)}</tr></thead><tbody>{(validSales?.commissionBreakdown ?? []).map((row) => <tr key={`${row.basis}-${row.feePercent}`} className="border-b border-slate-100 last:border-0"><th className="py-3 pr-4 text-left font-semibold">{commissionLabels[row.basis] ?? row.basis}</th><td className="px-3 py-3 tabular-nums">{fmt(row.feePercent, "percent")}</td><td className="px-3 py-3 tabular-nums">{fmt(row.quantity)}</td><td className="px-3 py-3 tabular-nums">{fmt(row.saleAmount, "money")}</td><td className="px-3 py-3 tabular-nums">{fmt(row.feeAmount, "money")}</td></tr>)}</tbody></table></div>
+      {!validSales?.commissionBreakdown?.length && <p className="mt-3 text-xs text-slate-500">{salesLoading ? "수수료 내역을 불러오는 중…" : validSales ? "선택한 기간에 집계할 상품이 없습니다." : "수수료 내역을 확인해주세요."}</p>}
+    </details>
 
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" aria-label="일별 추이">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><h2 className="text-base font-bold text-slate-900">일별 추이</h2><div className="flex gap-2">{[["revenue", "매출"], ["orders", "주문수"], ["visitors", "방문자"]].map(([key, label]) => <button key={key} type="button" aria-pressed={chartMetric === key} className={`${buttonClass} ${chartMetric === key ? "!bg-slate-100 !text-slate-950" : ""}`} onClick={() => setChartMetric(key)}>{label}</button>)}</div></div>
@@ -199,7 +214,7 @@ export default function AdminPerformancePage() {
       <p className="mt-3 text-xs leading-relaxed text-slate-500">광고 수치는 Meta 기여 설정·전환 발생일 기준입니다. 비율은 기간 합계로 계산하며 최대 15분 캐시됩니다.{meta?.updatedAt ? ` 조회 ${new Date(meta.updatedAt).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })}` : ""}</p>
     </section>
 
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="text-base font-bold text-slate-900">일별 상세</h2><p className="mt-1 text-xs text-slate-500">날짜를 누르면 해당 날짜의 전체 지표를 조회합니다. 방문자·구매자와 비율의 기간 합계는 일별 값의 합이나 평균과 다를 수 있습니다.</p>
+    <section id="performance-daily" className="scroll-mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="text-base font-bold text-slate-900">일별 상세 · 마케팅비 지출 내역</h2><p className="mt-1 text-xs text-slate-500">마케팅비는 연동된 Meta 광고 계정의 지출입니다. 날짜를 누르면 해당 날짜의 전체 지표를 조회합니다. 방문자·구매자와 비율의 기간 합계는 일별 값의 합이나 평균과 다를 수 있습니다.</p>
       <div className="mt-4 overflow-x-auto"><table className="w-full whitespace-nowrap text-sm"><thead><tr className="border-b border-slate-200 text-right text-xs text-slate-500"><th className="py-3 pr-4 text-left">날짜</th>{columns.map(([key, label]) => <th className="px-3 py-3" key={key}>{label}</th>)}</tr></thead><tbody>{visibleDays.map((row) => <tr key={row.date} className="border-b border-slate-100 last:border-0 hover:bg-slate-50"><th className="py-3 pr-4 text-left font-semibold"><button type="button" className="underline decoration-slate-300 underline-offset-4" onClick={() => selectRange({ from: row.date, to: row.date })}>{row.date}</button></th>{columns.map(([key, , format]) => <td key={key} className="px-3 py-3 text-right tabular-nums">{fmt(row[key], format)}</td>)}</tr>)}</tbody></table></div>
       {!daily.length && <p className="py-8 text-center text-sm text-slate-400">{salesLoading ? "실적을 불러오는 중…" : "표시할 실적 데이터가 없습니다."}</p>}
       {!showAllDays && daily.length > 31 && <button type="button" className={`${buttonClass} mt-4`} onClick={() => setShowAllDays(true)}>전체 {daily.length}일 보기</button>}
@@ -210,6 +225,8 @@ export default function AdminPerformancePage() {
       <li>순매출은 선택한 기간의 결제액에서 현재까지 누적 환불액을 뺀 금액입니다. 과거 결제분이 나중에 환불되면 과거 기간의 순매출도 변경됩니다.</li>
       <li>주문수·구매자수는 결제 이력 기준이라 환불 주문도 포함하고, 판매수량은 환불된 상품 수량을 제외합니다. AOV는 환불 전 매출 ÷ 결제 주문수입니다.</li>
       <li>구매자는 회원 계정별, 비회원 주문 연락처별로 중복 제거합니다. 회원·비회원으로 각각 구매한 동일인은 중복 집계될 수 있습니다.</li>
+      <li>재구매 주문 비율은 현재 주문 DB의 전체 결제 이력에서 두 번째 이후 주문 ÷ 선택 기간 전체 결제 주문입니다. 기간 이전의 결제와 환불 주문도 이력에 포함합니다. 구사이트 주문 이력은 포함하지 않으며, 회원·비회원 이력은 합치지 않습니다.</li>
+      <li>평균 수수료율은 수수료 합계 ÷ 대상 상품금액 합계로 계산합니다. 정산 전 예상액이 포함되며 실제 지급 완료율이나 순이익률을 뜻하지 않습니다. 요율 미확인 상품은 산출 내역에 별도로 표시합니다.</li>
       <li>GA4는 처리 지연·차단·동의 설정에 따라 실제 방문과 다를 수 있습니다. 무통장 구매 이벤트는 입금 전 발생합니다. 결제 이탈률은 실제 입금 실패율이 아닙니다. GA4 퍼널은 사용자 기준이며 세션을 넘는 후속 행동도 포함할 수 있습니다.</li>
       <li>증감률은 직전 동일 길이 기간 대비입니다. 비율 지표는 %p 차이로 표시하며, 분모가 0이거나 연결되지 않은 지표는 —로 표시합니다. 오늘을 포함한 비교는 오늘 집계 중인 값과 이전 날짜의 하루 전체를 비교합니다.</li>
       {(validSales?.unverifiedPayments > 0 || current?.cancelledPaidOrders > 0) && <li className="text-amber-700">확인 필요: 결제 시각 없는 과거 기록 {fmt(validSales?.unverifiedPayments ?? 0)}건은 제외했습니다. 결제 기록이 있지만 취소 상태인 {fmt(current?.cancelledPaidOrders ?? 0)}건은 결제·환불 원장 기준으로 포함했습니다.</li>}
