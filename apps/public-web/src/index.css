@@ -50,6 +50,8 @@
   --public-ds-warning: #9a6410;
   --public-ds-divider: #f0f0f0;
   --public-ds-radius: 12px;
+  --public-sold-out-veil: color-mix(in srgb, var(--public-ds-card) 64%, transparent);
+  --public-sold-out-gap: 8px;
 
   /* 스케일 토큰 — 컴포넌트별 임의값 대신 이 스케일만 사용 */
   --public-radius-sm: 6px;
@@ -6804,20 +6806,56 @@ img {
 
 .public-product-card--sold-out-blur .public-product-card__cover,
 .public-product-card--sold-out-blur .public-product-card__placeholder {
-  filter: blur(5px);
+  filter: blur(2px);
 }
 
 .public-product-card--sold-out-blur .public-product-card__sold-out {
-  background: color-mix(in srgb, var(--public-ds-card) 32%, transparent);
+  background: var(--public-sold-out-veil);
 }
 
-.public-product-card--sold-out-blur .public-product-card__sold-out span {
-  background: var(--public-ds-primary);
-  color: var(--public-ds-card);
-  border-radius: var(--public-radius-sm);
-  padding: 6px 14px;
-  font-size: 16px;
-  letter-spacing: 0.08em;
+.public-sold-out-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--public-sold-out-gap);
+  color: var(--public-ds-primary);
+  text-align: center;
+  pointer-events: none;
+}
+
+.public-sold-out-label::before {
+  content: "";
+  width: 24px;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.28;
+}
+
+.public-sold-out-label__title {
+  font-size: var(--public-sold-out-label-size, 16px);
+  font-weight: 400;
+  line-height: 1.4;
+  letter-spacing: 0.125em;
+  white-space: nowrap;
+}
+
+.public-sold-out-label__caption {
+  color: var(--public-ds-text-muted);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.4;
+  letter-spacing: 0.02em;
+}
+
+@media (max-width: 640px) {
+  .public-product-card--sold-out-blur {
+    --public-sold-out-label-size: 14px;
+  }
+
+  .public-product-card--sold-out-blur .public-product-card__cover,
+  .public-product-card--sold-out-blur .public-product-card__placeholder {
+    filter: blur(1.5px);
+  }
 }
 
 .public-product-card__placeholder {

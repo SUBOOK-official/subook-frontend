@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import PublicFooter from "../components/PublicFooter";
 import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
+import ProductSoldOutLabel from "../components/ProductSoldOutLabel";
 import { COLLAB_OPEN_AT } from "../lib/publicFeaturedProducts";
 import { fetchFeaturedProductsByKey } from "../lib/publicFeaturedProductsApi";
 import {
@@ -610,7 +611,9 @@ function PublicJeonilEventPage() {
                       draggable={false}
                       style={{ aspectRatio: R_CARD }}
                     />
-                    {isSoldOut ? <span className="jeonil-book-sold-out">SOLD OUT</span> : null}
+                    {isSoldOut ? (
+                      <div className="jeonil-book-sold-out"><ProductSoldOutLabel /></div>
+                    ) : null}
                   </>
                 );
 

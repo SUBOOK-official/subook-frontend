@@ -18,6 +18,7 @@ import {
   getStoreCardTags,
 } from "../lib/publicStoreCards";
 import { getThumbnailImageUrl } from "../lib/storageImage";
+import ProductSoldOutLabel from "./ProductSoldOutLabel";
 
 // 찜하기 하트 아이콘 — 예전엔 "♥"/"♡" 텍스트 글리프였는데, 폰트마다 굵기·정렬이
 // 달라져 보이던 문제를 없애려 SVG로 교체. 색상은 currentColor라 버튼의 color만
@@ -267,7 +268,7 @@ function ProductCard({
           </div>
         ) : product.isSoldOut ? (
           <div className="public-product-card__sold-out">
-            <span>{showSoldOutBlur ? "SOLD OUT" : "품절"}</span>
+            {showSoldOutBlur ? <ProductSoldOutLabel /> : <span>품절</span>}
           </div>
         ) : null}
 

@@ -744,24 +744,19 @@
 }
 
 .jeonil-book--sold-out {
-  filter: blur(5px);
+  filter: blur(2px);
 }
 
 .jeonil-book-sold-out {
+  --public-sold-out-label-size: clamp(18px, 3vw, 28px);
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  inset: 0 7%;
   z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   pointer-events: none;
-  padding: 10px 18px;
-  border-radius: var(--public-radius-sm);
-  background: var(--public-ds-primary);
-  color: var(--public-ds-card);
-  font-size: clamp(18px, 3vw, 28px);
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  white-space: nowrap;
+  background: var(--public-sold-out-veil);
 }
 /* 선택 모달을 여는 카드는 <button> — 링크 래퍼와 같은 레이아웃이 되도록 버튼 기본 스타일만 걷어낸다 */
 .jeonil-book-link--button {
@@ -779,7 +774,7 @@
 /* 순차 등장 딜레이는 래퍼 기준으로 센다 (.jeonil-book 은 래퍼 안 유일 자식이라 항상 1번째) */
 .jeonil-books.is-visible .jeonil-book-link:nth-child(2) .jeonil-book { transition-delay: 0.15s; }
 .jeonil-books.is-visible .jeonil-book-link:nth-child(3) .jeonil-book { transition-delay: 0.3s; }
-.jeonil-books.is-visible .jeonil-book:hover {
+.jeonil-books.is-visible .jeonil-book:not(.jeonil-book--sold-out):hover {
   transform: scale(1.045);
   transition: transform 0.22s ease;
   transition-delay: 0s;
