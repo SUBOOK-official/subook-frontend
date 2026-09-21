@@ -13,19 +13,18 @@ function LatestArrivalsSection({ favoriteIds, onToggleFavorite }) {
 
   useEffect(() => {
     let isCancelled = false;
+    let isFetching = false;
     const cachedProducts = getCachedHomeLatestBooks();
 
     if (cachedProducts) {
       setProducts(cachedProducts.products);
       setIsLoading(false);
       setHasFatalError(false);
-
-      if (!cachedProducts.isStale) {
-        return undefined;
-      }
     }
 
     const loadLatestBooks = async () => {
+      if (isFetching || document.visibilityState === "hidden") return;
+      isFetching = true;
       try {
         const result = await fetchHomeLatestBooks();
 
@@ -51,13 +50,22 @@ function LatestArrivalsSection({ favoriteIds, onToggleFavorite }) {
           setHasFatalError(true);
           setIsLoading(false);
         }
+      } finally {
+        isFetching = false;
       }
     };
 
     loadLatestBooks();
+    // 고정 상품이 품절되거나 재입고되면 캐시가 있어도 최신 표시로 갱신한다.
+    const intervalId = window.setInterval(loadLatestBooks, 60_000);
+    window.addEventListener("focus", loadLatestBooks);
+    document.addEventListener("visibilitychange", loadLatestBooks);
 
     return () => {
       isCancelled = true;
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", loadLatestBooks);
+      document.removeEventListener("visibilitychange", loadLatestBooks);
     };
   }, []);
 

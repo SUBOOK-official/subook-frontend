@@ -5,6 +5,7 @@ import { trackException, trackSelectItem } from "../lib/analytics";
 import {
   COLLAB_OPEN_LABEL,
   findFeaturedProductEntry,
+  isJeonilMockExam,
   isPreReleaseProduct,
   resolveFeaturedCoverUrl,
 } from "../lib/publicFeaturedProducts";
@@ -110,6 +111,7 @@ function ProductCard({
   const metaLine = getStoreCardMetaLine(product);
   // 출시 전 콜라보 교재는 가격·할인율을 감추고 오픈일만 알린다.
   const isPreRelease = isPreReleaseProduct(product);
+  const showSoldOutBlur = !isPreRelease && product.isSoldOut && isJeonilMockExam(product);
   const saleLabel = price !== null ? formatCurrency(price) : "가격 미정";
   const mediaRef = useRef(null);
   const [shouldLoad, setShouldLoad] = useState(false);
@@ -117,7 +119,7 @@ function ProductCard({
   const showImage = Boolean(coverImageUrl) && shouldLoad && imageStatus !== "fallback";
   const showSkeleton = Boolean(coverImageUrl) && imageStatus === "loading";
   const showPlaceholder = !coverImageUrl || imageStatus === "fallback";
-  const cardClassName = ["public-product-card", className].filter(Boolean).join(" ");
+  const cardClassName = ["public-product-card", showSoldOutBlur && "public-product-card--sold-out-blur", className].filter(Boolean).join(" ");
 
   // 표지 로드 실패 계측 1회 가드 (URL이 바뀌면 다시 계측 가능)
   const imageFailureTrackedRef = useRef(false);
@@ -265,7 +267,7 @@ function ProductCard({
           </div>
         ) : product.isSoldOut ? (
           <div className="public-product-card__sold-out">
-            <span>품절</span>
+            <span>{showSoldOutBlur ? "SOLD OUT" : "품절"}</span>
           </div>
         ) : null}
 

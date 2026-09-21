@@ -591,20 +591,30 @@ function PublicJeonilEventPage() {
             <div className="jeonil-books" ref={booksRef}>
               {BOOK_CARDS.map((card, index) => {
                 const productId = featuredByKey[card.key]?.id ?? null;
+                const choices = (card.choices ?? [])
+                  .map((choice) => ({
+                    ...choice,
+                    productId: featuredByKey[choice.key]?.id ?? null,
+                    isSoldOut: featuredByKey[choice.key]?.isSoldOut === true,
+                  }))
+                  .filter((choice) => choice.productId !== null);
+                const isSoldOut = choices.length > 0
+                  ? choices.every((choice) => choice.isSoldOut)
+                  : featuredByKey[card.key]?.isSoldOut === true;
                 const image = (
-                  <img
-                    className="jeonil-book"
-                    src={card.src}
-                    alt={card.alt}
-                    draggable={false}
-                    style={{ aspectRatio: R_CARD }}
-                  />
+                  <>
+                    <img
+                      className={`jeonil-book${isSoldOut ? " jeonil-book--sold-out" : ""}`}
+                      src={card.src}
+                      alt={card.alt}
+                      draggable={false}
+                      style={{ aspectRatio: R_CARD }}
+                    />
+                    {isSoldOut ? <span className="jeonil-book-sold-out">SOLD OUT</span> : null}
+                  </>
                 );
 
                 // 카드가 상품 여럿을 대표하고 둘 이상 등록돼 있으면 링크 대신 선택 모달
-                const choices = (card.choices ?? [])
-                  .map((choice) => ({ ...choice, productId: featuredByKey[choice.key]?.id ?? null }))
-                  .filter((choice) => choice.productId !== null);
                 if (choices.length > 1) {
                   return (
                     <button

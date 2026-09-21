@@ -72,3 +72,14 @@ test("normalizeHomeBestBooks removes sold-out cached products without reordering
   ];
   assert.deepEqual(normalizeHomeBestBooks(products).map(({ id }) => id), ["first", "second"]);
 });
+
+test("BEST에는 전일학원 품절 모의고사를 남기고 비공개 상품은 제외한다", () => {
+  const product = { id: "2370", brand: "전일학원", bookType: "모의고사", isSoldOut: true, availableCount: 0 };
+  assert.deepEqual(normalizeHomeBestBooks([
+    product,
+    { ...product, id: "hidden", status: "hidden" },
+    { ...product, id: "private", isPublic: false },
+    { ...product, id: "other-brand", brand: "시대인재" },
+    { ...product, id: "other-type", bookType: "N제" },
+  ]).map(({ id }) => id), ["2370"]);
+});

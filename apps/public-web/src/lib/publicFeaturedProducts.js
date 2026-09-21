@@ -17,6 +17,11 @@
 //   · 상세페이지 이미지는 components/FeaturedProductDetail.jsx
 
 export const JEONIL_BRAND = "전일학원";
+
+// DB 목록/상세의 품절 노출 예외와 같은 범위. 재고 판정은 RPC 응답을 그대로 따른다.
+export function isJeonilMockExam(product) {
+  return product?.brand === JEONIL_BRAND && (product.bookType ?? product.book_type) === "모의고사";
+}
 // 출시 전 상품 상세에서 '알림 신청하러 가기'로 보낼 이벤트 랜딩.
 export const JEONIL_EVENT_PATH = "/event/jeon-il";
 // 출시 전에만 덮어씌우는 COMING SOON 티저 표지. 상품의 실제 표지는 DB에 그대로 있어

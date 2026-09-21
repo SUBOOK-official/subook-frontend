@@ -455,6 +455,15 @@ function sendHtml(res, statusCode, html) {
   res.status(statusCode).send(html);
 }
 
+// SPA와 같은 품절 예외. 판매 시 자동 hidden이 된 전일 모의고사만 복원한다.
+export function isPrerenderProductVisible(product, books) {
+  if (!product) return false;
+  if (product.status !== "hidden") return true;
+  return product.brand === "전일학원" && product.book_type === "모의고사" &&
+    !books.some((book) => book.status === "on_sale") &&
+    books.some((book) => ["reserved", "settled"].includes(book.status));
+}
+
 export default async function handler(req, res) {
   if (req.method !== "GET" && req.method !== "HEAD") {
     res.setHeader("Allow", "GET, HEAD");
@@ -479,7 +488,7 @@ export default async function handler(req, res) {
       "id,title,option,subject,brand,book_type,published_year,instructor_name,cover_image_url,status,ai_summary";
     const [productRows, bookRows, relatedBooks] = await Promise.all([
       fetchJson(
-        `${url}/rest/v1/products?id=eq.${id}&status=neq.hidden&select=${productSelect}&limit=1`,
+        `${url}/rest/v1/products?id=eq.${id}&select=${productSelect}&limit=1`,
         key,
       ),
       // 전 상태 조회 — 판매 가능분 판정은 summarizeBooks에서 (품절 시 마지막 판매가 폴백용)
@@ -492,12 +501,13 @@ export default async function handler(req, res) {
     ]);
 
     const product = Array.isArray(productRows) ? productRows[0] : null;
-    if (!product) {
+    const books = Array.isArray(bookRows) ? bookRows : [];
+    if (!isPrerenderProductVisible(product, books)) {
       sendHtml(res, 404, "<!doctype html><html lang=\"ko\"><head><title>상품을 찾을 수 없습니다</title></head><body><p>상품을 찾을 수 없습니다. <a href=\"https://subook.kr/\">수북 홈으로</a></p></body></html>");
       return;
     }
 
-    const stock = summarizeBooks(Array.isArray(bookRows) ? bookRows : []);
+    const stock = summarizeBooks(books);
     sendHtml(res, 200, buildHtml({ product, stock, relatedBooks }));
   } catch {
     // 실패 시 503 — 크롤러가 나중에 재시도 (빈 페이지를 색인시키지 않는다)

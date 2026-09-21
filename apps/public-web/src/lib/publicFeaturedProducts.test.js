@@ -5,6 +5,7 @@ import {
   findFeaturedProductEntry,
   getFeaturedDetailKey,
   isLowStockCount,
+  isJeonilMockExam,
   isPreReleaseProduct,
   mapFeaturedProductsByKey,
   matchesFeaturedEntry,
@@ -12,6 +13,14 @@ import {
   pinFeaturedProductsFirst,
   resolveFeaturedCoverUrl,
 } from "./publicFeaturedProducts.js";
+
+test("품절 노출 예외는 전일학원 모의고사에만 적용한다", () => {
+  assert.equal(isJeonilMockExam({ brand: "전일학원", bookType: "모의고사" }), true);
+  assert.equal(isJeonilMockExam({ brand: "전일학원", book_type: "모의고사" }), true);
+  assert.equal(isJeonilMockExam({ brand: "전일학원", bookType: "N제" }), false);
+  assert.equal(isJeonilMockExam({ brand: "시대인재", bookType: "모의고사" }), false);
+  assert.equal(isJeonilMockExam(null), false);
+});
 
 // 로직 검증용 고정 레지스트리 — 실제 레지스트리는 등록된 productId가 박혀 있어
 // 제목 매칭 경로를 시험할 수 없다. 두 경로를 각각 확인하려고 픽스처를 쓴다.

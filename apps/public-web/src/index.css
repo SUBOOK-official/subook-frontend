@@ -6802,6 +6802,24 @@ img {
   opacity: 1;
 }
 
+.public-product-card--sold-out-blur .public-product-card__cover,
+.public-product-card--sold-out-blur .public-product-card__placeholder {
+  filter: blur(5px);
+}
+
+.public-product-card--sold-out-blur .public-product-card__sold-out {
+  background: color-mix(in srgb, var(--public-ds-card) 32%, transparent);
+}
+
+.public-product-card--sold-out-blur .public-product-card__sold-out span {
+  background: var(--public-ds-primary);
+  color: var(--public-ds-card);
+  border-radius: var(--public-radius-sm);
+  padding: 6px 14px;
+  font-size: 16px;
+  letter-spacing: 0.08em;
+}
+
 .public-product-card__placeholder {
   background: #f0f0f0;
   display: flex;

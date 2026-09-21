@@ -1,3 +1,5 @@
+import { isJeonilMockExam } from "./publicFeaturedProducts.js";
+
 // 캐시는 초기 표시용이다. 홈 진입 시 항상 재검증하고, 재고를 1분마다 갱신한다.
 export const HOME_BEST_BOOKS_CACHE_TTL_MS = 60 * 1000;
 
@@ -37,10 +39,10 @@ export function normalizeHomeBestBooks(products) {
           return false;
         }
 
-        return (
-          !["hidden", "sold_out"].includes(String(product.status ?? "").toLowerCase()) &&
-          product.isSoldOut !== true &&
-          product.availableCount !== 0
+        if (String(product.status ?? "").toLowerCase() === "hidden") return false;
+        return isJeonilMockExam(product) || (
+          String(product.status ?? "").toLowerCase() !== "sold_out" &&
+          product.isSoldOut !== true && product.availableCount !== 0
         );
       })
     : [];
