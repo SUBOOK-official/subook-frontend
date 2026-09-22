@@ -23,9 +23,8 @@ import {
 // products 테이블을 1차 단위로 표시하고, 행 클릭 시 그 product에 link된
 // books 인스턴스(셀러별/등급별)를 모달로 보여준다.
 
-// products.status는 재고(books) 파생값 — DB 가드 트리거가 직접 쓰기를 재고 기준으로
-// 수렴시킨다(2026-07-25). 여기서는 읽기 전용 뱃지로만 표시하고, 상품 올리기/내리기는
-// books.is_public 경로(admin_bulk_set_products_visibility·admin_set_book_visibility)를 쓴다.
+// 상품 공개 설정(is_listed)과 가용 재고로 상태를 계산한다.
+// 상태는 읽기 전용이며 상품 공개 설정은 admin_bulk_set_products_visibility로 변경한다.
 const STATUS_BADGE = {
   selling: "bg-emerald-100 text-emerald-800",
   sold_out: "bg-amber-100 text-amber-800",
@@ -196,9 +195,7 @@ function AdminProductMastersPage() {
     }
   };
 
-  // 일괄 노출/숨김 — books.is_public을 직접 플립 (2026-07-22 수리).
-  // 구 admin_bulk_update_product_status는 파생값 products.status만 바꿔 스토어에
-  // 반영되지 않고 다음 트리거 때 원복되는 버그가 있어 사용 중단.
+  // 상품 공개 설정을 저장하고 공개 조건을 충족하는 권별 재고에 반영한다.
   const runBulkProductVisibility = async (isPublic, ids) => {
     setBulkProcessing(true);
     try {
@@ -212,8 +209,8 @@ function AdminProductMastersPage() {
         const books = data?.updated_books ?? 0;
         const skipped = Array.isArray(data?.skipped_product_ids) ? data.skipped_product_ids.length : 0;
         showToast(
-          `재고 ${books}권 ${isPublic ? "노출" : "숨김"} 전환 완료` +
-            (skipped > 0 ? ` / ${skipped}개 상품은 노출된 재고 없음(판매중·가격·검수 메타 조건 미충족)` : ""),
+          `상품 ${isPublic ? "공개" : "숨김"} 설정 완료 · 재고 ${books}권 반영` +
+            (skipped > 0 ? ` / ${skipped}개 상품은 재고의 공개 조건을 확인해 주세요` : ""),
           skipped > 0 ? "info" : "success",
         );
       }
@@ -333,10 +330,10 @@ function AdminProductMastersPage() {
     setDestructiveModal({
       title: `${ids.length}개 상품 일괄 ${label}`,
       description:
-        `선택 ${ids.length}개 상품의 재고(권)를 일괄 ${label} 처리합니다.\n\n` +
+        `선택 ${ids.length}개 상품을 일괄 ${label} 처리합니다.\n\n` +
         (isPublic
           ? `· 판매중이고 가격이 입력된 재고가 즉시 스토어에 노출됩니다.\n· 가격이 없는 재고는 노출 대상에서 제외됩니다.\n· 검수가 완료되지 않은 상품이 공개되면 클레임이 발생할 수 있습니다.`
-          : `· 모든 재고가 즉시 스토어에서 숨김 처리됩니다.`),
+          : `· 상품을 스토어에서 내립니다. 재입고되어도 직접 공개하기 전까지 숨김을 유지합니다.`),
       confirmPhrase: action,
       reasonRequired: false,
       confirmLabel: `${ids.length}건 ${label}`,
@@ -478,12 +475,12 @@ function AdminProductMastersPage() {
     const skipped =
       Array.isArray(data?.skipped_product_ids) && data.skipped_product_ids.length > 0;
     if (nextPublic && skipped) {
-      showToast("노출 가능한 재고가 없습니다 (판매중·가격·검수 메타 조건 미충족).", "info");
-    } else if (updatedBooks === 0) {
+      showToast("상품 공개 설정을 저장했습니다. 재고의 가격·검수 정보 등 공개 조건을 확인해 주세요.", "info");
+    } else if (updatedBooks === 0 && (data?.updated_products ?? 0) === 0) {
       showToast(`이미 ${nextPublic ? "공개" : "숨김"} 상태입니다.`, "info");
     } else {
       showToast(
-        `"${product.title}" 재고 ${updatedBooks}권을 ${nextPublic ? "공개" : "숨김"} 처리했습니다.`,
+        `"${product.title}" 상품을 ${nextPublic ? "공개" : "숨김"}로 설정했습니다.`,
         "success",
       );
     }
@@ -662,7 +659,7 @@ function AdminProductMastersPage() {
         </>
       }
       activeModule="products"
-      description="책 종류 단위 관리. 같은 메타데이터의 책은 자동으로 한 상품 아래로 묶이고, 상태(판매중·품절·숨김)는 재고에서 자동 계산됩니다. 상품을 내리려면 숨김(노출 해제)을 사용하세요."
+      description="상품 공개 설정과 재고를 관리합니다. 공개 상품은 구매 가능한 재고가 없으면 품절, 재입고되면 판매중으로 전환됩니다."
       title="상품 재고"
     >
       <div className="space-y-6">
@@ -1086,7 +1083,7 @@ function AdminProductMastersPage() {
                         className={`inline-flex cursor-help items-center rounded-full px-2 py-0.5 text-xs font-bold ${
                           STATUS_BADGE[product.status] ?? "bg-slate-100 text-slate-600"
                         }`}
-                        title="재고에서 자동 계산 — 판매중: 노출 판매중 재고 있음 · 품절: 노출 재고 전량 판매됨 · 숨김: 노출 재고 없음"
+                        title="판매중: 공개 상품에 구매 가능 재고 있음 · 품절: 공개 상품에 구매 가능 재고 없음 · 숨김: 상품 공개 해제"
                       >
                         {STATUS_LABEL[product.status] ?? product.status}
                       </span>
@@ -1100,12 +1097,12 @@ function AdminProductMastersPage() {
                         >
                           수정
                         </button>
-                        {(product.public_count ?? 0) > 0 ? (
+                        {(product.is_listed ?? (product.status !== "hidden")) ? (
                           <button
                             className="whitespace-nowrap rounded-md border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:border-slate-500 hover:bg-slate-50 disabled:opacity-50"
                             disabled={busyId === product.id}
                             onClick={() => handleProductVisibility(product, false)}
-                            title="모든 재고의 노출을 해제해 스토어에서 내립니다"
+                            title="상품을 내리고 재입고 후에도 숨김을 유지합니다"
                             type="button"
                           >
                             {busyId === product.id ? "처리 중" : "숨김"}
@@ -1355,7 +1352,8 @@ function AdminProductMastersPage() {
                         <td className="px-3 py-2 text-center">
                           <button
                             type="button"
-                            disabled={bookBusyId === book.id}
+                            disabled={bookBusyId === book.id || book.status !== "on_sale" || detailProduct?.is_listed === false}
+                            title={detailProduct?.is_listed === false ? "상품을 먼저 공개해 주세요" : book.status !== "on_sale" ? "판매중인 재고만 노출할 수 있습니다" : "권별 노출 변경"}
                             onClick={() => handleBookVisibility(book, !book.is_public)}
                             className={`whitespace-nowrap rounded-full px-3 py-1 text-xs font-bold disabled:opacity-50 ${
                               book.is_public
