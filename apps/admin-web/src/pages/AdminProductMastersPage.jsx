@@ -7,6 +7,7 @@ import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import ProductMasterEditModal from "../components/ProductMasterEditModal";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { formatCurrency, formatDate } from "@shared-domain/format";
+import { productStatusLabel as STATUS_LABEL } from "@shared-domain/status";
 import StatusBadge from "@shared-domain/StatusBadge";
 import { CloseIcon } from "../components/icons";
 import { downloadInventoryAuditXlsx } from "../lib/inventoryAuditExport";
@@ -25,12 +26,6 @@ import {
 // products.status는 재고(books) 파생값 — DB 가드 트리거가 직접 쓰기를 재고 기준으로
 // 수렴시킨다(2026-07-25). 여기서는 읽기 전용 뱃지로만 표시하고, 상품 올리기/내리기는
 // books.is_public 경로(admin_bulk_set_products_visibility·admin_set_book_visibility)를 쓴다.
-const STATUS_LABEL = {
-  selling: "판매중",
-  sold_out: "품절",
-  hidden: "숨김",
-};
-
 const STATUS_BADGE = {
   selling: "bg-emerald-100 text-emerald-800",
   sold_out: "bg-amber-100 text-amber-800",
@@ -685,6 +680,7 @@ function AdminProductMastersPage() {
               <button
                 key={card.key || "all"}
                 type="button"
+                aria-pressed={isActive}
                 onClick={() => {
                   setFilters((f) => ({ ...f, status: card.key }));
                   setCurrentPage(1);
@@ -787,6 +783,20 @@ function AdminProductMastersPage() {
             placeholder="상품명, 강사명, 옵션, 일련번호로 검색"
             className="w-72 rounded-md border border-slate-300 px-3 py-2"
           />
+          <select
+            aria-label="상품 상태"
+            value={filters.status}
+            onChange={(e) => {
+              setFilters((f) => ({ ...f, status: e.target.value }));
+              setCurrentPage(1);
+            }}
+            className="rounded-md border border-slate-300 px-3 py-2"
+          >
+            <option value="">전체 상태</option>
+            {Object.keys(STATUS_BADGE).map((status) => (
+              <option key={status} value={status}>{STATUS_LABEL[status]}</option>
+            ))}
+          </select>
           <select
             value={filters.brand}
             onChange={(e) => {
