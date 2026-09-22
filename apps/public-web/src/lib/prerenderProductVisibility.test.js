@@ -13,4 +13,9 @@ test("공유·검색 봇도 전일 품절 모의고사에 접근하되 숨긴 �
   assert.equal(isPrerenderProductVisible({ ...product, book_type: "N제" }, sold), false);
   assert.equal(isPrerenderProductVisible(product, []), false);
   assert.equal(isPrerenderProductVisible(null, sold), false);
+  assert.equal(isPrerenderProductVisible({ ...product, is_listed: false }, sold), false);
+  assert.equal(isPrerenderProductVisible({ ...product, is_listed: true, status: "sold_out" }, sold), true);
+  assert.equal(isPrerenderProductVisible({ ...product, is_listed: true, status: "sold_out", brand: "시대인재" }, sold), false);
+  assert.equal(isPrerenderProductVisible({ ...product, is_listed: false }, [{ status: "on_sale", is_public: true }]), false);
+  assert.equal(isPrerenderProductVisible({ ...product, is_listed: true, status: "selling" }, [{ status: "on_sale", is_public: true }]), true);
 });

@@ -14,12 +14,12 @@ test("Meta 크롤러의 Product JSON-LD는 픽셀과 같은 ID·URL·가격·재
     if (previousKey === undefined) delete process.env.SUPABASE_SERVICE_ROLE_KEY;
     else process.env.SUPABASE_SERVICE_ROLE_KEY = previousKey;
   });
-  const product = { id: 2370, title: "테스트 교재", brand: "시대인재", subject: "국어", cover_image_url: "https://subook.kr/cover.jpg" };
+  const product = { id: 2370, title: "테스트 교재", brand: "전일학원", book_type: "모의고사", status: "selling", is_listed: true, subject: "국어", cover_image_url: "https://subook.kr/cover.jpg" };
   let bookStatus = "on_sale";
   t.mock.method(globalThis, "fetch", async (url) => {
     const path = new URL(url).pathname;
     const rows = path.endsWith("/products") ? [product]
-      : path.endsWith("/books") ? [{ price: 59000, condition_grade: "S", status: bookStatus, is_public: true }]
+      : path.endsWith("/books") ? [{ price: 59000, condition_grade: "S", status: bookStatus, is_public: bookStatus === "on_sale" }]
       : [];
     return { ok: true, json: async () => rows };
   });
@@ -40,7 +40,8 @@ test("Meta 크롤러의 Product JSON-LD는 픽셀과 같은 ID·URL·가격·재
   assert.equal(available.offers.price, 59000);
   assert.equal(available.offers.priceCurrency, "KRW");
   assert.equal(available.offers.availability, "https://schema.org/InStock");
-  bookStatus = "sold";
+  bookStatus = "settled";
+  product.status = "sold_out";
   const soldOut = await readProduct();
   assert.equal(soldOut.productID, available.productID);
   assert.equal(soldOut.url, available.url);

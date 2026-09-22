@@ -37,7 +37,7 @@ async function fetchProductsPage({ url, key, offset }) {
   try {
     const query =
       `${url}/rest/v1/products` +
-      `?select=id,updated_at&status=neq.hidden&order=id.asc` +
+      `?select=id,updated_at&status=eq.selling&order=id.asc` +
       `&limit=${PAGE_SIZE}&offset=${offset}`;
     const response = await fetch(query, {
       headers: { apikey: key, Authorization: `Bearer ${key}` },

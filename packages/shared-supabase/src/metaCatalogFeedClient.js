@@ -66,7 +66,8 @@ export async function readMetaCatalogSnapshot({
   try {
     const selected = `in.(${META_JEONIL_PRODUCT_IDS.join(",")})`;
     const [products, books, preReleases] = await Promise.all([
-      readAll("products", PRODUCT_SELECT, { status: "neq.hidden", ...(scope === "jeonil" ? { id: selected } : {}) }),
+      // 품절 상품의 마지막 가격·상품 ID는 syncMetaCatalogRows의 저장 이력에서 복원한다.
+      readAll("products", PRODUCT_SELECT, { status: "eq.selling", ...(scope === "jeonil" ? { id: selected } : {}) }),
       readAll("books", BOOK_SELECT, { is_public: "eq.true", ...(scope === "jeonil" ? { product_id: selected } : {}) }),
       readAll("pre_release_products", "product_id,release_at", {}, "product_id"),
     ]);

@@ -86,6 +86,8 @@ test("DB 응답 상한이 요청보다 작아도 끝까지 읽고 일시적 오�
   });
   assert.equal(result.products.length, 2);
   assert.equal(result.books.length, 2);
+  // 품절은 공개 books가 없어 가격을 만들 수 없다. 저장된 피드 이력에서 별도로 복원한다.
+  assert.ok(requests.filter((request) => request.pathname.endsWith("/products")).every((request) => request.searchParams.get("status") === "eq.selling"));
   assert.ok(requests.filter((request) => request.pathname.endsWith("/products")).every((request) => request.searchParams.getAll("id").includes("in.(2370,2371,2437)")));
   assert.ok(requests.filter((request) => request.pathname.endsWith("/books")).every((request) => request.searchParams.get("is_public") === "eq.true"));
 });

@@ -455,10 +455,11 @@ function sendHtml(res, statusCode, html) {
   res.status(statusCode).send(html);
 }
 
-// SPA와 같은 품절 예외. 판매 시 자동 hidden이 된 전일 모의고사만 복원한다.
+// 관리자 품절 분류와 별개로 SPA의 기존 노출 정책을 유지한다.
 export function isPrerenderProductVisible(product, books) {
   if (!product) return false;
-  if (product.status !== "hidden") return true;
+  if (product.is_listed === false) return false;
+  if (books.some((book) => book.status === "on_sale" && book.is_public === true)) return true;
   return product.brand === "전일학원" && product.book_type === "모의고사" &&
     !books.some((book) => book.status === "on_sale") &&
     books.some((book) => ["reserved", "settled"].includes(book.status));
@@ -484,8 +485,9 @@ export default async function handler(req, res) {
   }
 
   try {
-    const productSelect =
-      "id,title,option,subject,brand,book_type,published_year,instructor_name,cover_image_url,status,ai_summary";
+    // 공개 읽기 테이블의 단일 상품. 새 공개 설정 컬럼 도입 전후에 같은 앱이 동작해야
+    // public-web을 DB보다 먼저 배포할 수 있다. 존재하지 않는 is_listed를 명시 요청하지 않는다.
+    const productSelect = "*";
     const [productRows, bookRows, relatedBooks] = await Promise.all([
       fetchJson(
         `${url}/rest/v1/products?id=eq.${id}&select=${productSelect}&limit=1`,
