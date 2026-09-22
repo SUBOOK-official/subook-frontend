@@ -57,7 +57,7 @@ function JeonilProductChooserDialog({ card, onClose }) {
                 onClick={onClose}
               >
                 <span className="jeonil-chooser__choice-text">
-                  <span className="jeonil-chooser__choice-label">{choice.label}{choice.isSoldOut ? " · SOLD OUT" : ""}</span>
+                  <span className="jeonil-chooser__choice-label">{choice.label}</span>
                   <span className="jeonil-chooser__choice-desc">{choice.desc}</span>
                 </span>
                 <svg
