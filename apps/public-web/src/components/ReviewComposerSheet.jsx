@@ -1,4 +1,4 @@
-// 후기 작성 시트 — 마이페이지 구매확정 주문 카드에서 열린다.
+// 후기 작성 시트 — 배송완료/구매확정 주문에서 열린다.
 // 주문 1건당 후기 1개. 별점 필수, 본문 10~500자, 사진 최대 3장(선택, 업로드 전 리사이즈).
 // 한 번 작성한 후기는 수정·삭제할 수 없다(2026-09-02 결정) — 이미 쓴 주문은 읽기 전용으로 보여준다.
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -24,6 +24,7 @@ import {
   POINT_POLICY,
   formatPoints,
   isReviewRewardEligible,
+  getReviewRewardPoints,
 } from "../lib/publicPointsUtils";
 import { getThumbnailImageUrl } from "../lib/storageImage";
 import "./PublicReviews.css";
@@ -133,7 +134,7 @@ function ReviewReadOnly({ order, review, onClose, open }) {
   );
 }
 
-function ReviewComposerSheet({ open, order, review, user, onClose, onSaved }) {
+function ReviewComposerSheet({ open, order, review, user, isFirstReview = false, onClose, onSaved }) {
   const [draft, setDraft] = useState(EMPTY_DRAFT);
   const [hoverRating, setHoverRating] = useState(0);
   const [errorMessage, setErrorMessage] = useState("");
@@ -177,6 +178,9 @@ function ReviewComposerSheet({ open, order, review, user, onClose, onSaved }) {
   }
   const rewardSubtotal = activeItemCount > 0 ? activeItemSubtotal : Number(order?.subtotal) || 0;
   const isRewardEligible = isReviewRewardEligible(rewardSubtotal);
+  const rewardPoints = getReviewRewardPoints({ subtotal: rewardSubtotal, isFirstReview, photoCount: draft.photos.length });
+  const textReward = isFirstReview ? POINT_POLICY.earnFirstText : POINT_POLICY.earnText;
+  const photoReward = isFirstReview ? POINT_POLICY.earnFirstPhoto : POINT_POLICY.earnPhoto;
 
   // GA4 dialog_close에 실을 작성 진행도 — 닫는 시점 값이 필요해 함수로 넘긴다.
   const getAnalyticsCloseExtra = () => ({
@@ -316,6 +320,8 @@ function ReviewComposerSheet({ open, order, review, user, onClose, onSaved }) {
         rating: draft.rating,
         photoCount: uploadedUrls.length,
         mode: "create",
+        earnedPoints: result.review?.earnedPoints ?? 0,
+        isFirstReview: result.review?.isFirstReview ?? false,
       });
       setIsSubmitting(false);
       onSaved?.(result.review);
@@ -357,7 +363,7 @@ function ReviewComposerSheet({ open, order, review, user, onClose, onSaved }) {
             }}
             type="button"
           >
-            {isSubmitting ? "저장 중..." : "후기 등록"}
+            {isSubmitting ? "저장 중..." : rewardPoints > 0 ? `등록하고 ${formatPoints(rewardPoints)} 받기` : "후기 등록"}
           </button>
         </>
       }
@@ -478,7 +484,7 @@ function ReviewComposerSheet({ open, order, review, user, onClose, onSaved }) {
 
         <p className="public-review-form__hint">
           {isRewardEligible
-            ? `글 후기 ${formatPoints(POINT_POLICY.earnText)} · 사진 후기 ${formatPoints(POINT_POLICY.earnPhoto)} 적립. `
+            ? `${isFirstReview ? "첫 리뷰는 " : ""}글 ${formatPoints(textReward)} · 사진 ${formatPoints(photoReward)} 적립. `
             : `상품금액 ${POINT_POLICY.minReviewOrderSubtotal.toLocaleString("ko-KR")}원 이상 주문부터 후기 포인트가 적립돼요. `}
           등록한 후기는 수정하거나 삭제할 수 없으니 한 번 더 확인해 주세요.
         </p>

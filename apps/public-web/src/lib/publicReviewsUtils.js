@@ -1,4 +1,16 @@
 // 통합 구매 후기 — 순수 헬퍼 (브라우저·Supabase 의존 없음, 단위 테스트 대상)
+import { REVIEWABLE_ORDER_STATUSES } from "../../../../packages/shared-domain/src/reviews.js";
+
+export function canWriteOrderReview(order) {
+  return REVIEWABLE_ORDER_STATUSES.includes(order?.status)
+    && (order?.items ?? []).some((item) => !item.refundedAt);
+}
+
+export function getReviewOrderSubtotal(order) {
+  // 마이페이지 정규화의 price는 수량을 포함한 order_items.total_price.
+  return (order?.items ?? []).filter((item) => !item.refundedAt)
+    .reduce((sum, item) => sum + (Number(item.price) || 0), 0);
+}
 
 export const REVIEW_CONTENT_MIN_LENGTH = 10;
 export const REVIEW_CONTENT_MAX_LENGTH = 500;
@@ -103,6 +115,7 @@ export function normalizeReviewItem(row) {
     isHidden: Boolean(row.is_hidden),
     // create_review 응답에만 실림 — 작성 직후 토스트용
     earnedPoints: toNonNegativeInteger(row.earned_points),
+    isFirstReview: row.first_review === true,
     createdAt: row.created_at ?? null,
     updatedAt: row.updated_at ?? null,
   };

@@ -7,7 +7,20 @@ import {
   mergeReviewItems,
   normalizeReviewSummary,
   validateReviewDraft,
+  canWriteOrderReview,
+  getReviewOrderSubtotal,
 } from "./publicReviewsUtils.js";
+
+test("reviews allow delivered/confirmed orders and only count unrefunded product totals", () => {
+  const items = [{ price: 12000, quantity: 2 }, { price: 5000, refundedAt: "2026-09-23" }];
+  assert.equal(canWriteOrderReview({ status: "delivered", items }), true);
+  assert.equal(canWriteOrderReview({ status: "confirmed", items }), true);
+  for (const status of ["shipping", "preparing", "pending", "cancelled", "refunded"]) {
+    assert.equal(canWriteOrderReview({ status, items }), false);
+  }
+  assert.equal(canWriteOrderReview({ status: "delivered", items: [items[1]] }), false);
+  assert.equal(getReviewOrderSubtotal({ items }), 12000);
+});
 
 test("formatReviewProductTitle appends remaining book count", () => {
   assert.equal(formatReviewProductTitle("시대인재 수학 N제", 1), "시대인재 수학 N제");

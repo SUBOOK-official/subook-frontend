@@ -29,10 +29,13 @@ import {
   HeartIcon,
   LockIcon,
   MapPinIcon,
+  StarIcon,
   UserIcon,
 } from "../components/icons";
 import { supabase as publicSupabase } from "@shared-supabase/publicSupabaseClient";
 import ReviewComposerSheet from "../components/ReviewComposerSheet";
+import MypageReviews, { OrderReviewAction, ReviewInviteBanner } from "../components/MypageReviews";
+import { canWriteOrderReview } from "../lib/publicReviewsUtils";
 import MypageRestockKeywords from "../components/MypageRestockKeywords";
 import { MypagePointsCard, PointsHistorySheet } from "../components/MypagePoints";
 import { fetchMyReviews } from "../lib/publicReviews";
@@ -154,7 +157,7 @@ const MYPAGE_GRID_ITEMS = [
   { key: "coupons", label: "쿠폰", icon: couponIcon },
   { key: "sales", label: "판매 내역", icon: sellIcon },
   { key: "settlements", label: "정산 내역", icon: receiptIcon },
-  { key: "settlement-account", label: "정산 계좌 관리", icon: accountIcon },
+  { key: "reviews", label: "내 리뷰", icon: null },
 ];
 
 // GA4 item_list_name — 찜 목록(마이페이지 탭·설정 탭 공용)
@@ -181,6 +184,7 @@ const initialTabPhases = {
 // 사이드바 키(profile/addresses/settlement-account)를 데이터 로딩 키로 매핑.
 // SettingsTab을 공유하는 키들은 모두 settings 데이터 슬롯을 쓴다.
 function resolveDataKey(activeTabKey) {
+  if (activeTabKey === "reviews") return "purchases";
   if (
     activeTabKey === "profile" ||
     activeTabKey === "addresses" ||
@@ -270,8 +274,12 @@ function PublicMypagePage() {
   const [busyAddressId, setBusyAddressId] = useState(null);
   const [busyAccountId, setBusyAccountId] = useState(null);
   const [busyOrderId, setBusyOrderId] = useState(null);
-  // 통합 후기 (2026-09-02): 주문별 작성 여부 → 카드 버튼 '후기 작성'/'후기 수정' 분기
+  // 후기는 주문당 1개. 모든 탭에서 첫 리뷰 여부를 먼저 확인한다.
   const [myReviewsByOrderId, setMyReviewsByOrderId] = useState({});
+  const [reviewsLoadState, setReviewsLoadState] = useState({ userId: null, phase: "loading", error: "" });
+  const reviewsRequestRef = useRef(0);
+  const reviewsReady = reviewsLoadState.userId === effectiveUser?.id && reviewsLoadState.phase === "ready";
+  const isFirstReview = reviewsReady && Object.keys(myReviewsByOrderId).length === 0;
   const [reviewComposer, setReviewComposer] = useState(null); // { order, review }
   // 포인트 (2026-09-02) — 후기 목록과 같은 타이밍에 로드
   const [myPoints, setMyPoints] = useState(() => normalizeMyPoints(null));
@@ -510,18 +518,26 @@ function PublicMypagePage() {
     };
   }, [activeTabKey, effectiveUser, favoriteIds, isDemoPreview]);
 
-  // 내 후기 목록 — 구매현황 탭 진입 시 로드, 작성/수정/삭제 후 재로드
+  // 내 후기 목록 — 마이페이지 진입·탭 이동·작성 후 재조회. 실패를 '첫 리뷰'로 취급하지 않는다.
   const reloadMyReviews = useCallback(async () => {
+    const requestId = ++reviewsRequestRef.current;
+    setReviewsLoadState({ userId: effectiveUser?.id, phase: "loading", error: "" });
     if (!effectiveUser || isDemoPreview) {
       setMyReviewsByOrderId({});
       setMyPoints(normalizeMyPoints(null));
+      setReviewsLoadState({ userId: effectiveUser?.id, phase: "ready", error: "" });
       return;
     }
-    const [result, pointsResult] = await Promise.all([fetchMyReviews(), fetchMyPoints()]);
+    const [result, pointsResult] = await Promise.all([
+      fetchMyReviews().catch(() => ({ error: new Error("내 리뷰를 불러오지 못했어요.") })),
+      fetchMyPoints().catch(() => ({ error: new Error("포인트를 불러오지 못했어요.") })),
+    ]);
+    if (requestId !== reviewsRequestRef.current) return;
     if (!pointsResult.error) {
       setMyPoints(pointsResult.points);
     }
     if (result.error) {
+      setReviewsLoadState({ userId: effectiveUser.id, phase: "error", error: result.error.message });
       return;
     }
     const next = {};
@@ -531,13 +547,12 @@ function PublicMypagePage() {
       }
     }
     setMyReviewsByOrderId(next);
+    setReviewsLoadState({ userId: effectiveUser.id, phase: "ready", error: "" });
   }, [effectiveUser, isDemoPreview]);
 
   useEffect(() => {
-    if (activeTabKey !== "purchases") {
-      return;
-    }
     void reloadMyReviews();
+    return () => { reviewsRequestRef.current += 1; };
   }, [activeTabKey, reloadMyReviews]);
 
   // 찜 목록 품절 카드의 재입고 알림 신청/해제 토글.
@@ -1897,8 +1912,26 @@ function PublicMypagePage() {
           orders={portalState.orders}
           points={myPoints}
           reviewsByOrderId={myReviewsByOrderId}
+          reviewsReady={reviewsReady}
+          isFirstReview={isFirstReview}
         />
       );
+    }
+
+    if (activeTabKey === "reviews") {
+      return <MypageReviews
+        orders={portalState.orders}
+        reviewsByOrderId={myReviewsByOrderId}
+        isFirstReview={isFirstReview}
+        isReady={reviewsReady && loadedTabs.purchases}
+        error={reviewsLoadState.error}
+        onRetry={reloadMyReviews}
+        onWrite={(order) => setReviewComposer({ order, review: null })}
+        onRead={(review) => setReviewComposer({
+          order: portalState.orders.find((order) => order.id === review.orderId) ?? null,
+          review,
+        })}
+      />;
     }
 
     if (activeTabKey === "wishlist") {
@@ -1934,12 +1967,17 @@ function PublicMypagePage() {
         return <div className="public-mypage-skeleton public-mypage-skeleton--panel" />;
       }
       return (
-        <SettlementsTab
-          completedSettlements={portalState.completedSettlements}
-          onRequestPickup={handlePickupRequest}
-          scheduledSettlements={portalState.scheduledSettlements}
-          settlementSummary={portalState.settlementSummary}
-        />
+        <div>
+          <div className="public-mypage-account-link">
+            <button className="public-auth-button public-auth-button--secondary" type="button" onClick={() => moveToTab("settlement-account")}>정산 계좌 관리 <ChevronRightIcon size={16} /></button>
+          </div>
+          <SettlementsTab
+            completedSettlements={portalState.completedSettlements}
+            onRequestPickup={handlePickupRequest}
+            scheduledSettlements={portalState.scheduledSettlements}
+            settlementSummary={portalState.settlementSummary}
+          />
+        </div>
       );
     }
 
@@ -2042,7 +2080,7 @@ function PublicMypagePage() {
                       onClick={() => moveToTab(item.key, { smoothScroll: false, uiSurface: "grid_mobile" })}
                       type="button"
                     >
-                      <img className="public-mypage-navgrid__icon" src={item.icon} alt="" aria-hidden="true" />
+                      {item.icon ? <img className="public-mypage-navgrid__icon" src={item.icon} alt="" aria-hidden="true" /> : <StarIcon className="public-mypage-navgrid__icon" aria-hidden="true" size={26} />}
                       <span>{item.label}</span>
                     </button>
                   ))}
@@ -2083,6 +2121,15 @@ function PublicMypagePage() {
                     key={activeTabKey}
                     ref={tabPanelRef}
                   >
+                    {reviewsReady && activeTabKey !== "reviews" ? <ReviewInviteBanner
+                      orders={portalState.orders}
+                      reviewsByOrderId={myReviewsByOrderId}
+                      isFirstReview={isFirstReview}
+                      onOpen={() => moveToTab("reviews", { uiSurface: "review_invite" })}
+                    /> : null}
+                    {reviewsLoadState.error && activeTabKey !== "reviews" ? <div className="public-mypage-reviews-error" role="alert">
+                      리뷰 정보를 불러오지 못했어요. <button type="button" onClick={reloadMyReviews}>다시 불러오기</button>
+                    </div> : null}
                     {activeTabContent}
                   </section>
                 </div>
@@ -2178,6 +2225,7 @@ function PublicMypagePage() {
       {memberGateDialog}
 
       <ReviewComposerSheet
+        isFirstReview={isFirstReview}
         onClose={() => setReviewComposer(null)}
         onSaved={(review) => {
           setReviewComposer(null);
@@ -3324,6 +3372,8 @@ function PurchasesView({
   orders,
   points,
   reviewsByOrderId,
+  reviewsReady,
+  isFirstReview,
 }) {
   const [detailOrder, setDetailOrder] = useState(null);
   const [activeFilter, setActiveFilter] = useState("all");
@@ -3520,22 +3570,9 @@ function PurchasesView({
                           {busyOrderId === order.id ? "처리 중..." : "구매확정"}
                         </button>
                       ) : null}
-                      {/* 통합 후기: 구매확정 주문만, 주문 1건당 1개 (있으면 수정) */}
-                      {!item.refundedAt && order.status === "confirmed" && onWriteReview ? (
-                        <button
-                          className="public-mypage-purchase-card__btn"
-                          onClick={() => {
-                            // GA4 후기 CTA — 작성/보기 구분 (시트 노출은 시트가 따로 남긴다)
-                            trackEvent("review_cta_click", {
-                              orderId: String(order.id),
-                              uiAction: reviewsByOrderId?.[order.id] ? "view" : "write",
-                            });
-                            onWriteReview(order);
-                          }}
-                          type="button"
-                        >
-                          {reviewsByOrderId?.[order.id] ? "후기 보기" : "후기 작성"}
-                        </button>
+                      {/* 주문당 한 번만 노출. 첫 미환불 품목에서 배송완료부터 작성 가능. */}
+                      {reviewsReady && canWriteOrderReview(order) && item.id === order.items.find((entry) => !entry.refundedAt)?.id && onWriteReview ? (
+                        <OrderReviewAction order={order} review={reviewsByOrderId?.[order.id]} isFirstReview={isFirstReview} onClick={onWriteReview} />
                       ) : null}
                       {!item.refundedAt && order.canRequestRefund ? (
                         <button

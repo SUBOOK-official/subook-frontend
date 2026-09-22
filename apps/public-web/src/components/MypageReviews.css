@@ -1,0 +1,39 @@
+.public-review-invite {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  width: 100%; margin: 0 0 24px; padding: 20px;
+  border: 1px solid var(--public-ds-border); border-radius: var(--public-radius-lg);
+  background: var(--public-ds-secondary); color: var(--public-ds-primary);
+  text-align: left; cursor: pointer;
+}
+.public-review-invite__body { display: grid; gap: 7px; }
+.public-review-invite__body strong { font-size: 16px; line-height: 1.5; }
+.public-review-invite__body > span { font-size: 12px; line-height: 1.6; color: var(--public-ds-text-secondary); }
+.public-review-invite__action { display: flex; align-items: center; flex-shrink: 0; font-size: 13px; font-weight: 700; }
+.public-order-review-action { display: flex; flex-direction: column; gap: 8px; grid-column: 1 / -1; align-items: flex-start; }
+.public-order-review-action > button { width: 100%; min-height: 44px; }
+.public-order-review-action__bubble { position: relative; padding: 5px 10px; border-radius: var(--public-radius-md); font-size: 12px; font-weight: 700; background: var(--public-ds-primary); color: var(--public-ds-card); }
+.public-order-review-action__bubble::after { content: ""; position: absolute; top: 100%; left: 20px; border: 5px solid transparent; border-top-color: var(--public-ds-primary); }
+.public-mypage-purchase-card__btn.public-order-review-action__button { border-color: var(--public-ds-primary); color: var(--public-ds-primary); background: var(--public-ds-secondary); font-weight: 700; }
+.public-my-reviews__title { margin: 0 0 20px; font-size: 20px; color: var(--public-ds-text); }
+.public-my-reviews__tabs { display: flex; border-bottom: 1px solid var(--public-ds-border); margin-bottom: 20px; }
+.public-my-reviews__tabs button { flex: 1; padding: 14px 8px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--public-ds-text-secondary); cursor: pointer; font-size: 14px; }
+.public-my-reviews__tabs button[aria-pressed="true"] { color: var(--public-ds-primary); border-bottom-color: var(--public-ds-primary); font-weight: 700; }
+.public-my-reviews__tabs strong { margin-left: 6px; }
+.public-my-reviews__list { list-style: none; padding: 0; margin: 0; display: grid; gap: 14px; }
+.public-my-reviews__item { display: flex; align-items: center; gap: 20px; padding: 20px; border: 1px solid var(--public-ds-border); border-radius: var(--public-radius-lg); }
+.public-my-reviews__item > button { flex-shrink: 0; width: auto; min-height: 44px; }
+.public-my-reviews__summary { display: grid; gap: 8px; min-width: 0; flex: 1; }
+.public-my-reviews__summary strong { font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
+.public-my-reviews__summary > span { font-size: 12px; line-height: 1.6; color: var(--public-ds-text-secondary); }
+.public-my-reviews__summary p { margin: 0; font-size: 14px; line-height: 1.7; overflow-wrap: anywhere; white-space: pre-wrap; }
+.public-my-reviews__rating { display: flex; align-items: center; gap: 4px; }
+.public-my-reviews__empty { padding: 40px 16px; text-align: center; font-size: 14px; line-height: 1.8; color: var(--public-ds-text-secondary); }
+.public-mypage-reviews-error { margin-bottom: 16px; font-size: 13px; color: var(--public-ds-text-secondary); }
+.public-mypage-account-link { display: flex; justify-content: flex-end; margin-bottom: 16px; }
+@media (max-width: 767px) {
+  .public-review-invite { padding: 16px; gap: 10px; margin-top: 20px; margin-bottom: 20px; }
+  .public-review-invite__body strong { font-size: 14px; }
+  .public-review-invite__action { font-size: 12px; }
+  .public-my-reviews__item { align-items: stretch; flex-direction: column; gap: 16px; padding: 16px; }
+  .public-my-reviews__item > button { width: 100%; }
+}

@@ -50,7 +50,9 @@ export function PointsHistorySheet({ open, onClose, points }) {
         <strong>{formatPoints(points?.balance ?? 0)}</strong>
       </div>
       <p className="public-mypage-points-policy">
-        1P = 1원. 상품금액 {POINT_POLICY.minReviewOrderSubtotal.toLocaleString("ko-KR")}원 이상 주문의 글
+        1P = 1원. 상품금액 {POINT_POLICY.minReviewOrderSubtotal.toLocaleString("ko-KR")}원 이상 주문의
+        첫 리뷰는 글 {formatPoints(POINT_POLICY.earnFirstText)}, 사진 {formatPoints(POINT_POLICY.earnFirstPhoto)}가
+        적립됩니다. 이후 글
         후기는 {formatPoints(POINT_POLICY.earnText)}, 사진 후기는 {formatPoints(POINT_POLICY.earnPhoto)}가
         적립됩니다. 적립 포인트는{" "}
         {formatPoints(POINT_POLICY.minBalanceToUse)}부터 상품금액{" "}

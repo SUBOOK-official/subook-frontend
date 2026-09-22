@@ -7,6 +7,7 @@ import {
   formatPoints,
   getPointsUnavailableReason,
   isReviewRewardEligible,
+  getReviewRewardPoints,
   normalizeMyPoints,
 } from "./publicPointsUtils.js";
 
@@ -22,6 +23,14 @@ test("POINT_POLICY matches the agreed policy values", () => {
 test("review rewards require at least 10,000 won in product subtotal", () => {
   assert.equal(isReviewRewardEligible(9999), false);
   assert.equal(isReviewRewardEligible(10000), true);
+});
+
+test("first review bonus applies once and never bypasses the subtotal threshold", () => {
+  assert.equal(getReviewRewardPoints({ subtotal: 10000, isFirstReview: true }), 1000);
+  assert.equal(getReviewRewardPoints({ subtotal: 10000, isFirstReview: true, photoCount: 1 }), 1500);
+  assert.equal(getReviewRewardPoints({ subtotal: 10000 }), 500);
+  assert.equal(getReviewRewardPoints({ subtotal: 10000, photoCount: 3 }), 1000);
+  assert.equal(getReviewRewardPoints({ subtotal: 9999, isFirstReview: true, photoCount: 1 }), 0);
 });
 
 test("computeMaxUsablePoints caps at 20% of subtotal", () => {

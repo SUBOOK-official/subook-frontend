@@ -4,6 +4,8 @@
 export const POINT_POLICY = Object.freeze({
   earnText: 500,
   earnPhoto: 1000,
+  earnFirstText: 1000,
+  earnFirstPhoto: 1500,
   minReviewOrderSubtotal: 10000,
   minBalanceToUse: 1000,
   minOrderSubtotal: 15000,
@@ -22,6 +24,12 @@ export function formatPoints(value) {
 
 export function isReviewRewardEligible(subtotal, policy = POINT_POLICY) {
   return Math.max(0, toInteger(subtotal)) >= policy.minReviewOrderSubtotal;
+}
+
+export function getReviewRewardPoints({ subtotal, isFirstReview = false, photoCount = 0 }, policy = POINT_POLICY) {
+  if (!isReviewRewardEligible(subtotal, policy)) return 0;
+  if (isFirstReview) return photoCount > 0 ? policy.earnFirstPhoto : policy.earnFirstText;
+  return photoCount > 0 ? policy.earnPhoto : policy.earnText;
 }
 
 // 이 주문에서 쓸 수 있는 최대 포인트. 0이면 사용 불가.
