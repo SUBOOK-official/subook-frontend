@@ -8,6 +8,39 @@ import { orderStatusLabel } from "@shared-domain/status";
 
 const EXPORT_PAGE_SIZE = 200;
 const EXPORT_MAX_ORDERS = 10000;
+const SELLER_FETCH_BATCH_SIZE = 200;
+
+// 회원 가입 여부와 무관하게 실제 판매된 재고의 수거신청자를 사용한다.
+async function fetchSellerNames(orders) {
+  const bookIds = [...new Set(orders.flatMap((order) =>
+    (Array.isArray(order.items) ? order.items : []).map((item) => item.book_id)
+  ).filter((id) => id != null))];
+  const sellerNames = new Map();
+
+  for (let offset = 0; offset < bookIds.length; offset += SELLER_FETCH_BATCH_SIZE) {
+    let data;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const result = await supabase
+          .from("books")
+          .select("id,shipments(seller_name)")
+          .in("id", bookIds.slice(offset, offset + SELLER_FETCH_BATCH_SIZE))
+          .abortSignal(AbortSignal.timeout(15000));
+        if (result.error) throw result.error;
+        data = result.data;
+        break;
+      } catch {
+        if (attempt === 1) {
+          throw new Error("정산자명을 불러오지 못했습니다. 잠시 후 다시 다운로드해 주세요.");
+        }
+      }
+    }
+    for (const book of data ?? []) {
+      sellerNames.set(String(book.id), book.shipments?.seller_name ?? "");
+    }
+  }
+  return sellerNames;
+}
 
 // 식스샵 주문 내보내기 열 구조 (시트 1행 헤더와 동일, 순서 중요)
 const SALES_SHEET_HEADERS = [
@@ -113,7 +146,7 @@ function formatKstDateTime(iso) {
   }).format(date);
 }
 
-function buildSalesRow(order, item) {
+function buildSalesRow(order, item, sellerNames) {
   const paidAtIso = order.paid_at ?? order.pg_approved_at ?? null;
   const isPaid = Boolean(paidAtIso) || !["pending", "cancelled"].includes(order.status);
 
@@ -155,6 +188,7 @@ function buildSalesRow(order, item) {
   row["상품 위치"] = [item.book_location, item.book_serial_number]
     .filter((value) => value !== null && value !== undefined && value !== "")
     .join(" / ");
+  row["정산자명"] = sellerNames.get(String(item.book_id)) ?? "";
 
   return row;
 }
@@ -195,12 +229,13 @@ export async function downloadSalesSheetXlsx({ search, statuses, fromDate, toDat
 
   // 시트처럼 오래된 주문이 위로 오게 정렬 (RPC는 최신순)
   orders.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  const sellerNames = await fetchSellerNames(orders);
 
   const rows = [];
   orders.forEach((order) => {
     const items = Array.isArray(order.items) ? order.items : [];
     items.forEach((item) => {
-      rows.push(buildSalesRow(order, item));
+      rows.push(buildSalesRow(order, item, sellerNames));
     });
   });
 
