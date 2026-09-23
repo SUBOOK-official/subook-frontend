@@ -26,7 +26,7 @@ function revokeStudioPreviewUrls(items) {
 
 function getStudioDownloadName(originalName, mimeType) {
   const cleanName = String(originalName || "book").replace(/\.[^/.]+$/, "");
-  const extension = mimeType === "image/webp" ? "webp" : "png";
+  const extension = mimeType === "image/jpeg" ? "jpg" : mimeType === "image/webp" ? "webp" : "png";
   return `${cleanName}_studio_2k.${extension}`;
 }
 
