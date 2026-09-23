@@ -2,7 +2,7 @@
 // AdminStudioContext(스튜디오 페이지 배치 처리)와 상품 등록 플로우(표지 자동 변환)가
 // 같은 전처리·요청 규칙을 쓰도록 여기로 추출했다. — /api/admin/book-studio 서버리스 호출.
 
-export const STUDIO_MAX_IMAGE_SIDE = 1600;
+export const STUDIO_MAX_IMAGE_SIDE = 3072;
 export const STUDIO_MAX_BASE64_LENGTH = 3_000_000;
 export const STUDIO_OUTPUT_QUALITY_STEPS = [0.9, 0.82, 0.75, 0.68];
 export const STUDIO_REQUEST_TIMEOUT_MS = 240_000;
@@ -48,6 +48,14 @@ export async function prepareStudioImagePayload(file) {
     throw new Error("이미지 크기를 확인할 수 없습니다.");
   }
 
+  // 작은 글자 보존: 전송 한도 안의 원본은 리사이즈·재압축 없이 그대로 보낸다.
+  const original = getImageDataFromDataUrl(sourceDataUrl);
+  if (["image/jpeg", "image/png", "image/webp"].includes(original.mimeType) &&
+      original.imageBase64.length <= STUDIO_MAX_BASE64_LENGTH &&
+      Math.max(sourceWidth, sourceHeight) <= STUDIO_MAX_IMAGE_SIDE) {
+    return original;
+  }
+
   const scale = Math.min(1, STUDIO_MAX_IMAGE_SIDE / Math.max(sourceWidth, sourceHeight));
   const targetWidth = Math.max(1, Math.round(sourceWidth * scale));
   const targetHeight = Math.max(1, Math.round(sourceHeight * scale));
@@ -61,6 +69,8 @@ export async function prepareStudioImagePayload(file) {
     throw new Error("이미지 처리를 시작할 수 없습니다.");
   }
 
+  context.fillStyle = "#fff";
+  context.fillRect(0, 0, targetWidth, targetHeight);
   context.drawImage(sourceImage, 0, 0, targetWidth, targetHeight);
 
   for (const quality of STUDIO_OUTPUT_QUALITY_STEPS) {
