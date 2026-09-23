@@ -4,17 +4,12 @@ import AdminShell from "../components/AdminShell";
 import { loadPerformanceProviders, loadPerformanceSales } from "@shared-supabase/adminPerformanceClient";
 import { PERFORMANCE_PRESETS, formatPerformanceValue as fmt, koreaToday, mergePerformanceDaily,
   metricChange, performanceRange, previousPerformanceRange, validatePerformanceRange } from "@shared-domain/performanceMetrics";
+import { buildPerformanceWorkbook, PERFORMANCE_DAILY_COLUMNS as columns,
+  PERFORMANCE_COMMISSION_LABELS as commissionLabels } from "@shared-domain/performanceExport";
+import { exportWorkbookToXlsx } from "../lib/excelFile";
 
 const buttonClass = "rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50";
 const emptyDrill = { level: "campaign" };
-const columns = [
-  ["spend", "마케팅비 (Meta)", "money"], ["grossRevenue", "매출", "money"], ["netRevenue", "순매출", "money"], ["orders", "주문수", "count"],
-  ["soldQuantity", "판매수량", "count"], ["aov", "AOV", "money"], ["visitors", "방문자", "count"],
-  ["repeatOrders", "재구매 주문", "count"], ["repeatOrderRate", "재구매 주문 비율", "percent"],
-  ["averageCommissionRate", "평균 수수료율", "percent"],
-  ["cvr", "구매전환율", "percent"], ["cpa", "광고 CPA", "money"], ["roas", "광고 ROAS", "percent"],
-];
-const commissionLabels = { settled: "저장된 정산", jeonil: "전일학원", pickup: "수거 정책 기준", direct_purchase: "자체매입 · 수수료 대상 아님", unknown: "요율 미확인 · 평균 제외" };
 
 function MetricCard({ label, value, previous, format = "count", source, hint, inverse = false, neutral = false, detailHref }) {
   const change = metricChange(value, previous, format === "percent");
@@ -71,6 +66,9 @@ export default function AdminPerformancePage() {
   const [drill, setDrill] = useState(emptyDrill);
   const [chartMetric, setChartMetric] = useState("revenue");
   const [showAllDays, setShowAllDays] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
+  const [exportMessage, setExportMessage] = useState("");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -95,7 +93,7 @@ export default function AdminPerformancePage() {
     const timeout = setTimeout(() => controller.abort("timeout"), 65_000);
     setProviders(null); setProvidersLoading(true); setProviderError("");
     loadPerformanceProviders(range, drill, controller.signal).then((result) => {
-      if (!controller.signal.aborted) setProviders(result);
+      if (!controller.signal.aborted) setProviders({ ...result, drill });
     }).catch((error) => {
       if (!controller.signal.aborted) setProviderError(error.message);
     }).finally(() => {
@@ -109,7 +107,7 @@ export default function AdminPerformancePage() {
   }, [range, drill, reload]);
 
   const validSales = sales?.from === range.from && sales?.to === range.to ? sales : null;
-  const validProviders = providers?.from === range.from && providers?.to === range.to ? providers : null;
+  const validProviders = providers?.from === range.from && providers?.to === range.to && providers?.drill === drill ? providers : null;
   const ga = validProviders?.ga;
   const meta = validProviders?.meta;
   const current = validSales?.current;
@@ -121,11 +119,26 @@ export default function AdminPerformancePage() {
   const comparison = previousPerformanceRange(range);
   const daily = useMemo(() => mergePerformanceDaily(validSales?.daily, ga, meta), [validSales, ga, meta]);
   const visibleDays = showAllDays ? [...daily].reverse() : [...daily].reverse().slice(0, 31);
+  const exportDisabled = exporting || salesLoading || providersLoading || !validSales || Boolean(providers && !validProviders);
+
+  async function downloadPerformance() {
+    if (exportDisabled) return;
+    setExporting(true); setExportError(""); setExportMessage("");
+    try {
+      await exportWorkbookToXlsx(buildPerformanceWorkbook({ range, sales: validSales, providers: validProviders, drill, providerError }));
+      setExportMessage(`${range.from} ~ ${range.to} 성과 엑셀을 다운로드했습니다.${ga?.status !== "ready" || meta?.status !== "ready" || ga?.funnelStatus === "error" || meta?.breakdownStatus === "error" ? " 조회하지 못한 지표는 빈칸이며 집계 기준 시트에서 상태를 확인할 수 있습니다." : ""}`);
+    } catch (error) {
+      setExportError(error instanceof Error ? error.message : "엑셀 생성에 실패했습니다. 다시 시도해주세요.");
+    } finally {
+      setExporting(false);
+    }
+  }
 
   function selectRange(next) {
     const error = validatePerformanceRange(next.from, next.to);
     setRangeError(error);
     if (error) return;
+    setExportError(""); setExportMessage("");
     setRange(next); setDraft(next); setShowAllDays(false); setDrill(emptyDrill);
   }
 
@@ -137,7 +150,10 @@ export default function AdminPerformancePage() {
           const selected = range.from === presetRange.from && range.to === presetRange.to;
           return <button key={preset.key} type="button" aria-pressed={selected} onClick={() => selectRange(presetRange)} className={`${buttonClass} ${selected ? "!border-slate-950 !bg-slate-950 !text-white" : ""}`}>{preset.label}</button>;
         })}</div>
-        <button type="button" className={buttonClass} disabled={salesLoading || providersLoading} onClick={() => setReload((value) => value + 1)}>새로고침</button>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className={buttonClass} disabled={salesLoading || providersLoading} onClick={() => setReload((value) => value + 1)}>새로고침</button>
+          <button type="button" className={`${buttonClass} !border-slate-950 !bg-slate-950 !text-white`} disabled={exportDisabled} onClick={downloadPerformance} aria-busy={exporting}>{exporting ? "엑셀 생성 중…" : "엑셀 다운로드"}</button>
+        </div>
       </div>
       <form className="mt-4 flex flex-wrap items-end gap-2" onSubmit={(event) => { event.preventDefault(); const values = new FormData(event.currentTarget); selectRange({ from: values.get("from"), to: values.get("to") }); }}>
         <label className="min-w-0 text-xs font-semibold text-slate-500">시작일<input required name="from" aria-label="시작일" type="date" min="2000-01-01" max={koreaToday()} value={draft.from} onChange={(event) => setDraft((currentDraft) => ({ ...currentDraft, from: event.target.value }))} className="mt-1 block max-w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800" /></label>
@@ -147,6 +163,9 @@ export default function AdminPerformancePage() {
       </form>
       {rangeError && <p role="alert" className="mt-2 text-sm text-rose-700">{rangeError}</p>}
       <p className="mt-3 text-xs text-slate-500">{range.from} ~ {range.to} <span className="mx-1 text-slate-300">/</span> 비교 {comparison.from} ~ {comparison.to}{range.to === koreaToday() ? " · 오늘은 집계 중" : ""}</p>
+      <p className="mt-2 text-xs text-slate-500">엑셀에는 조회 기간 전체의 요약·일별 내역·수수료·구매 흐름과 현재 선택한 광고 상세가 포함됩니다.</p>
+      {exportError && <p role="alert" className="mt-2 text-sm text-rose-700">{exportError}</p>}
+      {exportMessage && <p role="status" className="mt-2 text-sm text-emerald-700">{exportMessage}</p>}
     </section>
 
     <div className="flex flex-wrap items-center gap-2" aria-live="polite">

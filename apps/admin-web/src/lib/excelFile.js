@@ -55,6 +55,7 @@ function toExportCell(value, column) {
     value: normalizedValue,
     type,
     ...(column.wrap ? { wrap: true } : {}),
+    ...(column.format ? { format: column.format } : {}),
   };
 }
 
@@ -83,6 +84,27 @@ export async function exportRowsToXlsx({ rows, columns, fileName, sheetName }) {
     fileName,
     sheet: sheetName,
     stickyRowsCount: 1,
+  });
+}
+
+// 기존 단일 시트 내보내기와 같은 셀 정규화 규칙을 사용한다.
+export function buildWorkbookData(sheets) {
+  return sheets.map(({ rows, columns }) => [
+    columns.map((column) => ({
+      value: column.header ?? column.key, type: String,
+      fontWeight: "bold", backgroundColor: "#f2f2f3",
+    })),
+    ...rows.map((row) => columns.map((column) => toExportCell(getColumnValue(row, column), column))),
+  ]);
+}
+
+export async function exportWorkbookToXlsx({ sheets, fileName }) {
+  const { default: writeXlsxFile } = await import("write-excel-file/browser");
+  await writeXlsxFile(buildWorkbookData(sheets), {
+    sheets: sheets.map((sheet) => sheet.sheetName),
+    columns: sheets.map((sheet) => sheet.columns.map((column) => ({ width: column.width ?? 18 }))),
+    stickyRowsCount: 1,
+    fileName,
   });
 }
 
