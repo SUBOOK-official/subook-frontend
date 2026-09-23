@@ -17,6 +17,8 @@ import {
   studioResultToFile,
 } from "../lib/studioClient";
 import { requestCoverScan } from "../lib/coverScanClient";
+import { rotateLandscapePhoto } from "../lib/photoOrientation";
+import { getRegistrationDetailUrls } from "../lib/registrationPhotos";
 
 // 통합 상품 등록 플로우 (Frame 2~4 프로토타입).
 //   고객(수거) 선택/생성 → 교재 목록 작성(기존 검색 + 신규 표) → 사진 일괄 → 등록 완료
@@ -80,6 +82,7 @@ function blankNewRow(location = "") {
     discountType: "none",
     discountValue: "",
     coverUrl: "",
+    originalCoverUrl: "",
     coverBusy: false,
     detailUrls: [],
     detailBusy: false,
@@ -1074,6 +1077,7 @@ function AdminProductRegisterPage() {
           serialOverride: prevAddition?.serialOverride ?? "",
           // 목록 수정 후 재확정해도 사진 단계에서 올린 사진·토글 상태는 유지
           coverUrl: prevAddition?.coverUrl ?? (fp.product.cover_image_url || ""),
+          originalCoverUrl: prevAddition?.originalCoverUrl ?? "",
           coverBusy: false,
           // 기존 상품에 이미 등록된 상세사진을 프리필 — 화면 표시 + 신규 책이 동일 세트 상속
           // (책 종류 단위 규칙). 검색 RPC의 detail_image_urls (2026-07-21).
@@ -1119,25 +1123,34 @@ function AdminProductRegisterPage() {
   const setItemBusy = (kind, uid, field, busy) =>
     kind === "new" ? patchRow(uid, { [field]: busy }) : patchAddition(uid, { [field]: busy });
 
-  const uploadCover = async (kind, uid, file, { forceStudio = false } = {}) => {
+  const uploadCover = async (kind, uid, file, { forceStudio = false, originalCoverUrl = "" } = {}) => {
     // 항목별 토글 — 신규/기존이 섞인 배치에서 어떤 표지는 AI 변환, 어떤 표지는 원본 그대로.
     // forceStudio: 이미 올라간 표지에 나중에 AI 변환을 적용하는 경로(토글과 무관하게 변환).
     const list = kind === "new" ? newRows : existingAdditions;
     const autoStudio = forceStudio || list.find((x) => x.uid === uid)?.coverAutoStudio === true;
     setItemBusy(kind, uid, "coverBusy", true);
     try {
-      let uploadFile = file;
+      if (!ALLOWED_IMAGE_TYPES.includes(file.type) || file.size > MAX_IMAGE_BYTES) {
+        throw new Error("JPG/PNG/WebP/GIF 이미지를 15MB 이하로 올려주세요.");
+      }
+      const originalFile = await rotateLandscapePhoto(file);
+      // AI 호출 전에 실물 원본을 보관한다. 실패하거나 초안을 복원해도 원본을 잃지 않는다.
+      const rawUrl = originalCoverUrl || await uploadImageToBucket(DETAIL_BUCKET, originalFile);
+      if (!rawUrl) throw new Error("실물 표지 원본을 저장하지 못했습니다.");
+      if (kind === "new") patchRow(uid, { originalCoverUrl: rawUrl });
+      else patchAddition(uid, { originalCoverUrl: rawUrl });
+      let uploadFile = originalFile;
       if (autoStudio) {
         const { data: sessionData } = await supabase.auth.getSession();
         const accessToken = sessionData?.session?.access_token || "";
         if (!accessToken) {
           throw new Error("로그인 세션이 만료되었습니다. 다시 로그인해 주세요.");
         }
-        const payload = await prepareStudioImagePayload(file);
+        const payload = await prepareStudioImagePayload(originalFile);
         const generated = await requestStudioGeneration(accessToken, payload);
         uploadFile = studioResultToFile(generated, file.name);
       }
-      const url = await uploadImageToBucket(COVER_BUCKET, uploadFile);
+      const url = autoStudio ? await uploadImageToBucket(COVER_BUCKET, uploadFile) : rawUrl;
       if (url) {
         if (kind === "new") patchRow(uid, { coverUrl: url });
         else patchAddition(uid, { coverUrl: url });
@@ -1171,10 +1184,18 @@ function AdminProductRegisterPage() {
     }
     setItemBusy(kind, uid, "detailBusy", true);
     const urls = [];
+    let firstUploadedFile = null;
     for (const file of incoming) {
       try {
-        const url = await uploadImageToBucket(DETAIL_BUCKET, file);
-        if (url) urls.push(url);
+        if (!ALLOWED_IMAGE_TYPES.includes(file.type) || file.size > MAX_IMAGE_BYTES) {
+          throw new Error("JPG/PNG/WebP/GIF 이미지를 15MB 이하로 올려주세요.");
+        }
+        const originalFile = await rotateLandscapePhoto(file);
+        const url = await uploadImageToBucket(DETAIL_BUCKET, originalFile);
+        if (url) {
+          urls.push(url);
+          firstUploadedFile ??= originalFile;
+        }
       } catch (err) {
         showToast(err?.message || "상세 사진 업로드 실패", "error");
       }
@@ -1192,7 +1213,7 @@ function AdminProductRegisterPage() {
     // 수고 제거 (2026-07-22 운영자 피드백). AI 변환 토글이 켜져 있으면 변환을 거쳐 표지 생성.
     if (hadNoCover && current === 0 && urls.length > 0 && incoming.length > 0) {
       showToast("상세 1번 사진을 표지로도 등록합니다 (AI 변환 토글 적용)", "info");
-      await uploadCover(kind, uid, incoming[0]);
+      await uploadCover(kind, uid, firstUploadedFile, { originalCoverUrl: urls[0] });
     }
   };
 
@@ -1201,7 +1222,8 @@ function AdminProductRegisterPage() {
   // 2026-08-10: 운영자가 "AI 표지변환을 눌러도 사진이 안 올라간다"고 본 경로.
   const applyStudioToCover = async (kind, uid) => {
     const list = kind === "new" ? newRows : existingAdditions;
-    const currentUrl = list.find((x) => x.uid === uid)?.coverUrl;
+    const target = list.find((x) => x.uid === uid);
+    const currentUrl = target?.originalCoverUrl || target?.coverUrl;
     if (!currentUrl) return;
     setItemBusy(kind, uid, "coverBusy", true);
     try {
@@ -1210,7 +1232,7 @@ function AdminProductRegisterPage() {
       const blob = await res.blob();
       const name = decodeURIComponent((currentUrl.split("/").pop() || "cover.jpg").split("?")[0]);
       const file = new File([blob], name, { type: blob.type || "image/jpeg" });
-      await uploadCover(kind, uid, file, { forceStudio: true });
+      await uploadCover(kind, uid, file, { forceStudio: true, originalCoverUrl: target?.originalCoverUrl || "" });
     } catch (err) {
       showToast(err?.message || "AI 변환에 실패했습니다.", "error");
       setItemBusy(kind, uid, "coverBusy", false);
@@ -1221,7 +1243,7 @@ function AdminProductRegisterPage() {
   // 경로(AI 토글 포함)로 태운다. 자동 승계를 놓쳤거나 표지를 지운 경우의 수동 경로.
   const applyDetailAsCover = async (kind, uid) => {
     const list = kind === "new" ? newRows : existingAdditions;
-    const firstDetail = list.find((x) => x.uid === uid)?.detailUrls?.[0];
+    const firstDetail = getRegistrationDetailUrls(list.find((x) => x.uid === uid))[0];
     if (!firstDetail) return;
     setItemBusy(kind, uid, "coverBusy", true);
     try {
@@ -1249,7 +1271,7 @@ function AdminProductRegisterPage() {
     }
   };
   const clearCover = (kind, uid) =>
-    kind === "new" ? patchRow(uid, { coverUrl: "" }) : patchAddition(uid, { coverUrl: "" });
+    kind === "new" ? patchRow(uid, { coverUrl: "", originalCoverUrl: "" }) : patchAddition(uid, { coverUrl: "", originalCoverUrl: "" });
 
   const newProductsForSubmit = useMemo(
     () => newRows.filter((r) => !isNewRowBlank(r) && r.title.trim()),
@@ -1267,7 +1289,8 @@ function AdminProductRegisterPage() {
         location: r.location,
         coverUrl: r.coverUrl,
         coverBusy: r.coverBusy,
-        detailUrls: r.detailUrls || [],
+        detailUrls: getRegistrationDetailUrls(r),
+        detailIsDefault: !r.detailUrls?.length && Boolean(r.originalCoverUrl),
         detailBusy: r.detailBusy,
         coverAutoStudio: r.coverAutoStudio === true,
       })),
@@ -1279,7 +1302,8 @@ function AdminProductRegisterPage() {
         location: a.location,
         coverUrl: a.coverUrl,
         coverBusy: a.coverBusy,
-        detailUrls: a.detailUrls || [],
+        detailUrls: getRegistrationDetailUrls(a),
+        detailIsDefault: !a.detailUrls?.length && Boolean(a.originalCoverUrl),
         detailBusy: a.detailBusy,
         coverAutoStudio: a.coverAutoStudio === true,
       })),
@@ -1379,7 +1403,7 @@ function AdminProductRegisterPage() {
       // 행별 일련번호 직접 지정 (비우면 시작 번호 순차/자동 채번)
       serial_override: parseSerialStart(r.serialOverride),
       cover_image_url: r.coverUrl || null,
-      inspection_image_urls: r.detailUrls || [],
+      inspection_image_urls: getRegistrationDetailUrls(r),
       is_public: publishOnComplete,
     }));
     const existing_additions = existingAdditions.map((a) => ({
@@ -1387,7 +1411,7 @@ function AdminProductRegisterPage() {
       location: a.location || null,
       serial_override: parseSerialStart(a.serialOverride),
       cover_image_url: a.coverUrl || null,
-      inspection_image_urls: a.detailUrls || [],
+      inspection_image_urls: getRegistrationDetailUrls(a),
       is_public: publishOnComplete,
       options: a.options.map((o) => ({
         option: o.option || "",
@@ -2238,9 +2262,10 @@ function AdminProductRegisterPage() {
                       {t.coverUrl ? (
                         <>
                           <div className="relative h-32 w-32 overflow-hidden rounded-lg border border-slate-200">
-                            <img src={t.coverUrl} alt="" className="h-full w-full object-cover" />
+                            <img src={t.coverUrl} alt="" className="h-full w-full object-contain" />
                             <button
                               type="button"
+                              disabled={t.coverBusy}
                               onClick={() => clearCover(t.kind, t.uid)}
                               className="absolute right-1 top-1 rounded-full bg-slate-900/70 px-1.5 text-xs font-bold text-white"
                             >
@@ -2293,17 +2318,22 @@ function AdminProductRegisterPage() {
                     {/* 상세 */}
                     <div>
                       <p className="mb-2 text-xs font-bold text-slate-700">상세페이지 사진 (최대 {MAX_DETAIL_PHOTOS}장)</p>
+                      {t.detailIsDefault ? (
+                        <p className="mb-2 text-[11px] text-slate-500">실물 표지가 기본으로 들어갑니다. 별도 사진을 추가하면 해당 사진으로 바뀝니다.</p>
+                      ) : null}
                       <div className="flex flex-wrap gap-2">
                         {t.detailUrls.map((url) => (
                           <div key={url} className="relative h-24 w-24 overflow-hidden rounded-lg border border-slate-200">
-                            <img src={url} alt="" className="h-full w-full object-cover" />
-                            <button
-                              type="button"
-                              onClick={() => removeDetail(t.kind, t.uid, url)}
-                              className="absolute right-1 top-1 rounded-full bg-slate-900/70 px-1.5 text-xs font-bold text-white"
-                            >
-                              <CloseIcon size={12} />
-                            </button>
+                            <img src={url} alt="" className="h-full w-full object-contain" />
+                            {!t.detailIsDefault ? (
+                              <button
+                                type="button"
+                                onClick={() => removeDetail(t.kind, t.uid, url)}
+                                className="absolute right-1 top-1 rounded-full bg-slate-900/70 px-1.5 text-xs font-bold text-white"
+                              >
+                                <CloseIcon size={12} />
+                              </button>
+                            ) : null}
                           </div>
                         ))}
                         {t.detailUrls.length < MAX_DETAIL_PHOTOS ? (

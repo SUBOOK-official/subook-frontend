@@ -1,6 +1,7 @@
 // 사진 스튜디오(AI) 클라이언트 공용 로직.
 // AdminStudioContext(스튜디오 페이지 배치 처리)와 상품 등록 플로우(표지 자동 변환)가
 // 같은 전처리·요청 규칙을 쓰도록 여기로 추출했다. — /api/admin/book-studio 서버리스 호출.
+import { rotateLandscapePhoto } from "./photoOrientation.js";
 
 export const STUDIO_MAX_IMAGE_SIDE = 3072;
 export const STUDIO_MAX_BASE64_LENGTH = 3_000_000;
@@ -38,7 +39,8 @@ function loadImage(dataUrl) {
 }
 
 // 원본 파일 → 리사이즈·압축된 { mimeType, imageBase64 } 요청 페이로드
-export async function prepareStudioImagePayload(file) {
+export async function prepareStudioImagePayload(file, { rotateLandscape = false } = {}) {
+  if (rotateLandscape) file = await rotateLandscapePhoto(file);
   const sourceDataUrl = await readFileAsDataUrl(file);
   const sourceImage = await loadImage(sourceDataUrl);
 

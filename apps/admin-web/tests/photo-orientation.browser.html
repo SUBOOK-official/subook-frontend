@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8">
+<title>실물 사진 회전 검증</title>
+<style>body{font:16px system-ui;margin:32px}pre{white-space:pre-wrap}button{padding:12px}</style>
+<h1>실물 사진 회전 검증</h1>
+<button id="run">픽셀·치수·AI 입력 검증 실행</button>
+<pre id="results">대기</pre>
+<script type="module">
+import { rotateLandscapePhoto } from '../src/lib/photoOrientation.js';
+import { prepareStudioImagePayload } from '../src/lib/studioClient.js';
+const results = document.querySelector('#results');
+const assert = (condition, message) => { if (!condition) throw new Error(message); };
+async function fixture(width, height) {
+  const canvas = document.createElement('canvas');
+  canvas.width = width; canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  const pixels = ctx.createImageData(width, height);
+  for (let i = 0; i < width * height; i++) {
+    pixels.data.set([(i * 17) % 256, (i * 23) % 256, (i * 31) % 256, 255], i * 4);
+  }
+  ctx.putImageData(pixels, 0, 0);
+  const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+  return { file: new File([blob], 'physical.png', { type: 'image/png' }), pixels: pixels.data };
+}
+async function decode(file) {
+  const bitmap = await createImageBitmap(file);
+  const canvas = document.createElement('canvas');
+  canvas.width = bitmap.width; canvas.height = bitmap.height;
+  const ctx = canvas.getContext('2d'); ctx.drawImage(bitmap, 0, 0);
+  const output = { width: bitmap.width, height: bitmap.height, pixels: ctx.getImageData(0, 0, bitmap.width, bitmap.height).data };
+  bitmap.close(); return output;
+}
+document.querySelector('#run').onclick = async () => {
+  results.textContent = '검증 중';
+  const passed = [];
+  try {
+    const source = await fixture(71, 29);
+    const rotated = await rotateLandscapePhoto(source.file);
+    const image = await decode(rotated);
+    assert(image.width === 29 && image.height === 71, '임의 비율의 폭/높이 맞교환 실패');
+    for (let y = 0; y < 29; y++) for (let x = 0; x < 71; x++) {
+      const from = (y * 71 + x) * 4;
+      const to = (x * 29 + (28 - y)) * 4;
+      for (let c = 0; c < 4; c++) assert(source.pixels[from+c] === image.pixels[to+c], `원본 픽셀 변경 ${x},${y},${c}`);
+    }
+    passed.push('PASS 임의 비율 71×29 → 29×71, 2,059개 픽셀 RGBA 전체 동일 (시계 90도)');
+    assert(await rotateLandscapePhoto(rotated) === rotated, '중복 회전 발생');
+    passed.push('PASS 이미 회전한 세로 원본은 재회전·재압축 없음');
+    for (const [w,h] of [[40,60],[40,40]]) {
+      const {file} = await fixture(w,h);
+      assert(await rotateLandscapePhoto(file) === file, '세로/정사각 원본 변경');
+    }
+    passed.push('PASS 세로·정사각 입력 File 원본 유지');
+    const large = await fixture(3000,1500);
+    const largeResult = await decode(await rotateLandscapePhoto(large.file));
+    assert(largeResult.width === 1500 && largeResult.height === 3000, '실물 크기 축소 발생');
+    passed.push('PASS 3000×1500 → 1500×3000, 크롭·리사이즈 없음');
+    const prepared = await prepareStudioImagePayload(source.file, {rotateLandscape:true});
+    const upload = await (await fetch(`data:${prepared.mimeType};base64,${prepared.imageBase64}`)).blob();
+    const modelInput = await decode(upload);
+    assert(modelInput.width === 29 && modelInput.height === 71, 'AI 입력 회전 실패');
+    passed.push('PASS AI에도 회전한 세로 이미지를 전달');
+    results.textContent = passed.join('\n') + '\nALL PASS';
+  } catch (error) { results.textContent = passed.join('\n') + '\nFAIL: ' + error.message; }
+};
+</script>
+</html>

@@ -213,7 +213,7 @@ export function AdminStudioProvider({ children }) {
           throw new Error("로그인 세션이 만료되었습니다. 다시 로그인해 주세요.");
         }
 
-        const payload = await prepareStudioImagePayload(job.file);
+        const payload = await prepareStudioImagePayload(job.file, { rotateLandscape: true });
         const generated = await requestStudioGeneration(accessToken, payload);
         const generatedDataUrl = `data:${generated.mimeType};base64,${generated.imageBase64}`;
 
