@@ -7,13 +7,24 @@ import {
 } from "../lib/analytics";
 import { COLLAB_OPEN_AT } from "../lib/publicFeaturedProducts";
 import popupJeonilImg from "../assets/home-popup/POP-UP1.webp";
+import popupChuseokImg from "../assets/home-popup/chuseok.png";
 import "./PublicPopupBanner.css";
 
-const STORAGE_KEY = "subook.public.popup-banner.dismissed.v2";
+const STORAGE_KEY = "subook.public.popup-banner.dismissed.chuseok-2026";
 
 // 홈 첫 진입 시 순차 노출되는 팝업. X로 넘기면 다음 팝업, 마지막이면 종료(세션 동안 재노출 없음).
 // 새 팝업은 여기에 항목 추가 — 이동은 to(내부 경로) 또는 href(외부 URL) 중 하나만 지정.
 const POPUPS = [
+  {
+    src: popupChuseokImg,
+    alt: "추석 이후 수능까지, 수북이 함께합니다. 전 제품 6,000원 할인 쿠폰 코드: 2026수북추석. 마이페이지 쿠폰 보유내역에서 등록 가능하며 선착순 소진 시 조기 종료됩니다. 추석 배송: 9월 23일 택배 마감, 9월 24~27일 연휴, 9월 28일부터 순차 출고.",
+    to: "/mypage",
+    promotion: {
+      promotionId: "home_popup_chuseok_2026",
+      promotionName: "2026 추석 6,000원 할인 쿠폰 및 배송 안내",
+      creativeSlot: "home_popup",
+    },
+  },
   {
     src: popupJeonilImg,
     alt: "전일학원 × 수북 콜라보 한정판 교재, 9월 3일 수북 단독 오픈 — 출시 알림 신청하러 가기",
