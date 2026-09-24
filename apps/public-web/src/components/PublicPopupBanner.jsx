@@ -7,7 +7,7 @@ import {
 } from "../lib/analytics";
 import { COLLAB_OPEN_AT } from "../lib/publicFeaturedProducts";
 import popupJeonilImg from "../assets/home-popup/POP-UP1.webp";
-import popupChuseokImg from "../assets/home-popup/chuseok.png";
+import popupChuseokImg from "../assets/home-popup/chuseok.webp";
 import "./PublicPopupBanner.css";
 
 const STORAGE_KEY = "subook.public.popup-banner.dismissed.chuseok-2026";
@@ -18,7 +18,9 @@ const POPUPS = [
   {
     src: popupChuseokImg,
     alt: "추석 이후 수능까지, 수북이 함께합니다. 전 제품 6,000원 할인 쿠폰 코드: 2026수북추석. 마이페이지 쿠폰 보유내역에서 등록 가능하며 선착순 소진 시 조기 종료됩니다. 추석 배송: 9월 23일 택배 마감, 9월 24~27일 연휴, 9월 28일부터 순차 출고.",
-    to: "/mypage",
+    to: "/mypage#coupons",
+    // 한국시간 9월 28일 23:59까지 노출한다.
+    hideAfter: "2026-09-29T00:00:00+09:00",
     promotion: {
       promotionId: "home_popup_chuseok_2026",
       promotionName: "2026 추석 6,000원 할인 쿠폰 및 배송 안내",
@@ -78,6 +80,24 @@ function PublicPopupBanner() {
     }
     viewTrackedRef.current.add(index);
     trackViewPromotion(popups[index].promotion);
+  }, [index, popups]);
+
+  // 종료 전에 열어둔 팝업도 시각이 지나면 닫는다. 절전 후 복귀도 확인한다.
+  useEffect(() => {
+    const expiresAt = Date.parse(popups[index]?.hideAfter ?? "");
+    if (!Number.isFinite(expiresAt)) return undefined;
+
+    const closeIfExpired = () => {
+      if (Date.now() >= expiresAt) setIndex(-1);
+    };
+    const timeoutId = window.setTimeout(closeIfExpired, Math.max(0, expiresAt - Date.now()));
+    window.addEventListener("focus", closeIfExpired);
+    document.addEventListener("visibilitychange", closeIfExpired);
+    return () => {
+      window.clearTimeout(timeoutId);
+      window.removeEventListener("focus", closeIfExpired);
+      document.removeEventListener("visibilitychange", closeIfExpired);
+    };
   }, [index, popups]);
 
   const finish = () => {
