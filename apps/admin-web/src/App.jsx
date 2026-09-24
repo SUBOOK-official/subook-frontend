@@ -12,6 +12,7 @@ const AdminReviewsPage = lazy(() => import("./pages/AdminReviewsPage"));
 const AdminLoginPage = lazy(() => import("./pages/AdminLoginPage"));
 const AdminManualSettlementsPage = lazy(() => import("./pages/AdminManualSettlementsPage"));
 const AdminNoticesPage = lazy(() => import("./pages/AdminNoticesPage"));
+const AdminPromotionsPage = lazy(() => import("./pages/AdminPromotionsPage"));
 const AdminNotificationLogsPage = lazy(() => import("./pages/AdminNotificationLogsPage"));
 const AdminMembersPage = lazy(() => import("./pages/AdminMembersPage"));
 const AdminOrdersPage = lazy(() => import("./pages/AdminOrdersPage"));
@@ -247,6 +248,7 @@ function App() {
             }
             path="/admin/notices"
           />
+          <Route element={<AdminRoute><AdminPromotionsPage /></AdminRoute>} path="/admin/promotions" />
           <Route element={<ResetPasswordPage />} path="/auth/reset-password" />
           <Route element={<Navigate replace to="/admin/login" />} path="*" />
         </Routes>

@@ -1,192 +1,80 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
-import {
-  trackPromotionDismiss,
-  trackSelectPromotion,
-  trackViewPromotion,
-} from "../lib/analytics";
-import { COLLAB_OPEN_AT } from "../lib/publicFeaturedProducts";
-import popupJeonilImg from "../assets/home-popup/POP-UP1.webp";
-import popupChuseokImg from "../assets/home-popup/chuseok.webp";
+import { isPromotionUrl, promotionDismissKey } from "@shared-domain/sitePromotions";
+import { useFocusTrap } from "@shared-domain/useFocusTrap";
+import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
+import { trackPromotionDismiss, trackSelectPromotion, trackViewPromotion } from "../lib/analytics";
 import "./PublicPopupBanner.css";
 
-const STORAGE_KEY = "subook.public.popup-banner.dismissed.chuseok-2026";
-
-// 홈 첫 진입 시 순차 노출되는 팝업. X로 넘기면 다음 팝업, 마지막이면 종료(세션 동안 재노출 없음).
-// 새 팝업은 여기에 항목 추가 — 이동은 to(내부 경로) 또는 href(외부 URL) 중 하나만 지정.
-const POPUPS = [
-  {
-    src: popupChuseokImg,
-    alt: "추석 이후 수능까지, 수북이 함께합니다. 전 제품 6,000원 할인 쿠폰 코드: 2026수북추석. 마이페이지 쿠폰 보유내역에서 등록 가능하며 선착순 소진 시 조기 종료됩니다. 추석 배송: 9월 23일 택배 마감, 9월 24~27일 연휴, 9월 28일부터 순차 출고.",
-    to: "/mypage#coupons",
-    // 한국시간 9월 28일 23:59까지 노출한다.
-    hideAfter: "2026-09-29T00:00:00+09:00",
-    promotion: {
-      promotionId: "home_popup_chuseok_2026",
-      promotionName: "2026 추석 6,000원 할인 쿠폰 및 배송 안내",
-      creativeSlot: "home_popup",
-    },
-  },
-  {
-    src: popupJeonilImg,
-    alt: "전일학원 × 수북 콜라보 한정판 교재, 9월 3일 수북 단독 오픈 — 출시 알림 신청하러 가기",
-    to: "/event/jeon-il",
-    large: true, // POP-UP1은 1.6배 크게
-    // 판매 시작 후에는 '출시 알림 신청' 팝업이 무의미해 내린다 (문구가 이미지에
-    // 구워져 있어 문구 교체가 불가능 — 이미지를 새로 만들면 이 줄을 지우면 된다).
-    hideAfter: COLLAB_OPEN_AT,
-    promotion: {
-      promotionId: "home_popup_jeonil",
-      promotionName: "전일학원 × 수북 출시 알림",
-      creativeSlot: "home_popup",
-    },
-  },
-  // 카카오톡 친구추가 3,000원 쿠폰 팝업은 2026-09-07 요청으로 내림.
-];
-
-// hideAfter가 지난 팝업은 목록에서 뺀다. 노출 중 목록이 바뀌면 index가 어긋나므로
-// 마운트 시 한 번만 계산한다.
-function getActivePopups(now = Date.now()) {
-  return POPUPS.filter((popup) => !popup.hideAfter || now < Date.parse(popup.hideAfter));
+function wasDismissed(id) {
+  try { return sessionStorage.getItem(promotionDismissKey(id)) === "1"; }
+  catch { return false; }
 }
 
-// 홈페이지 첫 진입 시 순차 노출되는 팝업. 세션 동안 닫으면 다시 뜨지 않음.
-function PublicPopupBanner() {
-  const [popups] = useState(getActivePopups);
-  const [index, setIndex] = useState(-1); // -1 = 미노출
+function promotionParams(popup) {
+  return { promotionId: popup.id, promotionName: popup.title, creativeSlot: "home_popup" };
+}
+
+// ID별 세션 닫기: 노출 순서 변경·예약 시작·비활성화에도 다른 팝업의 상태가 섞이지 않는다.
+function PublicPopupBanner({ popups = [] }) {
+  const [dismissed, setDismissed] = useState(() => new Set());
   const navigate = useNavigate();
-  // 팝업별 view_promotion 1회 (StrictMode 이중 effect 방어)
-  const viewTrackedRef = useRef(new Set());
+  const panelRef = useRef(null);
+  const viewTracked = useRef(new Set());
+  const popup = popups.find((row) => !dismissed.has(row.id) && !wasDismissed(row.id));
+  const popupId = popup?.id;
+  const popupTitle = popup?.title;
+  useFocusTrap(panelRef, Boolean(popup));
+  useBodyScrollLock(Boolean(popup));
+
+  const dismiss = useCallback((method = "close_button") => {
+    if (!popupId) return;
+    trackPromotionDismiss({ promotionId: popupId, promotionName: popupTitle, creativeSlot: "home_popup", closeMethod: method });
+    setDismissed((previous) => new Set([...previous, popupId]));
+    try { sessionStorage.setItem(promotionDismissKey(popupId), "1"); } catch { /* 세션 저장 불가 시 메모리 유지 */ }
+  }, [popupId, popupTitle]);
 
   useEffect(() => {
-    if (popups.length === 0) {
-      return;
+    if (!popupId) return undefined;
+    panelRef.current?.querySelector("button")?.focus({ preventScroll: true });
+    if (!viewTracked.current.has(popupId)) {
+      viewTracked.current.add(popupId);
+      trackViewPromotion({ promotionId: popupId, promotionName: popupTitle, creativeSlot: "home_popup" });
     }
-    let dismissed = false;
-    try {
-      dismissed = sessionStorage.getItem(STORAGE_KEY) === "1";
-    } catch {
-      dismissed = false;
-    }
-    if (!dismissed) {
-      setIndex(0);
-    }
-    // popups는 마운트 시 한 번 계산돼 그대로라 실제로는 최초 1회만 실행된다.
-  }, [popups.length]);
+    const escape = (event) => { if (event.key === "Escape") dismiss("escape"); };
+    window.addEventListener("keydown", escape);
+    return () => window.removeEventListener("keydown", escape);
+  }, [popupId, popupTitle, dismiss]);
 
-  useEffect(() => {
-    if (index < 0 || !popups[index] || viewTrackedRef.current.has(index)) {
-      return;
-    }
-    viewTrackedRef.current.add(index);
-    trackViewPromotion(popups[index].promotion);
-  }, [index, popups]);
-
-  // 종료 전에 열어둔 팝업도 시각이 지나면 닫는다. 절전 후 복귀도 확인한다.
-  useEffect(() => {
-    const expiresAt = Date.parse(popups[index]?.hideAfter ?? "");
-    if (!Number.isFinite(expiresAt)) return undefined;
-
-    const closeIfExpired = () => {
-      if (Date.now() >= expiresAt) setIndex(-1);
-    };
-    const timeoutId = window.setTimeout(closeIfExpired, Math.max(0, expiresAt - Date.now()));
-    window.addEventListener("focus", closeIfExpired);
-    document.addEventListener("visibilitychange", closeIfExpired);
-    return () => {
-      window.clearTimeout(timeoutId);
-      window.removeEventListener("focus", closeIfExpired);
-      document.removeEventListener("visibilitychange", closeIfExpired);
-    };
-  }, [index, popups]);
-
-  const finish = () => {
-    setIndex(-1);
-    try {
-      sessionStorage.setItem(STORAGE_KEY, "1");
-    } catch {
-      // ignore storage errors
-    }
+  if (!popup) return null;
+  const link = isPromotionUrl(popup.link_url) ? popup.link_url : null;
+  const image = (
+    <picture>
+      {isPromotionUrl(popup.mobile_image_url) && <source media="(max-width: 767px)" srcSet={popup.mobile_image_url} />}
+      <img className="public-popup-banner__image" src={popup.image_url} alt={popup.alt_text} />
+    </picture>
+  );
+  const select = () => {
+    trackSelectPromotion(promotionParams(popup));
+    dismiss("link");
   };
 
-  // 닫기: 다음 팝업이 있으면 다음으로, 없으면 종료
-  // closeMethod: close_button(×) / backdrop
-  const handleClose = (closeMethod = "close_button") => {
-    // GA4 promotion_dismiss — view_promotion 대비 이탈률(팝업 피로도)
-    const popup = popups[index];
-    if (popup) {
-      trackPromotionDismiss({
-        ...popup.promotion,
-        closeMethod,
-        popupIndex: index,
-      });
-    }
-    if (index < popups.length - 1) {
-      setIndex((prev) => prev + 1);
-    } else {
-      finish();
-    }
-  };
-
-  // 내부 경로 이동 (외부 href 팝업은 네이티브 앵커가 새 탭을 연다 — window.open은
-  // 팝업 차단기에 걸릴 수 있어 쓰지 않음)
-  const handleClick = () => {
-    const popup = popups[index];
-    trackSelectPromotion(popup.promotion);
-    finish();
-    navigate(popup.to);
-  };
-
-  const handleExternalClick = () => {
-    trackSelectPromotion(popups[index].promotion);
-    finish();
-  };
-
-  if (index < 0 || !popups[index]) {
-    return null;
-  }
-
-  const popup = popups[index];
-
-  return (
-    <div
-      className="public-popup-banner"
-      role="dialog"
-      aria-modal="true"
-      aria-label="이벤트 안내"
-      onClick={() => handleClose("backdrop")}
-    >
-      <div
-        className={`public-popup-banner__panel${popup.large ? " public-popup-banner__panel--large" : ""}`}
-        onClick={(event) => event.stopPropagation()}
-      >
-        <button
-          type="button"
-          className="public-popup-banner__close"
-          onClick={() => handleClose("close_button")}
-          aria-label="닫기"
-        >
+  return createPortal(
+    <div className="public-popup-banner" role="dialog" aria-modal="true" aria-label={popup.title} onClick={() => dismiss("backdrop")}>
+      <div className="public-popup-banner__panel" ref={panelRef} onClick={(event) => event.stopPropagation()}>
+        <button type="button" className="public-popup-banner__close" onClick={() => dismiss()} aria-label="닫기">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
             <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
           </svg>
         </button>
-        {popup.href ? (
-          <a
-            className="public-popup-banner__link"
-            href={popup.href}
-            target="_blank"
-            rel="noreferrer"
-            onClick={handleExternalClick}
-          >
-            <img className="public-popup-banner__image" src={popup.src} alt={popup.alt} />
-          </a>
+        {!link ? <div className="public-popup-banner__link">{image}</div> : link.startsWith("/") ? (
+          <a className="public-popup-banner__link" href={link} onClick={(event) => { event.preventDefault(); select(); navigate(link); }}>{image}</a>
         ) : (
-          <button type="button" className="public-popup-banner__link" onClick={handleClick}>
-            <img className="public-popup-banner__image" src={popup.src} alt={popup.alt} />
-          </button>
+          <a className="public-popup-banner__link" href={link} target="_blank" rel="noopener noreferrer" onClick={select}>{image}</a>
         )}
       </div>
-    </div>
+    </div>, document.body,
   );
 }
 
