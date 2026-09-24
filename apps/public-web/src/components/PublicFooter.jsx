@@ -60,15 +60,13 @@ function FooterChatIcon() {
 
 function FooterBlogIcon() {
   return (
-    <svg aria-hidden="true" className="public-footer__icon-svg" viewBox="0 0 24 24">
+    <svg aria-hidden="true" className="public-footer__icon-svg" viewBox="64 64 384 384">
       <path
-        d="M5 3.75h14A1.25 1.25 0 0 1 20.25 5v12A1.25 1.25 0 0 1 19 18.25h-6.5L8 21v-2.75H5A1.25 1.25 0 0 1 3.75 17V5A1.25 1.25 0 0 1 5 3.75Z"
-        fill="none"
-        stroke="currentColor"
-        strokeLinejoin="round"
-        strokeWidth="1.5"
+        d="M101.5 112H154V210.5C171.5 194.5 192 185.8 215.5 185.8C277.2 185.8 322 231.5 322 295C322 358.5 276.5 404 214.5 404C190.2 404 169.2 395.5 152 379.5V400.5H101.5V112ZM211 233C177.5 233 152.5 259.3 152.5 295C152.5 330.7 177.5 357 211 357C244.5 357 269.5 330.7 269.5 295C269.5 259.3 244.5 233 211 233Z"
+        fill="currentColor"
+        fillRule="evenodd"
       />
-      <path d="M8 7h2.5l3 4.8V7H16v8h-2.5l-3-4.8V15H8Z" fill="currentColor" />
+      <path d="M390.5 88H411.5V425H390.5Z" fill="currentColor" />
     </svg>
   );
 }
