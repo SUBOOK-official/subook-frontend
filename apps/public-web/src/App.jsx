@@ -9,6 +9,7 @@ import "./lib/pgReviewMode";
 
 const PublicAuthCallbackPage = lazy(() => import("./pages/PublicAuthCallbackPage"));
 const PublicB2bPage = lazy(() => import("./pages/PublicB2bPage"));
+const PublicCatalogPage = lazy(() => import("./pages/PublicCatalogPage"));
 const PublicCartPage = lazy(() => import("./pages/PublicCartPage"));
 const PublicFaqPage = lazy(() => import("./pages/PublicFaqPage"));
 const PublicForgotPasswordPage = lazy(() => import("./pages/PublicForgotPasswordPage"));
@@ -122,6 +123,7 @@ function App() {
           <Route element={<PublicOAuthConsentPage />} path="/auth/oauth-consent" />
           <Route element={<PublicCartPage />} path="/cart" />
           <Route element={<PublicB2bPage />} path="/b2b" />
+          <Route element={<PublicCatalogPage />} path="/catalog" />
           <Route element={<PublicKakaoCouponPage />} path="/event/kakao-coupon" />
           <Route element={<PublicFaqPage />} path="/faq" />
           <Route element={<PublicForgotPasswordPage />} path="/forgot-password" />
