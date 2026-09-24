@@ -45,6 +45,20 @@ test("parseStorefrontQuery ignores unknown filter values and deduplicates values
   assert.deepEqual(parsed.selectedFilters.conditionGrades, ["S"]);
 });
 
+test("year filters retain 2027 and other through URL round-trip and can be cleared independently", () => {
+  const parsed = parseStorefrontQuery("?brand=시대인재&year=2027,other,2027&page=3");
+  assert.deepEqual(parsed.selectedFilters.years, ["2027", "other"]);
+  const serialized = serializeStorefrontQuery({
+    ...parsed,
+    currentPage: parsed.page,
+  });
+  assert.deepEqual(parseStorefrontQuery(serialized).selectedFilters, parsed.selectedFilters);
+  const cleared = clearStoreFilterGroup(parsed.selectedFilters, "years");
+  assert.deepEqual(cleared.years, []);
+  assert.deepEqual(cleared.brands, ["시대인재"]);
+  assert.deepEqual(toggleStoreFilterSelection(parsed.selectedFilters, "years", "other").years, ["2027"]);
+});
+
 test("serializeStorefrontQuery uses spec query keys and omits defaults", () => {
   const serialized = serializeStorefrontQuery({
     selectedSubject: "영어",

@@ -1,4 +1,5 @@
 import { bookConditionLabel, productStatusLabel } from "@shared-domain/status";
+import { matchesStorefrontYear, toStorefrontRpcYears } from "@shared-domain/storefrontYears";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/publicSupabaseClient";
 import { STORE_DEFAULT_SUBJECT } from "./publicStoreNavigation";
 import {
@@ -715,7 +716,7 @@ function buildStorefrontRpcArgs(filters = {}) {
   const selectedSubject = normalizeText(filters.subject);
   const years =
     Array.isArray(filters.years) && filters.years.length > 0
-      ? filters.years.map((year) => normalizeInteger(year)).filter((year) => year !== null)
+      ? toStorefrontRpcYears(filters.years)
       : [];
   const instructors = Array.isArray(filters.instructors)
     ? filters.instructors.map(normalizeText).filter(Boolean)
@@ -818,10 +819,7 @@ function filterStorefrontProducts(products, filters = {}) {
       return false;
     }
 
-    if (
-      selectedYears.length > 0 &&
-      !selectedYears.includes(product.publishedYear === null ? "" : String(product.publishedYear))
-    ) {
+    if (!matchesStorefrontYear(product.publishedYear, selectedYears)) {
       return false;
     }
 

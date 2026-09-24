@@ -7,7 +7,6 @@ import BestBooksSection from "../components/home/BestBooksSection";
 import B2bCTA from "../components/home/B2bCTA";
 import HeroBanner from "../components/home/HeroBanner";
 import HomeStoreGrid from "../components/home/HomeStoreGrid";
-import LatestArrivalsSection from "../components/home/LatestArrivalsSection";
 import PickupCTA from "../components/home/PickupCTA";
 import FortuneCookie from "../components/FortuneCookie";
 import PublicPopupBanner from "../components/PublicPopupBanner";
@@ -91,11 +90,6 @@ function PublicHomePage() {
       {heroSlides.length > 0 && <HeroBanner onSlideAction={handleHeroAction} slides={heroSlides} />}
       {/* 배너 클릭 스크롤 도착 지점. sticky 헤더에 가리지 않도록 scroll-margin-top 확보. */}
       <div id="products" aria-hidden="true" ref={productsRef} style={{ scrollMarginTop: "80px" }} />
-      {/* 2026-08-31: 신규 입고를 BEST 위로 — 콜라보 신상품 노출을 최우선으로 */}
-      <LatestArrivalsSection
-        favoriteIds={favoriteIds}
-        onToggleFavorite={handleToggleFavorite}
-      />
       <BestBooksSection
         favoriteIds={favoriteIds}
         onToggleFavorite={handleToggleFavorite}

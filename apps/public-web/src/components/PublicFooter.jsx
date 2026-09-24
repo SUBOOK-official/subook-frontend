@@ -58,6 +58,21 @@ function FooterChatIcon() {
   );
 }
 
+function FooterBlogIcon() {
+  return (
+    <svg aria-hidden="true" className="public-footer__icon-svg" viewBox="0 0 24 24">
+      <path
+        d="M5 3.75h14A1.25 1.25 0 0 1 20.25 5v12A1.25 1.25 0 0 1 19 18.25h-6.5L8 21v-2.75H5A1.25 1.25 0 0 1 3.75 17V5A1.25 1.25 0 0 1 5 3.75Z"
+        fill="none"
+        stroke="currentColor"
+        strokeLinejoin="round"
+        strokeWidth="1.5"
+      />
+      <path d="M8 7h2.5l3 4.8V7H16v8h-2.5l-3-4.8V15H8Z" fill="currentColor" />
+    </svg>
+  );
+}
+
 const footerTopLinks = [
   { label: "교재 판매하기", to: SELL_GUIDE_PATH },
   { label: "학원·교육기관 B2B", to: "/b2b" },
@@ -223,6 +238,17 @@ function PublicFooter() {
               target="_blank"
             >
               <FooterInstagramIcon />
+            </a>
+            <a
+              aria-label="수북 네이버 블로그"
+              className="public-footer__social"
+              href="https://blog.naver.com/subook_official"
+              onClick={() => trackSelectContent("social_link", "naver_blog", { uiSurface: "footer" })}
+              rel="noopener noreferrer"
+              target="_blank"
+              title="수북 네이버 블로그"
+            >
+              <FooterBlogIcon />
             </a>
             <a
               aria-label="카카오톡 채널"

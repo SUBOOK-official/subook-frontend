@@ -1,3 +1,5 @@
+import { STOREFRONT_FEATURED_YEARS, STOREFRONT_OTHER_YEAR } from "../../../../packages/shared-domain/src/storefrontYears.js";
+
 export const STORE_SUBJECTS = ["전체", "국어", "수학", "영어", "과학", "사회", "한국사", "기타"];
 export const STORE_DEFAULT_SUBJECT = STORE_SUBJECTS[0];
 export const SEARCH_DEBOUNCE_MS = 300;
@@ -52,7 +54,10 @@ export const STORE_FILTER_GROUPS = [
     key: "years",
     label: "연도",
     queryKey: "year",
-    options: ["2026", "2025", "2024"],
+    options: [
+      ...STOREFRONT_FEATURED_YEARS.map(String),
+      { value: STOREFRONT_OTHER_YEAR, label: "기타" },
+    ],
   },
   {
     key: "conditionGrades",
@@ -65,8 +70,8 @@ export const STORE_FILTER_GROUPS = [
   },
 ];
 
-// HomeStoreGrid 사이드바에 노출할 그룹 (연도/상태는 카드 자체에서 보이므로 제외)
-export const HOME_SIDEBAR_FILTER_GROUP_KEYS = ["types", "brands"];
+// 홈 사이드바와 모바일 필터 시트에 같은 그룹을 노출한다.
+export const HOME_SIDEBAR_FILTER_GROUP_KEYS = ["types", "brands", "years"];
 
 export const STORE_FILTER_GROUP_KEYS = STORE_FILTER_GROUPS.map((group) => group.key);
 
