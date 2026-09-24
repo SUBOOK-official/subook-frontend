@@ -1,7 +1,8 @@
 .public-popup-banner {
   position: fixed;
   inset: 0;
-  z-index: 1000;
+  /* 고정 헤더(z-index 1000)가 긴 팝업의 닫기 버튼을 가리지 않게 한다. */
+  z-index: 1100;
   display: flex;
   align-items: center;
   justify-content: center;
