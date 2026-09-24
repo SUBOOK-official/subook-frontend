@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import AdminShell from "../components/AdminShell";
 import AdminDialog from "../components/AdminDialog";
+import { formatImageBytes, preparePromotionImage } from "../lib/promotionImage";
 import { supabase } from "@shared-supabase/adminSupabaseClient";
 import { deletePromotion, listPromotions, savePromotion, uploadPromotionImage } from "@shared-supabase/sitePromotionsClient";
 import { fromKstInput, isPromotionUrl, PROMOTION_PLACEMENTS, promotionStatus, toKstInput } from "@shared-domain/sitePromotions";
@@ -21,6 +22,8 @@ function AdminPromotionsPage() {
   const [editorError, setEditorError] = useState("");
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState("");
+  const [uploadPhase, setUploadPhase] = useState("");
+  const [imageResults, setImageResults] = useState({});
   const [deleteTarget, setDeleteTarget] = useState(null);
 
   const load = useCallback(async () => {
@@ -34,18 +37,28 @@ function AdminPromotionsPage() {
 
   const openEditor = (row = null) => {
     setEditorError("");
+    setImageResults({});
     setEditor(row ? { ...row, starts_at: toKstInput(row.starts_at), ends_at: toKstInput(row.ends_at, true) } : {
       id: crypto.randomUUID(), placement: filter === "home_popup" ? "home_popup" : "home_hero", title: "",
       image_url: "", mobile_image_url: "", alt_text: "", link_url: "", is_enabled: false,
       sort_order: 100, starts_at: "", ends_at: "",
     });
   };
-  const change = (key, value) => setEditor((old) => ({ ...old, [key]: value }));
+  const change = (key, value) => {
+    setEditor((old) => ({ ...old, [key]: value }));
+    if (key === "image_url" || key === "mobile_image_url") setImageResults((old) => ({ ...old, [key]: null }));
+  };
   const upload = async (key, file) => {
     if (!file) return;
     setUploading(key);
+    setUploadPhase("이미지 최적화 중…");
     setEditorError("");
-    try { change(key, await uploadPromotionImage(supabase, file)); }
+    try {
+      const result = await preparePromotionImage(file, { placement: editor.placement, mobile: key === "mobile_image_url" });
+      setUploadPhase("이미지 업로드 중…");
+      change(key, await uploadPromotionImage(supabase, result.file));
+      setImageResults((old) => ({ ...old, [key]: result }));
+    }
     catch (err) { setEditorError(err.message || "이미지를 업로드하지 못했습니다. 다시 시도해 주세요."); }
     finally { setUploading(""); }
   };
@@ -129,7 +142,7 @@ function AdminPromotionsPage() {
         </div>
       )}
       <AdminDialog open={Boolean(editor)} onClose={() => setEditor(null)} title={editor?.updated_at ? "배너·팝업 수정" : "새 배너·팝업"} size="xl" busy={blocked} dirty
-        footer={<div className="flex justify-end gap-2"><button className={buttonClass} type="button" onClick={() => setEditor(null)} disabled={blocked}>취소</button><button className={primaryClass} type="submit" form="promotion-editor" disabled={blocked}>{uploading ? "이미지 업로드 중…" : busy ? "저장 중…" : "저장"}</button></div>}>
+        footer={<div className="flex justify-end gap-2"><button className={buttonClass} type="button" onClick={() => setEditor(null)} disabled={blocked}>취소</button><button className={primaryClass} type="submit" form="promotion-editor" disabled={blocked}>{uploading ? uploadPhase : busy ? "저장 중…" : "저장"}</button></div>}>
         {editor && <form id="promotion-editor" onSubmit={save} className="space-y-5 p-6">
           {editorError && <p className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700" role="alert">{editorError}</p>}
           <fieldset disabled={blocked} className="space-y-5">
@@ -144,10 +157,16 @@ function AdminPromotionsPage() {
                   <label className="block text-sm font-semibold">{label}<input type="file" accept="image/jpeg,image/png,image/webp" className="mt-3 block w-full text-xs" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; void upload(key, file); }} /></label>
                   <label className="mt-3 block text-xs text-slate-500">{key === "image_url" ? "기본 이미지 주소" : "모바일 이미지 주소"}<input className={inputClass} value={editor[key] || ""} onChange={(event) => change(key, event.target.value.trim())} placeholder="업로드하거나 https:// 이미지 주소 입력" /></label>
                   {previewUrl(editor[key]) && <img src={previewUrl(editor[key])} alt={`${label} 미리보기`} className="mt-3 max-h-52 w-full rounded-lg object-contain bg-slate-50" />}
+                  {imageResults[key] && <p role="status" className="mt-2 text-xs text-emerald-700">
+                    {imageResults[key].optimized
+                      ? `${formatImageBytes(imageResults[key].originalBytes)} → ${formatImageBytes(imageResults[key].outputBytes)} (${imageResults[key].savedPercent}% 절감)`
+                      : `원본 유지 · ${formatImageBytes(imageResults[key].outputBytes)}${imageResults[key].animated ? " · 움직이는 이미지" : " · 이미 최적화된 이미지"}`}
+                    {` · ${imageResults[key].format} · ${imageResults[key].width}×${imageResults[key].height}px`}
+                  </p>}
                 </div>
               ))}
             </div>
-            <p className="text-xs text-slate-500">JPG·PNG·WebP, 각 5MB 이하. 홈 배너는 PC 3200×500px 비율을 권장합니다. 모바일 이미지를 비워두면 기본 이미지를 사용합니다.</p>
+            <p className="text-xs text-slate-500">JPG·PNG·WebP 원본 25MB까지. 업로드 시 비율을 유지해 자동 축소·압축합니다. 홈 배너는 PC 3200×500px 비율을 권장합니다. 모바일 이미지를 비워두면 기본 이미지를 사용합니다.</p>
             <label className="block text-sm font-semibold">이미지 설명<textarea className={inputClass} rows={3} required maxLength={1000} value={editor.alt_text} onChange={(e) => change("alt_text", e.target.value)} placeholder="이미지에 적힌 주요 내용을 입력해 주세요. 스크린리더에서도 안내됩니다." /></label>
             <label className="block text-sm font-semibold">클릭 시 연결 주소 (선택)<input className={inputClass} value={editor.link_url || ""} onChange={(e) => change("link_url", e.target.value.trim())} placeholder="예: /mypage#coupons 또는 https://…" /></label>
             <p className="text-xs text-slate-500">교재 판매 안내: /sell · 전체 상품: /#products · 쿠폰함: /mypage#coupons · 비워두면 이동하지 않습니다.</p>
