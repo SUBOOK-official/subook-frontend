@@ -2318,7 +2318,7 @@ function PublicProductDetailPage() {
                 {isPreRelease ? null : (
                   <dl className="public-detail-hero__summary">
                     <div>
-                      <dt>배송비</dt>
+                      <dt>배송비 <small style={{ fontWeight: 400 }}>({formatCurrency(FREE_SHIPPING_THRESHOLD)} 이상 무료배송)</small></dt>
                       <dd>
                         {hasSelection &&
                         selectionSubtotal >= FREE_SHIPPING_THRESHOLD

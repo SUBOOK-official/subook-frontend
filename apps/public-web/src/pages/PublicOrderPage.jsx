@@ -1,3 +1,4 @@
+import CheckoutRecommendations from "../components/CheckoutRecommendations";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { formatCurrency } from "@shared-domain/format";
@@ -793,6 +794,7 @@ function PublicOrderPage() {
   const [paymentMethod, setPaymentMethod] = useState(PG_READY ? "card" : "bank_transfer");
   // 무통장입금 환불 대비 계좌 정보 (PG 안정화 전까지 수동 환불용). 관리자 주문 상세에서 확인.
   const [refundAccount, setRefundAccount] = useState({ bank: "", number: "", holder: "" });
+  const [addingRecommendation, setAddingRecommendation] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   // P0-3: 동의 체크박스 3개로 분리 — 주문 내용/결제 및 자동 취소/환불 정책
   const [agreementOrder, setAgreementOrder] = useState(false);
@@ -1397,6 +1399,7 @@ function PublicOrderPage() {
 
 
   const handleSubmit = async () => {
+    if (addingRecommendation) return;
     // 동기 ref 가드: 빠른 더블 클릭 시 첫 호출이 끝나기 전 두 번째 클릭 차단.
     // setState는 비동기라 isSubmitting state로는 race를 못 막는다.
     if (inFlightRef.current) return;
@@ -1804,6 +1807,8 @@ function PublicOrderPage() {
 
   return (
     <PublicPageFrame>
+
+
       <div className="order-page">
         <PublicSiteHeader />
 
@@ -1835,6 +1840,8 @@ function PublicOrderPage() {
                   ))}
                 </div>
               </div>
+
+              <CheckoutRecommendations disabled={isSubmitting} onBusyChange={setAddingRecommendation} items={orderItems} onAdd={(item) => setOrderItems((current) => current.some((existing) => String(existing.bookId) === String(item.bookId)) ? current : [...current, item])} />
 
               {/* 배송지 — 기본 배송지 카드 + 주소록 모달 (2026-07-12 UX 개편) */}
               <div className="order-section">
@@ -2435,11 +2442,11 @@ function PublicOrderPage() {
                 <button
                   className="order-sidebar__submit-btn"
                   disabled={
-                    isSubmitting ||
+                    isSubmitting || addingRecommendation ||
                     !requiredAgreementsOk ||
                     (isPg && PG_PROVIDER === "toss" && !tossWidgetReady)
                   }
-                  onClick={handleSubmit}
+                  onClick={() => handleSubmit()}
                   type="button"
                 >
                   {isSubmitting ? "주문 처리 중…" : `${formatCurrency(totalAmount)} 결제하기`}

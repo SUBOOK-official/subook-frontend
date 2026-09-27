@@ -3,7 +3,9 @@ import { useNavigate } from "react-router-dom";
 import PublicFooter from "../components/PublicFooter";
 import PublicSiteHeader from "../components/PublicSiteHeader";
 import PublicPageFrame from "../components/PublicPageFrame";
-import BestBooksSection from "../components/home/BestBooksSection";
+import MemberRecommendations from "../components/home/MemberRecommendations";
+import ThemeQuickLinks from "../components/home/ThemeQuickLinks";
+import RecommendedBanners from "../components/home/RecommendedBanners";
 import B2bCTA from "../components/home/B2bCTA";
 import HeroBanner from "../components/home/HeroBanner";
 import HomeStoreGrid from "../components/home/HomeStoreGrid";
@@ -90,7 +92,9 @@ function PublicHomePage() {
       {heroSlides.length > 0 && <HeroBanner onSlideAction={handleHeroAction} slides={heroSlides} />}
       {/* 배너 클릭 스크롤 도착 지점. sticky 헤더에 가리지 않도록 scroll-margin-top 확보. */}
       <div id="products" aria-hidden="true" ref={productsRef} style={{ scrollMarginTop: "80px" }} />
-      <BestBooksSection
+      <ThemeQuickLinks />
+      <RecommendedBanners />
+      <MemberRecommendations
         favoriteIds={favoriteIds}
         onToggleFavorite={handleToggleFavorite}
       />

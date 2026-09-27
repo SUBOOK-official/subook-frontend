@@ -1,3 +1,5 @@
+import AdminThemesPage from "./pages/AdminThemesPage";
+import AdminRecommendationsPage from "./pages/AdminRecommendationsPage";
 import { lazy, Suspense, useEffect } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import AdminRoute from "./components/AdminRoute";
@@ -249,6 +251,8 @@ function App() {
             path="/admin/notices"
           />
           <Route element={<AdminRoute><AdminPromotionsPage /></AdminRoute>} path="/admin/promotions" />
+          <Route element={<AdminRoute><AdminRecommendationsPage /></AdminRoute>} path="/admin/recommendations" />
+          <Route element={<AdminRoute><AdminThemesPage /></AdminRoute>} path="/admin/themes" />
           <Route element={<ResetPasswordPage />} path="/auth/reset-password" />
           <Route element={<Navigate replace to="/admin/login" />} path="*" />
         </Routes>

@@ -17,7 +17,7 @@ test("parseStorefrontQuery falls back to the default subject for invalid values"
 
   assert.equal(parsed.selectedSubject, STORE_DEFAULT_SUBJECT);
   // 기본 정렬은 '인기순(popular)' — 유효하지 않은 sort 값은 이 기본값으로 폴백.
-  assert.equal(parsed.sortOption, "popular");
+  assert.equal(parsed.sortOption, "recommended");
   assert.equal(parsed.page, 1);
 });
 
@@ -179,7 +179,7 @@ test("parseStorefrontQuery falls back to relevance when searching without explic
   // 검색 중이라도 명시된 정렬은 존중
   assert.equal(parseStorefrontQuery("?q=수학&sort=popular").sortOption, "popular");
   // 검색어가 없으면 평시 기본(인기순)
-  assert.equal(parseStorefrontQuery("").sortOption, "popular");
+  assert.equal(parseStorefrontQuery("").sortOption, "recommended");
 });
 
 test("serializeStorefrontQuery omits implied sort and keeps explicit choices", () => {
@@ -209,7 +209,7 @@ test("serializeStorefrontQuery omits implied sort and keeps explicit choices", (
   // 평시 인기순 = 암묵 기본 → 생략 (기존 동작 유지)
   const impliedDefault = serializeStorefrontQuery({
     ...base,
-    sortOption: "popular",
+    sortOption: "recommended",
     searchKeyword: "",
   });
   assert.equal(impliedDefault.includes("sort="), false);

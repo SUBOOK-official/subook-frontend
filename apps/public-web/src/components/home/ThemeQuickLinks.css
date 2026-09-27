@@ -1,0 +1,6 @@
+.home-theme-links{display:flex;align-items:flex-start;justify-content:center;gap:28px;overflow-x:auto;padding:28px 4px;scroll-snap-type:x proximity}
+.home-theme-links__item{display:flex;flex:0 0 88px;flex-direction:column;align-items:center;gap:10px;scroll-snap-align:start;color:#252525;text-decoration:none;font-size:13px;font-weight:700;text-align:center;word-break:keep-all}
+.home-theme-links__image{display:grid;place-items:center;width:72px;height:72px;border-radius:50%;overflow:hidden;background:#f4f5f8}
+.home-theme-links__image picture,.home-theme-links__image img{display:block;width:100%;height:100%;object-fit:cover}
+.home-theme-links__item:hover{color:#354edb}.home-theme-links__item:focus-visible{outline:2px solid #354edb;outline-offset:3px;border-radius:8px}
+@media(max-width:767px){.home-theme-links{justify-content:flex-start;gap:14px;padding:20px 4px}.home-theme-links__item{flex-basis:72px;font-size:12px}.home-theme-links__image{width:60px;height:60px}}

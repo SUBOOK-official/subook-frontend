@@ -14,6 +14,7 @@ const PublicCartPage = lazy(() => import("./pages/PublicCartPage"));
 const PublicFaqPage = lazy(() => import("./pages/PublicFaqPage"));
 const PublicForgotPasswordPage = lazy(() => import("./pages/PublicForgotPasswordPage"));
 const PublicGuestOrderLookupPage = lazy(() => import("./pages/PublicGuestOrderLookupPage"));
+const PublicThemePage = lazy(() => import("./pages/PublicThemePage"));
 const PublicHomePage = lazy(() => import("./pages/PublicHomePage"));
 const PublicJeonilEventPage = lazy(() => import("./pages/PublicJeonilEventPage"));
 const PublicKakaoCouponPage = lazy(() => import("./pages/PublicKakaoCouponPage"));
@@ -128,6 +129,7 @@ function App() {
           <Route element={<PublicFaqPage />} path="/faq" />
           <Route element={<PublicForgotPasswordPage />} path="/forgot-password" />
           <Route element={<PublicHomePage />} path="/" />
+          <Route element={<PublicThemePage />} path="/themes/:themeId" />
           <Route element={<PublicJeonilEventPage />} path="/event/jeon-il" />
           <Route element={<PublicLoginPage />} path="/login" />
           <Route element={<PublicMypagePage />} path="/mypage" />

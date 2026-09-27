@@ -5,17 +5,18 @@ export const STORE_DEFAULT_SUBJECT = STORE_SUBJECTS[0];
 export const SEARCH_DEBOUNCE_MS = 300;
 
 export const STORE_SORT_OPTIONS = [
+  { value: "recommended", label: "추천순" },
+  { value: "popular", label: "인기순" },
   { value: "latest", label: "최신순" },
   { value: "price_asc", label: "가격 낮은순" },
   { value: "price_desc", label: "가격 높은순" },
-  { value: "popular", label: "인기순" },
 ];
 
 // 검색어가 있을 때만 노출되는 관련도 정렬 — 서버 match_score(FTS 유사도) 기준.
 export const STORE_SEARCH_SORT_OPTION = { value: "relevance", label: "관련도순" };
 
 // 스토어 기본 정렬 — 드롭다운 노출 순서와 무관하게 초기 선택값만 '인기순'으로 지정.
-export const STORE_DEFAULT_SORT = "popular";
+export const STORE_DEFAULT_SORT = "recommended";
 
 export function isValidStoreSort(value) {
   return (

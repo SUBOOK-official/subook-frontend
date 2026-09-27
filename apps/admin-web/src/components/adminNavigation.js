@@ -63,6 +63,8 @@ export const adminNavigationGroups = [
     key: "content",
     label: "콘텐츠",
     items: [
+      { key: "themes", label: "테마관", to: "/admin/themes", icon: MegaphoneIcon },
+      { key: "recommendations", label: "추천 교재", to: "/admin/recommendations", icon: StarIcon },
       { key: "promotions", label: "배너·팝업", to: "/admin/promotions", icon: MegaphoneIcon },
       { key: "notices", label: "공지사항", to: "/admin/notices", icon: MegaphoneIcon },
       { key: "faqs", label: "FAQ", to: "/admin/faqs", icon: HelpCircleIcon },
@@ -85,6 +87,8 @@ export function resolveActiveAdminModule({ pathname, explicitModule }) {
   if (explicitModule) {
     return explicitModule;
   }
+  if (pathname.startsWith("/admin/themes")) return "themes";
+  if (pathname.startsWith("/admin/recommendations")) return "recommendations";
   if (pathname.startsWith("/admin/promotions")) return "promotions";
 
   if (pathname.startsWith("/admin/studio")) {
