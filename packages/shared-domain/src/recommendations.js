@@ -10,7 +10,7 @@ export function rankPersonalizedProducts(products, signals, excludedIds = []) {
   const scores = (product) => signals.reduce((score, signal, index) => score +
     (signal.subject === product.subject ? 3 : 0) / (index + 1) +
     (signal.bookType && signal.bookType === product.bookType ? 1 : 0) / (index + 1), 0);
-  return products.filter((product) => !product.isSoldOut && !excluded.has(String(product.id)))
+  return products.filter((product) => !product.isSoldOut && product.isPublic !== false && !excluded.has(String(product.id)))
     .map((product, index) => ({ product, index, score: scores(product) }))
     .sort((a, b) => b.score - a.score || a.index - b.index).map(({ product }) => product);
 }

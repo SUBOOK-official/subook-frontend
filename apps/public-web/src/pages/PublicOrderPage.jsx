@@ -1,4 +1,5 @@
 import CheckoutRecommendations from "../components/CheckoutRecommendations";
+import { isCheckoutBookAvailable, mergeVerifiedCheckoutItems, persistCheckoutItems } from "../lib/checkoutRecommendations";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { formatCurrency } from "@shared-domain/format";
@@ -735,7 +736,7 @@ function loadDaumPostcode() {
   });
 }
 
-function OrderItemRow({ item }) {
+function OrderItemRow({ item, onRemove, disabled }) {
   const lineTotal = (item.price ?? 0) * item.quantity;
   return (
     <div className="order-item">
@@ -755,6 +756,7 @@ function OrderItemRow({ item }) {
       </div>
       <div className="order-item__price">
         {item.price !== null ? formatCurrency(lineTotal) : "—"}
+        {item.isRecommendation && <button type="button" className="checkout-recommendation-remove" disabled={disabled} onClick={onRemove} aria-label={`${item.title} 추천 교재 삭제`}>삭제</button>}
       </div>
     </div>
   );
@@ -776,6 +778,17 @@ function PublicOrderPage() {
   // create_order RPC는 어차피 서버 가격으로 결제하므로, 표시 금액과 실제 결제 금액의
   // mismatch를 막기 위해 진입 직후 한 번 재검증.
   const [orderItems, setOrderItems] = useState(initialOrderItems);
+  const checkoutEntryRef = useRef(location.key);
+  useEffect(() => {
+    if (checkoutEntryRef.current !== location.key) {
+      checkoutEntryRef.current = location.key;
+      setOrderItems(initialOrderItems);
+      addingRecommendationRef.current = false;
+      setAddingRecommendation(false);
+      return;
+    }
+    persistCheckoutItems(window.history, location.key, orderItems);
+  }, [location.key, initialOrderItems, orderItems]);
   const [priceDriftWarning, setPriceDriftWarning] = useState(null);
 
   const [shipping, setShipping] = useState({
@@ -795,6 +808,7 @@ function PublicOrderPage() {
   // 무통장입금 환불 대비 계좌 정보 (PG 안정화 전까지 수동 환불용). 관리자 주문 상세에서 확인.
   const [refundAccount, setRefundAccount] = useState({ bank: "", number: "", holder: "" });
   const [addingRecommendation, setAddingRecommendation] = useState(false);
+  const addingRecommendationRef = useRef(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   // P0-3: 동의 체크박스 3개로 분리 — 주문 내용/결제 및 자동 취소/환불 정책
   const [agreementOrder, setAgreementOrder] = useState(false);
@@ -982,23 +996,21 @@ function PublicOrderPage() {
       const freshMap = new Map(data.map((row) => [String(row.id), row]));
       const drifts = [];
       const unavailable = [];
-      const merged = initialOrderItems.map((item) => {
+      initialOrderItems.forEach((item) => {
         const fresh = freshMap.get(String(item.bookId));
         if (!fresh) {
           unavailable.push(item.title || "교재");
-          return { ...item, _unavailable: true };
+          return;
         }
-        if (fresh.status !== "on_sale" || !fresh.is_public) {
+        if (!isCheckoutBookAvailable(fresh)) {
           unavailable.push(item.title || "교재");
-          return { ...item, _unavailable: true };
+          return;
         }
         if (Number(fresh.price) !== Number(item.price)) {
           drifts.push({ title: item.title, oldPrice: item.price, newPrice: fresh.price });
-          return { ...item, price: fresh.price };
         }
-        return item;
       });
-      setOrderItems(merged.filter((item) => !item._unavailable));
+      setOrderItems((current) => mergeVerifiedCheckoutItems(current, initialOrderItems, data));
       if (unavailable.length > 0) {
         // GA4 checkout_price_drift — 품절·비공개로 주문에서 빠진 품목 수
         trackEvent("checkout_price_drift", {
@@ -1399,7 +1411,7 @@ function PublicOrderPage() {
 
 
   const handleSubmit = async () => {
-    if (addingRecommendation) return;
+    if (addingRecommendationRef.current) return;
     // 동기 ref 가드: 빠른 더블 클릭 시 첫 호출이 끝나기 전 두 번째 클릭 차단.
     // setState는 비동기라 isSubmitting state로는 race를 못 막는다.
     if (inFlightRef.current) return;
@@ -1836,12 +1848,24 @@ function PublicOrderPage() {
                 <h2 className="order-section__title">주문 상품 ({orderItems.length}개)</h2>
                 <div className="order-items">
                   {orderItems.map((item, idx) => (
-                    <OrderItemRow item={item} key={`${item.bookId}-${idx}`} />
+                    <OrderItemRow item={item} key={`${item.bookId}-${idx}`} disabled={isSubmitting || addingRecommendation} onRemove={() => {
+                      if (inFlightRef.current || addingRecommendationRef.current) return;
+                      setOrderItems((current) => current.filter((entry) => String(entry.bookId) !== String(item.bookId)));
+                      trackEvent("checkout_recommendation_remove", { itemId: item.productId, value: item.price, ...checkoutContext() });
+                    }} />
                   ))}
                 </div>
               </div>
 
-              <CheckoutRecommendations disabled={isSubmitting} onBusyChange={setAddingRecommendation} items={orderItems} onAdd={(item) => setOrderItems((current) => current.some((existing) => String(existing.bookId) === String(item.bookId)) ? current : [...current, item])} />
+              <CheckoutRecommendations key={location.key} disabled={isSubmitting} onBusyChange={(busy) => {
+                addingRecommendationRef.current = busy;
+                setAddingRecommendation(busy);
+              }} items={orderItems} onAdd={(item) => {
+                if (inFlightRef.current) return false;
+                setOrderItems((current) => current.some((existing) => String(existing.bookId) === String(item.bookId)) ? current : [...current, item]);
+                trackEvent("checkout_recommendation_add", { itemId: item.productId, value: item.price, ...checkoutContext() });
+                return true;
+              }} />
 
               {/* 배송지 — 기본 배송지 카드 + 주소록 모달 (2026-07-12 UX 개편) */}
               <div className="order-section">

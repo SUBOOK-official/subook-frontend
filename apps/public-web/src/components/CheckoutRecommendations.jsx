@@ -1,4 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { getCheckoutBookPricing } from "@shared-supabase/curatedContentClient";
+import { getRecommendationOptions, isCheckoutBookAvailable } from "../lib/checkoutRecommendations";
+import { getThumbnailImageUrl } from "../lib/storageImage";
+import { trackSelectItem, trackViewItemList } from "../lib/analytics";
+import { useInViewOnce } from "../lib/useInViewOnce";
 import { fetchStorefrontProducts, fetchStorefrontProductDetail } from "../lib/storefront";
 import { supabase } from "@shared-supabase/publicSupabaseClient";
 import { rankPersonalizedProducts } from "@shared-domain/recommendations";
@@ -15,6 +20,11 @@ export default function CheckoutRecommendations({ items, onAdd, disabled = false
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const busyRef = useRef(false);
+  const mountedRef = useRef(true);
+  const listRef = useRef(null);
+  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
+  useInViewOnce(listRef, () => trackViewItemList("주문 추천", products.slice(0, expanded ? products.length : 3).map((product, index) => ({ ...product, productId: product.id, index }))), { enabled: !loading && products.length > 0, resetKey: `${refreshIndex}:${expanded}` });
   useEffect(() => {
     let cancelled = false;
     setLoading(true); setError(""); setExpanded(false); setSelected({});
@@ -36,15 +46,17 @@ export default function CheckoutRecommendations({ items, onAdd, disabled = false
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshIndex]);
   async function add(product, option) {
-    if (busy || disabled || !option) return;
+    if (busyRef.current || disabled || !option || items.some((item) => String(item.bookId) === String(option.id))) return;
+    busyRef.current = true;
     setBusy(true); onBusyChange?.(true); setError("");
     try {
-      const { data, error: failure } = await supabase.rpc("get_books_pricing_for_order", { p_book_ids: [Number(option.id)] });
+      const data = await getCheckoutBookPricing(supabase, [option.id]);
       const fresh = data?.find((row) => String(row.id) === String(option.id));
-      if (failure || !fresh || fresh.status !== "on_sale" || !fresh.is_public || !Number.isFinite(Number(fresh.price))) throw new Error("재고·가격을 확인할 수 없는 교재입니다. 다른 교재를 선택해주세요.");
-      onAdd({ bookId: option.id, productId: product.id, title: product.title, optionLabel: option.option, conditionGrade: option.conditionGrade, coverImageUrl: option.coverImageUrl || product.coverImageUrl, price: Number(fresh.price), originalPrice: option.originalPrice, quantity: 1 });
-    } catch (failure) { setError(failure.message); }
-    finally { setBusy(false); onBusyChange?.(false); }
+      if (!isCheckoutBookAvailable(fresh)) throw new Error("재고·가격을 확인할 수 없는 교재입니다. 다른 교재를 선택해주세요.");
+      if (!mountedRef.current) return;
+      onAdd({ bookId: option.id, productId: product.id, title: product.title, optionLabel: option.option, conditionGrade: option.conditionGrade, coverImageUrl: option.coverImageUrl || product.coverImageUrl, price: Number(fresh.price), originalPrice: option.originalPrice, quantity: 1, isRecommendation: true });
+    } catch (failure) { if (mountedRef.current) setError(failure.message); }
+    finally { busyRef.current = false; if (mountedRef.current) { setBusy(false); onBusyChange?.(false); } }
   }
   if (!loading && !error && !products.length) return null;
   return <section className="checkout-similar" aria-labelledby="checkout-similar-title">
@@ -56,16 +68,16 @@ export default function CheckoutRecommendations({ items, onAdd, disabled = false
     <p className="checkout-similar__hint">주문한 교재와 과목·유형이 비슷한 교재를 골랐어요.</p>
     {loading && <p role="status">추천 교재를 불러오는 중…</p>}
     {error && <p role="alert">{error}</p>}
-    <div className="checkout-similar__list">
+    <div className="checkout-similar__list" ref={listRef}>
       {products.slice(0, expanded ? products.length : 3).map((product) => {
-        const options = (product.options ?? []).filter((option) => !option.isSoldOut && option.isPublic !== false);
+        const options = getRecommendationOptions(product.options);
         const option = options.find((item) => String(item.id) === selected[product.id]) ?? options[0];
         const added = items.some((item) => String(item.bookId) === String(option?.id));
         return <div className="checkout-similar__item" key={product.id}>
-          {product.coverImageUrl && <a className="checkout-similar__cover-link" href={`/store/${product.id}`} target="_blank" rel="noopener noreferrer" aria-label={`${product.title} 상세 보기 (새 탭)`}><img src={product.coverImageUrl} alt="" /></a>}
-          <div className="checkout-similar__info"><a className="checkout-similar__title-link" href={`/store/${product.id}`} target="_blank" rel="noopener noreferrer" aria-label={`${product.title} 상세 보기 (새 탭)`}><strong>{product.title}</strong></a>
+          {product.coverImageUrl && <a className="checkout-similar__cover-link" href={`/store/${product.id}`} target="_blank" rel="noopener noreferrer" onClick={() => trackSelectItem("주문 추천", { ...product, productId: product.id })} aria-label={`${product.title} 상세 보기 (새 탭)`}><img src={getThumbnailImageUrl(product.coverImageUrl)} alt="" loading="lazy" /></a>}
+          <div className="checkout-similar__info"><a className="checkout-similar__title-link" href={`/store/${product.id}`} target="_blank" rel="noopener noreferrer" onClick={() => trackSelectItem("주문 추천", { ...product, productId: product.id })} aria-label={`${product.title} 상세 보기 (새 탭)`}><strong>{product.title}</strong></a>
             <span>{option?.price?.toLocaleString()}원</span>
-            {options.length > 1 && <select aria-label={`${product.title} 옵션`} value={option?.id ?? ""} onChange={(event) => setSelected((current) => ({ ...current, [product.id]: event.target.value }))}>{options.map((item) => <option key={item.id} value={item.id}>{item.option || item.conditionGradeLabel} · {item.price?.toLocaleString()}원</option>)}</select>}
+            {options.length > 1 && <select disabled={busy || disabled} aria-label={`${product.title} 옵션`} value={option?.id ?? ""} onChange={(event) => setSelected((current) => ({ ...current, [product.id]: event.target.value }))}>{options.map((item) => <option key={item.id} value={item.id}>{[item.option, item.conditionGradeLabel || item.conditionGrade].filter(Boolean).join(" · ")} · {item.price?.toLocaleString()}원</option>)}</select>}
           </div>
           <button className="checkout-similar__add" type="button" aria-label={`${product.title} ${added ? "추가됨" : "추가"}`} disabled={disabled || loading || busy || added || !option} onClick={() => add(product, option)}>{added ? "✓" : "+"}</button>
         </div>;

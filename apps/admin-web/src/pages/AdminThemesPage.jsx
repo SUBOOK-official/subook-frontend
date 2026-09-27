@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import AdminShell from "../components/AdminShell";
 import AdminDialog from "../components/AdminDialog";
 import { supabase } from "@shared-supabase/adminSupabaseClient";
-import { listContentThemes } from "@shared-supabase/contentThemesClient";
+import { listContentThemes, saveContentTheme } from "@shared-supabase/contentThemesClient";
+import { getCuratedProductDetails, searchCuratedProducts } from "@shared-supabase/curatedContentClient";
 import { uploadPromotionImage } from "@shared-supabase/sitePromotionsClient";
 import { preparePromotionImage } from "../lib/promotionImage";
 const input = "mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white";
@@ -49,8 +50,7 @@ export default function AdminThemesPage() {
       if (theme) {
         const products = new Map();
         for (let offset = 0; offset < theme.product_ids.length; offset += 100) {
-          const { data, error: failure } = await supabase.from("products").select("id,title").in("id", theme.product_ids.slice(offset, offset + 100));
-          if (failure) throw failure;
+          const data = await getCuratedProductDetails(supabase, theme.product_ids.slice(offset, offset + 100));
           for (const product of data ?? []) products.set(String(product.id), product);
         }
         chosen = theme.product_ids.map((id) => products.get(String(id)) ?? { id, title: `삭제되었거나 조회할 수 없는 교재 #${id}` });
@@ -81,8 +81,7 @@ export default function AdminThemesPage() {
     try {
       const matches = [];
       for (let offset = 0; ; offset += 500) {
-        const { data, error: failure } = await supabase.from("products").select("id,title").ilike("title", `%${query.trim().replace(/[%_]/g, "")}%`).order("id").range(offset, offset + 499);
-        if (failure) throw failure;
+        const data = await searchCuratedProducts(supabase, query, offset, 500);
         matches.push(...(data ?? []));
         if ((data ?? []).length < 500) break;
       }
@@ -99,10 +98,11 @@ export default function AdminThemesPage() {
     event.preventDefault(); setError("");
     if (!editor.title.trim() || !editor.image_url || !selected.length) { setError("테마명, 1:1 아이콘과 교재를 한 권 이상 등록해주세요."); return; }
     setBusy(true);
-    const { error: failure } = await supabase.from("content_themes").upsert({ ...editor, title: editor.title.trim(), sort_order: Number(editor.sort_order), product_ids: selected.map((product) => product.id) });
-    if (failure) setError("테마를 저장하지 못했습니다. DB 설정과 권한을 확인해주세요.");
-    else { setEditor(null); await load(); setNotice("테마관을 저장했습니다."); }
-    setBusy(false);
+    try {
+      await saveContentTheme(supabase, { ...editor, product_ids: selected.map((product) => product.id) });
+      setEditor(null); await load(); setNotice("테마관을 저장했습니다.");
+    } catch (failure) { setError(failure.message || "테마를 저장하지 못했습니다. 다시 시도해주세요."); }
+    finally { setBusy(false); }
   }
   return <AdminShell activeModule="themes" title="테마관 관리" description="아이콘 사진(1:1), 테마명, 테마에 포함할 교재를 등록합니다.">
     <div className="mb-5 flex flex-wrap items-center justify-between gap-3">

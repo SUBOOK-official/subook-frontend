@@ -1,5 +1,3 @@
-import { listRecommendations } from "@shared-supabase/recommendationsClient";
-import { rankRecommendedProducts } from "@shared-domain/recommendations";
 import { bookConditionLabel, productStatusLabel } from "@shared-domain/status";
 import { matchesStorefrontYear, toStorefrontRpcYears } from "@shared-domain/storefrontYears";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/publicSupabaseClient";
@@ -693,6 +691,7 @@ function unwrapStorefrontDetail(data) {
 }
 
 function normalizeStoreSort(value) {
+  if (value === "recommended") return "recommended";
   if (value === "price_asc") {
     return "price_low";
   }
@@ -969,24 +968,6 @@ async function rpcWithFallback(primaryRpcName, fallbackRpcName, primaryArgs, fal
 }
 
 async function fetchStorefrontProducts(filters = {}) {
-  if (filters.sort === "recommended") {
-    let recommendations;
-    try { recommendations = await listRecommendations(supabase); }
-    catch { return fetchStorefrontProducts({ ...filters, sort: "popular" }); }
-    if (!recommendations.length) return fetchStorefrontProducts({ ...filters, sort: "popular" });
-    // Sort the complete filtered result before slicing, never only the current page.
-    const products = [];
-    let result;
-    do {
-      result = await fetchStorefrontProducts({ ...filters, sort: "popular", limit: 500, offset: products.length });
-      if (result.error) return result;
-      if (!result.products.length) break;
-      products.push(...result.products);
-    } while (products.length < result.totalCount);
-    const offset = Math.max(0, Number(filters.offset) || 0);
-    const page = rankRecommendedProducts(products, recommendations).slice(offset, offset + (Number(filters.limit) || DEFAULT_CATALOG_LIMIT));
-    return { ...result, products: page, books: page, totalCount: products.length };
-  }
   const mockModePreference = readStoreMockModePreference();
   const mockDataAllowed = canUseStoreMockData();
   const mockModeForced = mockDataAllowed && mockModePreference === true;
