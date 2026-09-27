@@ -147,9 +147,19 @@ function FortuneCookie() {
           >
             ✕
           </button>
-          <span aria-hidden="true" className="fc-modal__cookie">🥠</span>
-          <p className="fc-modal__label">오늘의 포춘쿠키</p>
-          <p className="fc-modal__msg">{fortune}</p>
+          <div aria-hidden="true" className="fc-opening">
+            <span className="fc-opening__paper" />
+            <span className="fc-opening__shell">
+              <span className="fc-opening__half fc-opening__half--left">🥠</span>
+              <span className="fc-opening__half fc-opening__half--right">🥠</span>
+            </span>
+          </div>
+          <div className="fc-modal__note">
+            <div className="fc-modal__note-content">
+              <p className="fc-modal__label">오늘의 포춘쿠키</p>
+              <p className="fc-modal__msg">{fortune}</p>
+            </div>
+          </div>
           <p className="fc-modal__sub">내일 또 만나요</p>
           <button className="fc-modal__optout" onClick={optOut} type="button">
             앞으로 포춘쿠키를 보지 않을래요

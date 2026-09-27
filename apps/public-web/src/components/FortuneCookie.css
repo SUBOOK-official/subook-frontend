@@ -91,11 +91,14 @@
 }
 
 .fc-modal__card {
+  --fc-opening-duration: 1.3s;
   position: relative;
   width: 100%;
   max-width: 420px;
   padding: 32px 28px 24px;
-  background: #ffffff;
+  max-height: calc(100dvh - 48px);
+  overflow-y: auto;
+  background: var(--public-ds-card);
   border-radius: var(--public-radius-xl, 16px);
   box-shadow: var(--public-shadow-lg, 0 8px 24px rgba(20, 24, 28, 0.12));
   text-align: center;
@@ -124,11 +127,69 @@
   color: var(--public-text, #232323);
 }
 
-.fc-modal__cookie {
-  display: block;
-  font-size: 44px;
+/* 같은 이모지를 맞물리는 두 조각으로 잘라, 기기별 쿠키 모양을 그대로 유지한다.
+   CSS만으로 연출하므로 닫기/페이지 이동 시 남는 타이머나 추가 뽑기가 없다. */
+.fc-opening {
+  position: relative;
+  width: 104px;
+  height: 112px;
+  margin: 0 auto 8px;
+}
+
+.fc-opening__shell,
+.fc-opening__half {
+  position: absolute;
+  inset: 0;
+}
+
+.fc-opening__shell {
+  z-index: 1;
+  animation: fc-cookie-crack var(--fc-opening-duration) ease-in-out both;
+}
+
+.fc-opening__half {
+  display: grid;
+  place-items: center;
+  font-size: 84px;
   line-height: 1;
-  margin-bottom: 12px;
+  transform-origin: 50% 70%;
+  animation: fc-cookie-split var(--fc-opening-duration) cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.fc-opening__half--left {
+  --fc-split-x: -36px;
+  --fc-split-angle: -24deg;
+  clip-path: polygon(0 0, 52% 0, 46% 30%, 54% 48%, 47% 65%, 52% 100%, 0 100%);
+}
+
+.fc-opening__half--right {
+  --fc-split-x: 36px;
+  --fc-split-angle: 24deg;
+  clip-path: polygon(52% 0, 100% 0, 100% 100%, 52% 100%, 47% 65%, 54% 48%, 46% 30%);
+}
+
+.fc-opening__paper {
+  position: absolute;
+  inset: 46px 8px 30px;
+  border: 1px solid var(--public-border);
+  border-radius: 4px;
+  background: var(--public-bg-soft);
+  animation: fc-paper-slide var(--fc-opening-duration) ease-out both;
+}
+
+.fc-modal__note {
+  position: relative;
+  padding: 24px 16px;
+  border: 1px solid var(--public-border);
+  border-radius: var(--public-radius-sm);
+  background: var(--public-bg-soft);
+  box-shadow: var(--public-shadow-sm);
+  transform-origin: top center;
+  animation: fc-note-unfold var(--fc-opening-duration) cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.fc-modal__note-content {
+  animation: fc-message-reveal var(--fc-opening-duration) ease-out both;
 }
 
 .fc-modal__label {
@@ -179,4 +240,52 @@
 @keyframes fc-modal-rise {
   from { opacity: 0; transform: translateY(12px) scale(0.96); }
   to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes fc-cookie-crack {
+  0%, 8% { transform: rotate(0); }
+  12% { transform: rotate(-7deg); }
+  18% { transform: rotate(7deg); }
+  24%, 100% { transform: rotate(0); }
+}
+
+@keyframes fc-cookie-split {
+  0%, 24% { transform: translate(0, 0) rotate(0); }
+  58%, 100% { transform: translate(var(--fc-split-x), 6px) rotate(var(--fc-split-angle)); }
+}
+
+@keyframes fc-paper-slide {
+  0%, 28% { opacity: 0; transform: translateY(0) scaleX(0.2); }
+  42% { opacity: 1; transform: translateY(14px) scaleX(1); }
+  60%, 100% { opacity: 0; transform: translateY(56px) scaleX(1); }
+}
+
+@keyframes fc-note-unfold {
+  0%, 36% { opacity: 0; transform: translateY(-42px) scale(0.3, 0.08); }
+  52% { opacity: 1; transform: translateY(-20px) scale(0.85, 0.25); }
+  82%, 100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes fc-message-reveal {
+  0%, 66% { opacity: 0; transform: translateY(6px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+/* 전역 모션 설정과 별개로 최종 모습을 명시해, 대기 없이 문구를 읽게 한다. */
+@media (prefers-reduced-motion: reduce) {
+  .fc-opening__shell,
+  .fc-opening__half,
+  .fc-opening__paper,
+  .fc-modal__note,
+  .fc-modal__note-content {
+    animation: none;
+  }
+
+  .fc-opening__half {
+    transform: translate(var(--fc-split-x), 6px) rotate(var(--fc-split-angle));
+  }
+
+  .fc-opening__paper {
+    opacity: 0;
+  }
 }
