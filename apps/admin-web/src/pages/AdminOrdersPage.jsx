@@ -7,6 +7,7 @@ import AdminPagination from "../components/AdminPagination";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import StatusBadge from "@shared-domain/StatusBadge";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
+import { getAdminOrderPurchaseRounds } from "@shared-supabase/adminOrderPurchaseRounds";
 import { formatCurrency, formatDate } from "@shared-domain/format";
 import { orderStatusLabel } from "@shared-domain/status";
 import {
@@ -24,6 +25,19 @@ import { summarizeOrderItems } from "../lib/orderItemGroups";
 import { uniqueDeliveryLabels } from "../../api/_lib/deliveryGroups.js";
 
 const PAGE_SIZE = 30;
+
+function RepeatPurchaseBadge({ round }) {
+  if (!Number.isInteger(round) || round < 2) return null;
+
+  return (
+    <span
+      className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 align-middle"
+      title="이전 결제 이력(환불 포함)에 이번 주문을 더한 구매 차수"
+    >
+      재구매 {round}회차
+    </span>
+  );
+}
 
 // '결제완료(paid)' 단계 폐지 — 결제 확인 즉시 preparing으로 간다. 필터 칩에서 제외.
 // (레거시 paid 주문의 라벨은 shared-domain orderStatusLabel로 fallback 렌더된다.)
@@ -468,12 +482,22 @@ function AdminOrdersPage() {
         nextTotalCount = Number(raw.total_count) || 0;
       }
 
+      try {
+        const purchaseRounds = await getAdminOrderPurchaseRounds(supabase, nextOrders);
+        nextOrders = nextOrders.map((order) => ({ ...order, purchase_round: purchaseRounds[order.id] }));
+      } catch {
+        if (currentRequestId === requestIdRef.current) {
+          showToast("재구매 이력을 불러오지 못했습니다. 새로고침 후 다시 확인해주세요.", "error");
+        }
+      }
+      if (currentRequestId !== requestIdRef.current) return;
+
       setOrders(nextOrders);
       setTotalCount(nextTotalCount);
     }
 
     setIsLoading(false);
-  }, [search, statusFilters, fromDate, toDate, currentPage]);
+  }, [search, statusFilters, fromDate, toDate, currentPage, showToast]);
 
   // summary는 filter/page와 무관하게 별도 fetch — 검색 키 입력마다 호출되지 않도록 분리.
   // 일괄 처리/상태 변경 후 명시적으로 호출하지 않고, orders 로드 직후에만 동기화.
@@ -1351,13 +1375,16 @@ function AdminOrdersPage() {
             {selectedOrder.is_guest ? (
               <>
                 {formatDate(selectedOrder.created_at)} · {selectedOrder.shipping_recipient_name}{" "}
+                <RepeatPurchaseBadge round={selectedOrder.purchase_round} />{" "}
                 <span className="inline-flex items-center rounded-full bg-slate-200 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 align-middle">
                   비회원
                 </span>
               </>
             ) : (
               <>
-                {formatDate(selectedOrder.created_at)} · {selectedOrder.buyer_name} ({selectedOrder.buyer_email})
+                {formatDate(selectedOrder.created_at)} · {selectedOrder.buyer_name}{" "}
+                <RepeatPurchaseBadge round={selectedOrder.purchase_round} />{" "}
+                ({selectedOrder.buyer_email})
                 {" "}
                 <Link
                   className="font-bold text-brand underline underline-offset-2"
@@ -2088,11 +2115,12 @@ function AdminOrdersPage() {
                       </div>
                     </td>
                     <td className="px-3 py-3 max-w-[170px]">
-                      <div className="text-sm font-semibold flex items-center gap-1.5">
+                      <div className="text-sm font-semibold flex flex-wrap items-center gap-1.5">
                         {/* 비회원 주문: profiles가 없어 수령인 이름으로 표시 (2026-08-03) */}
                         <span className="truncate">
                           {order.is_guest ? order.shipping_recipient_name || "—" : order.buyer_name || "—"}
                         </span>
+                        <RepeatPurchaseBadge round={order.purchase_round} />
                         {order.is_guest && (
                           <span className="inline-flex shrink-0 items-center rounded-full bg-slate-200 px-1.5 py-0.5 text-[10px] font-bold text-slate-600">
                             비회원
