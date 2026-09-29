@@ -76,14 +76,25 @@ export default function AutomaticHeroBanner({ slides, onSlideAction }) {
   };
   useEffect(() => {
     if (paused || interacting || slides.length < 2 || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return undefined;
-    const timer = window.setInterval(() => {
+    const mobileQuery = window.matchMedia("(max-width: 767px)");
+    let timer;
+    const advance = () => {
       if (document.hidden) return;
       const rail = railRef.current;
       if (!rail || rail.getBoundingClientRect().bottom <= 0) return;
       const max = rail.scrollWidth - rail.clientWidth;
       rail.scrollTo({ left: rail.scrollLeft >= max - 4 ? 0 : Math.min(max, rail.scrollLeft + rail.clientWidth), behavior: "smooth" });
-    }, 2500);
-    return () => window.clearInterval(timer);
+    };
+    const startTimer = () => {
+      window.clearInterval(timer);
+      timer = window.setInterval(advance, mobileQuery.matches ? 1200 : 2500);
+    };
+    startTimer();
+    mobileQuery.addEventListener("change", startTimer);
+    return () => {
+      window.clearInterval(timer);
+      mobileQuery.removeEventListener("change", startTimer);
+    };
   }, [paused, interacting, slides.length]);
   if (!slides.length) return null;
   return <section className="automatic-hero" aria-label="추천 교재와 이벤트 배너" aria-roledescription="캐러셀"
