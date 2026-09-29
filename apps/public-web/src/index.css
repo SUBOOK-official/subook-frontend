@@ -532,6 +532,11 @@ img {
   gap: 8px;
 }
 
+.public-home-store-grid__sidebar-group + .public-home-store-grid__sidebar-group {
+  border-top: 1px solid var(--public-ds-border, #e5e5e5);
+  padding-top: 16px;
+}
+
 .public-home-store-grid__sidebar-label {
   font-size: 14px;
   font-weight: 800;
@@ -8018,6 +8023,11 @@ img {
   background: #ffffff;
 }
 
+.public-home-best-books[aria-labelledby="public-home-best-books-title"] {
+  background: #ffffff;
+  border-bottom: 1px solid var(--public-ds-border);
+}
+
 .public-home-best-books__shell {
   /* inherits max-width / margin / padding from .public-content-container */
 }
@@ -9234,21 +9244,16 @@ img {
 .public-auth-back-link {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  cursor: pointer;
 }
 
 .public-auth-back-link__chevron {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  /* 회색 원 배경 제거 — chevron만 크게 노출 */
-  background: transparent;
-  /* ‹ 글리프가 '뒤로' 텍스트와 수직 중앙에 맞도록 텍스트와 동일 높이의 라인박스를 준다 */
-  height: 1em;
-  font-size: 26px;
-  font-weight: 800;
-  line-height: 1;
-  color: var(--public-ds-accent);
+  display: block;
+  width: 30px;
+  height: 30px;
 }
 
 /* OAuth 배치 — top placement는 폼 위에 위치하므로 하단 마진 */

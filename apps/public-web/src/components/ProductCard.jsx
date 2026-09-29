@@ -19,6 +19,8 @@ import {
 } from "../lib/publicStoreCards";
 import { getThumbnailImageUrl } from "../lib/storageImage";
 import ProductSoldOutLabel from "./ProductSoldOutLabel";
+import { loadProductCardSummary } from "../lib/productCardSummary";
+import "./ProductCardFlip.css";
 
 // 찜하기 하트 아이콘 — 예전엔 "♥"/"♡" 텍스트 글리프였는데, 폰트마다 굵기·정렬이
 // 달라져 보이던 문제를 없애려 SVG로 교체. 색상은 currentColor라 버튼의 color만
@@ -95,6 +97,19 @@ function ProductCard({
   product,
 }) {
   const resolvedDetailPath = detailPath ?? `/store/${product.id}`;
+  const [flipped, setFlipped] = useState(false);
+  const [summary, setSummary] = useState(null);
+  useEffect(() => { setSummary(null); setFlipped(false); }, [product.id]);
+  useEffect(() => {
+    if (!flipped || summary !== null) return undefined;
+    let cancelled = false;
+    loadProductCardSummary(product.id).then((text) => {
+      if (!cancelled) setSummary(text || "아직 등록된 AI 요약이 없어요. 상세 페이지에서 교재 정보를 확인해 주세요.");
+    }).catch(() => {
+      if (!cancelled) setSummary("요약을 불러오지 못했어요. 상세 페이지에서 확인해 주세요.");
+    });
+    return () => { cancelled = true; };
+  }, [flipped, summary, product.id]);
   const title = getProductCardTitle(product);
   const placeholderEyebrow = getProductCardPlaceholderEyebrow(product);
   // 저장된 원본(/object/public, 최대 2MB, no-cache) 대신 리사이즈·WebP 변환 URL을
@@ -187,10 +202,14 @@ function ProductCard({
   }, [coverImageUrl, shouldLoad]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <article className={cardClassName}>
+    <article className={`${cardClassName} public-product-card--flippable${flipped ? " is-flipped" : ""}`}
+      onMouseEnter={() => { if (window.matchMedia("(hover: hover) and (pointer: fine)").matches) setFlipped(true); }}
+      onMouseLeave={() => setFlipped(false)}
+      onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setFlipped(false); }}>
       <Link
         aria-label={`${title} 상세 보기`}
         className="public-product-card__overlay-link"
+        onFocus={() => setFlipped(true)}
         onClick={() =>
           trackSelectItem(
             analyticsListName,
@@ -214,6 +233,7 @@ function ProductCard({
         to={resolvedDetailPath}
       />
 
+      <div className="public-product-card__front">
       <div className="public-product-card__media" ref={mediaRef}>
         <ProductCardBadge badge={badge} />
 
@@ -272,10 +292,6 @@ function ProductCard({
           </div>
         ) : null}
 
-        <ProductCardFavoriteButton
-          filled={isFavorite}
-          onToggle={(event) => onToggleFavorite?.(product.id, event)}
-        />
       </div>
 
       <div className="public-product-card__content">
@@ -324,6 +340,20 @@ function ProductCard({
         </div>
 
         {footer ? <div className="public-product-card__footer">{footer}</div> : null}
+      </div>
+      </div>
+      <ProductCardFavoriteButton
+        filled={isFavorite}
+        onToggle={(event) => onToggleFavorite?.(product.id, event)}
+      />
+      <div className="public-product-card__back" aria-hidden={!flipped}>
+        <span className="public-product-card__summary-label">
+          <img src="/ai/ai-summary-icon.png" alt="" aria-hidden="true" width="18" height="18" />
+          AI 요약
+        </span>
+        <strong className="public-product-card__summary-title">{title}</strong>
+        <p className="public-product-card__summary-text">{summary ?? "교재 요약을 불러오는 중…"}</p>
+        <span className="public-product-card__summary-more">교재 자세히 보기 ↗</span>
       </div>
     </article>
   );

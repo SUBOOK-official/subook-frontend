@@ -1,4 +1,5 @@
 import { STOREFRONT_FEATURED_YEARS, STOREFRONT_OTHER_YEAR } from "../../../../packages/shared-domain/src/storefrontYears.js";
+import { STORE_DETAIL_SUBJECTS } from "./storefrontDetailSubjects.js";
 
 export const STORE_SUBJECTS = ["전체", "국어", "수학", "영어", "과학", "사회", "한국사", "기타"];
 export const STORE_DEFAULT_SUBJECT = STORE_SUBJECTS[0];
@@ -10,6 +11,8 @@ export const STORE_SORT_OPTIONS = [
   { value: "latest", label: "최신순" },
   { value: "price_asc", label: "가격 낮은순" },
   { value: "price_desc", label: "가격 높은순" },
+  { value: "discount_desc", label: "할인율 높은순" },
+  { value: "discount_asc", label: "할인율 낮은순" },
 ];
 
 // 검색어가 있을 때만 노출되는 관련도 정렬 — 서버 match_score(FTS 유사도) 기준.
@@ -26,6 +29,8 @@ export function isValidStoreSort(value) {
 }
 
 export const STORE_FILTER_GROUPS = [
+  { key: "detailSubjects", label: "세부 과목", queryKey: "detailSubject", options: Object.values(STORE_DETAIL_SUBJECTS).flat() },
+  { key: "discounts", label: "할인", queryKey: "discount", options: [{ value: "sale", label: "할인 교재" }] },
   {
     key: "types",
     label: "유형",
@@ -72,7 +77,7 @@ export const STORE_FILTER_GROUPS = [
 ];
 
 // 홈 사이드바와 모바일 필터 시트에 같은 그룹을 노출한다.
-export const HOME_SIDEBAR_FILTER_GROUP_KEYS = ["types", "brands", "years"];
+export const HOME_SIDEBAR_FILTER_GROUP_KEYS = ["detailSubjects", "types", "brands", "years"];
 
 export const STORE_FILTER_GROUP_KEYS = STORE_FILTER_GROUPS.map((group) => group.key);
 
@@ -86,6 +91,8 @@ const STORE_FILTER_OPTIONS_BY_KEY = STORE_FILTER_GROUPS.reduce((accumulator, gro
 export function createStoreInitialFilters() {
   return {
     types: [],
+    discounts: [],
+    detailSubjects: [],
     brands: [],
     years: [],
     conditionGrades: [],
@@ -133,6 +140,7 @@ function getFilterQueryValue(params, singularKey, legacyPluralKey) {
 export function parseStorefrontQuery(search) {
   const params = new URLSearchParams(search);
   const filters = {
+    discounts: sanitizeFilterList("discounts", parseFilterList(params.get("discount"))),
     types: sanitizeFilterList("types", parseFilterList(getFilterQueryValue(params, "type", "types"))),
     brands: sanitizeFilterList("brands", parseFilterList(getFilterQueryValue(params, "brand", "brands"))),
     years: sanitizeFilterList("years", parseFilterList(getFilterQueryValue(params, "year", "years"))),
@@ -143,6 +151,8 @@ export function parseStorefrontQuery(search) {
   };
 
   const selectedSubject = normalizeStoreSubject(params.get("subject"));
+  filters.detailSubjects = sanitizeFilterList("detailSubjects", parseFilterList(params.get("detailSubject")))
+    .filter((value) => (STORE_DETAIL_SUBJECTS[selectedSubject] || []).includes(value));
   const searchKeyword = normalizeQueryValue(params.get("q"));
   const requestedSort = params.get("sort");
   // 검색어가 있는데 정렬이 명시되지 않았으면 기본을 관련도순으로.

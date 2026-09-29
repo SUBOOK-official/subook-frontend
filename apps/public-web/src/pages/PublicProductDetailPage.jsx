@@ -2424,7 +2424,7 @@ function PublicProductDetailPage() {
             {!productHasStock && relatedProducts.length > 0 && (
               <div className="public-detail-soldout-alternatives">
                 <p>기다리는 동안 구매 가능한 비슷한 교재를 살펴보세요.</p>
-                <button type="button" className="public-detail-hero__btn" onClick={() => {
+                <button type="button" className="public-detail-soldout-alternatives__button" onClick={() => {
                   trackEvent("soldout_alternative_click", { itemId: product.id, uiSurface: "detail" });
                   document.getElementById("available-alternatives")?.scrollIntoView({ behavior: "smooth", block: "start" });
                 }}>구매 가능한 교재 {relatedProducts.length}종 보기</button>

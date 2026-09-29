@@ -121,6 +121,8 @@ test("clearStoreFilterGroup and countSelectedStoreFilters reflect committed sele
   assert.equal(countSelectedStoreFilters(filters), 4);
   assert.deepEqual(clearStoreFilterGroup(filters, "types"), {
     types: [],
+    discounts: [],
+    detailSubjects: [],
     brands: ["시대인재"],
     years: ["2026"],
     conditionGrades: [],
@@ -233,4 +235,14 @@ test("isValidStoreSort recognizes base sorts and relevance only", () => {
   assert.equal(isValidStoreSort("popular"), true);
   assert.equal(isValidStoreSort("latest"), true);
   assert.equal(isValidStoreSort("unknown"), false);
+});
+
+test("discount filter and sort survive URL round-trip", () => {
+  const parsed = parseStorefrontQuery("?discount=sale&sort=discount_desc&brand=시대인재");
+  assert.deepEqual(parsed.selectedFilters.discounts, ["sale"]);
+  const query = serializeStorefrontQuery({ ...parsed, currentPage: 1 });
+  const next = parseStorefrontQuery(query);
+  assert.equal(next.sortOption, "discount_desc");
+  assert.deepEqual(next.selectedFilters.discounts, ["sale"]);
+  assert.equal(parseStorefrontQuery("?sort=discount_asc").sortOption, "discount_asc");
 });

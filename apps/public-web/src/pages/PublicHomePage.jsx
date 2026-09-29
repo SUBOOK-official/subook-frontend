@@ -7,7 +7,9 @@ import MemberRecommendations from "../components/home/MemberRecommendations";
 import ThemeQuickLinks from "../components/home/ThemeQuickLinks";
 import RecommendedBanners from "../components/home/RecommendedBanners";
 import B2bCTA from "../components/home/B2bCTA";
-import HeroBanner from "../components/home/HeroBanner";
+import AutomaticHeroBanner from "../components/home/AutomaticHeroBanner";
+import useAutomaticBookBanners from "../lib/useAutomaticBookBanners";
+import { getRecommendedBannerCount } from "../lib/automaticBookBanners";
 import HomeStoreGrid from "../components/home/HomeStoreGrid";
 import PickupCTA from "../components/home/PickupCTA";
 import FortuneCookie from "../components/FortuneCookie";
@@ -26,11 +28,13 @@ function PublicHomePage() {
   usePageMeta({});
   const navigate = useNavigate();
   const promotions = useSitePromotions();
-  const heroSlides = promotions.filter((row) => row.placement === "home_hero").map((row) => ({
+  const automaticSlides = useAutomaticBookBanners();
+  const manualSlides = promotions.filter((row) => row.placement === "home_hero").map((row) => ({
     id: row.id, imageDesktop: row.image_url,
     imageMobile: isPromotionUrl(row.mobile_image_url) ? row.mobile_image_url : null,
     imageAlt: row.alt_text, href: isPromotionUrl(row.link_url) ? row.link_url : null,
   }));
+  const heroSlides = [...automaticSlides.slice(0, getRecommendedBannerCount(manualSlides.length)), ...manualSlides];
   const { requireMember, memberGateDialog } = usePublicMemberGate();
   const { favoriteIds, toggleFavorite } = usePublicWishlist();
   // 배너(대치동 현강/교재 보러가기) 클릭 시 스크롤 도착 지점 — 배너 바로 아래 상품 구역.
@@ -89,7 +93,7 @@ function PublicHomePage() {
       {/* 시각적으로 숨겨진 단일 <h1>. SEO·스크린리더용 페이지 제목. */}
       <h1 className="public-visually-hidden">수능 교재 위탁판매 — 안 쓴 교재를 합리적인 가격에 | 수북</h1>
 
-      {heroSlides.length > 0 && <HeroBanner onSlideAction={handleHeroAction} slides={heroSlides} />}
+      <AutomaticHeroBanner onSlideAction={handleHeroAction} slides={heroSlides} />
       {/* 배너 클릭 스크롤 도착 지점. sticky 헤더에 가리지 않도록 scroll-margin-top 확보. */}
       <div id="products" aria-hidden="true" ref={productsRef} style={{ scrollMarginTop: "80px" }} />
       <ThemeQuickLinks />

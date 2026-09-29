@@ -43,6 +43,7 @@ const HOME_SIDEBAR_FILTER_GROUPS = STORE_FILTER_GROUPS.filter((group) =>
   HOME_SIDEBAR_FILTER_GROUP_KEYS.includes(group.key),
 );
 import { fetchStorefrontProducts } from "../../lib/storefront";
+import { STORE_DETAIL_SUBJECTS } from "../../lib/storefrontDetailSubjects";
 
 const ITEMS_PER_PAGE = 28;
 // 모바일은 카드가 세로로 쌓여 한 페이지당 개수를 더 적게 잡는다.
@@ -86,7 +87,7 @@ function getPaginationItems(currentPage, totalPages) {
   return items;
 }
 
-function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
+function HomeStoreGrid({ favoriteIds = [], onToggleFavorite, loadProducts = fetchStorefrontProducts, queryPath = "/" }) {
   const { isAuthenticated } = usePublicAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -159,12 +160,14 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
 
     (async () => {
       try {
-        const result = await fetchStorefrontProducts({
+        const result = await loadProducts({
           subject: selectedSubject,
           types: selectedFilters.types,
           brands: selectedFilters.brands,
           years: selectedFilters.years,
           conditionGrades: selectedFilters.conditionGrades,
+          discounts: selectedFilters.discounts,
+          detailSubjects: selectedFilters.detailSubjects,
           search: searchKeyword,
           sort: sortOption,
           limit: pageSize,
@@ -214,7 +217,7 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
       cancelled = true;
     };
     // conditionKey가 subject/filters/search/sort를 모두 포괄한다. pageSize는 isMobileViewport 파생.
-  }, [conditionKey, currentPage, pageSize, retryNonce]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [conditionKey, currentPage, pageSize, retryNonce, loadProducts]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 뷰포트 추적 (페이지네이션 vs 무한 스크롤 분기)
   useEffect(() => {
@@ -256,7 +259,7 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
   //       최신 URL과 비교한다.
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (window.location.pathname !== "/") return;
+    if (window.location.pathname !== queryPath) return;
     const nextSearch = serializeStorefrontQuery({
       selectedSubject,
       selectedFilters,
@@ -267,11 +270,11 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
     const currentSearch = window.location.search.replace(/^\?/, "");
     if (nextSearch !== currentSearch) {
       navigate(
-        { pathname: "/", search: nextSearch ? `?${nextSearch}` : "" },
+        { pathname: queryPath, search: nextSearch ? `?${nextSearch}` : "" },
         { replace: true },
       );
     }
-  }, [selectedSubject, selectedFilters, sortOption, searchKeyword, currentPage, navigate]);
+  }, [selectedSubject, selectedFilters, sortOption, searchKeyword, currentPage, navigate, queryPath]);
 
   // 헤더 검색이 다른 페이지에서 발생해서 / 로 이동한 경우 그리드로 스크롤
   useEffect(() => {
@@ -357,6 +360,7 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
     if (subject === selectedSubject) return;
     trackStoreFilter("subject", subject, "select");
     setSelectedSubject(subject);
+    setSelectedFilters((current) => ({ ...current, detailSubjects: [] }));
     setCurrentPage(1);
   };
 
@@ -466,6 +470,7 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
           // 요약 칩 해제는 handleToggleFilter를 거치지 않으므로 여기서 직접 계측한다.
           trackStoreFilter("subject", selectedSubject, "remove", { uiSurface: "summary_chip" });
           setSelectedSubject(STORE_DEFAULT_SUBJECT);
+          setSelectedFilters((current) => ({ ...current, detailSubjects: [] }));
           setCurrentPage(1);
         },
       });
@@ -628,7 +633,9 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
 
   // 사이드바·바텀시트 양쪽에서 재사용하는 필터 그룹 마크업. dependency가 많아
   // memoize 효과 미미하므로 그냥 inline 변수.
-  const filterGroupsJsx = HOME_SIDEBAR_FILTER_GROUPS.map((group) => {
+  const filterGroupsJsx = HOME_SIDEBAR_FILTER_GROUPS.filter((group) => group.key !== "detailSubjects" || STORE_DETAIL_SUBJECTS[selectedSubject])
+    .map((entry) => {
+    const group = entry.key === "detailSubjects" ? { ...entry, options: STORE_DETAIL_SUBJECTS[selectedSubject] } : entry;
     const hasSelected = selectedFilters[group.key].length > 0;
     return (
       <div className="public-home-store-grid__sidebar-group" key={group.key}>
