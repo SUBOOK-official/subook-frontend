@@ -9,6 +9,10 @@ test('랜딩 쿼리·앵커 보존, 기존 UTM 교체, 공개 도메인·중복�
   assert.equal(inspectCampaignUrl(url.href).valid,true);
   for(const bad of ['https://evil.test','https://subook.kr@evil.test','https://subook.kr/order','javascript:alert(1)']) assert.throws(()=>buildCampaignUrl({...values,url:bad}));
   assert.throws(()=>buildCampaignUrl({...values,id:''}));
+  assert.throws(()=>buildCampaignUrl({...values,campaign:'123456789'}));
+  assert.throws(()=>buildCampaignUrl({...values,campaign:'가을_판매'}));
+  assert.throws(()=>buildCampaignUrl({...values,medium:'organic'}));
+  assert.equal(new URL(buildCampaignUrl({...values,content:'FEED_A'})).searchParams.get('utm_content'),'feed_a');
   assert.equal(inspectCampaignUrl(url.href+'&utm_source=duplicate').valid,true); // hash 내부는 쿼리가 아니다.
   url.hash=''; url.searchParams.append('utm_source','duplicate'); assert.equal(inspectCampaignUrl(url.href).valid,false);
 });
