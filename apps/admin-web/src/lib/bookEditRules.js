@@ -11,6 +11,22 @@ export function isBookPriceLocked(book) {
   return PRICE_LOCKED_BOOK_STATUSES.includes(book?.status);
 }
 
+// 전체 적용은 편집 중인 판매가만 변경한다. 옵션·등급·정산 이력은 보존한다.
+export function applyBulkBookPrice(books, value) {
+  const input = String(value ?? "").trim();
+  const price = Number(input.replaceAll(",", ""));
+  if (!/^(?:\d+|\d{1,3}(?:,\d{3})+)$/.test(input) || !Number.isSafeInteger(price) || price < 1) {
+    throw new Error("판매가는 1원 이상의 정수로 입력해 주세요.");
+  }
+  let count = 0;
+  const nextBooks = books.map((book) => {
+    if (isBookPriceLocked(book)) return book;
+    count += 1;
+    return { ...book, priceInput: String(price) };
+  });
+  return { books: nextBooks, price, count };
+}
+
 // 등급도 같은 이유로 정산완료/폐기 후 변경 금지 (판매 시점 등급이 이력의 근거).
 // 2026-07-23: A+ 폐지 계획 보류(중고 수거 증가)로 재고탭에서 권별 등급 수정 지원.
 export const GRADE_LOCKED_MESSAGE = "정산완료/폐기된 책의 등급은 변경할 수 없습니다.";

@@ -10,6 +10,7 @@ import {
   EDITABLE_BOOK_GRADES,
   GRADE_LOCKED_MESSAGE,
   PRICE_LOCKED_MESSAGE,
+  applyBulkBookPrice,
   isBookGradeLocked,
   isBookPriceLocked,
 } from "../lib/bookEditRules";
@@ -117,6 +118,9 @@ function ProductMasterEditModal({ onClose, onSaved, product }) {
   const [coverDirty, setCoverDirty] = useState(false);
   const [coverBusy, setCoverBusy] = useState(false);
   const [books, setBooks] = useState([]);
+  const [bulkPriceInput, setBulkPriceInput] = useState("");
+  const [bulkPriceError, setBulkPriceError] = useState("");
+  const [bulkPriceMessage, setBulkPriceMessage] = useState("");
   // 상세사진 — 책 종류(상품) 단위 1세트. 저장 시 모든 권에 동일 적용 (2026-07-19)
   const [detailImages, setDetailImages] = useState([]);
   const [detailDirty, setDetailDirty] = useState(false);
@@ -146,6 +150,9 @@ function ProductMasterEditModal({ onClose, onSaved, product }) {
     setOriginalPriceDirty(false);
     setOriginalPriceUniform(true);
     setBooks([]);
+    setBulkPriceInput("");
+    setBulkPriceError("");
+    setBulkPriceMessage("");
     setDetailImages([]);
     setDetailDirty(false);
     setDetailUniform(true);
@@ -271,7 +278,6 @@ function ProductMasterEditModal({ onClose, onSaved, product }) {
     try {
       const urls = [];
       for (const file of incoming) {
-        // eslint-disable-next-line no-await-in-loop
         const url = await uploadImageToBucket(DETAIL_BUCKET, file, "edit-detail");
         if (url) urls.push(url);
       }
@@ -300,6 +306,20 @@ function ProductMasterEditModal({ onClose, onSaved, product }) {
     );
   };
 
+  const handleBulkPrice = () => {
+    if (busy || !editablePriceCount) return;
+    setBulkPriceError("");
+    setBulkPriceMessage("");
+    try {
+      const result = applyBulkBookPrice(books, bulkPriceInput);
+      setBooks(result.books);
+      setTouched(true);
+      setBulkPriceMessage(`${result.count}권에 ${formatCurrency(result.price)}을 적용했습니다. 개별 가격 확인 후 저장해주세요.`);
+    } catch (error) {
+      setBulkPriceError(error.message);
+    }
+  };
+
   const handleSave = async () => {
     const trimmedTitle = title.trim();
     if (!trimmedTitle) {
@@ -320,7 +340,7 @@ function ProductMasterEditModal({ onClose, onSaved, product }) {
     // 상세사진은 수정했을 때만 페이로드에 실어 모든 권에 동일 적용한다 (미수정 시 기존 유지).
     const bookPayload = [];
     for (const book of books) {
-      const editable = !["settled", "discarded"].includes(book.status);
+      const editable = !isBookPriceLocked(book);
       // 권별 옵션명 — 항상 현재 입력값을 보낸다 (빈 값 = 옵션 없음). 상태 무관 수정 가능.
       const entry = { id: book.id, option: book.optionInput ?? "" };
       // 권별 등급 — 바뀐 책만 전달 (RPC가 정산완료/폐기·무효값을 재차 가드)
@@ -396,6 +416,7 @@ function ProductMasterEditModal({ onClose, onSaved, product }) {
   };
 
   const busy = isSaving || coverBusy || detailBusy;
+  const editablePriceCount = books.filter((book) => !isBookPriceLocked(book)).length;
 
   return (
     <AdminDialog
@@ -405,6 +426,16 @@ function ProductMasterEditModal({ onClose, onSaved, product }) {
       open={Boolean(product)}
       size="xl"
       title={product ? `상품 수정 — ${product.title}` : ""}
+      footer={!isLoading && product ? (
+        <div className="flex gap-2">
+          <button className="btn-ghost flex-1" disabled={busy} onClick={onClose} type="button">
+            취소
+          </button>
+          <button className="btn-primary flex-1" disabled={busy} onClick={handleSave} type="button">
+            {isSaving ? <BusyText>저장 중...</BusyText> : "저장"}
+          </button>
+        </div>
+      ) : null}
     >
       {product ? (
         <div className="p-6 space-y-5">
@@ -629,6 +660,48 @@ function ProductMasterEditModal({ onClose, onSaved, product }) {
                 <h3 className="mb-2 text-sm font-bold text-slate-700">
                   권별 옵션·판매가 ({books.length}권)
                 </h3>
+                {books.length > 0 ? (
+                  <div className="mb-3 rounded-lg border border-indigo-200 bg-indigo-50 p-3 space-y-2">
+                    <div className="flex flex-wrap items-end gap-2">
+                      <label className="min-w-0 flex-1 sm:flex-none">
+                        <span className="mb-1 block text-xs font-bold text-slate-700">판매가 전체 수정</span>
+                        <input
+                          aria-label="전체 적용 판매가"
+                          aria-describedby="bulk-price-help"
+                          aria-invalid={Boolean(bulkPriceError)}
+                          className="input-base sm:!w-40 font-mono text-right"
+                          disabled={busy || !editablePriceCount}
+                          inputMode="numeric"
+                          onChange={(event) => {
+                            setBulkPriceInput(event.target.value);
+                            setBulkPriceError("");
+                            setBulkPriceMessage("");
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") { event.preventDefault(); handleBulkPrice(); }
+                          }}
+                          placeholder="금액 입력 (원)"
+                          type="text"
+                          value={bulkPriceInput}
+                        />
+                      </label>
+                      <button
+                        className="btn-secondary !w-auto !px-4"
+                        disabled={busy || !editablePriceCount || !bulkPriceInput.trim()}
+                        onClick={handleBulkPrice}
+                        type="button"
+                      >
+                        전체 {editablePriceCount}권에 적용
+                      </button>
+                    </div>
+                    <p className="text-xs text-slate-600" id="bulk-price-help">
+                      {books.length > editablePriceCount ? `정산완료·폐기 ${books.length - editablePriceCount}권 제외. ` : ""}
+                      적용 후 개별 수정할 수 있으며, 아래 ‘저장’을 눌러야 반영됩니다.
+                    </p>
+                    {bulkPriceError ? <p className="text-xs font-semibold text-rose-700" role="alert">{bulkPriceError}</p> : null}
+                    {bulkPriceMessage ? <p className="text-xs font-semibold text-indigo-700" role="status">{bulkPriceMessage}</p> : null}
+                  </div>
+                ) : null}
                 {books.length === 0 ? (
                   <p className="rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-400">
                     연결된 책이 없습니다. (제목/옵션/대표사진만 수정됩니다)
@@ -721,14 +794,6 @@ function ProductMasterEditModal({ onClose, onSaved, product }) {
                 저장됩니다. 저장 즉시 고객 사이트(검색·카테고리 필터 포함)에 반영됩니다.
               </p>
 
-              <div className="flex gap-2">
-                <button className="btn-ghost flex-1" disabled={busy} onClick={onClose} type="button">
-                  취소
-                </button>
-                <button className="btn-primary flex-1" disabled={busy} onClick={handleSave} type="button">
-                  {isSaving ? <BusyText>저장 중...</BusyText> : "저장"}
-                </button>
-              </div>
             </>
           )}
         </div>
