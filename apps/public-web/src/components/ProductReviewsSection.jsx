@@ -68,12 +68,15 @@ export function useProductReviews(productId) {
     if (result.error) {
       trackException("reviews_load_failed", {
         ...(productId != null ? { itemId: String(productId) } : {}),
+        errorReason: navigator.onLine === false ? "offline" : "request_failed",
+        errorCode: /^[A-Z0-9_]{1,20}$/i.test(String(result.error.code ?? "")) ? result.error.code : undefined,
       });
     }
   }, [productId]);
 
   useEffect(() => {
     void load();
+    return () => { requestIdRef.current += 1; };
   }, [load]);
 
   const loadMore = useCallback(async () => {

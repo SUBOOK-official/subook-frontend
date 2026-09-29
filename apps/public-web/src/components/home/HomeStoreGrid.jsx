@@ -21,6 +21,7 @@ import {
   toggleStoreFilterSelection,
 } from "../../lib/publicStoreNavigation";
 import usePublicMemberGate from "../../lib/publicMemberGate";
+import { usePublicAuth } from "../../contexts/PublicAuthContext";
 import { subscribeRestockKeyword } from "../../lib/publicRestock";
 import {
   trackDialogClose,
@@ -86,6 +87,7 @@ function getPaginationItems(currentPage, totalPages) {
 }
 
 function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
+  const { isAuthenticated } = usePublicAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const sortMenuRef = useRef(null);
@@ -181,9 +183,10 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
 
         // GA4 search — 새 검색어의 첫 결과 도착 시 1회 (결과 수 포함, 0건이면 no_results 추가)
         const keyword = searchKeyword.trim();
-        if (keyword && keyword !== lastTrackedSearchRef.current) {
-          lastTrackedSearchRef.current = keyword;
-          trackSearch(keyword, resolvedTotal);
+        const searchKey = `${keyword}|${conditionKey}`;
+        if (keyword && searchKey !== lastTrackedSearchRef.current) {
+          lastTrackedSearchRef.current = searchKey;
+          trackSearch(keyword, resolvedTotal, { filterCount: countSelectedStoreFilters(selectedFilters), subject: selectedSubject });
         } else if (!keyword) {
           lastTrackedSearchRef.current = "";
         }
@@ -494,9 +497,22 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
   const [restockModal, setRestockModal] = useState(null); // { keyword } | null
   const [restockKeywordInput, setRestockKeywordInput] = useState("");
   const [restockSubmitState, setRestockSubmitState] = useState({ busy: false, done: false, error: "" });
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    try {
+      const pending = JSON.parse(sessionStorage.getItem("subook:restock-keyword-intent") || "null");
+      if (!pending) return;
+      sessionStorage.removeItem("subook:restock-keyword-intent");
+      if (Date.now() - pending.at > 30 * 60 * 1000 || typeof pending.keyword !== "string") return;
+      setRestockKeywordInput(pending.keyword.slice(0, 100));
+      setRestockModal({ keyword: pending.keyword.slice(0, 100) });
+      trackEvent("restock_keyword_resume", { uiSurface: "login_return" });
+    } catch { /* 저장 불가 환경에서는 검색 결과에서 다시 신청할 수 있다. */ }
+  }, [isAuthenticated]);
 
   const handleNotifyRestock = () => {
     if (!requireMember("입고 알림 신청")) {
+      try { sessionStorage.setItem("subook:restock-keyword-intent", JSON.stringify({ keyword: searchKeyword.trim(), at: Date.now() })); } catch { /* optional */ }
       return;
     }
     setRestockKeywordInput(searchKeyword.trim());
@@ -809,8 +825,16 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite }) {
             {searchKeyword ? (
               <>
                 <strong>"{searchKeyword}" 검색 결과가 없어요</strong>
-                <p>검색어를 줄이거나 비슷한 이름으로 다시 찾아보세요.</p>
+                <p>{selectedFilterCount > 0 || selectedSubject !== STORE_DEFAULT_SUBJECT ? "선택한 과목·필터 때문에 보이지 않을 수 있어요. 검색어는 그대로 두고 전체에서 찾아보세요." : "검색어를 줄여 다시 찾거나, 입고 알림을 신청해 주세요. 입고되면 수북 알림함에서 알려드려요."}</p>
                 <div className="public-home-store-grid__empty-actions">
+                  {selectedFilterCount > 0 || selectedSubject !== STORE_DEFAULT_SUBJECT ? (
+                    <button className="public-home-store-grid__empty-button" type="button" onClick={() => {
+                      trackEvent("search_recovery", { uiAction: "clear_constraints", searchTerm: searchKeyword });
+                      setSelectedSubject(STORE_DEFAULT_SUBJECT);
+                      setSelectedFilters(createStoreInitialFilters());
+                      setCurrentPage(1);
+                    }}>전체 과목·연도에서 찾기</button>
+                  ) : null}
                   <button
                     className="public-home-store-grid__empty-button"
                     onClick={() => handleClearSearchKeyword("empty_state")}

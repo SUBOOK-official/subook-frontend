@@ -22,6 +22,9 @@ import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { supabase as publicSupabase } from "@shared-supabase/publicSupabaseClient";
 import { attachMetaCheckoutContext } from "@shared-supabase/metaCheckoutClient";
 import { attachOrderAttributionContext } from "@shared-supabase/orderAttributionClient";
+import { experimentVariant } from "../lib/growthExperiments";
+import { readGaCheckoutContext } from "../lib/gaCheckout";
+import { attachGaCheckoutContext } from "@shared-supabase/gaCheckoutClient";
 import { isMetaTrackingAllowed, readMetaCheckoutCookies } from "../lib/metaPixel";
 import {
   getOrderAttributionAnalyticsParams,
@@ -42,7 +45,6 @@ import {
   trackException,
   trackFormProgress,
   trackPaymentMethodSelect,
-  trackPurchase,
   trackSelectContent,
 } from "../lib/analytics";
 import {
@@ -203,6 +205,8 @@ function toAnalyticsLine(item) {
   return {
     productId: item.productId,
     title: item.title,
+    brand: item.brand,
+    subject: item.subject,
     optionLabel: item.optionLabel,
     conditionGrade: item.conditionGrade,
     price: item.price,
@@ -807,6 +811,10 @@ function PublicOrderPage() {
   const [paymentMethod, setPaymentMethod] = useState(PG_READY ? "card" : "bank_transfer");
   // 무통장입금 환불 대비 계좌 정보 (PG 안정화 전까지 수동 환불용). 관리자 주문 상세에서 확인.
   const [refundAccount, setRefundAccount] = useState({ bank: "", number: "", holder: "" });
+  const [guideVariant] = useState(() => isGuestCheckout ? experimentVariant("guest_checkout_guide_v1") : null);
+  useEffect(() => {
+    if (guideVariant) trackEvent("experiment_exposure", { experimentId: "guest_checkout_guide_v1", variant: guideVariant, checkoutType: "guest" });
+  }, [guideVariant]);
   const [addingRecommendation, setAddingRecommendation] = useState(false);
   const addingRecommendationRef = useRef(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1538,6 +1546,10 @@ function PublicOrderPage() {
     if (import.meta.env.PROD) {
       const attribution = readOrderAttribution();
       const contextTasks = [];
+      contextTasks.push(readGaCheckoutContext().then((context) => attachGaCheckoutContext({
+        client: publicSupabase, orderNumber: data.order_number,
+        guestPhone: isGuestCheckout ? shipping.recipientPhone : null, context,
+      })));
       if (attribution) {
         contextTasks.push(
           attachOrderAttributionContext({
@@ -1688,14 +1700,11 @@ function PublicOrderPage() {
       return;
     }
 
-    // GA4 purchase — 기존 주문 생성 기준 유지. Meta Purchase는 서버 입금 확인 시점.
-    // 카드(PG) 경로는 여기 도달하지 않고 주문완료 페이지(OrderCompletePage)에서 발화한다.
-    trackPurchase({
-      transactionId: data.order_number ?? String(data.order_id),
+    // 입금 전 주문은 구매가 아니다. 실결제 purchase는 서버 입금 확인 후 전송한다.
+    trackEvent("order_created", {
       value: data.total_amount,
       shipping: shippingFee,
-      items: orderItems.map(toAnalyticsLine),
-      coupon: selectedCoupon?.title,
+      itemCount: orderItems.reduce((sum, item) => sum + item.quantity, 0),
       paymentType: "bank_transfer",
       discountAmount: couponDiscount,
       pointsUsed: isGuestCheckout ? 0 : effectivePoints,
@@ -1826,6 +1835,14 @@ function PublicOrderPage() {
 
         <ContentContainer as="section" className="order-content">
           <h1 className="order-page__title">주문/결제</h1>
+          {isGuestCheckout && guideVariant === "guide" && (
+            <aside className="order-checkout-guide" aria-label="비회원 주문 안내">
+              <strong>회원가입 없이 주문할 수 있어요</strong>
+              <p>배송지와 연락처를 입력하고 결제해 주세요. 주문번호와 연락처로 주문·배송을 조회할 수 있어요.</p>
+              <p>현재 결제 예정 금액 <b>{formatCurrency(totalAmount)}</b> · 배송비 {formatCurrency(shippingFee)} 포함</p>
+              <p>{shipping.postalCode ? "입력한 배송지 기준 금액이며 쿠폰·포인트 변경 시 다시 계산돼요." : "제주·도서산간 추가 배송비는 주소 입력 후 반영돼요."} {isPg ? "카드는 결제 승인 후 주문이 확정돼요." : "무통장입금은 입금 확인 후 발송하며, 환불에 사용할 계좌가 필요해요."}</p>
+            </aside>
+          )}
 
           {priceDriftWarning ? (
             <div className="order-drift-warning" role="alert">

@@ -4,6 +4,7 @@ import PublicSiteHeader from "../components/PublicSiteHeader";
 import PublicFooter from "../components/PublicFooter";
 import PublicPickupGuide from "../components/PublicPickupGuide";
 import { PICKUP_INTRO_NOTES } from "../lib/pickupGuideContent";
+import { experimentVariant } from "../lib/growthExperiments";
 import { PICKUP_FEE_POLICY, PICKUP_FEE_POLICY_NOTICE, PICKUP_FEE_POLICY_VERSION } from "@shared-domain/settlement";
 import { MAX_PICKUP_BOXES, PICKUP_BOX_TYPES, PICKUP_BOX_GUIDE, PICKUP_BOX_GUIDE_URL, pickupBoxLabel, resizePickupBoxTypes, validatePickupBoxes } from "@shared-domain/pickupBoxes";
 import {
@@ -196,6 +197,10 @@ function PickupPasswordField({ value, onChange }) {
 
 function StepIntro({ onNext }) {
   const [acked, setAcked] = useState(() => PICKUP_INTRO_NOTES.map(() => false));
+  const [guideVariant] = useState(() => experimentVariant("pickup_preparation_v1"));
+  useEffect(() => {
+    if (guideVariant) trackEvent("experiment_exposure", { experimentId: "pickup_preparation_v1", variant: guideVariant });
+  }, [guideVariant]);
   const allAcked = acked.every(Boolean);
   const toggleAck = (index) => {
     setAcked((prev) => prev.map((v, i) => (i === index ? !v : v)));
@@ -218,6 +223,17 @@ function StepIntro({ onNext }) {
         <h2 className="pickup-step__title">교재 위탁판매, 이렇게 진행돼요</h2>
       </div>
 
+      {guideVariant === "guide" && (
+        <section className="pickup-policy-box" aria-label="신청 전 준비사항">
+          <p className="pickup-policy-box__heading">미리 준비하면 신청이 편해요</p>
+          <ul>
+            <li>수거할 주소와 인증 가능한 휴대폰</li>
+            <li>예상 교재 권수, 박스별 크기와 무게</li>
+            <li>판매 금액을 받을 정산 계좌</li>
+          </ul>
+          <p>판매 가능 조건과 수수료, 박스당 상품화 비용을 아래에서 확인해 주세요. 교재별 정보는 수북이 검수하며 등록해요.</p>
+        </section>
+      )}
       <PublicPickupGuide />
 
       {/* 유의사항 — 확인 체크 (전체 선택 포함) */}

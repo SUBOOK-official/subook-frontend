@@ -1,5 +1,6 @@
 import { getMetaContentId } from "../../../../packages/shared-domain/src/metaCatalog.js";
 import { isMetaTrackingAllowed } from "./metaPixel.js";
+import { experimentParams } from "./growthExperiments.js";
 
 // GA4 + Meta Pixel 이벤트 헬퍼 — 태그 미로드 환경(애드블록, 미설정 로컬/데모)에서는
 // 조용히 no-op. GA4는 index.html, Meta는 main.jsx의 운영 도메인 가드로 설치된다.
@@ -78,7 +79,7 @@ function sanitizeParams(params) {
 function gtagEvent(eventName, params) {
   if (typeof window === "undefined" || typeof window.gtag !== "function") return;
   try {
-    window.gtag("event", eventName, sanitizeParams(params));
+    window.gtag("event", eventName, sanitizeParams({ ...experimentParams(), ...params }));
   } catch {
     // 계측 실패가 사용자 흐름을 깨면 안 된다 — 조용히 무시.
   }
@@ -393,8 +394,8 @@ function trackAddPaymentInfo({ lines, paymentType, coupon, ...extra }) {
   });
 }
 
-// GA4 기존 purchase 기준은 유지한다. Meta Purchase는 DB의 실제 결제 완료 이벤트가
-// 전담한다. 여기서 다시 전송하면 서버/기존 게이트웨이와 구매가 중복 집계될 수 있다.
+// 결제 확인된 주문만 호출한다. value는 배송비 제외 실결제 상품금액이다.
+// 새 주문은 서버 GA 큐가 전담하며, 이 함수는 문맥이 없는 주문의 브라우저 보완용이다.
 function trackPurchase({ transactionId, value, shipping, items, coupon, ...extra }) {
   if (!transactionId || !Array.isArray(items) || items.length === 0) return;
   gtagEvent(
@@ -586,6 +587,8 @@ function trackPickupRequestStart(extra) {
 
 // 수거 신청 제출 성공 = 셀러 리드 확보. GA4 권장 generate_lead + Meta Lead.
 function trackGenerateLead({ boxCount, expectedBookCount, ...extra }) {
+  // 쿠폰·B2B 리드와 구분하는 사업 전환. 기존 generate_lead는 시계열용으로 유지.
+  gtagEvent("pickup_request_complete", { box_count: Number(boxCount) || 0, expected_book_count: Number(expectedBookCount) || 0, ...extra });
   gtagEvent(
     "generate_lead",
     withExtra(

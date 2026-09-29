@@ -288,7 +288,7 @@ function PublicJeonilEventPage() {
     };
   }, []);
 
-  // GA4 링크 없는 교재 카드 — 아직 등록 전이라 죽은 카드로 보이는 상태를 카드별 1회 보고.
+  // 미등록 예정 상품은 오류가 아닌 콘텐츠 상태로 구분한다.
   useEffect(() => {
     if (Object.keys(featuredByKey).length === 0) {
       return;
@@ -298,8 +298,8 @@ function PublicJeonilEventPage() {
         (choice) => featuredByKey[choice.key]?.id != null,
       );
       const productId = featuredByKey[card.key]?.id ?? null;
-      if (productId === null && linkedChoices.length <= 1 && unlinkedGuardRef.current(card.key)) {
-        trackException("jeonil_book_card_unlinked", { cardKey: card.key });
+      if (productId === null && linkedChoices.length === 0 && unlinkedGuardRef.current(card.key)) {
+        trackEvent("jeonil_product_unavailable", { cardKey: card.key, errorReason: "not_registered" });
       }
     });
   }, [featuredByKey]);

@@ -1465,7 +1465,7 @@ function PublicProductDetailPage() {
           broadResult.products ??
           broadResult.books ??
           []
-        ).filter((item) => String(item.id) !== String(detailResult.product.id));
+        ).filter((item) => String(item.id) !== String(detailResult.product.id) && item.availableOptionCount > 0);
 
         // 점수: 동일 강사(+30) + 동일 유형(+15) + 동일 브랜드(+5)
         const scored = candidates.map((item) => {
@@ -2421,6 +2421,15 @@ function PublicProductDetailPage() {
             </div>
 
             {/* sticky 범위 한정: 탭 nav + 3개 섹션까지만 감싸 '비슷한 교재 추천' 앞에서 sticky가 풀리도록 */}
+            {!productHasStock && relatedProducts.length > 0 && (
+              <div className="public-detail-soldout-alternatives">
+                <p>기다리는 동안 구매 가능한 비슷한 교재를 살펴보세요.</p>
+                <button type="button" className="public-detail-hero__btn" onClick={() => {
+                  trackEvent("soldout_alternative_click", { itemId: product.id, uiSurface: "detail" });
+                  document.getElementById("available-alternatives")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                }}>구매 가능한 교재 {relatedProducts.length}종 보기</button>
+              </div>
+            )}
             <div className="public-detail-sticky-scope">
             {/* 섹션 nav — sticky. 클릭하면 아래 섹션으로 스크롤, 스크롤 중엔 현재 섹션을 하이라이트. */}
             <nav
@@ -2512,6 +2521,7 @@ function PublicProductDetailPage() {
             </div>
 
             {/* 비슷한 교재 추천 (가로 스크롤) + 시리즈·강사 랜딩 교차링크 */}
+            <div id="available-alternatives" />
             <RelatedProductsRail
               collectionLinks={collectionLinks}
               favoriteIds={favoriteIds}

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, Navigate, useLocation, useParams } from "react-router-dom";
 import { formatCurrency } from "@shared-domain/format";
 import { supabase } from "@shared-supabase/publicSupabaseClient";
+import { enrichGaOrderItems, isGaPurchaseServerOwned } from "@shared-supabase/gaCheckoutClient";
 import ContentContainer from "../components/ContentContainer";
 import PublicFooter from "../components/PublicFooter";
 import PublicPageFrame from "../components/PublicPageFrame";
@@ -27,10 +28,9 @@ import {
 } from "../lib/paymentBankInfo";
 import "./PublicOrderCompletePage.css";
 
-// ── 카드(PG) 주문 purchase 계측 (GA4 + Meta) ────────────────────────────────
-// 나이스페이는 카드 인증 후 서버(returnUrl)가 주문 생성→승인까지 마치고 이 페이지로
-// 303 리다이렉트하므로, 브라우저에서 purchase를 쏠 수 있는 첫 지점이 여기다
-// (무통장은 회원·게스트 모두 주문 생성 시점에 OrderPage에서 발화).
+// ── 실결제 purchase의 브라우저 보조 경로 ────────────────────────────────
+// 신규 서버 문맥이 있으면 DB 큐가 전담한다. 문맥 없는 결제만 이 화면에서 보완한다.
+// 무통장 미입금은 전송하지 않는다. Meta Purchase는 기존 서버 CAPI가 전담한다.
 // 새로고침·재방문 이중 집계는 localStorage 가드로, StrictMode 이중 실행·중복 호출은
 // in-flight Set으로 막는다. 발화 전 실패(items 조회 실패 등)는 가드를 남기지 않아
 // 다음 방문에서 재시도된다.
@@ -53,36 +53,45 @@ function markTrackedPurchase(key) {
   }
 }
 
-// 공통 발화부 — 카드 결제 완료 주문만, 주문번호 기준 1회. itemLines는 analytics 라인
+// 공통 발화부 — 결제 완료 주문만, 주문번호 기준 1회. itemLines는 analytics 라인
 // ({ productId?, title, optionLabel?, conditionGrade?, price, quantity }) 배열.
-// extra에는 checkout_type(guest/member)을 넘긴다 — 무통장(OrderPage) purchase와 같은 축으로 비교.
-function fireCardPurchaseOnce(orderRow, itemLines, extra = {}) {
+// 서버가 맡지 않은 결제만 브라우저에서 보완한다.
+async function firePaidPurchaseOnce(orderRow, itemLines, extra = {}) {
   if (!orderRow) return;
-  if (orderRow.payment_method !== "card" || orderRow.payment_status !== "paid") return;
+  if (orderRow.payment_status !== "paid") return;
   const key = String(orderRow.order_number ?? "");
   if (!key || purchaseTrackingInFlight.has(key) || hasTrackedPurchase(key)) return;
   if (!Array.isArray(itemLines) || itemLines.length === 0) return;
   purchaseTrackingInFlight.add(key);
+  try {
+  const serverOwned = await isGaPurchaseServerOwned({ client: supabase, orderNumber: key, guestPhone: extra.checkoutType === "guest" ? readGuestOrderRef()?.phone : null });
+  if (serverOwned) { markTrackedPurchase(key); return; }
+  const enrichedItems = await enrichGaOrderItems(supabase, itemLines);
+  if (typeof window.gtag !== "function") return;
+  const netValue = Math.max(0, Number(orderRow.total_amount) - Number(orderRow.shipping_fee || 0));
+  const itemSubtotal = enrichedItems.reduce((sum, item) => sum + Number(item.price) * Number(item.quantity), 0);
   const couponDiscount = Number(orderRow.coupon_discount_amount);
   trackPurchase({
     transactionId: key,
-    value: orderRow.total_amount,
+    value: netValue,
     shipping: orderRow.shipping_fee,
-    items: itemLines,
-    // GA4 — 카드 결제 purchase의 수단·회원 구분·쿠폰 할인액 (쿠폰 코드는 보내지 않는다)
-    paymentType: "card",
+    items: enrichedItems.map((item) => ({ ...item, price: itemSubtotal > 0 ? Math.round(Number(item.price) * netValue / itemSubtotal * 1e6) / 1e6 : 0 })),
+    // 결제 수단·회원 구분·쿠폰 할인액 (쿠폰 코드는 보내지 않는다)
+    paymentType: orderRow.payment_method,
+    collectionSource: "browser_paid",
     ...(Number.isFinite(couponDiscount) ? { discountAmount: couponDiscount } : {}),
     ...getOrderAttributionAnalyticsParams(),
     ...extra,
   });
   markTrackedPurchase(key);
+  } catch { trackException("purchase_tracking_retry_needed", { errorReason: "client_fallback_failed" }); }
+  finally { purchaseTrackingInFlight.delete(key); }
 }
 
-// 회원 카드 주문: RLS로 order_items를 조회해 발화.
-// (게스트 카드 주문은 조회 RPC가 items를 함께 반환하므로 별도 조회 없이 발화)
-async function trackMemberCardPurchase(orderId, orderRow) {
+// 회원 주문은 RLS로 order_items를 조회한다. 게스트는 본인 확인 RPC의 품목을 쓴다.
+async function trackMemberPaidPurchase(orderId, orderRow) {
   if (!orderId || !supabase || !orderRow) return;
-  if (orderRow.payment_method !== "card" || orderRow.payment_status !== "paid") return;
+  if (orderRow.payment_status !== "paid") return;
   const key = String(orderRow.order_number ?? "");
   if (!key || purchaseTrackingInFlight.has(key) || hasTrackedPurchase(key)) return;
 
@@ -92,7 +101,7 @@ async function trackMemberCardPurchase(orderId, orderRow) {
     .eq("order_id", orderId);
   if (error) return;
 
-  fireCardPurchaseOnce(
+  firePaidPurchaseOnce(
     orderRow,
     (items ?? []).map((item) => ({
       productId: item.product_id,
@@ -250,7 +259,7 @@ function PublicOrderCompletePage() {
             });
             // 게스트 카드 결제 완료: GA4 purchase. Meta Purchase는 서버가 전담한다. 조회 RPC가 items를 함께
             // 반환하므로 추가 조회 없이 발화한다 (product_id 포함 — 카탈로그 매칭).
-            fireCardPurchaseOnce(
+            firePaidPurchaseOnce(
               data.order,
               (data.items ?? []).map((item) => ({
                 productId: item.product_id,
@@ -323,9 +332,8 @@ function PublicOrderCompletePage() {
       });
       setIsLoading(false);
 
-      // 회원 카드 결제 완료: purchase 계측(GA4+Meta) — 카드+결제완료가 아니면 내부에서
-      // no-op. 무통장은 주문 생성 시점에 OrderPage에서 이미 발화됐다.
-      trackMemberCardPurchase(orderId, data);
+      // 서버 문맥 없는 실결제의 GA 보완. 미입금은 내부에서 no-op.
+      trackMemberPaidPurchase(orderId, data);
     })();
 
     return () => {

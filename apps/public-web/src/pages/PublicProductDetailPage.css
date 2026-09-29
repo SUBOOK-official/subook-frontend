@@ -1763,3 +1763,6 @@
   justify-content: center;
   text-decoration: none;
 }
+.public-detail-soldout-alternatives { margin: 20px 0; padding: 16px; border-radius: 12px; background: var(--color-secondary, #F3FBFF); }
+.public-detail-soldout-alternatives p { margin: 0 0 12px; font-size: 14px; }
+#available-alternatives { scroll-margin-top: 100px; }

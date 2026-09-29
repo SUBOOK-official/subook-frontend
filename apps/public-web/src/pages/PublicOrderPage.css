@@ -1547,3 +1547,5 @@
   height: 18px;
   accent-color: var(--public-ds-primary, #080f47);
 }
+.order-checkout-guide { margin: 0 0 24px; padding: 18px 20px; border: 1px solid var(--color-border, #e2e8f0); border-radius: 12px; background: var(--color-secondary, #F3FBFF); color: var(--color-primary, #080F47); }
+.order-checkout-guide p { margin: 8px 0 0; font-size: 13px; line-height: 1.6; }
