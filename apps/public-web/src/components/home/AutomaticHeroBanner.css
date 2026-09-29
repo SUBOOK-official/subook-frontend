@@ -15,5 +15,12 @@
 .automatic-hero__controls span{margin-right:12px}
 .automatic-hero__controls button{display:grid;place-items:center;width:34px;height:30px;border:1px solid #e5e5e5;border-radius:4px;background:#fff;color:#333;cursor:pointer;font-size:18px}
 .automatic-hero__controls button:focus-visible{outline:2px solid #354edb;outline-offset:2px}
-@media(max-width:767px){.automatic-hero__card{flex-basis:50%;aspect-ratio:1}.automatic-hero__title{font-size:12px}.automatic-hero__copy{gap:6px}.automatic-hero__copy strong{font-size:15px;-webkit-line-clamp:2}.automatic-hero__copy small{font-size:11px}.automatic-hero__controls{padding:6px 16px}}
+@media(max-width:767px){
+  .automatic-hero__card{flex-basis:50%;aspect-ratio:1}
+  .automatic-hero__copy{left:6%;right:6%;bottom:7%;gap:4px;min-width:0}
+  .automatic-hero__copy strong{font-size:clamp(10px,3vw,13px);line-height:1.3;word-break:normal;overflow-wrap:anywhere;-webkit-line-clamp:2}
+  .automatic-hero__title{font-size:clamp(9px,2.5vw,11px);line-height:1.35;word-break:normal;overflow-wrap:anywhere}
+  .automatic-hero__copy small{font-size:clamp(9px,2.5vw,11px);line-height:1.3;white-space:nowrap}
+  .automatic-hero__controls{padding:6px 16px}
+}
 @media(prefers-reduced-motion:reduce){.automatic-hero__card img{transition:none}}
