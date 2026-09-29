@@ -1,5 +1,20 @@
 import { supabase } from "./adminSupabaseClient";
 
+export async function loadGrowthTrackingHealth(range, transactionIds, signal) {
+  const { data, error } = await supabase.rpc('admin_growth_tracking_health', {
+    p_from: range.from, p_to: range.to, p_ga_transaction_ids: transactionIds ?? null,
+  }).abortSignal(signal);
+  if (error) throw new Error('계측 상태를 불러오지 못했습니다.');
+  return data;
+}
+export async function retentionExperimentAction(action, args = {}) {
+  const names = { list:'admin_retention_experiments', create:'admin_create_retention_experiment', start:'admin_start_retention_experiment' };
+  if (!names[action]) throw new Error('허용하지 않은 작업입니다.');
+  const { data, error } = await supabase.rpc(names[action], args).abortSignal(AbortSignal.timeout(15000));
+  if (error) throw new Error(error.message || '실험 요청에 실패했습니다.');
+  return data;
+}
+
 export async function loadPerformanceSales(range, signal) {
   if (!supabase) throw new Error("서버 연결 설정을 확인해주세요.");
   const { data, error } = await supabase.rpc("admin_performance_report", { p_from: range.from, p_to: range.to }).abortSignal(signal);

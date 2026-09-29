@@ -1,4 +1,5 @@
 import { mergePerformanceDaily, metricChange, previousPerformanceRange } from "./performanceMetrics.js";
+import { campaignObjectiveLabel as objectiveLabel } from "./campaignLinks.js";
 
 export const PERFORMANCE_DAILY_COLUMNS = [
   ["spend", "마케팅비 (Meta)", "money"], ["grossRevenue", "매출", "money"], ["netRevenue", "순매출", "money"], ["orders", "주문수", "count"],
@@ -71,7 +72,7 @@ export function buildPerformanceWorkbook({ range, sales, providers, drill = { le
     ["주문·수량·AOV", "미입금 제외. 주문·구매자수는 환불 주문 포함, 판매수량은 환불 수량 제외. AOV = 환불 전 매출 / 결제 주문수."],
     ["구매자·재구매", "회원 계정·비회원 연락처별로 식별하며 둘을 합치지 않습니다. 재구매는 현재 DB 전체 결제 이력의 두 번째 이후 주문 비율이며 구사이트 이력은 제외합니다."],
     ["수수료", "수수료 / 대상 상품금액의 가중 평균. 환불·배송비·박스비 제외, 쿠폰·포인트 차감 전 상품금액. 저장된 정산 우선, 미정산은 수거 당시 정책, 전일학원 50%. 자체매입·요율 미확인은 평균 제외. 예상액 포함으로 지급 완료율·순이익률과 다릅니다."],
-    ["GA4 구매 흐름", "순서대로 행동한 사용자 기준. 세션을 넘는 행동 포함 가능. 무통장 구매 이벤트는 입금 전 발생하므로 결제 이탈률은 실제 입금 실패율과 다릅니다. 처리 지연·차단·동의 설정 영향이 있습니다."],
+    ["GA4 구매 흐름", "순서대로 행동한 사용자 기준. 세션을 넘는 행동 포함 가능. 2026-09-29 실제 결제 기준으로 전환했으며 이전 무통장 이벤트는 입금 전 발생했습니다. 변경 전후 매출·전환율 직접 비교에 주의하세요. 처리 지연·차단·동의 설정 영향이 있습니다."],
     ["Meta 광고", "연동 계정의 광고비만 집계. Meta 기여 설정·전환 발생일 기준, 최대 15분 캐시. 요약은 전체 계정이며 광고 상세는 선택한 범위입니다."],
     ["DB 확인 Meta 유입", "최종 유입의 유료 매체·Meta 출처가 확인된 주문만 집계. 출처 보존은 2026-09-12부터이며 여러 Meta 계정 유입이 포함될 수 있어 광고 플랫폼 성과와 다릅니다."],
     ["일별 상세·비교", "조회 기간 전체를 포함합니다. 방문자·구매자·비율의 기간 합계는 일별 합이나 평균과 다릅니다. 직전 동일 길이 기간과 비교하며 오늘은 집계 중입니다."],
@@ -84,7 +85,7 @@ export function buildPerformanceWorkbook({ range, sales, providers, drill = { le
       { sheetName: "일별 상세", rows: mergePerformanceDaily(sales.daily, ga, meta), columns: [text("date", "날짜", 14), ...PERFORMANCE_DAILY_COLUMNS.map(([key, label, format]) => number(key, `${label}${format === "money" ? " (원)" : format === "percent" ? " (%)" : ""}`))] },
       { sheetName: "수수료 산출", rows: (sales.commissionBreakdown ?? []).map((row) => ({ ...row, label: PERFORMANCE_COMMISSION_LABELS[row.basis] ?? row.basis })), columns: [text("label", "적용 기준", 36), number("feePercent", "수수료율 (%)"), number("quantity", "수량 (권)"), number("saleAmount", "상품금액 (원)"), number("feeAmount", "수수료 (원)")] },
       { sheetName: "구매 흐름", rows: funnels, columns: [text("period", "기간", 14), text("label", "구매 흐름", 32), number("entered", "진입 사용자 (명)"), number("completed", "완료 사용자 (명)"), number("rate", "전환율 (%)"), text("state", "데이터 상태")] },
-      { sheetName: "Meta 광고", rows: sources.meta && meta.breakdownStatus !== "error" ? meta.breakdown ?? [] : [], columns: [text("id", `${level} ID`), text("name", level, 45), ...[["spend", "광고비 (원)"], ["purchases", "기여 구매 (건)"], ["revenue", "기여 매출 (원)"], ["cpa", "CPA (원)"], ["roas", "ROAS (%)"], ["impressions", "노출"], ["clicks", "클릭"], ["ctr", "CTR (%)"], ["cpc", "CPC (원)"]].map(([key, label]) => number(key, label))] },
+      { sheetName: "Meta 광고", rows: sources.meta && meta.breakdownStatus !== "error" ? (meta.breakdown ?? []).map((row)=>({...row,objectiveLabel:objectiveLabel(row.objective)})) : [], columns: [text("id", `${level} ID`), text("name", level, 45), text("objectiveLabel", "캠페인 목표"), ...[["spend", "광고비 (원)"], ["purchases", "기여 구매 (건)"], ["revenue", "기여 매출 (원)"], ["cpa", "CPA (원)"], ["roas", "ROAS (%)"], ["impressions", "노출"], ["clicks", "클릭"], ["ctr", "CTR (%)"], ["cpc", "CPC (원)"]].map(([key, label]) => number(key, label))] },
       { sheetName: "집계 기준", rows: notes, columns: [text("label", "항목", 30), { ...text("value", "내용", 100), wrap: true }] },
     ],
   };

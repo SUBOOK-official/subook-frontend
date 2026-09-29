@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import AdminShell from "../components/AdminShell";
+import CampaignLinkTools from "../components/CampaignLinkTools";
+import GrowthTrackingHealth from "../components/GrowthTrackingHealth";
+import RetentionExperiments from "../components/RetentionExperiments";
+import { campaignObjectiveLabel } from "@shared-domain/campaignLinks";
 import { loadPerformanceProviders, loadPerformanceSales } from "@shared-supabase/adminPerformanceClient";
 import { PERFORMANCE_PRESETS, formatPerformanceValue as fmt, koreaToday, mergePerformanceDaily,
   metricChange, performanceRange, previousPerformanceRange, validatePerformanceRange } from "@shared-domain/performanceMetrics";
@@ -218,12 +222,16 @@ export default function AdminPerformancePage() {
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="mb-4 flex items-center justify-between gap-3"><h2 className="text-base font-bold text-slate-900">구매 흐름</h2><a className="text-xs font-semibold text-slate-600 underline" href="https://analytics.google.com/" target="_blank" rel="noreferrer">GA4에서 자세히 보기</a></div>
       <div className="grid gap-3 md:grid-cols-2"><FunnelPair title="상품조회 → 장바구니" funnel={gaCurrent?.cartFunnel} startLabel="상품조회" endLabel="조회 후 담기" loading={providersLoading} /><FunnelPair title="결제 시작 → 구매" funnel={gaCurrent?.checkoutFunnel} startLabel="결제 시작" endLabel="시작 후 구매 이벤트" loading={providersLoading} /></div>
-      <p className="mt-3 text-xs leading-relaxed text-slate-500">각 흐름은 기간 내 순서대로 행동한 사용자 기준입니다. 바로구매도 결제 흐름에 포함합니다. GA4의 무통장 구매는 입금 전 주문 생성 시점이므로 실제 결제 실적과 다를 수 있습니다.</p>
+      <p className="mt-3 text-xs leading-relaxed text-slate-500">각 흐름은 기간 내 순서대로 행동한 사용자 기준입니다. 2026-09-29 계측 전환 이전 무통장 purchase에는 미입금 주문이 포함될 수 있습니다. 전환 이후에는 결제 확인 기준이며 GA 누락·처리 지연이 있어 매출 원본은 주문 DB입니다. 상품 노출·장바구니는 사업 전환에 포함하지 않습니다.</p>
       {ga?.funnelStatus === "error" && <p role="status" className="mt-2 text-xs text-amber-700">일부 GA4 퍼널 조회에 실패했습니다. 방문 지표는 정상 조회된 값입니다.</p>}
       {ga?.thresholded && <p className="mt-2 text-xs text-amber-700">GA4 기준점 또는 보고서 제한이 적용된 데이터입니다.</p>}
     </section>
 
+    <CampaignLinkTools />
+    <GrowthTrackingHealth range={range} ga={ga} meta={drill.level === "campaign" ? meta : null} />
+    <RetentionExperiments />
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" aria-label="Meta 광고 성과">
+      {meta?.breakdown?.length > 0 && <div className="mb-4 rounded-lg bg-slate-50 p-3 text-xs text-slate-600"><p>판매 목표는 실결제·CPA·ROAS, 트래픽 목표는 유입 성과와 후속 실결제를 함께 평가하세요.</p><ul className="mt-2 space-y-1">{meta.breakdown.map((row)=><li key={row.id}>{row.name}: <strong>{campaignObjectiveLabel(row.objective)}</strong></li>)}</ul></div>}
       <div className="mb-4 flex items-center justify-between gap-3"><div><h2 className="text-base font-bold text-slate-900">Meta 광고 성과</h2>{meta?.account && <p className="mt-1 text-xs text-slate-500">{meta.account.name} · {meta.account.id}</p>}</div><a className="text-xs font-semibold text-slate-600 underline" href={meta?.account?.id ? `https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=${encodeURIComponent(meta.account.id)}` : "https://adsmanager.facebook.com/"} target="_blank" rel="noreferrer">광고 관리자 열기</a></div>
       <div className="grid grid-cols-2 gap-4 rounded-xl bg-slate-50 p-4 md:grid-cols-4">{[["광고비", metaCurrent?.spend, "money"], ["Meta 기여 구매", metaCurrent?.purchases, "count"], ["Meta 기여 매출", metaCurrent?.revenue, "money"], ["클릭수", metaCurrent?.clicks, "count"]].map(([label, value, format]) => <div key={label}><p className="text-xs text-slate-500">{label}</p><p className="mt-1 font-bold text-slate-900 tabular-nums">{fmt(value, format)}</p></div>)}</div>
       <div className="my-4 flex flex-wrap items-center gap-2 text-xs"><button type="button" className={buttonClass} onClick={() => setDrill(emptyDrill)}>전체 캠페인</button>{drill.campaignName && <><span aria-hidden="true">/</span><button type="button" className={buttonClass} onClick={() => setDrill({ level: "adset", campaignId: drill.campaignId, campaignName: drill.campaignName })}>{drill.campaignName}</button></>}{drill.adsetName && <><span aria-hidden="true">/</span><span className="font-semibold text-slate-700">{drill.adsetName}</span></>}</div>
