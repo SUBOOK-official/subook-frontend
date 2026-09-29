@@ -122,7 +122,6 @@ test("clearStoreFilterGroup and countSelectedStoreFilters reflect committed sele
   assert.deepEqual(clearStoreFilterGroup(filters, "types"), {
     types: [],
     discounts: [],
-    detailSubjects: [],
     brands: ["시대인재"],
     years: ["2026"],
     conditionGrades: [],

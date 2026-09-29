@@ -43,7 +43,6 @@ const HOME_SIDEBAR_FILTER_GROUPS = STORE_FILTER_GROUPS.filter((group) =>
   HOME_SIDEBAR_FILTER_GROUP_KEYS.includes(group.key),
 );
 import { fetchStorefrontProducts } from "../../lib/storefront";
-import { STORE_DETAIL_SUBJECTS } from "../../lib/storefrontDetailSubjects";
 
 const ITEMS_PER_PAGE = 28;
 // 모바일은 카드가 세로로 쌓여 한 페이지당 개수를 더 적게 잡는다.
@@ -167,7 +166,6 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite, loadProducts = fetc
           years: selectedFilters.years,
           conditionGrades: selectedFilters.conditionGrades,
           discounts: selectedFilters.discounts,
-          detailSubjects: selectedFilters.detailSubjects,
           search: searchKeyword,
           sort: sortOption,
           limit: pageSize,
@@ -360,7 +358,6 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite, loadProducts = fetc
     if (subject === selectedSubject) return;
     trackStoreFilter("subject", subject, "select");
     setSelectedSubject(subject);
-    setSelectedFilters((current) => ({ ...current, detailSubjects: [] }));
     setCurrentPage(1);
   };
 
@@ -470,7 +467,6 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite, loadProducts = fetc
           // 요약 칩 해제는 handleToggleFilter를 거치지 않으므로 여기서 직접 계측한다.
           trackStoreFilter("subject", selectedSubject, "remove", { uiSurface: "summary_chip" });
           setSelectedSubject(STORE_DEFAULT_SUBJECT);
-          setSelectedFilters((current) => ({ ...current, detailSubjects: [] }));
           setCurrentPage(1);
         },
       });
@@ -633,9 +629,7 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite, loadProducts = fetc
 
   // 사이드바·바텀시트 양쪽에서 재사용하는 필터 그룹 마크업. dependency가 많아
   // memoize 효과 미미하므로 그냥 inline 변수.
-  const filterGroupsJsx = HOME_SIDEBAR_FILTER_GROUPS.filter((group) => group.key !== "detailSubjects" || STORE_DETAIL_SUBJECTS[selectedSubject])
-    .map((entry) => {
-    const group = entry.key === "detailSubjects" ? { ...entry, options: STORE_DETAIL_SUBJECTS[selectedSubject] } : entry;
+  const filterGroupsJsx = HOME_SIDEBAR_FILTER_GROUPS.map((group) => {
     const hasSelected = selectedFilters[group.key].length > 0;
     return (
       <div className="public-home-store-grid__sidebar-group" key={group.key}>

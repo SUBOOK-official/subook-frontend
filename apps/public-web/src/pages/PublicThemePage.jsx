@@ -3,7 +3,6 @@ import { useParams } from "react-router-dom";
 import { supabase } from "@shared-supabase/publicSupabaseClient";
 import { getPublicThemePage } from "@shared-supabase/curatedContentClient";
 import { filterStorefrontProducts, normalizeStorefrontProductRow, sortStorefrontProducts } from "../lib/storefront";
-import { matchesDetailSubjects } from "../lib/storefrontDetailSubjects";
 import { selectDiscountProducts } from "../lib/storefrontDiscounts";
 import { loadThemeCatalog } from "../lib/themeCatalog";
 import PublicPageFrame from "../components/PublicPageFrame";
@@ -36,7 +35,7 @@ export default function PublicThemePage() {
     return () => { cancelled = true; };
   }, [themeId, retry]);
   const loadProducts = useCallback(async (filters) => {
-    let rows = filterStorefrontProducts(current.products, filters).filter((product) => matchesDetailSubjects(product, filters.detailSubjects));
+    let rows = filterStorefrontProducts(current.products, filters);
     // The theme RPC supplies the curated order. Preserve it for the default recommendation sort.
     if (filters.sort !== "recommended") rows = sortStorefrontProducts(rows, filters.sort);
     rows = selectDiscountProducts(rows, filters);
