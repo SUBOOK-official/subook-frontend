@@ -31,12 +31,12 @@ export function getRecommendedBannerCount(manualCount) {
   return Math.ceil((count + 8) / 6) * 6 - count;
 }
 
-export function buildAutomaticBookBanners(products, limit = 9) {
+export function buildAutomaticBookBanners(products, limit = 9, copies = new Map()) {
   return products.filter((product) => product.id && product.isPublic !== false).slice(0, limit).map((product) => ({
     id: `book-${product.id}`,
     productId: product.id,
     title: product.title,
-    summary: summarizeBannerText(product),
+    summary: copies.get(String(product.id)) || summarizeBannerText(product),
     priceLabel: product.priceRangeLabel && product.priceRangeLabel !== "미입력" ? product.priceRangeLabel : "가격 확인하기",
     imageDesktop: product.coverImageUrl,
     imageAlt: product.title,

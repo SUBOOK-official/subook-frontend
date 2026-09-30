@@ -2,6 +2,8 @@
   "installCommand": "cd frontend && npm install",
   "buildCommand": "cd frontend && npm run build:public",
   "outputDirectory": "frontend/apps/public-web/dist",
+  "functions": { "api/banner-copy.js": { "maxDuration": 180 } },
+  "crons": [{ "path": "/api/banner-copy?refresh=1", "schedule": "*/10 * * * *" }],
   "redirects": [
     {
       "source": "/products/:path*",
