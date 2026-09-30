@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import AdminShell from "../components/AdminShell";
 import AdminDialog from "../components/AdminDialog";
+import CuratedProductPicker from "../components/CuratedProductPicker";
 import { supabase } from "@shared-supabase/adminSupabaseClient";
 import { listContentThemes, saveContentTheme } from "@shared-supabase/contentThemesClient";
-import { getCuratedProductDetails, searchCuratedProducts } from "@shared-supabase/curatedContentClient";
+import { getCuratedProductDetails } from "@shared-supabase/curatedContentClient";
 import { uploadPromotionImage } from "@shared-supabase/sitePromotionsClient";
 import { preparePromotionImage } from "../lib/promotionImage";
 const input = "mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white";
@@ -15,12 +16,6 @@ export default function AdminThemesPage() {
   const [themes, setThemes] = useState([]);
   const [editor, setEditor] = useState(null);
   const [selected, setSelected] = useState([]);
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState([]);
-  const [checkedIds, setCheckedIds] = useState([]);
-  const selectedIds = new Set(selected.map((product) => String(product.id)));
-  const availableResults = results.filter((product) => !selectedIds.has(String(product.id)));
-  const checkedProducts = availableResults.filter((product) => checkedIds.includes(String(product.id)));
   function addProducts(products) {
     setSelected((current) => {
       const ids = new Set(current.map((product) => String(product.id)));
@@ -30,7 +25,6 @@ export default function AdminThemesPage() {
         return true;
       })];
     });
-    setCheckedIds((current) => current.filter((id) => !products.some((product) => String(product.id) === id)));
   }
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -44,7 +38,7 @@ export default function AdminThemesPage() {
   }
   useEffect(() => { void load(); }, []);
   async function edit(theme) {
-    setError(""); setNotice(""); setBusy(true); setQuery(""); setResults([]); setCheckedIds([]);
+    setError(""); setNotice(""); setBusy(true);
     try {
       let chosen = [];
       if (theme) {
@@ -72,22 +66,6 @@ export default function AdminThemesPage() {
       const url = await uploadPromotionImage(supabase, result.file);
       setEditor((current) => ({ ...current, image_url: url }));
     } catch (failure) { setError(failure.message || "아이콘 업로드에 실패했습니다."); }
-    finally { setBusy(false); }
-  }
-  async function search() {
-    if (query.trim().length < 2) { setError("검색어를 두 글자 이상 입력해주세요."); return; }
-    setBusy(true); setError("");
-    setCheckedIds([]); setResults([]);
-    try {
-      const matches = [];
-      for (let offset = 0; ; offset += 500) {
-        const data = await searchCuratedProducts(supabase, query, offset, 500);
-        matches.push(...(data ?? []));
-        if ((data ?? []).length < 500) break;
-      }
-      setResults(matches);
-      if (!matches.length) setError("검색 결과가 없습니다.");
-    } catch { setError("교재 검색에 실패했습니다. 다시 시도해주세요."); }
     finally { setBusy(false); }
   }
 
@@ -129,19 +107,7 @@ export default function AdminThemesPage() {
         {editor.image_url && <img className="h-24 w-24 rounded-full object-cover" src={editor.image_url} alt="테마 아이콘 미리보기" />}
         <label className="block text-sm font-semibold">테마명<input required maxLength={20} className={input} value={editor.title} placeholder="시대인재관, 추석할인, 메가세일" onChange={(event) => setEditor({ ...editor, title: event.target.value })} /></label>
         <label className="block text-sm font-semibold">홈 노출 순서<input required type="number" min="0" max="9999" className={input} value={editor.sort_order} onChange={(event) => setEditor({ ...editor, sort_order: event.target.value })} /></label>
-        <div><label>포함할 교재 검색<input className={input} value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void search(); } }} /></label><button type="button" className={`${button} mt-2`} onClick={search}>검색</button></div>
-        {results.length > 0 && <div className="flex flex-wrap items-center gap-3">
-          <label className="flex items-center gap-2"><input type="checkbox" disabled={!availableResults.length} checked={availableResults.length > 0 && checkedProducts.length === availableResults.length} onChange={(event) => setCheckedIds(event.target.checked ? availableResults.map((product) => String(product.id)) : [])} />검색 결과 전체 선택</label>
-          <span className="text-sm text-slate-500">검색 {results.length}권 · 선택 {checkedProducts.length}권</span>
-          <button type="button" className={button} disabled={!checkedProducts.length} onClick={() => addProducts(checkedProducts)}>선택한 교재 한 번에 추가</button>
-        </div>}
-        <div className="max-h-60 overflow-auto">{results.map((product) => {
-          const added = selectedIds.has(String(product.id));
-          return <div className="flex items-center justify-between gap-3 border-b py-2" key={product.id}>
-            <label className="flex items-center gap-3 text-sm"><input type="checkbox" disabled={added} checked={added || checkedIds.includes(String(product.id))} onChange={(event) => setCheckedIds((current) => event.target.checked ? [...current, String(product.id)] : current.filter((id) => id !== String(product.id)))} />{product.title}</label>
-            <button type="button" className={button} disabled={added} onClick={() => addProducts([product])}>{added ? "추가됨" : "추가"}</button>
-          </div>;
-        })}</div>
+        <CuratedProductPicker selectedIds={selected.map((product) => product.id)} onAdd={addProducts} disabled={busy} />
         <h3 className="font-bold">선택한 교재 ({selected.length}권)</h3>
         <ol className="space-y-2">{selected.map((product, index) => <li key={product.id} className="flex items-center gap-2 rounded bg-slate-50 p-2"><span className="flex-1 text-sm">{index + 1}. {product.title}</span><button type="button" aria-label={`${product.title} 위로`} disabled={index === 0} onClick={() => move(index, -1)}>↑</button><button type="button" aria-label={`${product.title} 아래로`} disabled={index === selected.length - 1} onClick={() => move(index, 1)}>↓</button><button type="button" className={button} onClick={() => setSelected(selected.filter((item) => item.id !== product.id))}>제외</button></li>)}</ol>
         <label className="flex gap-2"><input type="checkbox" checked={editor.is_enabled} onChange={(event) => setEditor({ ...editor, is_enabled: event.target.checked })} />홈에 노출</label>

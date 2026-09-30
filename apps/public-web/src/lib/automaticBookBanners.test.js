@@ -2,10 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { buildAutomaticBookBanners, summarizeBannerText } from "./automaticBookBanners.js";
 
-test("keeps recommendation order and selects only the first nine", () => {
+test("keeps every configured banner in the administrator's order", () => {
   const products = Array.from({ length: 12 }, (_, i) => ({ id: 30 - i, title: `교재 ${i}`, priceRangeLabel: "6,000원" }));
   const banners = buildAutomaticBookBanners(products);
-  assert.deepEqual(banners.map((row) => row.productId), products.slice(0, 9).map((row) => row.id));
+  assert.deepEqual(banners.map((row) => row.productId), products.map((row) => row.id));
   assert.equal(banners[0].summary, "다음 공부를 함께할 한 권");
   assert.equal(banners[0].href, "/store/30");
   assert.equal(banners[0].priceLabel, "6,000원");
@@ -26,16 +26,9 @@ test("edited and fallback banner copy stays within 20 characters including space
   }
 });
 
-test("manual banners plus at least eight recommendations fill both two and three card pages", async () => {
-  const { getRecommendedBannerCount } = await import('./automaticBookBanners.js');
-  for (let manual = 0; manual < 40; manual++) {
-    const recommended = getRecommendedBannerCount(manual);
-    assert.ok(recommended >= 8 && recommended <= 13);
-    assert.equal((manual + recommended) % 6, 0);
-  }
-  assert.equal(getRecommendedBannerCount(0), 12);
-  assert.equal(getRecommendedBannerCount(3), 9);
-  assert.equal(getRecommendedBannerCount(4), 8);
-  assert.equal(getRecommendedBannerCount(5), 13);
-  assert.equal(buildAutomaticBookBanners(Array.from({length:15},(_,i)=>({id:i+1})),13).length,13);
+test("uses manual copy before AI copy and never fills an empty selection", () => {
+  const banners = buildAutomaticBookBanners([{ id: 1, bannerHeadline: "직접 설정한 문구" }, { id: 2 }], 2,
+    new Map([["1", "AI 문구"], ["2", "저장된 AI 문구"]]));
+  assert.deepEqual(banners.map((row) => row.summary), ["직접 설정한 문구", "저장된 AI 문구"]);
+  assert.deepEqual(buildAutomaticBookBanners([]), []);
 });

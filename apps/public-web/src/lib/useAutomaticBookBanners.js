@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
-import { fetchStorefrontProducts } from "./storefront";
+import { normalizeStorefrontProductRow } from "./storefront";
+import { supabase } from "@shared-supabase/publicSupabaseClient";
+import { listPublicHeroProducts } from "@shared-supabase/curatedContentClient";
 import { buildAutomaticBookBanners } from "./automaticBookBanners";
 import { trackException } from "./analytics";
 import { bannerCopyMap, fetchBannerCopies } from "./bannerCopies";
@@ -15,12 +17,11 @@ export default function useAutomaticBookBanners() {
       // 느린 문구 조회가 교재 배너의 첫 표시를 막지 않도록 병렬로 시작한다.
       const copiesRequest = fetchBannerCopies();
       try {
-        const result = await fetchStorefrontProducts({ sort: "recommended", limit: 13, offset: 0 });
-        if (result.error) throw result.error;
-        const products = result.products ?? [];
-        if (!disposed) setSlides(buildAutomaticBookBanners(products, 13));
+        const rows = await listPublicHeroProducts(supabase);
+        const products = rows.map((row) => ({ ...normalizeStorefrontProductRow(row.product), bannerHeadline: row.headline }));
+        if (!disposed) setSlides(buildAutomaticBookBanners(products));
         const copies = await copiesRequest;
-        if (!disposed) setSlides(buildAutomaticBookBanners(products, 13, bannerCopyMap(copies)));
+        if (!disposed) setSlides(buildAutomaticBookBanners(products, products.length, bannerCopyMap(copies)));
       } catch {
         trackException("home_automatic_banners_load_failed");
       } finally { pending = false; }

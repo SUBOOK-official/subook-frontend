@@ -8,7 +8,6 @@ import ThemeQuickLinks from "../components/home/ThemeQuickLinks";
 import B2bCTA from "../components/home/B2bCTA";
 import AutomaticHeroBanner from "../components/home/AutomaticHeroBanner";
 import useAutomaticBookBanners from "../lib/useAutomaticBookBanners";
-import { getRecommendedBannerCount } from "../lib/automaticBookBanners";
 import HomeStoreGrid from "../components/home/HomeStoreGrid";
 import PickupCTA from "../components/home/PickupCTA";
 import FortuneCookie from "../components/FortuneCookie";
@@ -33,7 +32,7 @@ function PublicHomePage() {
     imageMobile: isPromotionUrl(row.mobile_image_url) ? row.mobile_image_url : null,
     imageAlt: row.alt_text, href: isPromotionUrl(row.link_url) ? row.link_url : null,
   }));
-  const heroSlides = [...automaticSlides.slice(0, getRecommendedBannerCount(manualSlides.length)), ...manualSlides];
+  const heroSlides = [...automaticSlides, ...manualSlides];
   const { requireMember, memberGateDialog } = usePublicMemberGate();
   const { favoriteIds, toggleFavorite } = usePublicWishlist();
   // 배너(대치동 현강/교재 보러가기) 클릭 시 스크롤 도착 지점 — 배너 바로 아래 상품 구역.

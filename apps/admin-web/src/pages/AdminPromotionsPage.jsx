@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import AdminShell from "../components/AdminShell";
 import AdminDialog from "../components/AdminDialog";
 import { formatImageBytes, preparePromotionImage } from "../lib/promotionImage";
@@ -100,6 +101,7 @@ function AdminPromotionsPage() {
 
   return (
     <AdminShell activeModule="promotions" title="배너·팝업 관리" description="고객 홈에 보여줄 이미지와 연결 주소, 노출 기간을 관리합니다.">
+      <div className="mb-5"><Link className={buttonClass} to="/admin/recommendations?tab=hero">홈 배너 교재 설정</Link></div>
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-2" role="group" aria-label="노출 위치 필터">
           {Object.entries({ all: "전체", ...PROMOTION_PLACEMENTS }).map(([value, label]) => (

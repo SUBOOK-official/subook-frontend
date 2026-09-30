@@ -58,16 +58,20 @@ export function getCheckoutBookPricing(client, bookIds) {
   return requestCuratedContent((signal) => client.rpc("get_books_pricing_for_order", { p_book_ids: bookIds.map(Number) }).abortSignal(signal));
 }
 
-export function searchCuratedProducts(client, search, offset = 0, limit = 30) {
+export function searchCuratedProducts(client, search = "", offset = 0, limit = 30) {
   requireCuratedClient(client);
-  const term = search.trim().replace(/[%_]/g, "");
-  if (term.length < 2) throw new Error("검색어를 두 글자 이상 입력해 주세요.");
-  return requestCuratedContent((signal) => client.from("products").select("id,title,cover_image_url")
-    .ilike("title", `%${term}%`).order("id").range(offset, offset + limit - 1).abortSignal(signal));
+  return requestCuratedContent((signal) => client.rpc("admin_list_curated_products", {
+    p_search: search.trim(), p_offset: offset, p_limit: limit,
+  }).abortSignal(signal));
 }
 
 export function getCuratedProductDetails(client, ids) {
   requireCuratedClient(client);
-  return requestCuratedContent((signal) => client.from("products").select("id,title,cover_image_url")
+  return requestCuratedContent((signal) => client.from("products").select("id,title,cover_image_url,status,is_listed")
     .in("id", ids).abortSignal(signal));
+}
+
+export function listPublicHeroProducts(client) {
+  requireCuratedClient(client);
+  return requestCuratedContent((signal) => client.rpc("get_public_hero_products").abortSignal(signal));
 }

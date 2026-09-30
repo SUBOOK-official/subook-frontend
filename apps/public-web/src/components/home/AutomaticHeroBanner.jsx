@@ -53,7 +53,8 @@ export default function AutomaticHeroBanner({ slides, onSlideAction }) {
       if (!cardWidth || !rail.clientWidth) return;
       const perPage = Math.max(1, Math.round(rail.clientWidth / cardWidth));
       const total = Math.max(1, Math.ceil(slides.length / perPage));
-      const current = Math.min(total, Math.max(1, Math.round(rail.scrollLeft / rail.clientWidth) + 1));
+      const atEnd = rail.scrollWidth > rail.clientWidth && rail.scrollLeft >= rail.scrollWidth - rail.clientWidth - 4;
+      const current = atEnd ? total : Math.min(total, Math.max(1, Math.round(rail.scrollLeft / rail.clientWidth) + 1));
       setPagination((previous) => previous.current === current && previous.total === total ? previous : { current, total });
     };
     updatePagination();

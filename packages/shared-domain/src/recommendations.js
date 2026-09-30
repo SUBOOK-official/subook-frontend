@@ -1,7 +1,9 @@
 export function rankRecommendedProducts(products, recommendations) {
   const ranks = new Map(recommendations.filter((row) => row.is_enabled).map((row) => [String(row.product_id), Number(row.sort_order)]));
   return products.map((product, index) => ({ product, index })).sort((a, b) =>
-    (ranks.get(String(a.product.id)) ?? Infinity) - (ranks.get(String(b.product.id)) ?? Infinity) || a.index - b.index,
+    (ranks.get(String(a.product.id)) ?? Infinity) - (ranks.get(String(b.product.id)) ?? Infinity)
+      || (ranks.has(String(a.product.id)) && ranks.has(String(b.product.id)) ? Number(a.product.id) - Number(b.product.id) : 0)
+      || a.index - b.index,
   ).map(({ product }) => product);
 }
 

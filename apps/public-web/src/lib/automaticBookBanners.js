@@ -24,19 +24,12 @@ export function summarizeBannerText(product = {}) {
   return "다음 공부를 함께할 한 권";
 }
 
-// 2장/3장 화면 모두 빈칸 없이 맞추며 추천 교재를 최소 8개 보장한다.
-// 필요한 추천 수는 직접 등록한 배너 수에 따라 8~13개다.
-export function getRecommendedBannerCount(manualCount) {
-  const count = Math.max(0, Math.floor(Number(manualCount) || 0));
-  return Math.ceil((count + 8) / 6) * 6 - count;
-}
-
-export function buildAutomaticBookBanners(products, limit = 9, copies = new Map()) {
+export function buildAutomaticBookBanners(products, limit = products.length, copies = new Map()) {
   return products.filter((product) => product.id && product.isPublic !== false).slice(0, limit).map((product) => ({
     id: `book-${product.id}`,
     productId: product.id,
     title: product.title,
-    summary: copies.get(String(product.id)) || summarizeBannerText(product),
+    summary: product.bannerHeadline?.trim() || copies.get(String(product.id)) || summarizeBannerText(product),
     priceLabel: product.priceRangeLabel && product.priceRangeLabel !== "미입력" ? product.priceRangeLabel : "가격 확인하기",
     imageDesktop: product.coverImageUrl,
     imageAlt: product.title,

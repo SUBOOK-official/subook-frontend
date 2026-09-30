@@ -1,11 +1,22 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { requestCuratedContent, saveCuratedContent } from "./curatedContentClient.js";
+import { requestCuratedContent, saveCuratedContent, searchCuratedProducts } from "./curatedContentClient.js";
 
 test("읽기 네트워크 오류는 한 번 재시도한다", async () => {
   let calls = 0;
   assert.deepEqual(await requestCuratedContent(async () => ++calls === 1 ? { error: Error("network") } : { data: [1] }), [1]);
   assert.equal(calls, 2);
+});
+
+test("전체 목록과 검색의 페이지·검색어·전체 건수를 보존한다", async () => {
+  const calls = [];
+  const result = { products: [{ id: 31 }], total_count: 1110 };
+  const client = { rpc(name, args) { calls.push({ name, args }); return { abortSignal: async () => ({ data: result }) }; } };
+  assert.deepEqual(await searchCuratedProducts(client), result);
+  assert.deepEqual(await searchCuratedProducts(client, " 홍 시대 % ", 30, 30), result);
+  assert.deepEqual(calls.map((call) => call.args), [
+    { p_search: "", p_offset: 0, p_limit: 30 }, { p_search: "홍 시대 %", p_offset: 30, p_limit: 30 },
+  ]);
 });
 test("권한 오류는 재시도하지 않고 timeout은 abort한다", async () => {
   let calls = 0;
