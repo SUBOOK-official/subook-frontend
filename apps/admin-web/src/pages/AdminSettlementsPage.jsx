@@ -3,6 +3,7 @@ import AdminShell from "../components/AdminShell";
 import AdminDialog from "../components/AdminDialog";
 import AdminPageTabs from "../components/AdminPageTabs";
 import AdminPagination from "../components/AdminPagination";
+import JeonilSettlementSection from "../components/JeonilSettlementSection";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import NotificationResultModal from "../components/NotificationResultModal";
 import { groupSettlementNotificationTargets, notifySettlementDoneGroup } from "../lib/adminNotification";
@@ -19,6 +20,7 @@ const PAYABLE_STATUSES = ["pending", "approved"];
 
 function AdminSettlementsPage() {
   const [rows, setRows] = useState([]);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [statusFilter, setStatusFilter] = useState("payable");
   const [search, setSearch] = useState("");
   const [selectedKeys, setSelectedKeys] = useState([]);
@@ -48,6 +50,7 @@ function AdminSettlementsPage() {
   useEffect(() => () => window.clearTimeout(toastTimerRef.current), []);
 
   const loadSettlements = useCallback(async () => {
+    setRefreshKey((key) => key + 1);
     const requestId = ++requestIdRef.current;
     setIsLoading(true);
     setLoadError("");
@@ -340,6 +343,7 @@ function AdminSettlementsPage() {
           disabled={actionsDisabled} onClick={() => { setDetailKey(null); void loadSettlements(); }}>새로고침</button>
       }
     >
+      <p className="text-xs font-bold text-slate-500">일반 셀러 정산</p>
       <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {summaryCards.map((card, index) => <div className={`card !p-4 ${index === 0 ? "col-span-2 sm:col-span-1" : ""}`} key={card.label}>
           <dt className="text-xs font-semibold text-slate-500">{card.label}</dt>
@@ -350,6 +354,8 @@ function AdminSettlementsPage() {
       <AdminPageTabs activeKey={statusFilter} onSelect={changeTab} tabs={[
         { key: "payable", label: "미지급" }, { key: "completed", label: "지급 완료" },
       ]} />
+      <JeonilSettlementSection status={statusFilter} refreshKey={refreshKey} />
+      <h2 className="font-bold text-slate-900">일반 셀러 정산</h2>
 
       <section className="card space-y-4">
         <div className="flex flex-wrap items-end justify-between gap-3">

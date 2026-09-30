@@ -1,10 +1,10 @@
 // 조회는 timeout과 한 번의 재시도를 적용한다. 지급·계좌 저장에는 이 재시도를 사용하지 않는다.
-async function requestPage(client, params, isCurrent) {
+async function requestPage(client, params, isCurrent, rpcName = "list_admin_settlements") {
   for (let attempt = 0; attempt < 2 && isCurrent(); attempt += 1) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 15000);
     try {
-      const result = await client.rpc("list_admin_settlements", params).abortSignal(controller.signal);
+      const result = await client.rpc(rpcName, params).abortSignal(controller.signal);
       if (result.error) throw result.error;
       return result;
     } catch (error) {
@@ -14,6 +14,33 @@ async function requestPage(client, params, isCurrent) {
     }
   }
   return {};
+}
+
+export async function fetchJeonilSettlementData(client, isCurrent = () => true) {
+  const { data } = await requestPage(client, {}, isCurrent, "admin_get_jeonil_settlements");
+  if (!isCurrent()) return null;
+  if (![data?.payable, data?.waiting, data?.completed].every(Array.isArray) || data?.fee_percent !== 50) {
+    throw new Error("전일학원 정산 내역을 확인할 수 없습니다. 다시 불러와 주세요.");
+  }
+  return data;
+}
+
+// 결과가 불확실한 지급 기록은 재시도하지 않는다. 호출 화면에서 원장을 다시 조회한다.
+export async function completeJeonilSettlements(client, rows, expectedAmount, transferReference) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30000);
+  try {
+    const { data, error } = await client.rpc("admin_complete_jeonil_settlements", {
+      p_order_item_ids: rows.map((row) => row.order_item_id),
+      p_expected_amount: expectedAmount,
+      p_transfer_reference: transferReference.trim(),
+    }).abortSignal(controller.signal);
+    if (error) throw error;
+    if (Number(data?.updated_count) !== rows.length || Number(data?.net_amount) !== expectedAmount) {
+      throw new Error("지급 기록을 다시 확인해 주세요.");
+    }
+    return data;
+  } finally { clearTimeout(timer); }
 }
 
 // list_admin_settlements의 최대 페이지 크기는 500이다. 셀러 합계는 모든 페이지를 받은 뒤 표시한다.
