@@ -95,8 +95,8 @@ function PublicHomePage() {
       <section className="public-brand-intro public-content-container" aria-labelledby="public-brand-title">
         <h1 id="public-brand-title">수북 SUBOOK, 수능 교재 구매·위탁판매</h1>
         <p>
-          수북(SUBOOK)은 수능 교재 구매·위탁판매 플랫폼입니다. 전문 검수를 거친 교재를
-          구매하고, 안 쓰는 교재는 수거부터 판매·정산까지 맡길 수 있습니다.
+          수북(SUBOOK)은 수능 교재 구매·위탁판매 플랫폼입니다. 검수된 교재를 구매하고,
+          안 쓰는 교재는 수거부터 판매·정산까지 맡기세요.
         </p>
         <nav aria-label="수북 이용 안내">
           <Link to={SELL_GUIDE_PATH}>판매 이용 안내</Link>

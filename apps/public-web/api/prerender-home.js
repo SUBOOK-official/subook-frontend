@@ -21,7 +21,7 @@ const LATEST_BOOK_LIMIT = 8; // SPA publicHomeLatestBooks HOME_LATEST_BOOK_LIMIT
 // SPA usePageMeta DEFAULT_TITLE / DEFAULT_DESCRIPTION 및 index.html과 동일
 const PAGE_TITLE = "수북 SUBOOK | 수능 교재 구매·위탁판매";
 const PAGE_DESCRIPTION =
-  "수북(SUBOOK)은 수능 교재 구매·위탁판매 플랫폼입니다. 전문 검수를 거친 교재를 구매하고, 안 쓰는 교재는 수거부터 판매·정산까지 맡길 수 있습니다.";
+  "수북(SUBOOK)은 수능 교재 구매·위탁판매 플랫폼입니다. 검수된 교재를 구매하고, 안 쓰는 교재는 수거부터 판매·정산까지 맡기세요.";
 // index.html keywords와 동일 (구글은 무시하지만 네이버 등 국내 검색 대비)
 const PAGE_KEYWORDS =
   "수북, subook, 수능, 교재, 책, 중고, 대치동, 거래, 중고 거래, 중고 교재, 수능 중고 교재, 대입, 입시, 수능 교재";

@@ -3,7 +3,7 @@ import { useEffect } from "react";
 // index.html·api/prerender-home.js의 브랜드 메타와 반드시 동일하게 유지.
 const DEFAULT_TITLE = "수북 SUBOOK | 수능 교재 구매·위탁판매";
 const DEFAULT_DESCRIPTION =
-  "수북(SUBOOK)은 수능 교재 구매·위탁판매 플랫폼입니다. 전문 검수를 거친 교재를 구매하고, 안 쓰는 교재는 수거부터 판매·정산까지 맡길 수 있습니다.";
+  "수북(SUBOOK)은 수능 교재 구매·위탁판매 플랫폼입니다. 검수된 교재를 구매하고, 안 쓰는 교재는 수거부터 판매·정산까지 맡기세요.";
 
 /**
  * 페이지별 <title> + meta description + canonical/og + JSON-LD 동적 설정.
