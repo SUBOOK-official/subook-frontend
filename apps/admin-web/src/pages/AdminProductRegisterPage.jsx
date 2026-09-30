@@ -73,9 +73,6 @@ function blankNewRow(location = "") {
     subject: "",
     brand: "",
     bookType: "",
-    bookTypeConfirmed: false,
-    bookTypeReviewKey: "",
-    bookTypeReviewNote: "",
     option: "",
     // 같은 구성(옵션 세트)을 여러 권 등록할 때 — 옵션 수 × 수량 만큼 books 생성
     quantity: "1",
@@ -422,7 +419,7 @@ function AdminProductRegisterPage() {
   const bookTypeCacheRef = useRef(new Map());
   const [bookTypeRetry, setBookTypeRetry] = useState(0);
   const bookTypeTargets = JSON.stringify(newRows.filter((r) => r.title.trim()).map((r) => ({
-    uid: r.uid, title: r.title.trim(), subject: r.subject || "", key: bookTypeInputKey(r),
+    uid: r.uid, title: r.title.trim(), subject: r.subject || "", brand: r.brand || "", key: bookTypeInputKey(r),
   })));
 
   // 제목·과목이 같은 입력의 응답만 사용한다. 이전 제목의 늦은 응답은 버린다.
@@ -435,7 +432,7 @@ function AdminProductRegisterPage() {
         try {
           let data = bookTypeCacheRef.current.get(target.key);
           if (!data) {
-            data = await classifyRegisterBookType(target.title, target.subject);
+            data = await classifyRegisterBookType(target.title, target.subject, target.brand);
             if (bookTypeCacheRef.current.size >= 500) bookTypeCacheRef.current.clear();
             bookTypeCacheRef.current.set(target.key, data);
           }
@@ -2434,7 +2431,7 @@ function AdminProductRegisterPage() {
       </div>
 
       {/* Frame 3: 기존 교재 옵션/재고 추가 모달 */}
-      {/* 과목/브랜드 설정 모달. 유형은 교재 카드에서 근거와 함께 확인한다. */}
+      {/* 과목/브랜드 설정 모달. 유형은 교재 카드에서 바로 선택한다. */}
       {(() => {
         const categoryRow = newRows.find((r) => r.uid === categoryModalUid) ?? null;
         if (!categoryRow) return null;
