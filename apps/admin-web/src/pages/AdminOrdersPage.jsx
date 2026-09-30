@@ -988,13 +988,17 @@ function AdminOrdersPage() {
     showToast(
       `${isFull ? "전체 품목" : "일부 품목"} 환불 완료 (${formatCurrency(amount)}). 정산 자동 처리: 취소 ${cancelled}건${
         recovery > 0 ? ` / 회사 손실 ${recovery}건 (정산 완료분 — 회사 부담)` : ""
-      }.${held > 0 ? ` 재고 ${held}권 보류(회수·재검수 필요).` : ""}${
+      }.${held > 0 ? ` 재고 ${held}권 판매 차단 중 — 아래 보류 교재 목록에서 폐기 또는 재판매를 마무리해주세요. 미발송 교재는 수거하지 않습니다.` : ""}${
         isFull ? "" : " 주문은 기존 상태로 유지됩니다."
       } ${notificationSent ? "구매자 환불 안내 발송 요청 완료." : "환불은 완료됐지만 구매자 안내 발송 결과는 알림 로그에서 확인해주세요."}`,
       "success",
     );
     closeRefundModal();
-    setSelectedOrderId(null);
+    setSelectedOrderId(held > 0 ? order.id : null);
+    if (held > 0) {
+      // 전액 환불로 기존 상태 필터에서 사라져도 재고 처리 대상 주문을 계속 보여준다.
+      setStatusFilters([]); setSearch(order.order_number); setFromDate(""); setToDate(""); setCurrentPage(1);
+    }
     await loadOrders();
   };
 
@@ -1092,7 +1096,7 @@ function AdminOrdersPage() {
     });
     setReturnBusy(false);
     if (error) {
-      showToast(error.message || "회수 확인 처리에 실패했습니다.", "error");
+      showToast(error.message || "보류 재고 처리에 실패했습니다.", "error");
       return;
     }
     const updated = data?.updated_books ?? 0;
@@ -1101,8 +1105,8 @@ function AdminOrdersPage() {
     const skipped = Array.isArray(data?.skipped_book_ids) ? data.skipped_book_ids : [];
     showToast(
       outcome === "restock"
-        ? `회수 완료 — ${updated + alreadyOnSale}권 재판매 복원(공개 전환).`
-        : `회수 완료 — ${updated}권 폐기 처리.`,
+        ? `재고 처리 완료 — ${updated + alreadyOnSale}권 재판매 복원(공개 전환).`
+        : `재고 처리 완료 — ${updated}권 폐기 처리.`,
       "success",
     );
     if (skipped.length > 0) {
@@ -1114,17 +1118,30 @@ function AdminOrdersPage() {
     await loadOrders();
   };
 
-  // 폐기는 비가역 — 확인 모달을 거친다 (재판매 복원은 숨김 버튼으로 되돌릴 수 있어 즉시 실행)
+  const describeHeldItems = (order) => (order.items ?? []).filter(item => item.restock_held_at)
+    .map(item => `• ${item.title} / ${item.option_label || "옵션 없음"} / No.${item.book_serial_number ?? "미지정"}`).join("\n");
+
+  const confirmReturnRestock = (order) => {
+    setDestructiveModal({
+      title: "보류 교재 재판매 확인",
+      description: `아래 교재 모두가 창고에 있고 재판매 가능한 상태인지 확인해주세요.\n\n${describeHeldItems(order)}\n\n` +
+        "고객에게 아직 있거나 출고 전 검수에서 탈락한 교재는 복원하지 마세요. 이 버튼은 보류 중인 교재 전부를 판매 재고로 돌립니다.",
+      confirmLabel: "전부 확인 · 재판매 복원",
+      run: () => handleReturnRecovery(order, "restock"),
+    });
+  };
+
+  // 폐기 전 대상 옵션·일련번호를 보여준다. 실물 회수 여부와 재고 처리는 별개다.
   const confirmReturnDiscard = (order) => {
     setDestructiveModal({
       title: (
         <>
-          <AlertTriangleIcon size={16} /> 회수 도서 폐기
+          <AlertTriangleIcon size={16} /> 보류 교재 폐기
         </>
       ),
       description:
-        "회수한 책을 폐기 처리합니다.\n\n" +
-        "필기·훼손 등으로 재판매가 불가한 경우에만 진행하세요.\n" +
+        `아래 보류 교재 전부를 폐기 처리합니다.\n\n${describeHeldItems(order)}\n\n` +
+        "출고 전 검수 탈락·필기·훼손 등 재판매 불가한 교재만 진행하세요. 미발송 교재는 고객에게 수거할 필요가 없습니다.\n" +
         "폐기 후에는 재판매로 되돌릴 수 없습니다.",
       confirmLabel: "폐기 처리",
       run: () => handleReturnRecovery(order, "discard"),
@@ -1597,8 +1614,7 @@ function AdminOrdersPage() {
         </div>
       )}
 
-      {/* 반품 회수 (2026-08-24) — 회수 대기 재고·CJ 반품 수거 접수 현황. 실물이 구매자에게
-          있(었)을 상태에서만 노출. 회수 대기 = 환불했지만 재입고 보류된 품목. */}
+      {/* 재고 보류는 미발송·재판매 불가 교재에도 쓰인다. 고객 수거와 구분해 안내한다. */}
       {(() => {
         const heldItems = (selectedOrder.items ?? []).filter((i) => i.restock_held_at);
         const hasReturnReg = Boolean(selectedOrder.return_tracking_number);
@@ -1610,12 +1626,15 @@ function AdminOrdersPage() {
         }
         return (
           <div>
-            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">반품 회수</h4>
+            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">반품 수거·환불 후 재고 처리</h4>
             <div className="rounded-lg bg-slate-50 px-3 py-2.5 text-sm space-y-2">
               {heldItems.length > 0 && (
-                <p className="font-semibold text-amber-700">
-                  회수·재검수 대기 {heldItems.length}권 — 재고 보류 중 (상태 확인 후 아래 버튼으로 처리)
-                </p>
+                <div className="space-y-2">
+                  <p className="font-semibold text-amber-700">환불은 완료됐고, 아래 {heldItems.length}개 품목은 판매 차단 중입니다.</p>
+                  <ul className="space-y-1 text-xs">{heldItems.map(item => <li key={item.id}>{item.title} · <strong>{item.option_label || "옵션 없음"}</strong> · No.{item.book_serial_number ?? "미지정"}</li>)}</ul>
+                  <p>출고 전 탈락 교재는 ‘보류 교재 폐기’로 마무리합니다. 미발송 교재를 고객에게서 회수할 필요는 없습니다.</p>
+                  <p className="text-xs text-slate-500">아래 재고 처리 버튼은 이 목록 전부에 적용됩니다. 상태가 서로 다르면 일괄 처리하지 말고 재고 담당자에게 확인해주세요.</p>
+                </div>
               )}
               {hasReturnReg ? (
                 <p className="flex flex-wrap items-center gap-2">
@@ -1635,11 +1654,11 @@ function AdminOrdersPage() {
                 </p>
               ) : selectedOrder.return_recovered_at && heldItems.length === 0 ? (
                 <p className="text-xs text-slate-500">
-                  회수 완료 · {formatDate(selectedOrder.return_recovered_at)}
+                  보류 재고 처리 완료 · {formatDate(selectedOrder.return_recovered_at)}
                 </p>
               ) : (
                 <p className="text-xs text-slate-500">
-                  CJ 반품 수거 접수 시 기사가 구매자 주소로 방문해 회수합니다. (구매자가 직접 발송하는 경우 접수 불필요)
+                  CJ 수거는 고객에게 교재가 있을 때만 요청합니다. 미발송·출고 전 탈락, 고객 직접 반송, 이미 창고 도착한 건은 요청하지 마세요.
                 </p>
               )}
               <div className="flex flex-wrap gap-2">
@@ -1668,10 +1687,10 @@ function AdminOrdersPage() {
                     <button
                       className="btn-primary !w-auto !px-3 !py-1.5 text-xs"
                       disabled={returnBusy}
-                      onClick={() => handleReturnRecovery(selectedOrder, "restock")}
+                      onClick={() => confirmReturnRestock(selectedOrder)}
                       type="button"
                     >
-                      회수 완료 — 재판매 복원
+                      보류 교재 재판매 복원
                     </button>
                     <button
                       className="btn-danger !w-auto !px-3 !py-1.5 text-xs"
@@ -1679,7 +1698,7 @@ function AdminOrdersPage() {
                       onClick={() => confirmReturnDiscard(selectedOrder)}
                       type="button"
                     >
-                      회수 완료 — 폐기
+                      보류 교재 폐기
                     </button>
                   </>
                 )}
@@ -2109,7 +2128,7 @@ function AdminOrdersPage() {
                         {/* 환불 후 실물 미회수(재입고 보류) 품목이 남은 주문 (2026-08-24 반품 수거) */}
                         {(order.items ?? []).some((i) => i.restock_held_at) && (
                           <span className="inline-flex items-center rounded-full bg-orange-100 px-1.5 py-0.5 text-[10px] font-bold text-orange-700">
-                            회수 대기
+                            재고 보류
                           </span>
                         )}
                       </div>
