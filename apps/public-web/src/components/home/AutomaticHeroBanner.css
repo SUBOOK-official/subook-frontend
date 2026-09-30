@@ -4,7 +4,10 @@
 .automatic-hero__card{position:relative;display:block;flex:0 0 calc(100% / 3);min-width:0;aspect-ratio:1;overflow:hidden;scroll-snap-align:start;color:#fff;background:#666b70;text-decoration:none;isolation:isolate}
 .automatic-hero__card picture,.automatic-hero__card img{position:absolute;inset:0;width:100%;height:100%;display:block}
 .automatic-hero__card img{object-fit:cover;transition:transform .45s ease}
-.automatic-hero__card:hover img{transform:scale(1.025)}
+.automatic-hero__card--book:hover img{transform:scale(1.025)}
+/* 수동 배너에는 문구가 포함되므로 원본 전체를 보존한다. */
+.automatic-hero__card--image{background:var(--public-ds-card,#fff)}
+.automatic-hero__card--image img{object-fit:contain}
 .automatic-hero__card:focus-visible{outline:3px solid #354edb;outline-offset:-4px}
 .automatic-hero__shade{position:absolute;inset:35% 0 0;background:linear-gradient(180deg,transparent,rgba(0,0,0,.42) 45%,rgba(0,0,0,.78) 100%)}
 .automatic-hero__title{font-size:clamp(13px,1.1vw,20px);font-weight:500;line-height:1.4;word-break:keep-all;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}

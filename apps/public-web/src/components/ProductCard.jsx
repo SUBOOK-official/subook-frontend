@@ -233,6 +233,7 @@ function ProductCard({
         to={resolvedDetailPath}
       />
 
+      <div className="public-product-card__faces">
       <div className="public-product-card__front">
       <div className="public-product-card__media" ref={mediaRef}>
         <ProductCardBadge badge={badge} />
@@ -339,13 +340,8 @@ function ProductCard({
           )}
         </div>
 
-        {footer ? <div className="public-product-card__footer">{footer}</div> : null}
       </div>
       </div>
-      <ProductCardFavoriteButton
-        filled={isFavorite}
-        onToggle={(event) => onToggleFavorite?.(product.id, event)}
-      />
       <div className="public-product-card__back" aria-hidden={!flipped}>
         <span className="public-product-card__summary-label">
           <img src="/ai/ai-summary-icon.png" alt="" aria-hidden="true" width="18" height="18" />
@@ -355,6 +351,13 @@ function ProductCard({
         <p className="public-product-card__summary-text">{summary ?? "교재 요약을 불러오는 중…"}</p>
         <span className="public-product-card__summary-more">교재 자세히 보기 ↗</span>
       </div>
+      </div>
+      <ProductCardFavoriteButton
+        filled={isFavorite}
+        onToggle={(event) => onToggleFavorite?.(product.id, event)}
+      />
+      {/* 재입고 알림 등 액션은 회전/stacking context 밖에서 클릭 가능하게 유지한다. */}
+      {footer ? <div className="public-product-card__footer">{footer}</div> : null}
     </article>
   );
 }

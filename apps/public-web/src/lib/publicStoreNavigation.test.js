@@ -5,6 +5,7 @@ import {
   cloneStoreFilters,
   countSelectedStoreFilters,
   STORE_DEFAULT_SUBJECT,
+  STORE_SORT_OPTIONS,
   areSelectedFiltersEqual,
   isValidStoreSort,
   parseStorefrontQuery,
@@ -244,4 +245,21 @@ test("discount filter and sort survive URL round-trip", () => {
   assert.equal(next.sortOption, "discount_desc");
   assert.deepEqual(next.selectedFilters.discounts, ["sale"]);
   assert.equal(parseStorefrontQuery("?sort=discount_asc").sortOption, "discount_asc");
+});
+
+test("theme URLs replace unsupported rankings while preserving filters and supported sorts", () => {
+  const options = { sortOptions: STORE_SORT_OPTIONS.filter((option) => option.value !== "popular"), allowRelevanceSort: false };
+  for (const sort of ["popular", "relevance"]) {
+    const parsed = parseStorefrontQuery(`?sort=${sort}&q=수학&discount=sale&page=2`, options);
+    assert.equal(parsed.sortOption, "recommended");
+    assert.equal(parsed.searchKeyword, "수학");
+    assert.deepEqual(parsed.selectedFilters.discounts, ["sale"]);
+    const query = serializeStorefrontQuery({ ...parsed, currentPage: parsed.page });
+    assert.equal(parseStorefrontQuery(query, options).sortOption, "recommended");
+    assert.equal(parseStorefrontQuery(query, options).page, 2);
+  }
+  assert.equal(parseStorefrontQuery("?q=수학", options).sortOption, "recommended");
+  assert.equal(parseStorefrontQuery("?sort=discount_desc", options).sortOption, "discount_desc");
+  assert.equal(parseStorefrontQuery("?sort=popular").sortOption, "popular");
+  assert.equal(parseStorefrontQuery("?q=수학").sortOption, "relevance");
 });

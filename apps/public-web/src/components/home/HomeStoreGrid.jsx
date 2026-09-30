@@ -86,7 +86,7 @@ function getPaginationItems(currentPage, totalPages) {
   return items;
 }
 
-function HomeStoreGrid({ favoriteIds = [], onToggleFavorite, loadProducts = fetchStorefrontProducts, queryPath = "/" }) {
+function HomeStoreGrid({ favoriteIds = [], onToggleFavorite, loadProducts = fetchStorefrontProducts, queryPath = "/", sortOptions = STORE_SORT_OPTIONS, allowRelevanceSort = true }) {
   const { isAuthenticated } = usePublicAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -94,8 +94,8 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite, loadProducts = fetc
   const sectionTopRef = useRef(null);
 
   const initialQueryState = useMemo(
-    () => parseStorefrontQuery(location.search),
-    [location.search],
+    () => parseStorefrontQuery(location.search, { sortOptions, allowRelevanceSort }),
+    [location.search, sortOptions, allowRelevanceSort],
   );
 
   // 서버 페이지네이션 모델 — products는 데스크톱에선 "현재 페이지", 모바일에선 "누적 목록".
@@ -235,7 +235,7 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite, loadProducts = fetc
 
   // URL 쿼리 → 상태 동기화 (브라우저 뒤로가기 등)
   useEffect(() => {
-    const next = parseStorefrontQuery(location.search);
+    const next = parseStorefrontQuery(location.search, { sortOptions, allowRelevanceSort });
     setSelectedSubject((current) => (current === next.selectedSubject ? current : next.selectedSubject));
     setSelectedFilters((current) =>
       JSON.stringify(current) === JSON.stringify(next.selectedFilters)
@@ -245,7 +245,7 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite, loadProducts = fetc
     setSortOption((current) => (current === next.sortOption ? current : next.sortOption));
     setCurrentPage((current) => (current === next.page ? current : next.page));
     setSearchKeyword((current) => (current === next.searchKeyword ? current : next.searchKeyword));
-  }, [location.search]);
+  }, [location.search, sortOptions, allowRelevanceSort]);
 
   // 상태 → URL 동기화
   //   - location.pathname === "/" 가드: 다른 페이지에서 발동되면 강제로 "/"로 튕기는 사고 방지
@@ -597,9 +597,9 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite, loadProducts = fetc
   }, [conditionKey, isEmpty, safeCurrentPage, searchKeyword, selectedFilterCount, selectedSubject]);
 
   // 검색 중일 때만 관련도순 노출 (기본 목록에선 의미 없는 정렬이라 숨김)
-  const sortMenuOptions = searchKeyword
-    ? [STORE_SEARCH_SORT_OPTION, ...STORE_SORT_OPTIONS]
-    : STORE_SORT_OPTIONS;
+  const sortMenuOptions = searchKeyword && allowRelevanceSort
+    ? [STORE_SEARCH_SORT_OPTION, ...sortOptions]
+    : sortOptions;
 
   // 과목 선택 — 사이드바 최상단 그룹. 필터(유형·브랜드)와 같은 칩 UI를 쓰되 과목은
   // 단일 선택(라디오처럼)이라 toggle이 아니라 handleSelectSubject로 교체한다.

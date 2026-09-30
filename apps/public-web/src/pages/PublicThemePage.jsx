@@ -5,6 +5,7 @@ import { getPublicThemePage } from "@shared-supabase/curatedContentClient";
 import { filterStorefrontProducts, normalizeStorefrontProductRow, sortStorefrontProducts } from "../lib/storefront";
 import { selectDiscountProducts } from "../lib/storefrontDiscounts";
 import { loadThemeCatalog } from "../lib/themeCatalog";
+import { STORE_SORT_OPTIONS } from "../lib/publicStoreNavigation";
 import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
 import PublicFooter from "../components/PublicFooter";
@@ -17,6 +18,8 @@ import { usePageMeta } from "../lib/usePageMeta";
 import "./PublicThemePage.css";
 
 const EMPTY = { theme: null, products: [], loading: true, error: false };
+// 테마 RPC는 인기·검색 관련도 지표를 제공하지 않는다.
+const THEME_SORT_OPTIONS = STORE_SORT_OPTIONS.filter((option) => option.value !== "popular");
 
 export default function PublicThemePage() {
   const { themeId } = useParams();
@@ -48,6 +51,7 @@ export default function PublicThemePage() {
           : !current.theme ? <h1>종료되었거나 공개되지 않은 테마입니다.</h1> : <header><img src={current.theme.image_url} alt="" width="80" height="80" /><h1>{current.theme.title}</h1><p>{current.products.length}개의 교재</p></header>}
     </main></ContentContainer>
     {!current.loading && !current.error && current.theme && <HomeStoreGrid key={themeId} queryPath={`/themes/${themeId}`} loadProducts={loadProducts} favoriteIds={favoriteIds}
+      sortOptions={THEME_SORT_OPTIONS} allowRelevanceSort={false}
       onToggleFavorite={(id) => { if (requireMember("favorite")) void toggleFavorite(id, { uiSurface: "theme_card" }); }} />}
     <PublicFooter />{memberGateDialog}</PublicPageFrame>;
 }

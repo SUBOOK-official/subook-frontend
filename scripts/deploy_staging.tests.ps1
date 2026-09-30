@@ -78,8 +78,12 @@ try {
   Write-FixtureFile "package.json" '{"private":true,"type":"module"}'
   Write-FixtureFile "packages/shared-domain/src/index.js"
   Write-FixtureFile "packages/shared-supabase/src/index.js"
-  Write-FixtureFile "apps/public-web/meta-catalog.entry.cjs"
-  Write-FixtureFile "apps/public-web/api/meta-catalog.js"
+  Write-FixtureFile "packages/shared-domain/src/entry-fixture.js" 'export const marker = "shared-esm-loaded";'
+  foreach ($apiName in @("meta-catalog", "banner-copy")) {
+    Write-FixtureFile "apps/public-web/$apiName.entry.cjs"
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot "../apps/public-web/$apiName.entry.cjs") -Destination (Join-Path $fixtureRoot "apps/public-web/$apiName.entry.cjs") -Force
+    Write-FixtureFile "apps/public-web/api/$apiName.js" 'import { marker } from "../../../packages/shared-domain/src/entry-fixture.js"; export default function handler(req, res) { res.end(marker); }'
+  }
   Write-FixtureFile "apps/admin-web/vercel.root-package.json" '{"private":true}'
   foreach ($app in @("public-web", "admin-web", "seller-lookup")) {
     Write-FixtureFile "apps/$app/src/index.js"
@@ -115,6 +119,21 @@ try {
   }
   Assert-Condition (Test-Path -LiteralPath (Join-Path $retainedPath ".vercel/project.json")) "Explicit Vercel project link was not copied."
   Assert-Condition (-not (Test-Path -LiteralPath (Join-Path $retainedPath "frontend/apps/public-web/.vercel"))) "Nested Vercel state was copied."
+  # Exercise the actual CommonJS entries after staging, including a shared ESM import.
+  $entryRunner = Join-Path $testRoot "check-entry.cjs"
+  Set-Content -LiteralPath $entryRunner -Encoding ASCII -Value @'
+const assert = require("node:assert/strict");
+const handler = require(process.argv[2]);
+let result;
+Promise.resolve(handler({}, { end(value) { result = value; } })).then(() => {
+  assert.equal(result, "shared-esm-loaded");
+}).catch(error => { console.error(error); process.exitCode = 1; });
+'@
+  foreach ($apiName in @("meta-catalog", "banner-copy")) {
+    & node $entryRunner (Join-Path $retainedPath "api/$apiName.js")
+    Assert-Condition ($LASTEXITCODE -eq 0) "$apiName cannot load shared ESM from staging."
+  }
+  Write-Host "PASS: staged API entries load shared ESM from the frontend workspace"
   Remove-StagingDirectory -Path $retainedPath
   Assert-Condition (-not (Test-Path -LiteralPath $retainedPath)) "Retained fixture cleanup failed."
   Write-Host "PASS: nested dependencies/caches excluded; required source and deployment metadata retained"

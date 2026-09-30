@@ -134,7 +134,7 @@ function getFilterQueryValue(params, singularKey, legacyPluralKey) {
   return params.get(singularKey) ?? params.get(legacyPluralKey);
 }
 
-export function parseStorefrontQuery(search) {
+export function parseStorefrontQuery(search, { sortOptions = STORE_SORT_OPTIONS, allowRelevanceSort = true } = {}) {
   const params = new URLSearchParams(search);
   const filters = {
     discounts: sanitizeFilterList("discounts", parseFilterList(params.get("discount"))),
@@ -152,8 +152,10 @@ export function parseStorefrontQuery(search) {
   const requestedSort = params.get("sort");
   // 검색어가 있는데 정렬이 명시되지 않았으면 기본을 관련도순으로.
   // (검색 중 '인기순'을 직접 고르면 serialize가 sort=popular를 URL에 명시해 왕복 유지)
-  const fallbackSort = searchKeyword ? STORE_SEARCH_SORT_OPTION.value : STORE_DEFAULT_SORT;
-  const sortOption = isValidStoreSort(requestedSort) ? requestedSort : fallbackSort;
+  const fallbackSort = searchKeyword && allowRelevanceSort ? STORE_SEARCH_SORT_OPTION.value : STORE_DEFAULT_SORT;
+  const supportsRequestedSort = sortOptions.some((option) => option.value === requestedSort)
+    || (allowRelevanceSort && requestedSort === STORE_SEARCH_SORT_OPTION.value);
+  const sortOption = supportsRequestedSort ? requestedSort : fallbackSort;
   const pageValue = Number.parseInt(params.get("page") ?? "1", 10);
 
   return {

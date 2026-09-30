@@ -19,7 +19,7 @@ function BannerCard({ slide, index, onSlideAction }) {
     {!failedImage && slide.imageDesktop && <picture>
       {slide.imageMobile && <source media="(max-width: 767px)" srcSet={slide.imageMobile} />}
       <img src={slide.productId ? getDetailImageUrl(slide.imageDesktop) : slide.imageDesktop} alt={slide.productId ? "" : slide.imageAlt || "수북 이벤트"}
-        loading={index < 3 ? "eager" : "lazy"} fetchPriority={index === 0 ? "high" : "auto"} onError={() => setFailedImage(true)} />
+        loading={index < 3 ? "eager" : "lazy"} fetchpriority={index === 0 ? "high" : "auto"} onError={() => setFailedImage(true)} />
     </picture>}
     {slide.productId && <>
       <span className="automatic-hero__shade" />

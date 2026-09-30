@@ -207,9 +207,13 @@ if (Test-Path -LiteralPath $publicWebApiPath -PathType Container) {
   # shared-*를 쓰는 API는 원래 frontend 경로의 ESM 모듈을 동적으로 로드한다.
   # CommonJS 스테이징 → ESM 워크스페이스 경계를 보존한다 (ERR_REQUIRE_ESM 방지).
   if ($App -eq "public-web") {
-    $metaCatalogEntry = Join-Path $stagingRoot "api/meta-catalog.js"
-    Assert-PathExists -Path $metaCatalogEntry -Description "Meta catalog API"
-    Copy-Item -LiteralPath (Join-Path $publicWebRoot "meta-catalog.entry.cjs") -Destination $metaCatalogEntry -Force
+    foreach ($apiName in @("meta-catalog", "banner-copy")) {
+      $apiEntry = Join-Path $stagingRoot "api/$apiName.js"
+      $entrySource = Join-Path $publicWebRoot "$apiName.entry.cjs"
+      Assert-PathExists -Path $apiEntry -Description "$apiName API"
+      Assert-PathExists -Path $entrySource -Description "$apiName staging entry"
+      Copy-Item -LiteralPath $entrySource -Destination $apiEntry -Force
+    }
   }
 }
 

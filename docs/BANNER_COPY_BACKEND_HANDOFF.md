@@ -6,6 +6,7 @@
 - `docs/migrations/20261001_banner_copy.sql`: 문구 캐시 + 서버 간 원자적 생성 잠금. DB 적용 전.
 - `packages/shared-domain/src/bannerCopyGeneration.js`: GPT-4.1 mini로 기존 상품 정보/AI 요약을 20자 이내 문구로 생성, 길이 검증.
 - `apps/public-web/api/banner-copy.js`: GET은 추천 상위 최대 13개의 저장된 문구만 반환. `?refresh=1`은 CRON_SECRET 인증 후 변경된 원문만 생성. 아직 스케줄 등록 전.
+- 배포 시 `banner-copy.entry.cjs`를 루트 API 진입점으로 사용해 원래 frontend ESM 모듈과 의존성 경로를 유지한다. `npm run test:deploy`로 이 경로를 검증한다.
 
 백엔드에서 할 일:
 1. SQL 적용 및 `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `OPENAI_API_KEY`, `CRON_SECRET` 서버 환경변수 설정. 키는 VITE 변수로 노출하지 않는다.
