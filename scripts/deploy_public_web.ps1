@@ -151,7 +151,8 @@ $stagingRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("subook-$App-deploy-
 $stagingFrontendRoot = Join-Path $stagingRoot "frontend"
 $stagingProjectLinkDir = Join-Path $stagingRoot ".vercel"
 $stagingProjectLinkPath = Join-Path $stagingProjectLinkDir "project.json"
-$stagingDeployConfigPath = Join-Path $stagingRoot "vercel.deploy.json"
+# 원격 빌더가 cron도 읽을 수 있도록 표준 파일명으로 업로드한다.
+$stagingDeployConfigPath = Join-Path $stagingRoot "vercel.json"
 
 Write-Step "target: $targetLabel / project: $projectName"
 
@@ -228,7 +229,7 @@ Assert-PathExists -Path (Join-Path $stagingFrontendRoot "packages/shared-domain/
 Assert-PathExists -Path (Join-Path $stagingFrontendRoot "packages/shared-supabase/src") -Description "staging shared-supabase" -Directory
 Assert-PathExists -Path (Join-Path $stagingFrontendRoot "apps/$App/src") -Description "staging web app" -Directory
 
-$deployArguments = @("vercel", "deploy", "-y", "-A", "vercel.deploy.json", "--logs")
+$deployArguments = @("vercel", "deploy", "-y", "-A", "vercel.json", "--logs")
 if ($Preview) {
   $deployArguments += "--target=preview"
 } else {

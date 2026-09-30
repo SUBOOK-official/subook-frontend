@@ -14,7 +14,7 @@
 
 1. backend 정식 migration `20260930031759_banner_copy_cache.sql`을 dry-run 후 적용한다. frontend의 SQL 초안은 제거했다.
 2. public Vercel 프로젝트에 서버 전용 `GEMINI_API_KEY`가 필요하다. 기존 `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `VITE_SUPABASE_PUBLIC_ANON_KEY`, `CRON_SECRET`을 재사용한다. **Gemini/service/cron 키는 VITE 변수에 넣지 않는다.**
-3. 루트 `npm run deploy:public`로 cron과 최대 실행시간 180초 설정을 함께 배포한다. `banner-copy.entry.cjs`가 스테이징 루트에서 원래 ESM 의존성 경로를 보존한다.
+3. 루트 `npm run deploy:public`로 cron과 최대 실행시간 180초 설정을 함께 배포한다. 원격 빌더가 cron을 읽도록 배포 설정은 스테이징 루트의 `vercel.json`으로 복사한다. `banner-copy.entry.cjs`가 원래 ESM 의존성 경로를 보존한다.
 4. 인증된 초기 refresh를 실행하고 GET 결과 및 홈 문구를 확인한다. 같은 원문으로 재실행 시 `generated: 0`이어야 한다.
 
 검증: frontend `npm run test:public`, `npm run test:deploy`; backend `node scripts/test-banner-copy.mjs`. 롤백은 cron 설정 제거 및 기존 문구로 복귀하며 캐시는 보존할 수 있다.

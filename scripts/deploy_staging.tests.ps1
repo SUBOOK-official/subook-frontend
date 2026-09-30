@@ -92,6 +92,7 @@ try {
     Write-FixtureFile "apps/$app/api/health.js"
     Write-FixtureFile "apps/$app/middleware.js"
   }
+  Write-FixtureFile "apps/public-web/vercel.deploy.json" '{"crons":[{"path":"/api/banner-copy?refresh=1","schedule":"*/10 * * * *"}]}'
 
   $excludedPaths = @(
     "node_modules/package/index.js", "apps/mobile/node_modules/package/index.js",
@@ -118,6 +119,9 @@ try {
     Assert-Condition (Test-Path -LiteralPath (Join-Path $retainedPath "frontend/$relativePath")) "Required source was not copied: $relativePath"
   }
   Assert-Condition (Test-Path -LiteralPath (Join-Path $retainedPath ".vercel/project.json")) "Explicit Vercel project link was not copied."
+  $stagedConfig = Get-Content -LiteralPath (Join-Path $retainedPath "vercel.json") -Raw | ConvertFrom-Json
+  Assert-Condition ($stagedConfig.crons[0].path -eq "/api/banner-copy?refresh=1") "Remote build cannot read the banner cron in vercel.json."
+  Assert-Condition ($stagedConfig.crons[0].schedule -eq "*/10 * * * *") "Banner cron schedule changed during staging."
   Assert-Condition (-not (Test-Path -LiteralPath (Join-Path $retainedPath "frontend/apps/public-web/.vercel"))) "Nested Vercel state was copied."
   # Exercise the actual CommonJS entries after staging, including a shared ESM import.
   $entryRunner = Join-Path $testRoot "check-entry.cjs"
