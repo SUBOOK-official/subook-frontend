@@ -10,6 +10,8 @@ export const STORE_SORT_OPTIONS = [
   { value: "latest", label: "최신순" },
   { value: "price_asc", label: "가격 낮은순" },
   { value: "price_desc", label: "가격 높은순" },
+  { value: "discount_desc", label: "할인율 높은순" },
+  { value: "discount_asc", label: "할인율 낮은순" },
 ];
 
 // 검색어가 있을 때만 노출되는 관련도 정렬 — 서버 match_score(FTS 유사도) 기준.
@@ -26,6 +28,7 @@ export function isValidStoreSort(value) {
 }
 
 export const STORE_FILTER_GROUPS = [
+  { key: "discounts", label: "할인", queryKey: "discount", options: [{ value: "sale", label: "할인 교재" }] },
   {
     key: "types",
     label: "유형",
@@ -86,6 +89,7 @@ const STORE_FILTER_OPTIONS_BY_KEY = STORE_FILTER_GROUPS.reduce((accumulator, gro
 export function createStoreInitialFilters() {
   return {
     types: [],
+    discounts: [],
     brands: [],
     years: [],
     conditionGrades: [],
@@ -130,9 +134,10 @@ function getFilterQueryValue(params, singularKey, legacyPluralKey) {
   return params.get(singularKey) ?? params.get(legacyPluralKey);
 }
 
-export function parseStorefrontQuery(search) {
+export function parseStorefrontQuery(search, { sortOptions = STORE_SORT_OPTIONS, allowRelevanceSort = true } = {}) {
   const params = new URLSearchParams(search);
   const filters = {
+    discounts: sanitizeFilterList("discounts", parseFilterList(params.get("discount"))),
     types: sanitizeFilterList("types", parseFilterList(getFilterQueryValue(params, "type", "types"))),
     brands: sanitizeFilterList("brands", parseFilterList(getFilterQueryValue(params, "brand", "brands"))),
     years: sanitizeFilterList("years", parseFilterList(getFilterQueryValue(params, "year", "years"))),
@@ -147,8 +152,10 @@ export function parseStorefrontQuery(search) {
   const requestedSort = params.get("sort");
   // 검색어가 있는데 정렬이 명시되지 않았으면 기본을 관련도순으로.
   // (검색 중 '인기순'을 직접 고르면 serialize가 sort=popular를 URL에 명시해 왕복 유지)
-  const fallbackSort = searchKeyword ? STORE_SEARCH_SORT_OPTION.value : STORE_DEFAULT_SORT;
-  const sortOption = isValidStoreSort(requestedSort) ? requestedSort : fallbackSort;
+  const fallbackSort = searchKeyword && allowRelevanceSort ? STORE_SEARCH_SORT_OPTION.value : STORE_DEFAULT_SORT;
+  const supportsRequestedSort = sortOptions.some((option) => option.value === requestedSort)
+    || (allowRelevanceSort && requestedSort === STORE_SEARCH_SORT_OPTION.value);
+  const sortOption = supportsRequestedSort ? requestedSort : fallbackSort;
   const pageValue = Number.parseInt(params.get("page") ?? "1", 10);
 
   return {

@@ -1,3 +1,4 @@
+import { loadCompleteDiscountCatalog, selectDiscountProducts } from "./storefrontDiscounts";
 import { bookConditionLabel, productStatusLabel } from "@shared-domain/status";
 import { matchesStorefrontYear, toStorefrontRpcYears } from "@shared-domain/storefrontYears";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/publicSupabaseClient";
@@ -967,7 +968,31 @@ async function rpcWithFallback(primaryRpcName, fallbackRpcName, primaryArgs, fal
   };
 }
 
+const discountCatalogCache = new Map();
 async function fetchStorefrontProducts(filters = {}) {
+  const discountSort = ["discount_asc", "discount_desc"].includes(filters.sort);
+  if (!discountSort && !filters.discounts?.includes("sale")) return fetchStorefrontProductsPage(filters);
+  const baseFilters = { ...filters, discounts: undefined, sort: discountSort ? "recommended" : filters.sort, offset: 0, limit: 100 };
+  const key = JSON.stringify({ ...baseFilters, mock: readStoreMockModePreference() });
+  let entry = discountCatalogCache.get(key);
+  if (!entry || entry.expires < Date.now()) {
+    if (discountCatalogCache.size >= 12) discountCatalogCache.delete(discountCatalogCache.keys().next().value);
+    entry = { expires: Date.now() + 60000, promise: loadCompleteDiscountCatalog(fetchStorefrontProductsPage, baseFilters) };
+    discountCatalogCache.set(key, entry);
+  }
+  try {
+    const result = await entry.promise;
+    const rows = selectDiscountProducts(result.products, filters);
+    const offset = Math.max(0, filters.offset || 0);
+    const products = rows.slice(offset, offset + (filters.limit ?? DEFAULT_CATALOG_LIMIT));
+    return { products, books: products, totalCount: rows.length, source: result.source, error: null };
+  } catch (error) {
+    discountCatalogCache.delete(key);
+    return { products: [], books: [], totalCount: 0, source: "unavailable", error };
+  }
+}
+
+async function fetchStorefrontProductsPage(filters = {}) {
   const mockModePreference = readStoreMockModePreference();
   const mockDataAllowed = canUseStoreMockData();
   const mockModeForced = mockDataAllowed && mockModePreference === true;
