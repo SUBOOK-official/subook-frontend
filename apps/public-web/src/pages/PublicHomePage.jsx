@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import PublicFooter from "../components/PublicFooter";
 import PublicSiteHeader from "../components/PublicSiteHeader";
 import PublicPageFrame from "../components/PublicPageFrame";
@@ -24,7 +24,7 @@ import { isPromotionUrl } from "@shared-domain/sitePromotions";
 const SELL_GUIDE_PATH = "/sell";
 
 function PublicHomePage() {
-  // 홈은 기본 타이틀·설명(usePageMeta DEFAULT_*, 구 식스샵 SEO 카피)을 그대로 사용
+  // 홈 브랜드 메타는 index.html·prerender-home.js와 동일하게 유지.
   usePageMeta({});
   const navigate = useNavigate();
   const promotions = useSitePromotions();
@@ -90,10 +90,22 @@ function PublicHomePage() {
     <div className="public-home-route">
       <PublicSiteHeader onCartClick={handleGoToCart} />
 
-      {/* 시각적으로 숨겨진 단일 <h1>. SEO·스크린리더용 페이지 제목. */}
-      <h1 className="public-visually-hidden">수능 교재 위탁판매 — 안 쓴 교재를 합리적인 가격에 | 수북</h1>
-
       <AutomaticHeroBanner onSlideAction={handleHeroAction} slides={heroSlides} />
+      {/* 브랜드 소개는 방문자와 검색로봇에게 동일하게 제공한다. */}
+      <section className="public-brand-intro public-content-container" aria-labelledby="public-brand-title">
+        <h1 id="public-brand-title">수북 SUBOOK, 수능 교재 구매·위탁판매</h1>
+        <p>
+          수북(SUBOOK)은 수능 교재 구매·위탁판매 플랫폼입니다. 전문 검수를 거친 교재를
+          구매하고, 안 쓰는 교재는 수거부터 판매·정산까지 맡길 수 있습니다.
+        </p>
+        <nav aria-label="수북 이용 안내">
+          <Link to={SELL_GUIDE_PATH}>판매 이용 안내</Link>
+          <Link to="/faq">검수·구매 자주 묻는 질문</Link>
+          <a href="https://blog.naver.com/subook_official" target="_blank" rel="noopener noreferrer">
+            수북 공식 블로그
+          </a>
+        </nav>
+      </section>
       {/* 배너 클릭 스크롤 도착 지점. sticky 헤더에 가리지 않도록 scroll-margin-top 확보. */}
       <div id="products" aria-hidden="true" ref={productsRef} style={{ scrollMarginTop: "80px" }} />
       <ThemeQuickLinks />

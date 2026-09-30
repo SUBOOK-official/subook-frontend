@@ -18,15 +18,15 @@ const REQUEST_TIMEOUT_MS = 8_000;
 const BEST_BOOK_LIMIT = 12; // SPA publicHomeBestBooks HOME_BEST_BOOK_LIMIT와 동일
 const LATEST_BOOK_LIMIT = 8; // SPA publicHomeLatestBooks HOME_LATEST_BOOK_LIMIT와 동일
 
-// SPA usePageMeta DEFAULT_TITLE / DEFAULT_DESCRIPTION (구 식스샵 SEO 카피)와 동일
-const PAGE_TITLE = "수북 | 수능을 위한 가장 똑똑한 선택";
+// SPA usePageMeta DEFAULT_TITLE / DEFAULT_DESCRIPTION 및 index.html과 동일
+const PAGE_TITLE = "수북 SUBOOK | 수능 교재 구매·위탁판매";
 const PAGE_DESCRIPTION =
-  "당신의 수험이, 다음 사람의 시작이 됩니다. 전문 검수를 마친 새 수능 교재, 대치동 교재, 실전 모의고사를 저렴한 가격에 판매합니다.";
+  "수북(SUBOOK)은 수능 교재 구매·위탁판매 플랫폼입니다. 전문 검수를 거친 교재를 구매하고, 안 쓰는 교재는 수거부터 판매·정산까지 맡길 수 있습니다.";
 // index.html keywords와 동일 (구글은 무시하지만 네이버 등 국내 검색 대비)
 const PAGE_KEYWORDS =
   "수북, subook, 수능, 교재, 책, 중고, 대치동, 거래, 중고 거래, 중고 교재, 수능 중고 교재, 대입, 입시, 수능 교재";
-// PublicHomePage의 시각적으로 숨겨진 단일 <h1>과 동일
-const PAGE_H1 = "수능 교재 위탁판매 — 안 쓴 교재를 합리적인 가격에 | 수북";
+// PublicHomePage에서 방문자가 읽는 단일 <h1>과 동일
+const PAGE_H1 = "수북 SUBOOK, 수능 교재 구매·위탁판매";
 
 // ⚠ sitemap-pages.xml 과목 랜딩 목록과 동기 유지
 const SUBJECTS = ["국어", "수학", "영어", "과학", "사회", "한국사"];
@@ -150,11 +150,15 @@ function buildHtml({ bestItems, latestItems, totalCount }) {
     {
       "@context": "https://schema.org",
       "@type": "Organization",
-      name: "수북 (SUBOOK)",
+      name: "수북 SUBOOK",
       url: "https://subook.kr",
       logo: "https://subook.kr/og-image.png",
       description: "수험생을 위한 수능 교재 위탁판매 플랫폼 — 수거·검수·판매·정산까지.",
-      sameAs: ["https://instagram.com/subook.official", "https://pf.kakao.com/_xdhxdyn"],
+      sameAs: [
+        "https://blog.naver.com/subook_official",
+        "https://instagram.com/subook.official",
+        "https://pf.kakao.com/_xdhxdyn",
+      ],
       contactPoint: {
         "@type": "ContactPoint",
         contactType: "customer service",
@@ -257,21 +261,18 @@ ${renderProductList(latestItems)}
     <main>
       <h1>${escapeHtml(PAGE_H1)}</h1>
       <p>
-        수북(SUBOOK)은 수험생을 위한 수능 교재 위탁판매 플랫폼입니다. 안 쓴 수능 교재를
-        무료 방문 수거로 보내면 전문 검수를 거쳐 판매하고, 판매된 금액은 매월 정산해
-        드립니다. 검수를 통과한 새 책 수준의 수능특강·수능완성·기출 문제집 등 수능 교재를
-        합리적인 가격에 구매할 수도 있습니다.
+        ${escapeHtml(PAGE_DESCRIPTION)}
       </p>
       ${totalCountText}
       <section>
-        <h2>수능 끝, 안 쓴 교재를 합리적인 가격에</h2>
-        <p>검수 완료 · 정가 대비 최대 60% 할인 — 원하는 교재를 바로 찾아보세요.</p>
+        <h2>검수를 거친 수능 교재 구매</h2>
+        <p>원하는 과목과 교재를 찾아보고, 상태와 가격을 확인하세요.</p>
         <p><a href="${SITE_ORIGIN}/">교재 보러가기</a></p>
       </section>
       <section>
         <h2>집에 쌓인 교재, 정산금으로 돌려받으세요</h2>
         <p>수거부터 검수, 판매, 정산까지 한 번에 — 포장만 해두시면 나머지는 수북이 합니다.</p>
-        <p><a href="${SITE_ORIGIN}/pickup/new">판매 신청하기</a></p>
+        <p><a href="${SITE_ORIGIN}/sell">판매 이용 안내</a></p>
       </section>
 ${bestSection}
 ${latestSection}
@@ -279,10 +280,11 @@ ${latestSection}
         <p>과목별 교재: ${subjectLinks}</p>
         <p>시리즈별 교재: ${seriesLinks}</p>
         <p>강사별 교재: ${instructorLinks}</p>
-        <p><a href="${SITE_ORIGIN}/pickup/new">교재 판매(수거 신청)</a> ·
+        <p><a href="${SITE_ORIGIN}/sell">교재 판매 이용 안내</a> ·
         <a href="${SITE_ORIGIN}/b2b">학원·교육기관 B2B 교재 공급</a> ·
         <a href="${SITE_ORIGIN}/faq">자주 묻는 질문</a> ·
-        <a href="${SITE_ORIGIN}/notices">공지사항</a></p>
+        <a href="${SITE_ORIGIN}/notices">공지사항</a> ·
+        <a href="https://blog.naver.com/subook_official">수북 공식 블로그</a></p>
       </nav>
     </main>
   </body>
