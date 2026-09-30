@@ -5,6 +5,7 @@ import AdminDialog from "../components/AdminDialog";
 import RegisterSalesHistory from "../components/RegisterSalesHistory";
 import RegisterBookTypeField from "../components/RegisterBookTypeField";
 import { classifyRegisterBookType } from "@shared-supabase/adminBookTypeClient";
+import { updateAdminProductTitle } from "@shared-supabase/adminProductTitleClient";
 import { bookTypeInputKey, changeRegisterRow, getBookTypeDecision, bookTypeSubmitFields } from "../lib/registerBookType";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { formatCurrency } from "@shared-domain/format";
@@ -406,6 +407,9 @@ function AdminProductRegisterPage() {
   const prodQueryRef = useRef("");
   // Frame 3 모달
   const [framePanel, setFramePanel] = useState(null);
+  const [titleSaving, setTitleSaving] = useState(false);
+  const titleSavingRef = useRef(false);
+  const savedProductTitlesRef = useRef(new Map());
   // 신규 교재 카테고리(과목·브랜드·유형) 설정 모달 — 대상 행 uid
   const [categoryModalUid, setCategoryModalUid] = useState(null);
   // 창고 위치 항상성 — 한 곳에서 입력하면 배치 전체(신규 행·기존 교재)에 같은 값이 따라간다
@@ -597,7 +601,10 @@ function AdminProductRegisterPage() {
         setProdHasMore(false);
       } else {
         const rows = Array.isArray(data) ? data : [];
-        setProdResults(rows);
+        setProdResults(rows.map((product) => ({
+          ...product,
+          title: savedProductTitlesRef.current.get(product.id) ?? product.title,
+        })));
         setProdHasMore(rows.length >= PROD_SEARCH_LIMIT);
       }
       setProdLoading(false);
@@ -798,7 +805,10 @@ function AdminProductRegisterPage() {
     const rows = Array.isArray(data) ? data : [];
     setProdResults((prev) => {
       const seen = new Set(prev.map((p) => p.id));
-      return [...prev, ...rows.filter((p) => !seen.has(p.id))];
+      return [...prev, ...rows.filter((p) => !seen.has(p.id)).map((product) => ({
+        ...product,
+        title: savedProductTitlesRef.current.get(product.id) ?? product.title,
+      }))];
     });
     setProdHasMore(rows.length >= PROD_SEARCH_LIMIT);
   };
@@ -958,6 +968,7 @@ function AdminProductRegisterPage() {
   // 옵션을 그대로 되살린다. (이전엔 상품 원본으로만 다시 그려서, 수정을 누르면 입력이
   // 전부 빈칸이 됐다 — 처음부터 다시 쳐야 했음. 2026-08-11 운영자 피드백)
   const openFramePanel = (product) => {
+    product = { ...product, title: savedProductTitlesRef.current.get(product.id) ?? product.title };
     const repOriginal = product.representative_original_price ?? "";
     const prevAddition = existingAdditions.find((a) => a.product.id === product.id);
     // 옵션명 → 직전 입력값. 카탈로그 옵션과 매칭되면 꺼내 쓰고, 남은 건 신규 옵션 행으로.
@@ -1022,7 +1033,50 @@ function AdminProductRegisterPage() {
       existingOptions,
       newOptions: [...restoredNewOptions, blankNewOption(defaultNewPrice, repOriginal)],
       location: prevAddition?.location ?? batchLocation,
+      titleEditing: false,
+      titleInput: product.title ?? "",
+      titleError: "",
     });
+  };
+
+  const saveFrameProductTitle = async () => {
+    if (!framePanel || titleSavingRef.current) return;
+    const productId = framePanel.product.id;
+    const title = framePanel.titleInput.trim();
+    if (!title) {
+      setFramePanel((fp) => fp ? { ...fp, titleError: "교재명을 입력하세요." } : fp);
+      return;
+    }
+    if (title === framePanel.product.title) {
+      setFramePanel((fp) => fp ? { ...fp, titleEditing: false, titleError: "" } : fp);
+      return;
+    }
+    titleSavingRef.current = true;
+    setTitleSaving(true);
+    setFramePanel((fp) => fp ? { ...fp, titleError: "" } : fp);
+    try {
+      const savedTitle = await updateAdminProductTitle(supabase, productId, title);
+      savedProductTitlesRef.current.set(productId, savedTitle);
+      const updateProduct = (product) => product.id === productId ? { ...product, title: savedTitle } : product;
+      setProdResults((prev) => prev.map(updateProduct));
+      setExistingAdditions((prev) => prev.map((addition) => ({
+        ...addition,
+        product: updateProduct(addition.product),
+      })));
+      setFramePanel((fp) => fp?.product.id === productId ? {
+        ...fp,
+        product: updateProduct(fp.product),
+        titleInput: savedTitle,
+        titleEditing: false,
+        titleError: "",
+      } : fp);
+      showToast("교재명을 저장했습니다.", "success");
+    } catch (error) {
+      setFramePanel((fp) => fp?.product.id === productId ? { ...fp, titleError: error.message } : fp);
+    } finally {
+      titleSavingRef.current = false;
+      setTitleSaving(false);
+    }
   };
 
   const updateExistingOpt = (idx, field, val) =>
@@ -1066,7 +1120,7 @@ function AdminProductRegisterPage() {
 
   const confirmFramePanel = () => {
     const fp = framePanel;
-    if (!fp) return;
+    if (!fp || fp.titleEditing || titleSavingRef.current) return;
     const repOriginal = fp.product.representative_original_price ?? "";
     const options = [];
     fp.existingOptions.forEach((o) => {
@@ -2495,6 +2549,7 @@ function AdminProductRegisterPage() {
       <AdminDialog
         open={Boolean(framePanel)}
         onClose={() => setFramePanel(null)}
+        busy={titleSaving}
         title={framePanel?.isEditing ? "기존 교재 재고 수정" : "기존 교재 재고 추가"}
         size="xl"
       >
@@ -2506,8 +2561,52 @@ function AdminProductRegisterPage() {
                   <img src={framePanel.product.cover_image_url} alt="" className="h-full w-full object-cover" />
                 ) : null}
               </div>
-              <div>
-                <p className="text-base font-black text-slate-900">{framePanel.product.title}</p>
+              <div className="min-w-0 flex-1">
+                {framePanel.titleEditing ? (
+                  <form onSubmit={(event) => { event.preventDefault(); saveFrameProductTitle(); }}>
+                    <label htmlFor="register-product-title" className="text-sm font-bold text-slate-700">교재명</label>
+                    <input
+                      id="register-product-title"
+                      autoFocus
+                      className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-900 focus:outline-none disabled:bg-slate-100"
+                      value={framePanel.titleInput}
+                      disabled={titleSaving}
+                      aria-invalid={Boolean(framePanel.titleError)}
+                      aria-describedby={framePanel.titleError ? "register-product-title-error" : "register-product-title-hint"}
+                      onChange={(event) => setFramePanel((fp) => ({ ...fp, titleInput: event.target.value, titleError: "" }))}
+                    />
+                    <p id="register-product-title-hint" className="mt-1 text-xs text-slate-500">
+                      저장하면 기존 상품과 연결된 모든 교재에 즉시 반영됩니다.
+                    </p>
+                    {framePanel.titleError ? (
+                      <p id="register-product-title-error" role="alert" className="mt-2 text-sm text-red-600">{framePanel.titleError}</p>
+                    ) : null}
+                    <div className="mt-2 flex gap-2">
+                      <button type="submit" disabled={titleSaving} className="btn-primary !w-auto !px-3 !py-1.5 text-xs">
+                        {titleSaving ? <BusyText>저장 중...</BusyText> : "이름 저장"}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={titleSaving}
+                        className="btn-secondary !w-auto !px-3 !py-1.5 text-xs"
+                        onClick={() => setFramePanel((fp) => ({ ...fp, titleEditing: false, titleInput: fp.product.title ?? "", titleError: "" }))}
+                      >
+                        수정 취소
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <div className="flex flex-wrap items-start gap-2">
+                    <p className="min-w-0 break-words text-base font-black text-slate-900">{framePanel.product.title}</p>
+                    <button
+                      type="button"
+                      className="btn-secondary !w-auto shrink-0 !px-2 !py-1 text-xs"
+                      onClick={() => setFramePanel((fp) => ({ ...fp, titleEditing: true, titleInput: fp.product.title ?? "", titleError: "" }))}
+                    >
+                      이름 수정
+                    </button>
+                  </div>
+                )}
                 <p className="mt-1 text-sm text-slate-500">
                   {[framePanel.product.subject, framePanel.product.brand, framePanel.product.representative_grade]
                     .filter(Boolean)
@@ -2773,6 +2872,7 @@ function AdminProductRegisterPage() {
               <button
                 type="button"
                 onClick={() => setFramePanel(null)}
+                disabled={titleSaving}
                 className="rounded-md border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
               >
                 취소
@@ -2780,7 +2880,8 @@ function AdminProductRegisterPage() {
               <button
                 type="button"
                 onClick={confirmFramePanel}
-                className="rounded-md bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700"
+                disabled={titleSaving || framePanel.titleEditing}
+                className="rounded-md bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {framePanel.isEditing ? "수정 반영" : "목록에 추가"}
               </button>
