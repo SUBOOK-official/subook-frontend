@@ -8,6 +8,7 @@ const reactHooks = require("eslint-plugin-react-hooks");
 const reactRefresh = require("eslint-plugin-react-refresh");
 
 const lintTargets = [
+  "apps/admin-web/src/**/*.{js,jsx}",
   "apps/mobile/**/*.{js,jsx,cjs}",
   "apps/public-web/src/**/*.{js,jsx}",
   "packages/shared-domain/src/**/*.{js,jsx}",

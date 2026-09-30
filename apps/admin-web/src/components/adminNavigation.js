@@ -79,6 +79,8 @@ export const adminNavigationGroups = [
       { key: "notification-logs", label: "알림 발송 로그", to: "/admin/notification-logs", icon: BellIcon },
       { key: "analytics", label: "분석", to: "/admin/analytics", icon: TrendingUpIcon },
       { key: "performance", label: "성과 대시보드", to: "/admin/performance", icon: TrendingUpIcon },
+      { key: "meta-ads", label: "메타 광고 운영", to: "/admin/meta-ads", icon: MegaphoneIcon },
+      { key: "integrations", label: "연동 업무 모음", to: "/admin/integrations", icon: FolderIcon },
     ],
   },
 ];
@@ -87,6 +89,8 @@ export function resolveActiveAdminModule({ pathname, explicitModule }) {
   if (explicitModule) {
     return explicitModule;
   }
+  if (pathname.startsWith("/admin/meta-ads")) return "meta-ads";
+  if (pathname.startsWith("/admin/integrations")) return "integrations";
   if (pathname.startsWith("/admin/themes")) return "themes";
   if (pathname.startsWith("/admin/recommendations")) return "recommendations";
   if (pathname.startsWith("/admin/promotions")) return "promotions";
