@@ -97,9 +97,17 @@ export default function AutomaticHeroBanner({ slides, onSlideAction }) {
       mobileQuery.removeEventListener("change", startTimer);
     };
   }, [paused, interacting, slides.length]);
+  const toggleAutoRotation = () => {
+    if (paused) {
+      // 재생은 버튼에 남은 포커스·마우스 일시정지보다 우선한다.
+      setInteracting(false);
+    }
+    setPaused((value) => !value);
+  };
   if (!slides.length) return null;
   return <section className="automatic-hero" aria-label="추천 교재와 이벤트 배너" aria-roledescription="캐러셀"
-    onMouseEnter={() => setInteracting(true)} onMouseLeave={() => setInteracting(false)}
+    onPointerEnter={(event) => { if (event.pointerType === "mouse") setInteracting(true); }}
+    onPointerLeave={(event) => { if (event.pointerType === "mouse") setInteracting(false); }}
     onFocusCapture={() => setInteracting(true)} onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setInteracting(false); }}>
     <div className="automatic-hero__rail" ref={railRef} onTouchStart={() => setPaused(true)}>
       {slides.map((slide, index) => <BannerCard key={slide.id} slide={slide} index={index} onSlideAction={onSlideAction} />)}
@@ -107,7 +115,7 @@ export default function AutomaticHeroBanner({ slides, onSlideAction }) {
     <div className="automatic-hero__controls">
       <span aria-label={`${pagination.total}페이지 중 ${pagination.current}페이지`}>{pagination.current} / {pagination.total}</span>
       <button type="button" aria-label="이전 배너" onClick={() => move(-1)}><BannerArrow /></button>
-      <button type="button" aria-label={paused ? "배너 자동 넘김 시작" : "배너 자동 넘김 정지"} aria-pressed={paused} onClick={() => setPaused((value) => !value)}>{paused ? "▶" : "Ⅱ"}</button>
+      <button type="button" aria-label={paused ? "배너 자동 넘김 시작" : "배너 자동 넘김 정지"} aria-pressed={paused} onClick={toggleAutoRotation}>{paused ? "▶" : "Ⅱ"}</button>
       <button type="button" aria-label="다음 배너" onClick={() => move(1)}><BannerArrow next /></button>
     </div>
   </section>;
