@@ -3,12 +3,15 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import AdminShell from "../components/AdminShell";
 import AdminDialog from "../components/AdminDialog";
 import RegisterSalesHistory from "../components/RegisterSalesHistory";
+import RegisterBookTypeField from "../components/RegisterBookTypeField";
+import { classifyRegisterBookType } from "@shared-supabase/adminBookTypeClient";
+import { bookTypeInputKey, changeRegisterRow, getBookTypeDecision, bookTypeSubmitFields } from "../lib/registerBookType";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { formatCurrency } from "@shared-domain/format";
 import { PICKUP_FEE_POLICY } from "@shared-domain/settlement";
 import { pickupRequestStatusLabel, shipmentStatusLabel } from "@shared-domain/status";
 import { CheckIcon, CloseIcon, PlusIcon } from "../components/icons";
-import { BOOK_TYPE_OPTIONS, BRAND_OPTIONS, SUBJECT_OPTIONS } from "../lib/productCategories";
+import { BRAND_OPTIONS, SUBJECT_OPTIONS } from "../lib/productCategories";
 import { MAX_DETAIL_PHOTOS } from "../lib/adminImageUpload";
 import { BusyText, InlineLoading, LoadingOverlay } from "../components/Loading";
 import {
@@ -45,14 +48,12 @@ const FRAME_DISCOUNT_TYPES = [
   { value: "rate", label: "정률(%)" },
 ];
 
-// 신규 교재의 카테고리(과목/브랜드/유형) 선택지 — productCategories.js가 canonical.
-// 빈 값("자동")이면 RPC가 상품명에서 파싱하고, 선택하면 파싱보다 우선한다.
+// 과목·브랜드는 미선택 시 상품명에서 파싱한다. 유형은 별도 제안·확인 영역에서 결정한다.
 
 // 카테고리 설정 모달의 필드 구성 (행 상태 키 ↔ 라벨 ↔ 선택지)
 const CATEGORY_FIELDS = [
   { key: "subject", label: "과목", options: SUBJECT_OPTIONS },
   { key: "brand", label: "브랜드", options: BRAND_OPTIONS },
-  { key: "bookType", label: "유형", options: BOOK_TYPE_OPTIONS },
 ];
 
 let uidCounter = 0;
@@ -72,6 +73,9 @@ function blankNewRow(location = "") {
     subject: "",
     brand: "",
     bookType: "",
+    bookTypeConfirmed: false,
+    bookTypeReviewKey: "",
+    bookTypeReviewNote: "",
     option: "",
     // 같은 구성(옵션 세트)을 여러 권 등록할 때 — 옵션 수 × 수량 만큼 books 생성
     quantity: "1",
@@ -414,6 +418,36 @@ function AdminProductRegisterPage() {
   // 유사 시세 힌트 — uid → RPC 결과, 같은 조건은 세션 내 캐시 재사용
   const [priceHints, setPriceHints] = useState({});
   const hintCacheRef = useRef(new Map());
+  const [bookTypeHints, setBookTypeHints] = useState({});
+  const bookTypeCacheRef = useRef(new Map());
+  const [bookTypeRetry, setBookTypeRetry] = useState(0);
+  const bookTypeTargets = JSON.stringify(newRows.filter((r) => r.title.trim()).map((r) => ({
+    uid: r.uid, title: r.title.trim(), subject: r.subject || "", key: bookTypeInputKey(r),
+  })));
+
+  // 제목·과목이 같은 입력의 응답만 사용한다. 이전 제목의 늦은 응답은 버린다.
+  useEffect(() => {
+    if (!isSupabaseConfigured) return undefined;
+    let active = true;
+    const targets = JSON.parse(bookTypeTargets);
+    const timer = window.setTimeout(async () => {
+      const next = await Promise.all(targets.map(async (target) => {
+        try {
+          let data = bookTypeCacheRef.current.get(target.key);
+          if (!data) {
+            data = await classifyRegisterBookType(target.title, target.subject);
+            if (bookTypeCacheRef.current.size >= 500) bookTypeCacheRef.current.clear();
+            bookTypeCacheRef.current.set(target.key, data);
+          }
+          return [target.uid, { key: target.key, status: "ready", data }];
+        } catch {
+          return [target.uid, { key: target.key, status: "error" }];
+        }
+      }));
+      if (active) setBookTypeHints(Object.fromEntries(next));
+    }, 300);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [bookTypeTargets, bookTypeRetry]);
 
   // 완료/공개
   const [publishOnComplete, setPublishOnComplete] = useState(initialDraft?.publishOnComplete ?? true);
@@ -894,7 +928,7 @@ function AdminProductRegisterPage() {
   // 신규 교재 행 편집 — 마지막 행이 채워지면 빈 행 자동 추가 (위치는 배치 위치로 프리필)
   const handleRowChange = (uid, field, value) => {
     setNewRows((prev) => {
-      let rows = prev.map((r) => (r.uid === uid ? { ...r, [field]: value } : r));
+      let rows = prev.map((r) => (r.uid === uid ? changeRegisterRow(r, field, value) : r));
       const last = rows[rows.length - 1];
       if (last && !isNewRowBlank(last)) rows = [...rows, blankNewRow(batchLocation)];
       return rows;
@@ -1278,6 +1312,13 @@ function AdminProductRegisterPage() {
     [newRows],
   );
   const hasItems = newProductsForSubmit.length > 0 || existingAdditions.length > 0;
+  const pendingBookTypes = newProductsForSubmit.filter((r) => !getBookTypeDecision(r, bookTypeHints[r.uid]).valid);
+  const validateBookTypes = () => {
+    if (!pendingBookTypes.length) return true;
+    showToast(`「${pendingBookTypes[0].title}」 유형을 확인해 주세요.`, "error");
+    setStep("list");
+    return false;
+  };
 
   const photoTargets = useMemo(
     () => [
@@ -1285,7 +1326,7 @@ function AdminProductRegisterPage() {
         kind: "new",
         uid: r.uid,
         title: r.title,
-        subtitle: optionSummary(r.option),
+        subtitle: `${optionSummary(r.option)} · ${getBookTypeDecision(r, bookTypeHints[r.uid]).value || "유형 확인 필요"}`,
         location: r.location,
         coverUrl: r.coverUrl,
         coverBusy: r.coverBusy,
@@ -1308,7 +1349,7 @@ function AdminProductRegisterPage() {
         coverAutoStudio: a.coverAutoStudio === true,
       })),
     ],
-    [newProductsForSubmit, existingAdditions],
+    [newProductsForSubmit, existingAdditions, bookTypeHints],
   );
 
   // 일련번호 배정 플랜 — 시작 번호부터 등록 순서(신규 표 → 기존 교재)대로 순차 배정.
@@ -1370,6 +1411,7 @@ function AdminProductRegisterPage() {
 
   const handleSubmit = async () => {
     if (!shipment) return;
+    if (!validateBookTypes()) return;
     if (serialPlan.invalid) {
       showToast("시작 일련번호는 1 이상의 정수로 입력해 주세요.", "error");
       return;
@@ -1392,7 +1434,7 @@ function AdminProductRegisterPage() {
       // 과목 미선택("자동")이면 null → RPC가 상품명에서 파싱
       subject: r.subject || null,
       brand: r.brand || null,
-      book_type: r.bookType || null,
+      ...bookTypeSubmitFields(r, bookTypeHints[r.uid]),
       original_price: String(r.originalPrice).replaceAll(",", "").trim() || null,
       discount_type: r.discountType || "none",
       discount_value: r.discountType === "none" ? null : String(r.discountValue).replaceAll(",", "").trim() || null,
@@ -1954,18 +1996,20 @@ function AdminProductRegisterPage() {
                         </div>
 
                         {/* 상품명이 비어 있는 마지막 행은 접어둔다 — 입력하면 나머지 칸이 열린다 */}
+                        {!blank ? <RegisterBookTypeField row={row} hint={bookTypeHints[row.uid]} onChange={handleRowChange}
+                          onRetry={() => setBookTypeRetry((n) => n + 1)} /> : null}
                         {!blank ? (
                           <div className="mt-2 grid gap-2 text-sm [grid-template-columns:repeat(auto-fill,minmax(6.5rem,1fr))]">
-                            <FieldCell label="카테고리">
-                              {/* 과목·브랜드·유형은 모달에서 설정 — 칸에는 현재 선택 요약만.
+                            <FieldCell label="과목·브랜드">
+                              {/* 과목·브랜드는 모달에서 설정 — 칸에는 현재 선택 요약만.
                                   전부 미선택이면 '자동'(상품명에서 파싱). */}
                               <button
                                 type="button"
                                 onClick={() => setCategoryModalUid(row.uid)}
                                 className="w-full truncate rounded border border-slate-200 px-2 py-1.5 text-left text-xs font-semibold text-slate-600 hover:border-slate-400"
-                                title="과목 · 브랜드 · 유형 설정"
+                                title="과목 · 브랜드 설정"
                               >
-                                {[row.subject, row.brand, row.bookType].filter(Boolean).join(" · ") || "자동"}
+                                {[row.subject, row.brand].filter(Boolean).join(" · ") || "자동"}
                               </button>
                             </FieldCell>
                             <FieldCell label="옵션">
@@ -2196,11 +2240,12 @@ function AdminProductRegisterPage() {
               </div>
               <span className="text-sm text-slate-500">
                 신규 {newProductsForSubmit.length}종 · 기존 {existingAdditions.length}종
+                {pendingBookTypes.length ? <span className="ml-2 text-amber-700">유형 확인 필요 {pendingBookTypes.length}종</span> : null}
               </span>
               <button
                 type="button"
                 disabled={!hasItems}
-                onClick={() => setStep("photos")}
+                onClick={() => { if (validateBookTypes()) setStep("photos"); }}
                 className="rounded-md bg-slate-900 px-5 py-2.5 text-sm font-bold text-white hover:bg-slate-700 disabled:opacity-40"
               >
                 사진 등록하기 →
@@ -2389,7 +2434,7 @@ function AdminProductRegisterPage() {
       </div>
 
       {/* Frame 3: 기존 교재 옵션/재고 추가 모달 */}
-      {/* 신규 교재 카테고리 설정 모달 — 과목/브랜드/유형을 각각 선택(미선택=자동 파싱) */}
+      {/* 과목/브랜드 설정 모달. 유형은 교재 카드에서 근거와 함께 확인한다. */}
       {(() => {
         const categoryRow = newRows.find((r) => r.uid === categoryModalUid) ?? null;
         if (!categoryRow) return null;
