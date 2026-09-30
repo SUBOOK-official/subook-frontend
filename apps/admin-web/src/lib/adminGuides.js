@@ -7,8 +7,6 @@ import imgRegister from "../assets/guide/register.jpg";
 import imgProducts from "../assets/guide/products.jpg";
 import imgPhotoIntake from "../assets/guide/photo-intake.jpg";
 import imgOrders from "../assets/guide/orders.jpg";
-import imgSettlements from "../assets/guide/settlements.jpg";
-import imgManualSettlements from "../assets/guide/manual-settlements.jpg";
 import imgMembers from "../assets/guide/members.jpg";
 import imgCoupons from "../assets/guide/coupons.jpg";
 import imgCouponsForm from "../assets/guide/coupons-form.jpg";
@@ -208,32 +206,26 @@ export const adminGuides = {
   settlements: {
     title: "정산",
     intro:
-      "셀러에게 판매 대금을 지급하는 화면이에요. 회원 주문 정산은 구매확정 때 자동 생성되고, 지급일은 매월 1일로 잡힙니다.",
+      "미지급 셀러와 정산할 금액을 확인하고, 송금한 내역을 지급 완료로 기록합니다.",
     sections: [
       {
-        heading: "자동 정산 (회원 주문)",
+        heading: "셀러별 미지급 정산",
         body: [
-          "'정산 대기' 목록에서 계좌·금액 확인 후 실제 이체를 마치면 '정산 완료'를 눌러 기록해요 — 별도 승인 단계 없이 대기에서 바로 완료로 처리됩니다.",
-          "'건별 목록'은 교재/주문 단위, '셀러별 지급'은 같은 셀러 것을 계좌 단위로 묶어서 보여줍니다 — 이체할 때는 셀러별 지급 탭이 편해요.",
-          "'엑셀에 실계좌 포함'을 켜고 XLSX로 내보내면 이체용 명단이 됩니다.",
+          "처음 열면 지급 예정일과 관계없이 미지급 정산이 표시됩니다. 같은 셀러라도 입금계좌가 다르면 구분됩니다.",
+          "셀러를 누르면 정산 대상 교재와 판매금액, 수수료, 상품화 비용 차감 내역이 나옵니다. 교재로 검색해도 셀러의 전체 정산금액을 보여줍니다.",
+          "계좌와 금액을 확인하고 은행에서 송금한 뒤 '지급 완료 처리'를 누릅니다. 여러 셀러를 선택해 함께 완료 처리할 수 있습니다.",
+          "'이체 목록 엑셀'에는 실제 계좌번호가 포함됩니다. 계좌 확인이 필요한 내역과 0원 정산은 제외됩니다.",
         ],
-        image: imgSettlements,
-        imageCaption: "정산 화면 — 자동/수동 탭과 대기→완료 흐름",
         tips: [
-          "수거 박스비(박스당 5,000원)는 정산 금액에서 자동 차감돼요.",
-          "지급일이 도래한 정산이 있으면 매일 오전 10시 슬랙 채널로 알림봇이 목록을 올려줘요.",
+          "정산은 구매확정 때 생성됩니다. 수거 박스비는 정산금액에서 차감됩니다.",
+          "0원 정산도 완료 처리할 수 있으며, 이 경우 정산 완료 알림톡은 생략됩니다.",
         ],
       },
       {
-        heading: "수동 정산 (구 식스샵 판매분)",
+        heading: "계좌 확인과 지급 이력",
         body: [
-          "플랫폼 이전(식스샵)에서 팔린 책은 회원 주문이 없어서 '수동 정산 관리'에서 따로 처리해요.",
-          "엑셀 업로드로 판매 내역을 매칭하고 지급 완료를 기록합니다.",
-        ],
-        image: imgManualSettlements,
-        imageCaption: "수동 정산 — 식스샵 구주문 지급 처리·추적",
-        tips: [
-          "회원 주문으로 팔린 책은 여기가 아니라 '자동 정산' 탭에서 처리해요. 엑셀에 섞여 들어오면 그 책의 대기 중 자동 정산은 자동 취소돼요(이중 지급 방지).",
+          "계좌 확인이 필요한 셀러도 목록에 표시됩니다. 비회원 셀러는 상세에서 수거 건별로 계좌를 등록하고, 회원 셀러는 마이페이지에서 정산계좌를 등록합니다.",
+          "완료 처리한 내역은 '지급 완료'에서 셀러별로 확인합니다. 상세에서 교재별 지급일을 볼 수 있습니다.",
         ],
       },
     ],

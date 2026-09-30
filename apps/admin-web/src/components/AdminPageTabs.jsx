@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 
 // R1 IA 개편: 페이지 내 업무 탭 공용 컴포넌트.
-// 수거·검수 / 정산·식스샵 수동 / 회원·탈퇴 사유처럼 "한 업무의 두 얼굴"을
+// 수거·검수 / 정산 지급 상태 / 회원·탈퇴 사유처럼 관련 업무를
 // 사이드바 메뉴 2개 대신 페이지 상단 탭으로 묶는다.
 // tab.to가 있으면 라우트 링크(페이지 간 탭), 없으면 onSelect 콜백(페이지 내 탭).
 function AdminPageTabs({ tabs, activeKey, onSelect }) {

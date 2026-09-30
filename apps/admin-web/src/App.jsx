@@ -12,7 +12,6 @@ const AdminEventSubscriptionsPage = lazy(() => import("./pages/AdminEventSubscri
 const AdminFaqsPage = lazy(() => import("./pages/AdminFaqsPage"));
 const AdminReviewsPage = lazy(() => import("./pages/AdminReviewsPage"));
 const AdminLoginPage = lazy(() => import("./pages/AdminLoginPage"));
-const AdminManualSettlementsPage = lazy(() => import("./pages/AdminManualSettlementsPage"));
 const AdminNoticesPage = lazy(() => import("./pages/AdminNoticesPage"));
 const AdminPromotionsPage = lazy(() => import("./pages/AdminPromotionsPage"));
 const AdminNotificationLogsPage = lazy(() => import("./pages/AdminNotificationLogsPage"));
@@ -173,7 +172,7 @@ function App() {
           <Route
             element={
               <AdminRoute>
-                <AdminManualSettlementsPage />
+                <Navigate replace to="/admin/settlements" />
               </AdminRoute>
             }
             path="/admin/manual-settlements"

@@ -1,313 +1,142 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
 import AdminShell from "../components/AdminShell";
 import AdminDialog from "../components/AdminDialog";
 import AdminPageTabs from "../components/AdminPageTabs";
 import AdminPagination from "../components/AdminPagination";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import NotificationResultModal from "../components/NotificationResultModal";
-import StatusBadge from "@shared-domain/StatusBadge";
-import {
-  groupSettlementNotificationTargets,
-  notifySettlementDoneGroup,
-} from "../lib/adminNotification";
+import { groupSettlementNotificationTargets, notifySettlementDoneGroup } from "../lib/adminNotification";
 import { exportRowsToXlsx } from "../lib/excelFile";
+import { filterSettlementPayouts, groupSettlementPayouts, settlementDeduction } from "../lib/settlementPayouts";
 import { formatCurrency, formatDate } from "@shared-domain/format";
-import { settlementStatusLabel } from "@shared-domain/status";
+import { fetchAdminSettlementRows } from "@shared-supabase/adminSettlementClient";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { BusyText, InlineLoading, LoadingOverlay } from "../components/Loading";
 
-const PAGE_SIZE = 50;
-
-// 승인 단계 폐지(2026-08-19): 정산대기(pending)에서 송금 후 바로 정산완료로 처리한다.
-// 'approved'는 폐지 전에 승인만 되고 송금 전인 레거시 행 — '정산 대기' 필터에 합산 노출.
+const PAGE_SIZE = 25;
+// 승인 폐지 전 approved도 아직 지급하지 않은 정산이다.
 const PAYABLE_STATUSES = ["pending", "approved"];
-
-const STATUS_FILTERS = [
-  { value: "all", label: "전체" },
-  { value: "payable", label: "정산 대기" },
-  { value: "completed", label: "정산 완료" },
-];
-
-function getStatusLabel(status) {
-  return settlementStatusLabel[status] ?? status;
-}
-
-function normalizeSettlementResponse(data) {
-  return {
-    rows: Array.isArray(data?.rows) ? data.rows : [],
-    summary: data?.summary ?? {},
-    totalCount: Number(data?.total_count ?? 0),
-  };
-}
-
-function formatFeePercent(value) {
-  const numericValue = Number(value);
-  if (!Number.isFinite(numericValue)) {
-    return "-";
-  }
-
-  return `${numericValue.toFixed(numericValue % 1 === 0 ? 0 : 1)}%`;
-}
-
-function displayAccountNumber(accountNumber, accountLast4) {
-  const value = String(accountNumber ?? "").trim();
-  if (value) {
-    return value;
-  }
-  const last4 = String(accountLast4 ?? "").trim();
-  return last4 ? `(끝자리 ${last4})` : "계좌 미등록";
-}
-
-// 목록 화면 연락처 — 전화 우선, 없으면 이메일. (2026-07-24 어드민 마스킹 전면 해제 —
-// 평문 계좌 엑셀 다운로드의 2단계 confirm+audit 경로는 그대로 유지)
-function contactLine(phone, email) {
-  return phone || email || "연락처 없음";
-}
-
-function buildExportRows(rows, { plain = false } = {}) {
-  return rows.map((row) => {
-    const last4 = String(row.account_last4 ?? "").trim() || String(row.account_number ?? "").replace(/[^0-9]/g, "").slice(-4);
-    const accountValue = plain
-      ? row.account_number ?? ""
-      : last4
-        ? `****-${last4}`
-        : "(계좌 미등록)";
-    return {
-      상태: getStatusLabel(row.status),
-      예정일: row.scheduled_date ?? "",
-      완료일: row.completed_at ?? "",
-      판매자: row.seller_name ?? "",
-      연락처: row.seller_phone ?? "",
-      주문번호: row.order_number ?? "",
-      교재명: row.book_title ?? "",
-      옵션: row.book_option ?? "",
-      판매가: row.sale_amount ?? 0,
-      수수료율: formatFeePercent(row.fee_percent),
-      수수료: row.fee_amount ?? 0,
-      정산금액: row.net_amount ?? 0,
-      은행: row.bank_name ?? "",
-      계좌번호: accountValue,
-      예금주: row.account_holder ?? "",
-    };
-  });
-}
 
 function AdminSettlementsPage() {
   const [rows, setRows] = useState([]);
-  const [summary, setSummary] = useState({});
-  const [totalCount, setTotalCount] = useState(0);
   const [statusFilter, setStatusFilter] = useState("payable");
   const [search, setSearch] = useState("");
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
-  const [selectedIds, setSelectedIds] = useState([]);
+  const [selectedKeys, setSelectedKeys] = useState([]);
+  const [detailKey, setDetailKey] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [busyAction, setBusyAction] = useState("");
   const [toast, setToast] = useState(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [exportConfirmOpen, setExportConfirmOpen] = useState(false);
-  // 평문 계좌번호 포함 여부 — 디폴트 OFF(마스킹). 운영자가 명시적으로 토글해야 풀린다.
-  const [exportPlainAccount, setExportPlainAccount] = useState(false);
-  const [exportPlainConfirmOpen, setExportPlainConfirmOpen] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
-  const [notificationResult, setNotificationResult] = useState(null);
-  const [isRetryingNotifications, setIsRetryingNotifications] = useState(false);
-  // P1: 셀러(계좌) 단위 지급 롤업 뷰 — 매월 1일 일괄 송금용
-  const [viewMode, setViewMode] = useState("list"); // list | payout
-  const [payoutRows, setPayoutRows] = useState([]);
-  const [payoutTotals, setPayoutTotals] = useState({ groupCount: 0, grandTotal: 0 });
-  const [payoutScope, setPayoutScope] = useState("due"); // due(지급일 도래분) | all(전체 미지급)
-  const [isPayoutLoading, setIsPayoutLoading] = useState(false);
-  const [payoutExportConfirmOpen, setPayoutExportConfirmOpen] = useState(false);
-  const [isPayoutExporting, setIsPayoutExporting] = useState(false);
-  // 완료 처리 확인 모달 — 이체 참조/메모를 받아 settlements.transfer_reference에 기록
-  const [completeConfirm, setCompleteConfirm] = useState(null); // { ids: number[] } | null
-  // 비회원 셀러(식스샵 시절 셀러 등 회원 미가입) 정산계좌 입력 — 회원 셀러는 마이페이지
-  // 계좌가 단일 진실이라 이 모달을 열지 않는다. (2026-09-01)
+  const [completeConfirm, setCompleteConfirm] = useState(null);
+  const [transferReference, setTransferReference] = useState("");
   const [accountModal, setAccountModal] = useState(null);
   const [isSavingAccount, setIsSavingAccount] = useState(false);
-  // 구 사이트(식스샵)·수동 정산 요약 — 이 페이지의 settlements(회원 주문 자동 정산)와는
-  // 별개 트랙이지만, "기존 정산 내역이 안 보인다"는 혼선을 막기 위해 요약+진입점을
-  // 함께 노출한다. (2026-07-06 운영 피드백)
-  const [manualSummary, setManualSummary] = useState(null);
+  const [payoutExportConfirmOpen, setPayoutExportConfirmOpen] = useState(false);
+  const [isPayoutExporting, setIsPayoutExporting] = useState(false);
+  const [notificationResult, setNotificationResult] = useState(null);
+  const [isRetryingNotifications, setIsRetryingNotifications] = useState(false);
   const requestIdRef = useRef(0);
-
-  const selectedRows = useMemo(
-    () => rows.filter((row) => selectedIds.includes(row.id)),
-    [rows, selectedIds],
-  );
-
-  const selectedPayableIds = useMemo(
-    () => selectedRows.filter((row) => PAYABLE_STATUSES.includes(row.status)).map((row) => row.id),
-    [selectedRows],
-  );
-
-  const allVisibleSelected = rows.length > 0 && rows.every((row) => selectedIds.includes(row.id));
-
-  const summaryCards = [
-    {
-      // pending + 레거시 approved 합산 = 아직 송금 전인 모든 건
-      label: "정산 대기",
-      value: `${(summary.pending_count ?? 0) + (summary.approved_count ?? 0)}건`,
-      hint: formatCurrency((summary.pending_amount ?? 0) + (summary.approved_amount ?? 0)),
-    },
-    {
-      label: "정산 완료",
-      value: `${summary.completed_count ?? 0}건`,
-      hint: formatCurrency(summary.completed_amount ?? 0),
-    },
-    {
-      label: "오늘 지급 필요",
-      value: `${summary.due_pending_count ?? 0}건`,
-      hint: formatCurrency(summary.due_pending_amount ?? 0),
-    },
-  ];
+  const toastTimerRef = useRef(null);
 
   const showToast = useCallback((message, tone = "info") => {
+    window.clearTimeout(toastTimerRef.current);
     setToast({ message, tone });
-    window.setTimeout(() => setToast(null), 3500);
+    toastTimerRef.current = window.setTimeout(() => setToast(null), 5000);
   }, []);
 
-  // 구 사이트(수동) 정산 요약 로드 — 목록은 필요 없어 p_limit 1로 summary만 받는다.
-  useEffect(() => {
-    if (!isSupabaseConfigured || !supabase) return undefined;
-    let cancelled = false;
-
-    (async () => {
-      const { data, error } = await supabase.rpc("admin_list_manual_settlements", {
-        p_limit: 1,
-        p_offset: 0,
-      });
-      if (!cancelled && !error && data?.summary) {
-        setManualSummary(data.summary);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  useEffect(() => () => window.clearTimeout(toastTimerRef.current), []);
 
   const loadSettlements = useCallback(async () => {
-    if (!isSupabaseConfigured || !supabase) {
-      setRows([]);
-      setSummary({});
-      setTotalCount(0);
-      setIsLoading(false);
-      return;
-    }
-
     const requestId = ++requestIdRef.current;
     setIsLoading(true);
-
-    const params = {
-      p_limit: PAGE_SIZE,
-      p_offset: (currentPage - 1) * PAGE_SIZE,
-    };
-
-    if (statusFilter === "payable") {
-      params.p_statuses = PAYABLE_STATUSES;
-    } else if (statusFilter !== "all") {
-      params.p_statuses = [statusFilter];
-    }
-    if (search.trim()) {
-      params.p_search = search.trim();
-    }
-    if (fromDate) {
-      params.p_from_date = fromDate;
-    }
-    if (toDate) {
-      params.p_to_date = toDate;
-    }
-
-    const { data, error } = await supabase.rpc("list_admin_settlements", params);
-
-    if (requestId !== requestIdRef.current) {
-      return;
-    }
-
-    if (error) {
-      showToast(error.message || "정산 목록을 불러오지 못했습니다.", "error");
+    setLoadError("");
+    setSelectedKeys([]);
+    if (!isSupabaseConfigured || !supabase) {
       setRows([]);
-      setSummary({});
-      setTotalCount(0);
+      setLoadError("정산 서비스에 연결할 수 없습니다.");
       setIsLoading(false);
       return;
     }
-
-    const normalizedData = normalizeSettlementResponse(data);
-    setRows(normalizedData.rows);
-    setSummary(normalizedData.summary);
-    setTotalCount(normalizedData.totalCount);
-    setSelectedIds((currentIds) =>
-      currentIds.filter((id) => normalizedData.rows.some((row) => row.id === id)),
-    );
-    setIsLoading(false);
-  }, [currentPage, fromDate, search, showToast, statusFilter, toDate]);
+    try {
+      const nextRows = await fetchAdminSettlementRows(
+        supabase,
+        statusFilter === "payable" ? PAYABLE_STATUSES : ["completed"],
+        () => requestId === requestIdRef.current,
+      );
+      if (nextRows === null || requestId !== requestIdRef.current) return;
+      setRows(nextRows);
+    } catch (error) {
+      if (requestId !== requestIdRef.current) return;
+      setRows([]);
+      setLoadError(error?.message || "정산 목록을 불러오지 못했습니다.");
+    } finally {
+      if (requestId === requestIdRef.current) setIsLoading(false);
+    }
+  }, [statusFilter]);
 
   useEffect(() => {
-    const timerId = window.setTimeout(() => {
-      void loadSettlements();
-    }, 180);
-
-    return () => window.clearTimeout(timerId);
+    void loadSettlements();
+    return () => { requestIdRef.current += 1; };
   }, [loadSettlements]);
 
-  const toggleRowSelection = (id) => {
-    setSelectedIds((currentIds) =>
-      currentIds.includes(id)
-        ? currentIds.filter((currentId) => currentId !== id)
-        : [...currentIds, id],
-    );
+  const groups = useMemo(() => groupSettlementPayouts(rows), [rows]);
+  const filteredGroups = useMemo(() => filterSettlementPayouts(groups, search), [groups, search]);
+  const pageCount = Math.max(1, Math.ceil(filteredGroups.length / PAGE_SIZE));
+  const page = Math.min(currentPage, pageCount);
+  const visibleGroups = filteredGroups.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const selectedGroups = filteredGroups.filter((group) => selectedKeys.includes(group.key) && group.hasAccount);
+  const eligibleVisibleGroups = visibleGroups.filter((group) => group.hasAccount);
+  const allVisibleSelected = eligibleVisibleGroups.length > 0 && eligibleVisibleGroups.every((group) => selectedKeys.includes(group.key));
+  const selectedAmount = selectedGroups.reduce((sum, group) => sum + group.total_net_amount, 0);
+  const totalAmount = groups.reduce((sum, group) => sum + group.total_net_amount, 0);
+  const detail = groups.find((group) => group.key === detailKey);
+  // 실제 이체가 필요한 계좌만 엑셀에 포함. 0원 건은 화면에서 완료 처리할 수 있다.
+  const exportGroups = (selectedGroups.length ? selectedGroups : filteredGroups)
+    .filter((group) => group.hasAccount && group.total_net_amount > 0);
+  const exportTotal = exportGroups.reduce((sum, group) => sum + group.total_net_amount, 0);
+  const isPayable = statusFilter === "payable";
+  const actionsDisabled = isLoading || Boolean(busyAction) || isPayoutExporting || isSavingAccount;
+  const summaryUnavailable = isLoading || Boolean(loadError);
+  const summaryCards = [
+    { label: isPayable ? "미지급 금액" : "지급 완료 금액", value: summaryUnavailable ? "—" : formatCurrency(totalAmount), hint: isPayable ? "아직 지급하지 않은 정산" : "지급 완료된 정산" },
+    { label: isPayable ? "정산할 셀러" : "지급받은 셀러", value: summaryUnavailable ? "—" : `${new Set(groups.map((group) => group.sellerKey)).size}명`, hint: `입금계좌 ${groups.length}개` },
+    { label: "대상 교재", value: summaryUnavailable ? "—" : `${rows.length}권`, hint: isPayable ? `계좌 확인 필요 ${groups.filter((group) => !group.hasAccount).length}건` : "셀러를 누르면 상세 내역 확인" },
+  ];
+
+  const changeTab = (key) => {
+    if (actionsDisabled || key === statusFilter) return;
+    requestIdRef.current += 1;
+    setRows([]);
+    setIsLoading(true);
+    setStatusFilter(key);
+    setSelectedKeys([]);
+    setDetailKey(null);
+    setSearch("");
+    setCurrentPage(1);
   };
 
-  const toggleVisibleSelection = () => {
-    if (allVisibleSelected) {
-      setSelectedIds([]);
-      return;
-    }
+  const toggleGroup = (key) => setSelectedKeys((keys) => keys.includes(key) ? keys.filter((item) => item !== key) : [...keys, key]);
+  const toggleVisible = () => setSelectedKeys((keys) => allVisibleSelected
+    ? keys.filter((key) => !eligibleVisibleGroups.some((group) => group.key === key))
+    : [...new Set([...keys, ...eligibleVisibleGroups.map((group) => group.key)])]);
 
-    setSelectedIds(rows.map((row) => row.id));
+  const requestCompletion = (targets) => {
+    if (actionsDisabled || !targets.length || targets.some((group) => !group.hasAccount)) return;
+    setTransferReference("");
+    setCompleteConfirm({
+      ids: targets.flatMap((group) => group.settlement_ids),
+      amount: targets.reduce((sum, group) => sum + group.total_net_amount, 0),
+      groups: targets,
+    });
   };
-
-  // P1: 셀러(계좌) 단위 지급 롤업 로드
-  const loadPayouts = useCallback(async () => {
-    if (!isSupabaseConfigured || !supabase) return;
-    setIsPayoutLoading(true);
-    const { data, error } = await supabase.rpc("admin_list_settlement_payouts", {
-      p_statuses: PAYABLE_STATUSES,
-      p_due_only: payoutScope === "due",
-    });
-    setIsPayoutLoading(false);
-
-    if (error) {
-      showToast(
-        error.message || "지급 롤업을 불러오지 못했습니다. 최신 migration 적용 여부를 확인해 주세요.",
-        "error",
-      );
-      setPayoutRows([]);
-      setPayoutTotals({ groupCount: 0, grandTotal: 0 });
-      return;
-    }
-
-    setPayoutRows(Array.isArray(data?.rows) ? data.rows : []);
-    setPayoutTotals({
-      groupCount: Number(data?.group_count ?? 0),
-      grandTotal: Number(data?.grand_total ?? 0),
-    });
-  }, [payoutScope, showToast]);
-
-  useEffect(() => {
-    if (viewMode !== "payout") return;
-    void loadPayouts();
-  }, [viewMode, loadPayouts]);
 
   // 대량이체 엑셀 — 평문 계좌 포함이므로 audit 성공이 선행돼야 다운로드
   const handlePayoutExportConfirmed = async (reason) => {
+    if (!exportGroups.length || isLoading || busyAction) return;
     setIsPayoutExporting(true);
     try {
-      const settlementIds = payoutRows
+      const settlementIds = exportGroups
         .flatMap((row) => (Array.isArray(row.settlement_ids) ? row.settlement_ids : []))
         .map(Number)
         .filter((n) => Number.isFinite(n));
@@ -330,12 +159,12 @@ function AdminSettlementsPage() {
       }
 
       const monthTag = new Date().toISOString().slice(0, 7);
-      const exportRows = payoutRows.map((row) => ({
+      const exportRows = exportGroups.map((row) => ({
         은행: row.bank_name ?? "",
         계좌번호: row.account_number ?? "",
         예금주: row.account_holder ?? "",
         지급액: row.total_net_amount ?? 0,
-        건수: row.settlement_count ?? 0,
+        건수: row.items.length ?? 0,
         셀러: row.seller_name ?? "",
         메모: `수북 정산 ${monthTag}`,
       }));
@@ -364,77 +193,84 @@ function AdminSettlementsPage() {
     }
   };
 
+
   // 승인 단계 폐지(2026-08-19): approveSettlements 제거 — 대기 건은 송금 후 바로 완료 처리
   const completeSettlements = async (ids, transferReference = null) => {
-    if (!ids.length || !supabase) {
+    if (!ids.length || !supabase || busyAction || isLoading) {
       return;
     }
 
     setBusyAction("complete");
-    const { data, error } = await supabase.rpc("admin_complete_settlements", {
-      p_settlement_ids: ids,
-      p_transfer_reference:
-        typeof transferReference === "string" && transferReference.trim()
-          ? transferReference.trim()
-          : null,
-    });
-
-    if (error) {
-      setBusyAction("");
-      showToast(error.message || "정산 완료 처리에 실패했습니다.", "error");
-      return;
-    }
-
-    const completedRows = Array.isArray(data?.settlements) ? data.settlements : [];
-    // 셀러(수신번호+계좌) 단위로 묶어 총 정산액 1건만 발송 — 건별 발송은 권수만큼 중복 수신
-    const sellerGroups = groupSettlementNotificationTargets(completedRows);
-    // 합계 0원 묶음(상품화 비용이 판매 순수익을 전부 차감)은 "0원 입금" 문자가 되므로 알림 생략.
-    // 완료 처리 자체는 유지 — 책 settled 전환·박스비 차감 기록은 필요하고 송금액은 0이다.
-    const notificationTargets = sellerGroups.filter((target) => target.netAmount > 0);
-    const skippedZeroCount = sellerGroups.length - notificationTargets.length;
-    const notificationOutcomes = await Promise.allSettled(
-      notificationTargets.map((target) => notifySettlementDoneGroup(target)),
-    );
-
-    setBusyAction("");
-
-    const failures = [];
-    let successCount = 0;
-    notificationOutcomes.forEach((outcome, index) => {
-      const target = notificationTargets[index];
-      if (outcome.status === "fulfilled" && outcome.value?.success !== false) {
-        successCount += 1;
-        return;
-      }
-      const error =
-        outcome.status === "rejected"
-          ? outcome.reason?.message ?? "알 수 없는 오류"
-          : outcome.value?.error ?? "알 수 없는 오류";
-      failures.push({
-        id: target.representativeId,
-        label: `${target.sellerName || "이름 미상"} (${target.sellerPhone}) — ${formatCurrency(target.netAmount)} · ${target.itemCount}건`,
-        error,
-        target,
+    try {
+      const { data, error } = await supabase.rpc("admin_complete_settlements", {
+        p_settlement_ids: ids,
+        p_transfer_reference:
+          typeof transferReference === "string" && transferReference.trim()
+            ? transferReference.trim()
+            : null,
       });
-    });
 
-    const skippedMessage =
-      Number(data?.skipped_missing_account_count ?? 0) > 0
-        ? ` 계좌 정보가 없는 ${data.skipped_missing_account_count}건은 제외했습니다.`
-        : "";
-    const zeroMessage =
-      skippedZeroCount > 0 ? ` 0원 정산 ${skippedZeroCount}명은 알림톡을 생략했습니다.` : "";
-    showToast(
-      `${data?.updated_count ?? 0}건을 정산 완료 처리했습니다.${skippedMessage}${zeroMessage}`,
-      "success",
-    );
+      if (error) throw error;
 
-    if (failures.length > 0 || notificationTargets.length > 0 || skippedZeroCount > 0) {
-      setNotificationResult({ successCount, failures, skippedZeroCount });
+      const completedRows = Array.isArray(data?.settlements) ? data.settlements : [];
+      // 셀러(수신번호+계좌) 단위로 묶어 총 정산액 1건만 발송 — 건별 발송은 권수만큼 중복 수신
+      const sellerGroups = groupSettlementNotificationTargets(completedRows);
+      // 합계 0원 묶음(상품화 비용이 판매 순수익을 전부 차감)은 "0원 입금" 문자가 되므로 알림 생략.
+      // 완료 처리 자체는 유지 — 책 settled 전환·박스비 차감 기록은 필요하고 송금액은 0이다.
+      const notificationTargets = sellerGroups.filter((target) => target.netAmount > 0);
+      const skippedZeroCount = sellerGroups.length - notificationTargets.length;
+      const notificationOutcomes = await Promise.allSettled(
+        notificationTargets.map((target) => notifySettlementDoneGroup(target)),
+      );
+
+
+      const failures = [];
+      let successCount = 0;
+      notificationOutcomes.forEach((outcome, index) => {
+        const target = notificationTargets[index];
+        if (outcome.status === "fulfilled" && outcome.value?.success !== false) {
+          successCount += 1;
+          return;
+        }
+        const error =
+          outcome.status === "rejected"
+            ? outcome.reason?.message ?? "알 수 없는 오류"
+            : outcome.value?.error ?? "알 수 없는 오류";
+        failures.push({
+          id: target.representativeId,
+          label: `${target.sellerName || "이름 미상"} (${target.sellerPhone}) — ${formatCurrency(target.netAmount)} · ${target.itemCount}건`,
+          error,
+          target,
+        });
+      });
+
+      const skippedMessage =
+        Number(data?.skipped_missing_account_count ?? 0) > 0
+          ? ` 계좌 정보가 없는 ${data.skipped_missing_account_count}건은 제외했습니다.`
+          : "";
+      const zeroMessage =
+        skippedZeroCount > 0 ? ` 0원 정산 ${skippedZeroCount}명은 알림톡을 생략했습니다.` : "";
+      showToast(
+        `${data?.updated_count ?? 0}건을 정산 완료 처리했습니다.${skippedMessage}${zeroMessage}`,
+        "success",
+      );
+
+      if (failures.length > 0 || notificationTargets.length > 0 || skippedZeroCount > 0) {
+        setNotificationResult({ successCount, failures, skippedZeroCount });
+      }
+
+      setCompleteConfirm(null);
+      setDetailKey(null);
+      await loadSettlements();
+    } catch (error) {
+      showToast(error?.message || "처리 결과를 확인하지 못했습니다. 목록을 새로고침해 주세요.", "error");
+      setCompleteConfirm(null);
+      await loadSettlements();
+    } finally {
+      setBusyAction("");
     }
-
-    await loadSettlements();
   };
+
 
   const retryFailedSettlementNotifications = async () => {
     if (!notificationResult?.failures?.length) return;
@@ -469,562 +305,200 @@ function AdminSettlementsPage() {
     });
   };
 
-  // 비회원 셀러 정산계좌 저장 — shipments에 스냅샷으로 보관하고, 이미 만들어진
-  // 미지급 정산의 계좌 스냅샷까지 RPC가 함께 갱신한다.
+
   const saveShipmentAccount = async () => {
-    if (!accountModal || !isSupabaseConfigured || !supabase) return;
-
+    if (!accountModal || !supabase || isSavingAccount) return;
+    if (![accountModal.bankName, accountModal.accountHolder].every((value) => value.trim())
+      || !/^[\d\s-]+$/.test(accountModal.accountNumber.trim())) {
+      showToast("은행, 계좌번호, 예금주를 모두 입력해 주세요.", "error");
+      return;
+    }
     setIsSavingAccount(true);
-    const { data, error } = await supabase.rpc("admin_upsert_shipment_settlement_account", {
-      p_shipment_id: accountModal.shipmentId,
-      p_bank_name: accountModal.bankName,
-      p_account_number: accountModal.accountNumber,
-      p_account_holder: accountModal.accountHolder,
-    });
-    setIsSavingAccount(false);
-
-    if (error) {
-      showToast(error.message || "계좌를 저장하지 못했습니다.", "error");
-      return;
-    }
-
-    setAccountModal(null);
-    const synced = Number(data?.synced_settlement_count ?? 0);
-    showToast(
-      `${accountModal.sellerName} 정산계좌를 저장했습니다.${synced > 0 ? ` 미지급 정산 ${synced}건에 반영했습니다.` : ""}`,
-      "success",
-    );
-    await loadSettlements();
-    if (viewMode === "payout") {
-      await loadPayouts();
-    }
-  };
-
-  const exportCurrentRows = () => {
-    if (!rows.length) {
-      showToast("내보낼 정산 데이터가 없습니다.", "error");
-      return;
-    }
-    // 평문 옵션이 켜져 있으면 한 번 더 명시적 confirm을 요구한다.
-    if (exportPlainAccount) {
-      setExportPlainConfirmOpen(true);
-      return;
-    }
-    setExportConfirmOpen(true);
-  };
-
-  const handleExportConfirmed = async (reason) => {
-    setIsExporting(true);
-
     try {
-      const isPlain = exportPlainAccount;
-      const settlementIds = rows.map((r) => Number(r.id)).filter((n) => Number.isFinite(n));
-
-      // 다운로더 식별자(이메일 prefix) — 파일명에 포함하여 추후 누가 받았는지 추적
-      const { data: { user } = {} } = await supabase.auth.getUser();
-      const adminEmail = user?.email ?? "unknown";
-      const adminTag = adminEmail.split("@")[0].replace(/[^a-zA-Z0-9-_]/g, "").slice(0, 16) || "anon";
-      const nowIso = new Date().toISOString();
-      const stamp = nowIso.replace(/[:.]/g, "-").slice(0, 19);
-      const maskTag = isPlain ? "plain" : "masked";
-      const fileName = `subook-settlements-${stamp}-${adminTag}-${maskTag}.xlsx`;
-
-      // 평문 계좌 다운로드는 audit 성공이 보장돼야 함. RPC 실패 시 다운로드 차단.
-      // 마스킹 다운로드는 audit 실패해도 진행하되 console.warn으로 알림.
-      if (isPlain) {
-        const { error: auditError } = await supabase.rpc("admin_log_settlement_export", {
-          p_settlement_ids: settlementIds,
-          p_is_plain_text: true,
-          p_file_name: fileName,
-          p_client_tag: reason ? `reason:${reason.slice(0, 100)}` : null,
-        });
-        if (auditError) {
-          showToast(
-            "audit 기록에 실패해 평문 계좌 다운로드를 중단합니다. 시스템 담당자에게 알려주세요.",
-            "error",
-          );
-          setIsExporting(false);
-          setExportConfirmOpen(false);
-          return;
-        }
-      }
-
-      const exportRows = buildExportRows(rows, { plain: isPlain });
-      const columnWidths = [12, 12, 20, 14, 16, 18, 32, 14, 12, 10, 12, 12, 12, 22, 12];
-      const columns = Object.keys(exportRows[0]).map((key, index) => ({
-        key,
-        header: key,
-        width: columnWidths[index],
-      }));
-
-      await exportRowsToXlsx({
-        rows: exportRows,
-        columns,
-        fileName,
-        sheetName: "settlements",
+      const { error } = await supabase.rpc("admin_upsert_shipment_settlement_account", {
+        p_shipment_id: accountModal.shipmentId,
+        p_bank_name: accountModal.bankName.trim(),
+        p_account_number: accountModal.accountNumber.trim(),
+        p_account_holder: accountModal.accountHolder.trim(),
       });
-
-      // 마스킹 다운로드도 audit 기록은 시도 (실패해도 다운로드는 진행됨)
-      if (!isPlain) {
-        try {
-          await supabase.rpc("admin_log_settlement_export", {
-            p_settlement_ids: settlementIds,
-            p_is_plain_text: false,
-            p_file_name: fileName,
-            p_client_tag: reason ? `reason:${reason.slice(0, 100)}` : null,
-          });
-        } catch (auditErr) {
-          console.warn("audit 기록 실패 (다운로드는 정상)", auditErr);
-        }
-      }
-
-      showToast(
-        `정산 엑셀 ${rows.length}건을 다운로드했습니다.${isPlain ? " (평문 계좌 포함 — audit 영구 기록됨)" : ""}`,
-        "success",
-      );
+      if (error) throw error;
+      setAccountModal(null);
+      setDetailKey(null);
+      showToast("정산계좌를 저장했습니다.", "success");
+      await loadSettlements();
     } catch (error) {
-      showToast(error?.message || "엑셀 다운로드에 실패했습니다.", "error");
+      showToast(error?.message || "계좌를 저장하지 못했습니다.", "error");
     } finally {
-      setIsExporting(false);
-      setExportConfirmOpen(false);
+      setIsSavingAccount(false);
     }
   };
 
   return (
-    <AdminShell
-      activeModule="settlements"
+    <AdminShell activeModule="settlements" title="정산"
       actions={
-        <div className="flex flex-wrap items-center gap-2">
-          <label
-            className="flex items-center gap-1.5 rounded-md border border-rose-200 bg-rose-50 px-2 py-1.5 text-[11px] font-bold text-rose-700"
-            title="체크하면 XLSX 내보내기에 계좌번호가 마스킹 없이(실계좌) 포함됩니다. 2단계 확인과 audit 기록을 거칩니다."
-          >
-            <input
-              checked={exportPlainAccount}
-              onChange={(event) => setExportPlainAccount(event.target.checked)}
-              type="checkbox"
-            />
-            엑셀에 실계좌 포함
-          </label>
-          <button
-            className="btn-secondary !w-auto !px-3 !py-2 text-xs"
-            onClick={exportCurrentRows}
-            type="button"
-          >
-            XLSX 내보내기
-          </button>
-        </div>
+        <button className="btn-secondary !w-auto !px-3 !py-2 text-xs" type="button"
+          disabled={actionsDisabled} onClick={() => { setDetailKey(null); void loadSettlements(); }}>새로고침</button>
       }
-      description="구매확정 후 자동 생성된 정산 대기 건을 송금 후 바로 정산 완료로 처리합니다."
-      summaryCards={summaryCards}
-      title="정산"
     >
-      {/* R1 IA 개편: 자동/수동 정산을 사이드바 메뉴 2개 대신 한 메뉴의 탭으로 */}
-      <AdminPageTabs
-        activeKey="auto"
-        tabs={[
-          { key: "auto", label: "자동 정산", hint: "회원 주문" },
-          { key: "manual", label: "수동 정산", hint: "식스샵 구매분", to: "/admin/manual-settlements" },
-        ]}
-      />
+      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {summaryCards.map((card, index) => <div className={`card !p-4 ${index === 0 ? "col-span-2 sm:col-span-1" : ""}`} key={card.label}>
+          <dt className="text-xs font-semibold text-slate-500">{card.label}</dt>
+          <dd className="mt-1 text-2xl font-black tabular-nums text-slate-950">{card.value}</dd>
+          <dd className="mt-1 text-xs text-slate-500">{isLoading ? "불러오는 중" : loadError ? "조회 실패" : card.hint}</dd>
+        </div>)}
+      </dl>
+      <AdminPageTabs activeKey={statusFilter} onSelect={changeTab} tabs={[
+        { key: "payable", label: "미지급" }, { key: "completed", label: "지급 완료" },
+      ]} />
 
-      {/* P1: 건별 목록 ↔ 셀러별 지급 롤업 (매월 1일 송금 단위) */}
-      <AdminPageTabs
-        activeKey={viewMode}
-        onSelect={(key) => setViewMode(key)}
-        tabs={[
-          { key: "list", label: "건별 목록", hint: "교재/주문 단위" },
-          { key: "payout", label: "셀러별 지급", hint: "계좌 단위 송금" },
-        ]}
-      />
-
-      {viewMode === "payout" ? (
-        <>
-          <section className="card space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="section-title">셀러별 지급 롤업</h2>
-                <p className="mt-1 text-sm font-semibold text-slate-500">
-                  같은 계좌로 나갈 정산을 묶어서 보여줍니다 — 송금 1회 = 1행.
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                {[
-                  { value: "due", label: "지급일 도래분" },
-                  { value: "all", label: "전체 미지급" },
-                ].map((option) => (
-                  <button
-                    aria-pressed={payoutScope === option.value}
-                    className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
-                      payoutScope === option.value
-                        ? "bg-slate-950 text-white"
-                        : "border border-slate-300 bg-white text-slate-600 hover:bg-slate-100"
-                    }`}
-                    key={option.value}
-                    onClick={() => setPayoutScope(option.value)}
-                    type="button"
-                  >
-                    {option.label}
-                  </button>
-                ))}
-                <button
-                  className="btn-primary !w-auto !px-4 !py-2 text-xs"
-                  disabled={isPayoutExporting || payoutRows.length === 0}
-                  onClick={() => setPayoutExportConfirmOpen(true)}
-                  type="button"
-                >
-                  {isPayoutExporting ? <BusyText>생성 중...</BusyText> : "대량이체 엑셀 (평문 계좌)"}
-                </button>
-              </div>
-            </div>
-            <p className="text-sm font-bold text-slate-700">
-              {payoutTotals.groupCount.toLocaleString("ko-KR")}개 계좌 · 총 지급{" "}
-              {formatCurrency(payoutTotals.grandTotal)}
-            </p>
-          </section>
-
-          <section className="card p-0">
-            {isPayoutLoading ? (
-              <p className="py-10 text-center text-sm font-semibold text-slate-400"><InlineLoading /></p>
-            ) : payoutRows.length === 0 ? (
-              <p className="py-10 text-center text-sm font-semibold text-slate-400">
-                지급 대상이 없습니다. (범위: {payoutScope === "due" ? "지급일 도래분" : "전체 미지급"})
-              </p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[56rem] divide-y divide-slate-200 text-sm">
-                  <thead className="bg-slate-50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-black text-slate-500">예금주</th>
-                      <th className="px-4 py-3 text-left text-xs font-black text-slate-500">은행</th>
-                      <th className="px-4 py-3 text-left text-xs font-black text-slate-500">계좌</th>
-                      <th className="px-4 py-3 text-left text-xs font-black text-slate-500">셀러</th>
-                      <th className="px-4 py-3 text-right text-xs font-black text-slate-500">건수</th>
-                      <th className="px-4 py-3 text-right text-xs font-black text-slate-500">지급액</th>
-                      <th className="px-4 py-3 text-right text-xs font-black text-slate-500">처리</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {payoutRows.map((row) => (
-                      <tr className="hover:bg-slate-50" key={`${row.seller_user_id}-${row.account_number}`}>
-                        <td className="px-4 py-3 font-bold text-slate-900">{row.account_holder}</td>
-                        <td className="px-4 py-3 text-slate-700">{row.bank_name}</td>
-                        <td className="px-4 py-3 font-mono text-xs text-slate-600">
-                          {displayAccountNumber(row.account_number)}
-                        </td>
-                        <td className="px-4 py-3 text-slate-600">{row.seller_name}</td>
-                        <td className="px-4 py-3 text-right font-semibold text-slate-700">
-                          {row.settlement_count}건
-                        </td>
-                        <td className="px-4 py-3 text-right font-black text-slate-950">
-                          {formatCurrency(row.total_net_amount)}
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <button
-                            className="btn-primary !inline-flex !w-auto !px-3 !py-2 text-xs"
-                            disabled={busyAction !== ""}
-                            onClick={() =>
-                              setCompleteConfirm({
-                                ids: (row.settlement_ids ?? []).map(Number),
-                              })
-                            }
-                            type="button"
-                          >
-                            완료 처리 ({row.settlement_count})
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
-        </>
-      ) : null}
-
-      {/* 구 사이트(식스샵)·수동 정산 연동 요약 — 회원 주문 자동 정산과 별개 트랙 (2026-07-06 피드백) */}
-      {manualSummary ? (
-        <section className="card p-4 flex flex-wrap items-center gap-3">
-          <div className="flex-1 min-w-[240px]">
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-              구 사이트(식스샵)·수동 정산 내역
-            </p>
-            <p className="mt-1 text-sm font-semibold text-slate-700">
-              미지급{" "}
-              <strong className="text-rose-600">
-                {manualSummary.unpaid_count ?? 0}건 · {formatCurrency(manualSummary.unpaid_amount ?? 0)}
-              </strong>
-              <span className="mx-1.5 text-slate-300">|</span>
-              지급완료 {manualSummary.paid_count ?? 0}건 · {formatCurrency(manualSummary.paid_amount ?? 0)}
-            </p>
-            <p className="mt-1 text-xs text-slate-400">
-              플랫폼 이전(식스샵) 판매분 정산은 수동 정산 메뉴에서 지급 처리·추적합니다.
-              아래 목록은 회원 주문의 자동 정산 전용입니다.
-            </p>
-          </div>
-          <Link className="btn-secondary !w-auto !px-4 !py-2 text-sm" to="/admin/manual-settlements">
-            수동 정산 관리 →
-          </Link>
-        </section>
-      ) : null}
-
-      {viewMode === "list" ? (
-      <>
       <section className="card space-y-4">
-        <div className="flex flex-wrap gap-2">
-          {STATUS_FILTERS.map((option) => (
-            <button
-              className={`rounded-lg border px-3 py-2 text-xs font-bold transition ${
-                statusFilter === option.value
-                  ? "border-slate-950 bg-slate-950 text-white"
-                  : "border-slate-200 bg-white text-slate-600 hover:border-slate-400"
-              }`}
-              key={option.value}
-              onClick={() => {
-                setStatusFilter(option.value);
-                setSelectedIds([]);
-                setCurrentPage(1);
-              }}
-              type="button"
-            >
-              {option.label}
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <label className="min-w-0 flex-1 sm:max-w-md">
+            <span className="mb-1.5 block text-xs font-semibold text-slate-600">셀러·교재 검색</span>
+            <input className="input-base !w-full" type="search" value={search} disabled={actionsDisabled}
+              placeholder="셀러명, 연락처, 교재명, 주문번호"
+              onChange={(event) => { setSearch(event.target.value); setSelectedKeys([]); setCurrentPage(1); }} />
+          </label>
+          {isPayable ? (
+            <button className="btn-secondary !w-auto !px-4 !py-2 text-sm" type="button"
+              disabled={actionsDisabled || !exportGroups.length} onClick={() => setPayoutExportConfirmOpen(true)}>
+              {selectedGroups.length ? "선택 이체 목록 엑셀" : "이체 목록 엑셀"}
             </button>
-          ))}
+          ) : null}
         </div>
-
-        {/* 필터 영역 — 운영툴이라 label·preset 명시 (AdminOrdersPage와 동일 패턴) */}
-        <div className="flex flex-wrap items-end gap-3">
-          <label className="flex-1 min-w-[220px]">
-            <span className="block text-xs font-semibold text-slate-600 mb-1.5">검색어</span>
-            <input
-              className="input-base !w-full"
-              onChange={(event) => {
-                setSearch(event.target.value);
-                setCurrentPage(1);
-              }}
-              placeholder="판매자, 주문번호, 교재명"
-              type="search"
-              value={search}
-            />
-          </label>
-          <label>
-            <span className="block text-xs font-semibold text-slate-600 mb-1.5">시작일</span>
-            <input
-              className="input-base !w-auto"
-              onChange={(event) => {
-                setFromDate(event.target.value);
-                setCurrentPage(1);
-              }}
-              type="date"
-              value={fromDate}
-            />
-          </label>
-          <span className="pb-3 text-sm font-semibold text-slate-400">~</span>
-          <label>
-            <span className="block text-xs font-semibold text-slate-600 mb-1.5">종료일</span>
-            <input
-              className="input-base !w-auto"
-              onChange={(event) => {
-                setToDate(event.target.value);
-                setCurrentPage(1);
-              }}
-              type="date"
-              value={toDate}
-            />
-          </label>
-          {/* 빠른 기간 preset */}
-          <div className="flex flex-wrap gap-1 pb-1">
-            {[
-              { label: "오늘", days: 0 },
-              { label: "7일", days: 7 },
-              { label: "30일", days: 30 },
-              { label: "전체", days: null },
-            ].map((preset) => (
-              <button
-                className="text-xs font-semibold text-slate-600 border border-slate-200 rounded-md px-2.5 py-1.5 hover:border-slate-400"
-                key={preset.label}
-                onClick={() => {
-                  if (preset.days === null) {
-                    setFromDate("");
-                    setToDate("");
-                  } else {
-                    const today = new Date();
-                    const from = new Date(today.getTime() - preset.days * 86400000);
-                    setFromDate(from.toISOString().slice(0, 10));
-                    setToDate(today.toISOString().slice(0, 10));
-                  }
-                  setCurrentPage(1);
-                }}
-                type="button"
-              >
-                {preset.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
-          <p className="text-sm font-semibold text-slate-500">
-            총 {totalCount}건 중 {rows.length}건 표시 · 선택 {selectedIds.length}건
+          <p className="text-sm font-semibold text-slate-600">
+            {isLoading ? "불러오는 중" : loadError ? "목록을 다시 불러와 주세요." : `${filteredGroups.length}개 지급 내역`}
+            {!isLoading && selectedGroups.length > 0 ? <span className="ml-3 font-bold text-slate-950">선택 {selectedGroups.length}개 · {formatCurrency(selectedAmount)}</span> : null}
           </p>
-          <div className="flex flex-wrap gap-2">
-            <button
-              className="btn-primary !w-auto !px-4 !py-2 text-sm"
-              disabled={!selectedPayableIds.length || busyAction !== ""}
-              onClick={() => setCompleteConfirm({ ids: selectedPayableIds })}
-              type="button"
-            >
-              {busyAction === "complete" ? <BusyText>처리 중...</BusyText> : `선택 정산 완료 (${selectedPayableIds.length})`}
+          {isPayable ? (
+            <button className="btn-primary !w-auto !px-4 !py-2 text-sm" type="button"
+              disabled={actionsDisabled || !selectedGroups.length} onClick={() => requestCompletion(selectedGroups)}>
+              선택 지급 완료{selectedGroups.length ? ` (${selectedGroups.length})` : ""}
             </button>
-          </div>
+          ) : null}
         </div>
       </section>
 
-      <section className="card p-0">
+      <section className="card !p-0 overflow-hidden">
         {isLoading ? (
-          <div className="p-8 text-center text-sm font-semibold text-slate-400"><InlineLoading label="정산 목록을 불러오는 중..." /></div>
-        ) : rows.length === 0 ? (
-          <div className="p-8 text-center text-sm font-semibold text-slate-400">
-            정산 데이터가 없습니다.
-            <p className="mt-2 text-xs font-normal text-slate-400">
-              회원 주문 정산은 구매자의 구매확정(배송완료 후 7일 자동 확정) 시 자동 생성되고,
-              지급 예정일은 매월 1일로 잡힙니다.
-            </p>
-            <p className="mt-1 text-xs font-normal text-slate-400">
-              플랫폼 이전(식스샵) 판매분 정산 내역은 상단의 &lsquo;수동 정산 관리&rsquo;에서 확인하세요.
-            </p>
+          <div className="px-6 py-16 text-center text-sm text-slate-500"><InlineLoading label="셀러별 정산금액을 불러오는 중..." /></div>
+        ) : loadError ? (
+          <div className="space-y-3 px-6 py-12 text-center" role="alert">
+            <p className="text-sm font-semibold text-rose-700">{loadError}</p>
+            <button className="btn-secondary !w-auto !px-4 !py-2 text-sm" onClick={loadSettlements} type="button">다시 불러오기</button>
+          </div>
+        ) : filteredGroups.length === 0 ? (
+          <div className="px-6 py-16 text-center">
+            <p className="font-bold text-slate-800">{search ? "검색 결과가 없습니다." : isPayable ? "미지급 정산이 없습니다." : "지급 완료 내역이 없습니다."}</p>
+            {search ? <button className="mt-3 text-sm font-semibold text-slate-600 underline" type="button" onClick={() => { setSearch(""); setCurrentPage(1); }}>검색 초기화</button> : null}
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1160px] text-sm">
-              <thead>
-                <tr className="border-b border-slate-100 text-left text-xs font-black uppercase tracking-wide text-slate-500">
-                  <th className="px-4 py-3">
-                    <input
-                      checked={allVisibleSelected}
-                      onChange={toggleVisibleSelection}
-                      type="checkbox"
-                    />
-                  </th>
-                  <th className="px-4 py-3">상태</th>
-                  <th className="px-4 py-3">판매자</th>
-                  <th className="px-4 py-3">주문/교재</th>
-                  <th className="px-4 py-3 text-right">판매가</th>
-                  <th className="px-4 py-3 text-right">수수료</th>
-                  <th className="px-4 py-3 text-right">정산금액</th>
-                  <th className="px-4 py-3">예정일</th>
-                  <th className="px-4 py-3">계좌</th>
-                  <th className="px-4 py-3">관리</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => (
-                  <tr className="border-b border-slate-50 align-top hover:bg-slate-50" key={row.id}>
-                    <td className="px-4 py-3">
-                      <input
-                        checked={selectedIds.includes(row.id)}
-                        onChange={() => toggleRowSelection(row.id)}
-                        type="checkbox"
-                      />
-                    </td>
-                    <td className="px-4 py-3">
-                      <StatusBadge status={row.status} type="settlement" />
-                      {row.status === "completed" && row.completed_at ? (
-                        <p className="mt-1 text-xs text-slate-400">{formatDate(row.completed_at)}</p>
-                      ) : null}
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="font-bold text-slate-900">{row.seller_name}</p>
-                      <p className="mt-1 text-xs text-slate-400">{contactLine(row.seller_phone, row.seller_email)}</p>
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="font-mono text-xs font-bold text-slate-500">{row.order_number}</p>
-                      <p className="mt-1 max-w-[280px] font-semibold text-slate-900">
-                        {row.book_title}
-                        {row.book_option ? <span className="text-slate-400"> · {row.book_option}</span> : null}
-                      </p>
-                      <p className="mt-1 text-xs text-slate-400">Book #{row.book_id}</p>
-                    </td>
-                    <td className="px-4 py-3 text-right font-semibold">
-                      {formatCurrency(row.sale_amount)}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <p className="font-semibold">{formatCurrency(row.fee_amount)}</p>
-                      <p className="text-xs text-slate-400">{formatFeePercent(row.fee_percent)}</p>
-                    </td>
-                    <td className="px-4 py-3 text-right text-base font-black text-slate-950">
-                      {formatCurrency(row.net_amount)}
-                    </td>
-                    <td className="px-4 py-3 text-sm font-semibold text-slate-600">
-                      {formatDate(row.scheduled_date)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="font-semibold text-slate-700">{row.bank_name || "계좌 미등록"}</p>
-                      <p className="mt-1 font-mono text-xs text-slate-400">
-                        {displayAccountNumber(row.account_number, row.account_last4)}
-                      </p>
-                      {row.account_holder ? (
-                        <p className="mt-1 text-xs text-slate-400">{row.account_holder}</p>
-                      ) : null}
-                      {/* 비회원 셀러(회원 미가입)는 마이페이지 계좌가 없으므로 여기서 직접 등록한다. */}
-                      {!row.seller_user_id && row.shipment_id ? (
-                        <button
-                          className="mt-2 rounded-md border border-slate-300 px-2 py-1 text-[11px] font-bold text-slate-600 transition hover:border-slate-500 hover:text-slate-900"
-                          onClick={() =>
-                            setAccountModal({
-                              shipmentId: row.shipment_id,
-                              sellerName: row.seller_name,
-                              bankName: row.bank_name ?? "",
-                              accountNumber: "",
-                              accountHolder: row.account_holder ?? row.seller_name ?? "",
-                            })
-                          }
-                          type="button"
-                        >
-                          {row.bank_name ? "계좌 수정" : "계좌 등록"}
-                        </button>
-                      ) : null}
-                    </td>
-                    <td className="px-4 py-3">
-                      {PAYABLE_STATUSES.includes(row.status) ? (
-                        <button
-                          className="btn-primary !w-auto !px-3 !py-1.5 text-xs"
-                          disabled={busyAction !== ""}
-                          onClick={() => setCompleteConfirm({ ids: [row.id] })}
-                          type="button"
-                        >
-                          정산 완료
-                        </button>
-                      ) : null}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <>
+            <div className="flex items-center gap-4 border-b border-slate-200 bg-slate-50 px-5 py-3 text-xs font-bold text-slate-500">
+              {isPayable ? <input type="checkbox" aria-label="현재 페이지 전체 선택" checked={allVisibleSelected}
+                disabled={actionsDisabled || !eligibleVisibleGroups.length} onChange={toggleVisible} /> : null}
+              <div className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_6rem_9rem]">
+                <span>셀러</span><span className="hidden sm:block">입금계좌</span><span className="hidden text-right sm:block">교재</span><span className="text-right">{isPayable ? "정산할 금액" : "지급한 금액"}</span>
+              </div>
+              <span className="hidden w-12 sm:block" />
+            </div>
+            <ul className="divide-y divide-slate-100">
+              {visibleGroups.map((group) => (
+                <li className="flex items-center gap-4 px-5 hover:bg-slate-50" key={group.key}>
+                  {isPayable ? <input type="checkbox" aria-label={`${group.seller_name} 지급 선택`}
+                    checked={selectedKeys.includes(group.key)} disabled={actionsDisabled || !group.hasAccount} onChange={() => toggleGroup(group.key)} /> : null}
+                  <button className="flex min-w-0 flex-1 items-center gap-4 py-5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-900"
+                    type="button" disabled={actionsDisabled} onClick={() => setDetailKey(group.key)} aria-label={`${group.seller_name} 정산 상세`}>
+                    <span className="grid min-w-0 flex-1 grid-cols-2 items-center gap-x-3 gap-y-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_6rem_9rem]">
+                      <span className="min-w-0">
+                        <span className="block truncate font-bold text-slate-900">{group.seller_name}</span>
+                        <span className="mt-1 block truncate text-xs text-slate-500">{group.seller_phone || group.seller_email || "연락처 없음"}</span>
+                      </span>
+                      <span className="col-span-2 row-start-2 text-xs text-slate-600 sm:col-span-1 sm:col-start-2 sm:row-start-1">
+                        {group.hasAccount ? <><span className="block">{group.bank_name} <span className="font-mono">{group.account_number}</span></span><span className="mt-1 block text-slate-400">예금주 {group.account_holder}</span></> : <span className="font-bold text-amber-700">계좌 확인 필요</span>}
+                      </span>
+                      <span className="hidden text-right text-sm text-slate-600 sm:block">{group.items.length}권</span>
+                      <span className="col-start-2 row-start-1 text-right sm:col-start-4">
+                        <span className="block text-lg font-black tabular-nums text-slate-950">{formatCurrency(group.total_net_amount)}</span>
+                        <span className="mt-1 block text-xs text-slate-400 sm:hidden">{group.items.length}권</span>
+                        {!isPayable ? <span className="mt-1 block text-xs text-slate-500">최근 지급 {formatDate(group.completed_at)}</span> : null}
+                      </span>
+                    </span>
+                    <span className="hidden w-12 shrink-0 text-right text-xs font-bold text-slate-500 sm:block">상세 →</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <AdminPagination currentPage={page} isLoading={isLoading} onPageChange={setCurrentPage} pageSize={PAGE_SIZE} totalCount={filteredGroups.length} />
+          </>
         )}
-        <AdminPagination
-          currentPage={currentPage}
-          isLoading={isLoading}
-          onPageChange={setCurrentPage}
-          pageSize={PAGE_SIZE}
-          totalCount={totalCount}
-        />
       </section>
-      </>
-      ) : null}
 
-      {toast ? (
-        <div
-          className={`fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-lg px-5 py-3 text-sm font-bold shadow-lg ${
-            toast.tone === "error" ? "bg-rose-600 text-white" : "bg-slate-950 text-white"
-          }`}
-          role="alert"
-        >
-          {toast.message}
-        </div>
-      ) : null}
+      <AdminDialog open={Boolean(detail) && !accountModal && !completeConfirm && !isLoading} onClose={() => setDetailKey(null)}
+        title={`${detail?.seller_name ?? ""} 정산 상세`} size="2xl" busy={Boolean(busyAction)}
+        footer={<div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm font-bold text-slate-700">{detail?.items.length ?? 0}권 · <span className="text-lg text-slate-950">{formatCurrency(detail?.total_net_amount ?? 0)}</span></p>
+          <div className="flex gap-2">
+            <button className="btn-secondary !w-auto !px-4 !py-2 text-sm" type="button" onClick={() => setDetailKey(null)}>닫기</button>
+            {isPayable && detail ? <button className="btn-primary !w-auto !px-4 !py-2 text-sm" type="button" disabled={actionsDisabled || !detail.hasAccount} onClick={() => requestCompletion([detail])}>지급 완료 처리</button> : null}
+          </div>
+        </div>}
+      >
+        {detail ? <div className="space-y-6 p-5 sm:p-6">
+          <div className="flex flex-wrap justify-between gap-4 rounded-xl border border-slate-200 p-4">
+            <div><p className="text-xs font-bold text-slate-500">입금계좌</p>
+              <p className="mt-2 font-bold text-slate-900">{detail.bank_name || "은행 미등록"} <span className="font-mono">{detail.account_number || "계좌번호 미등록"}</span></p>
+              <p className="mt-1 text-sm text-slate-600">예금주 {detail.account_holder || "미등록"}</p>
+            </div>
+            <div className="text-sm text-slate-600"><p>{detail.seller_phone || detail.seller_email || "연락처 없음"}</p>
+              {!detail.hasAccount && isPayable ? <p className="mt-2 font-bold text-amber-700">계좌를 확인한 뒤 지급할 수 있습니다.</p> : null}
+            </div>
+          </div>
+          {isPayable && detail.items.some((item) => !item.seller_user_id && item.shipment_id) ? (
+            <div className="flex flex-wrap gap-2">
+              {[...new Map(detail.items.filter((item) => !item.seller_user_id && item.shipment_id).map((item) => [item.shipment_id, item])).values()].map((item) => (
+                <button className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600" key={item.shipment_id} type="button"
+                  onClick={() => setAccountModal({ shipmentId: item.shipment_id, sellerName: detail.seller_name, bankName: item.bank_name ?? "", accountNumber: "", accountHolder: item.account_holder ?? detail.seller_name })}>
+                  수거 #{item.shipment_id} 계좌 {item.bank_name ? "수정" : "등록"}
+                </button>
+              ))}
+            </div>
+          ) : null}
+          {isPayable && !detail.hasAccount && detail.items.some((item) => item.seller_user_id) ? <p className="text-sm text-amber-700">회원 셀러에게 마이페이지에서 정산계좌를 등록하도록 안내해 주세요.</p> : null}
+          <dl className="grid grid-cols-2 gap-4 rounded-xl bg-slate-50 p-4 sm:grid-cols-4">
+            {[["판매금액", detail.total_sale_amount], ["수수료", detail.total_fee_amount], ["상품화 비용 차감", detail.total_deduction], [isPayable ? "정산할 금액" : "지급한 금액", detail.total_net_amount]].map(([label, value]) => (
+              <div key={label}><dt className="text-xs font-semibold text-slate-500">{label}</dt><dd className="mt-1 text-lg font-black tabular-nums text-slate-950">{formatCurrency(value)}</dd></div>
+            ))}
+          </dl>
+          <div>
+            <h3 className="mb-3 font-bold text-slate-900">정산 대상 교재 <span className="text-slate-500">{detail.items.length}권</span></h3>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[640px] text-sm">
+                <thead className="border-b border-slate-200 bg-slate-50 text-xs font-bold text-slate-500">
+                  <tr><th className="px-3 py-3 text-left">교재 / 주문</th><th className="px-3 py-3 text-right">판매금액</th><th className="px-3 py-3 text-right">수수료</th><th className="px-3 py-3 text-right">상품화 비용</th><th className="px-3 py-3 text-right">정산금액</th></tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {detail.items.map((item) => <tr key={item.id} className="align-top">
+                    <td className="max-w-[320px] px-3 py-4"><p className="font-semibold text-slate-900">{item.book_title || "교재명 없음"}</p>
+                      <p className="mt-1 text-xs text-slate-500">{[item.book_option, item.condition_grade].filter(Boolean).join(" · ")}</p>
+                      <p className="mt-1 font-mono text-xs text-slate-400">{item.order_number} · 교재 #{item.book_id}</p>
+                      <p className="mt-1 text-xs text-slate-400">{isPayable ? `구매확정 ${formatDate(item.confirmed_at)} · 지급 예정 ${formatDate(item.scheduled_date)}` : `지급 완료 ${formatDate(item.completed_at)}`}</p>
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-4 text-right tabular-nums">{formatCurrency(item.sale_amount)}</td>
+                    <td className="whitespace-nowrap px-3 py-4 text-right tabular-nums">{formatCurrency(item.fee_amount)}<p className="mt-1 text-xs text-slate-400">{Number(item.fee_percent)}%</p></td>
+                    <td className="whitespace-nowrap px-3 py-4 text-right tabular-nums">{formatCurrency(settlementDeduction(item))}</td>
+                    <td className="whitespace-nowrap px-3 py-4 text-right font-bold tabular-nums text-slate-950">{formatCurrency(item.net_amount)}</td>
+                  </tr>)}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          {isPayable ? <p className="text-xs text-slate-500">{detail.total_net_amount === 0 ? "비용 차감으로 지급할 금액이 0원입니다. 완료 처리 시 알림톡은 발송되지 않습니다." : "입금계좌로 직접 송금한 뒤 지급 완료 처리해 주세요."}</p> : null}
+        </div> : null}
+      </AdminDialog>
+
+      {toast ? <div role="alert" className={`fixed bottom-6 left-1/2 z-[210] max-w-[90vw] -translate-x-1/2 rounded-lg px-5 py-3 text-sm font-bold shadow-lg ${toast.tone === "error" ? "bg-rose-600 text-white" : "bg-slate-950 text-white"}`}>{toast.message}</div> : null}
 
       <NotificationResultModal
         busy={isRetryingNotifications}
@@ -1043,102 +517,40 @@ function AdminSettlementsPage() {
         title="정산 완료 알림톡 발송 결과"
       />
 
-      <DestructiveConfirmModal
-        busy={isExporting}
-        cancelLabel="취소"
-        confirmLabel="다운로드"
-        confirmPhrase="정산엑셀"
-        description={
-          `정산 엑셀(${exportPlainAccount ? "평문 계좌 포함" : "계좌 마스킹"}) 다운로드입니다.\n\n` +
-          "・판매자 연락처가 포함됩니다.\n" +
-          "・외부 메신저, 이메일, 클라우드에 업로드하거나 공유하지 마세요.\n" +
-          "・송금이 끝나면 즉시 PC에서 파일을 삭제해 주세요.\n\n" +
-          `현재 ${rows.length}건이 포함됩니다. 다운로드 사유를 남겨주세요.`
-        }
-        onCancel={() => (isExporting ? null : setExportConfirmOpen(false))}
-        onConfirm={handleExportConfirmed}
-        open={exportConfirmOpen}
-        reasonMinLength={4}
-        reasonPlaceholder="예: 2026-05-19 정기 송금"
-        reasonRequired
-        title="정산 엑셀 다운로드 — 민감정보 포함"
+
+      <AdminDialog busy={busyAction === "complete"} open={Boolean(completeConfirm)}
+        title="지급 완료 확인" onClose={() => setCompleteConfirm(null)}
+        footer={<div className="flex justify-end gap-2">
+          <button className="btn-secondary !w-auto !px-4 !py-2 text-sm" type="button" disabled={Boolean(busyAction)} onClick={() => setCompleteConfirm(null)}>취소</button>
+          <button className="btn-primary !w-auto !px-4 !py-2 text-sm" type="button" disabled={actionsDisabled || transferReference.trim().length < 2}
+            onClick={() => completeSettlements(completeConfirm?.ids ?? [], transferReference)}>지급 완료 처리</button>
+        </div>}
+      >
+        <div className="space-y-5 p-6">
+          <div><p className="text-sm font-semibold text-slate-500">{completeConfirm?.groups.length ?? 0}개 계좌 · 교재 {completeConfirm?.ids.length ?? 0}권</p>
+            <p className="mt-1 text-2xl font-black text-slate-950">{formatCurrency(completeConfirm?.amount ?? 0)}</p>
+          </div>
+          <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200 px-4">
+            {(completeConfirm?.groups ?? []).map((group) => <li className="py-3" key={group.key}>
+              <div className="flex justify-between gap-3 text-sm font-bold text-slate-900"><span>{group.seller_name}</span><span>{formatCurrency(group.total_net_amount)}</span></div>
+              <p className="mt-1 text-xs text-slate-500">{group.bank_name} {group.account_number} · {group.account_holder}</p>
+            </li>)}
+          </ul>
+          <p className="text-sm text-slate-700">은행에서 송금을 마친 내역만 완료 처리해 주세요. 완료 시 셀러에게 알림톡이 발송됩니다. 0원 정산은 알림톡을 생략합니다.</p>
+          <label className="block"><span className="mb-2 block text-sm font-bold text-slate-700">이체 메모</span>
+            <input className="input-base !w-full" type="text" value={transferReference} disabled={Boolean(busyAction)}
+              onChange={(event) => setTransferReference(event.target.value)} placeholder="예) 10/1 은행 이체 완료 · 이체번호" />
+          </label>
+        </div>
+      </AdminDialog>
+
+      <DestructiveConfirmModal busy={isPayoutExporting} open={payoutExportConfirmOpen}
+        cancelLabel="취소" confirmLabel="이체 목록 다운로드" title="이체 목록 엑셀 다운로드"
+        description={`실제 계좌번호가 포함된 ${exportGroups.length}개 계좌 · 총 ${formatCurrency(exportTotal)}의 이체 목록입니다.\n\n계좌 확인이 필요한 내역과 0원 정산은 제외됩니다.\n다운로드 사유가 기록됩니다. 송금 후 파일을 삭제해 주세요.`}
+        onCancel={() => setPayoutExportConfirmOpen(false)} onConfirm={handlePayoutExportConfirmed}
+        reasonMinLength={4} reasonPlaceholder="예) 10월 정산 이체" reasonRequired
       />
 
-      <DestructiveConfirmModal
-        busy={isExporting}
-        cancelLabel="취소"
-        confirmLabel="평문 다운로드"
-        confirmPhrase="평문계좌"
-        description={
-          "평문 계좌번호가 포함된 정산 엑셀을 다운로드합니다.\n\n" +
-          "・평문 계좌번호는 유출 시 직접적인 금융 사고로 이어질 수 있습니다.\n" +
-          "・다운로드 사실은 audit log에 남고, 파일명에 다운로더 이메일이 박힙니다.\n" +
-          "・송금 외 용도로 보관/전송 시 보안 책임이 운영자에게 있습니다.\n\n" +
-          "정말 평문 계좌번호 포함으로 다운로드하시겠습니까?"
-        }
-        onCancel={() => (isExporting ? null : setExportPlainConfirmOpen(false))}
-        onConfirm={(reason) => {
-          // 평문 모달이 이미 강화된 사유(6자+)와 확인 문구를 받았으므로
-          // 일반 확인 모달을 한 번 더 띄우지 않고 사유를 그대로 audit에 전달한다.
-          // (기존엔 여기서 사유를 버리고 두 번째 모달을 띄워 사유가 분실됐음)
-          setExportPlainConfirmOpen(false);
-          return handleExportConfirmed(reason);
-        }}
-        open={exportPlainConfirmOpen}
-        reasonMinLength={6}
-        reasonPlaceholder="예) 정기 송금 외 비상황 — 보안 책임 확인"
-        reasonRequired
-        title="평문 계좌번호 다운로드 — 최종 확인"
-      />
-
-      {/* P1: 정산 완료 확인 — 이체 참조/메모를 받아 settlements.transfer_reference에 기록 */}
-      <DestructiveConfirmModal
-        busy={busyAction === "complete"}
-        cancelLabel="취소"
-        confirmLabel="정산 완료 처리"
-        description={
-          `${completeConfirm?.ids?.length ?? 0}건을 '정산 완료'로 처리합니다.\n\n` +
-          "・실제 은행 송금을 마친 뒤에 처리해 주세요.\n" +
-          "・완료 시 셀러에게 정산 완료 알림톡이 발송됩니다.\n" +
-          "・이체 참조/메모는 '입금 안 됐다' 문의 대사 근거로 기록됩니다."
-        }
-        onCancel={() => (busyAction === "complete" ? null : setCompleteConfirm(null))}
-        onConfirm={async (reason) => {
-          const ids = completeConfirm?.ids ?? [];
-          setCompleteConfirm(null);
-          await completeSettlements(ids, reason);
-          if (viewMode === "payout") {
-            await loadPayouts();
-          }
-        }}
-        open={Boolean(completeConfirm)}
-        reasonMinLength={2}
-        reasonPlaceholder="예) 07/16 카카오뱅크 일괄이체"
-        reasonRequired
-        title="정산 완료 — 이체 증빙 입력"
-      />
-
-      {/* P1: 대량이체 엑셀 — 평문 계좌 포함이라 사유 필수 + audit 게이트 */}
-      <DestructiveConfirmModal
-        busy={isPayoutExporting}
-        cancelLabel="취소"
-        confirmLabel="대량이체 엑셀 다운로드"
-        confirmPhrase="대량이체"
-        description={
-          "은행 대량이체 등록용 엑셀(평문 계좌번호 포함)을 다운로드합니다.\n\n" +
-          "・평문 계좌번호는 유출 시 직접적인 금융 사고로 이어질 수 있습니다.\n" +
-          "・다운로드 사실은 audit log에 남고, 파일명에 다운로더 이메일이 박힙니다.\n" +
-          "・송금 등록이 끝나면 즉시 PC에서 파일을 삭제해 주세요.\n\n" +
-          `현재 ${payoutRows.length}개 계좌 · 총 ${formatCurrency(payoutTotals.grandTotal)}이 포함됩니다.`
-        }
-        onCancel={() => (isPayoutExporting ? null : setPayoutExportConfirmOpen(false))}
-        onConfirm={handlePayoutExportConfirmed}
-        open={payoutExportConfirmOpen}
-        reasonMinLength={4}
-        reasonPlaceholder="예) 2026-08-01 정기 송금"
-        reasonRequired
-        title="대량이체 엑셀 — 평문 계좌 포함"
-      />
       {/* 비회원 셀러 정산계좌 입력 (2026-09-01) */}
       <AdminDialog
         busy={isSavingAccount}
@@ -1212,11 +624,9 @@ function AdminSettlementsPage() {
         </div>
       </AdminDialog>
 
-      <LoadingOverlay
-        detail={isPayoutExporting ? "건수가 많으면 시간이 걸립니다" : "정산 건별로 순차 처리합니다"}
-        message={isPayoutExporting ? "대량이체 엑셀을 만들고 있습니다" : "정산을 처리하고 있습니다"}
-        open={isPayoutExporting || Boolean(busyAction)}
-      />
+
+      <LoadingOverlay open={isPayoutExporting || Boolean(busyAction)}
+        message={isPayoutExporting ? "이체 목록 엑셀을 만들고 있습니다" : "정산을 처리하고 있습니다"} />
     </AdminShell>
   );
 }

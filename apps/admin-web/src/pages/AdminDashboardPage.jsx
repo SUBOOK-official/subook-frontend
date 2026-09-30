@@ -120,7 +120,7 @@ function AdminDashboardPage() {
     {
       key: "settlements",
       label: "정산 지급",
-      hint: "지급일 도래·이체 대기",
+      hint: "미지급 정산 확인",
       to: "/admin/settlements",
       count: badgeCounts.settlements,
     },
