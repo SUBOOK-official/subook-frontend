@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import PublicFooter from "../components/PublicFooter";
 import PublicSiteHeader from "../components/PublicSiteHeader";
 import PublicPageFrame from "../components/PublicPageFrame";
@@ -90,22 +90,9 @@ function PublicHomePage() {
     <div className="public-home-route">
       <PublicSiteHeader onCartClick={handleGoToCart} />
 
+      {/* 화면에 소개 영역을 추가하지 않고 스크린리더용 페이지 제목만 유지한다. */}
+      <h1 className="public-visually-hidden">수북 SUBOOK, 수능 교재 구매·위탁판매</h1>
       <AutomaticHeroBanner onSlideAction={handleHeroAction} slides={heroSlides} />
-      {/* 브랜드 소개는 방문자와 검색로봇에게 동일하게 제공한다. */}
-      <section className="public-brand-intro public-content-container" aria-labelledby="public-brand-title">
-        <h1 id="public-brand-title">수북 SUBOOK, 수능 교재 구매·위탁판매</h1>
-        <p>
-          수북(SUBOOK)은 수능 교재 구매·위탁판매 플랫폼입니다. 검수된 교재를 구매하고,
-          안 쓰는 교재는 수거부터 판매·정산까지 맡기세요.
-        </p>
-        <nav aria-label="수북 이용 안내">
-          <Link to={SELL_GUIDE_PATH}>판매 이용 안내</Link>
-          <Link to="/faq">검수·구매 자주 묻는 질문</Link>
-          <a href="https://blog.naver.com/subook_official" target="_blank" rel="noopener noreferrer">
-            수북 공식 블로그
-          </a>
-        </nav>
-      </section>
       {/* 배너 클릭 스크롤 도착 지점. sticky 헤더에 가리지 않도록 scroll-margin-top 확보. */}
       <div id="products" aria-hidden="true" ref={productsRef} style={{ scrollMarginTop: "80px" }} />
       <ThemeQuickLinks />

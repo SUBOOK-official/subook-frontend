@@ -109,47 +109,6 @@ img {
   background: #ffffff;
 }
 
-.public-brand-intro {
-  padding-top: 24px;
-  padding-bottom: 24px;
-}
-
-.public-brand-intro h1 {
-  margin: 0;
-  color: var(--public-primary);
-  font-size: clamp(18px, 2vw, 24px);
-  font-weight: 700;
-  line-height: 1.5;
-  word-break: keep-all;
-}
-
-.public-brand-intro p {
-  max-width: 920px;
-  margin: 8px 0 12px;
-  color: var(--public-text-muted);
-  font-size: 14px;
-  line-height: 1.75;
-  word-break: keep-all;
-}
-
-.public-brand-intro nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 20px;
-}
-
-.public-brand-intro a {
-  color: var(--public-primary);
-  font-size: 13px;
-  line-height: 1.75;
-  text-underline-offset: 3px;
-}
-
-.public-brand-intro a:focus-visible {
-  outline: 2px solid var(--public-primary);
-  outline-offset: 4px;
-}
-
 .public-home--locked {
   min-width: 100%;
   overflow-x: hidden;

@@ -25,7 +25,7 @@ const PAGE_DESCRIPTION =
 // index.html keywords와 동일 (구글은 무시하지만 네이버 등 국내 검색 대비)
 const PAGE_KEYWORDS =
   "수북, subook, 수능, 교재, 책, 중고, 대치동, 거래, 중고 거래, 중고 교재, 수능 중고 교재, 대입, 입시, 수능 교재";
-// PublicHomePage에서 방문자가 읽는 단일 <h1>과 동일
+// PublicHomePage의 스크린리더용 단일 <h1>과 동일
 const PAGE_H1 = "수북 SUBOOK, 수능 교재 구매·위탁판매";
 
 // ⚠ sitemap-pages.xml 과목 랜딩 목록과 동기 유지
