@@ -80,7 +80,6 @@ export const adminNavigationGroups = [
       { key: "analytics", label: "분석", to: "/admin/analytics", icon: TrendingUpIcon },
       { key: "performance", label: "성과 대시보드", to: "/admin/performance", icon: TrendingUpIcon },
       { key: "meta-ads", label: "메타 광고 운영", to: "/admin/meta-ads", icon: MegaphoneIcon },
-      { key: "integrations", label: "연동 업무 모음", to: "/admin/integrations", icon: FolderIcon },
     ],
   },
 ];
