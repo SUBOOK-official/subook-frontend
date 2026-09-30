@@ -23,7 +23,7 @@ import { isPromotionUrl } from "@shared-domain/sitePromotions";
 const SELL_GUIDE_PATH = "/sell";
 
 function PublicHomePage() {
-  // 홈은 기본 타이틀·설명(usePageMeta DEFAULT_*, 구 식스샵 SEO 카피)을 그대로 사용
+  // 홈 브랜드 메타는 index.html·prerender-home.js와 동일하게 유지.
   usePageMeta({});
   const navigate = useNavigate();
   const promotions = useSitePromotions();
@@ -89,9 +89,8 @@ function PublicHomePage() {
     <div className="public-home-route">
       <PublicSiteHeader onCartClick={handleGoToCart} />
 
-      {/* 시각적으로 숨겨진 단일 <h1>. SEO·스크린리더용 페이지 제목. */}
-      <h1 className="public-visually-hidden">수능 교재 위탁판매 — 안 쓴 교재를 합리적인 가격에 | 수북</h1>
-
+      {/* 화면에 소개 영역을 추가하지 않고 스크린리더용 페이지 제목만 유지한다. */}
+      <h1 className="public-visually-hidden">수북 SUBOOK, 수능 교재 구매·위탁판매</h1>
       <AutomaticHeroBanner onSlideAction={handleHeroAction} slides={heroSlides} />
       {/* 배너 클릭 스크롤 도착 지점. sticky 헤더에 가리지 않도록 scroll-margin-top 확보. */}
       <div id="products" aria-hidden="true" ref={productsRef} style={{ scrollMarginTop: "80px" }} />
