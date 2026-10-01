@@ -1,0 +1,21 @@
+SUBOOK referral hero — 2026-10-01
+Generated with the built-in imagegen tool. Original transparent PNG was encoded
+as a 1100 x 1100 WebP with alpha for the website (180,790 bytes).
+
+Design references visually inspected:
+- https://monzo.com/refer-a-friend
+  Large campaign type, generous split composition, illustrated gift, clear CTA.
+- https://monzo.com/blog/first-three-months-product-designer
+  Referral mobile flow: illustration, both-person benefit, one main action.
+Artwork is newly generated for SUBOOK; reference artwork is not reused.
+
+Final generation prompt:
+Use case: ads-marketing
+Asset type: original hero illustration for SUBOOK, a Korean used exam-book marketplace, referral coupon campaign.
+Primary request: A premium, joyful tactile 3D paper sculpture of a book parcel opening into a gift for two friends. A small open pale ice-blue paper mailer box in the lower center holds two beautiful thick study books (one midnight navy #080F47, one pale powder blue #DCEFFF), visible cream paper page edges, and TWO oversized ivory coupon tickets floating above the books in a gentle fan. Both tickets have simple semicircular notches and finely embossed perforation details. Each ticket has only the exact large navy numerals "4,000", clearly readable and naturally printed flat on its surface. One flowing wide midnight navy satin ribbon curves elegantly around the box. Two small pale-blue paper sparkles, sparse and tasteful.
+Style: sophisticated contemporary Korean retail campaign, crafted paper objects, high-end 3D studio still life, matte paper grain, softly rounded realistic book edges, fine material detail, striking dimensional composition, not cartoon faces, not clipart.
+Composition: square asset, compact cohesive arrangement filling 85% of image, all objects fully within frame, front three-quarter perspective, tickets in upper half, books and open parcel lower half. The two tickets must be individually legible, minimal overlap. Cutout silhouette for use on a deep navy webpage, soft local ambient shadows between objects.
+Lighting: broad softbox from upper left, luminous pale surfaces, crisp clean silhouette.
+Palette: midnight navy, icy blue, warm ivory white only.
+Background: genuinely transparent alpha, no background plane, no horizon, no white rectangle.
+Text: only "4,000" on each of two coupons. No other words, no logo, no watermark, no interface, no cash, no coin.
