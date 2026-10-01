@@ -6,6 +6,8 @@
 
 후속 확정: 신규 이메일/구글/카카오 가입에서 인증 번호가 기존 계정과 겹치면 `existing_account`로 안내하고 기존 계정 로그인으로 이동한다. 신규 중복 가입을 계정 통합으로 보내지 않는다. 이메일 중복도 기존 로그인 안내를 유지한다. `ExistingAccountNotice`는 [Notion 로그인](https://www.notion.com/login)을 브라우저에서 시각 확인하고 제목·인증 완료 표식·주 행동 버튼 위계를 참고했으며 수북 공통 색상 토큰과 기존 책 이미지를 사용한다.
 
+후속 배포 완료: Frontend `1f037d9`, Backend `6b07239`, production `dpl_41yLYP2sYnEhZQpG54KPV4SkzBFj` — READY / production. 배포된 번들에서도 모의 API를 사용한 가입/중복/카카오 세 분기/모바일 검증 통과. 실제 운영 DB에 설치된 함수의 중복 차단도 트랜잭션에서 실행하고 전부 롤백했다. frontend 273개, backend 관련 27개, lint/public/admin build 통과. 카카오 실계정 로그인은 아직 미확인이다.
+
 - `/signup`: 기존 이메일/비밀번호·소셜 가입 화면. 이메일 입력 → 가입 전 SMS 확인 → 기존 이메일 OTP → 이름/비밀번호/약관 → 완료. SMS 증명 없이 Auth 계정을 만들 수 없도록 Before User Created hook으로 검증한다.
 - 카카오/구글은 OAuth 인증 레코드와 회원 등록을 분리한다. 이메일이 필수이며 회원 프로필은 번호 확인 후 생성한다. 카카오는 서버가 provider token으로 UserInfo를 조회하고 JWT identity와 sub 일치 및 `phone_number_verified=true`를 확인하면 SMS를 생략한다. 번호 미제공·조회 실패는 SMS로 진행한다. 클라이언트 metadata의 번호는 인증 근거가 아니다.
 - `/auth/phone`: 이미 생긴 전화번호 단독 계정의 복구 로그인만 허용(`shouldCreateUser=false`). `/auth/required-email`에서 이메일 확인·비밀번호 등록 전 이용을 막는다. 기존 계정/자산은 삭제하지 않는다.

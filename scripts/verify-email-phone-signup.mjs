@@ -19,8 +19,11 @@ async function setup({provider='email',signedIn=false,duplicatePhone=false,dupli
  const errors=[],state={signedIn,verified:signedIn&&!preMember,terms:false,emailOtp:0,phoneOtp:0,finished:false,status:null};page.on('pageerror',e=>errors.push(e.message));
  if(signedIn)await context.addInitScript(({key,s})=>sessionStorage.setItem(key,JSON.stringify(s)),{key:`sb-${project}-auth-token`,s:session(provider)});
  await page.route('**/*',async route=>{
-  const u=new URL(route.request().url()),body=route.request().postDataJSON()||{};
+  const u=new URL(route.request().url());
   const json=(data,status=200)=>route.fulfill({status,contentType:'application/json',body:JSON.stringify(data)});
+  // 운영 번들의 분석/오류 수집 payload는 JSON이 아닐 수 있다. 외부 계측은 파싱 전에 차단한다.
+  if(u.origin!==origin&&!u.hostname.endsWith('.supabase.co'))return route.fulfill({status:204,body:''});
+  const body=u.pathname.startsWith('/api/auth/')||u.hostname.endsWith('.supabase.co')?route.request().postDataJSON()||{}:{};
   if(u.pathname==='/api/auth/signup-phone')return json(body.action==='send'?{success:true,id:'00000000-0000-0000-0000-000000000912',secret:'a'.repeat(64)}:body.code==='123456'?{success:true,status:duplicatePhone?'existing_account':'verified'}:{error:'인증번호가 일치하지 않습니다.'},body.action==='verify'&&body.code!=='123456'?400:200);
   if(u.pathname==='/api/auth/send-phone-otp'){state.phoneOtp++;return json({success:true});}
   if(u.pathname==='/api/auth/kakao-phone'){
