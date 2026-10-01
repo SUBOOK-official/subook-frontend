@@ -3842,7 +3842,7 @@ function SettingsTab({
   wishlistError,
   wishlistProducts,
 }) {
-  const { identity, identityPolicy, isPhoneUser } = usePublicAuth();
+  const { identity, isPhoneUser } = usePublicAuth();
   // 사이드바에서 들어왔을 때 해당 섹션만 노출. section이 비면(null) 기존처럼 전체 노출(레거시 호환).
   const showProfile = !section || section === "profile";
   const showAddresses = !section || section === "addresses";
@@ -4164,7 +4164,6 @@ function SettingsTab({
           title="계정"
         />
         <div className="public-mypage-account-actions">
-          {!isDemoPreview && identityPolicy?.merge_enabled && <Link className="public-auth-button public-auth-button--secondary" to="/auth/verify-phone?next=%2Fauth%2Fmerge">다른 계정의 이용 내역 통합</Link>}
           <button className="public-auth-button public-auth-button--secondary" disabled={isSigningOut} onClick={handleSignOut} type="button">
             {isDemoPreview ? "데모 종료" : isSigningOut ? "로그아웃 중..." : "로그아웃"}
           </button>
