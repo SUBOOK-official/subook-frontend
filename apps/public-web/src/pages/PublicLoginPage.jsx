@@ -38,7 +38,7 @@ function PublicLoginPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const passwordInputRef = useRef(null);
-  const { hasSession, isAdminAccount, isAuthenticated, signOut, identityPolicy } =
+  const { hasSession, isAdminAccount, isAuthenticated, signOut } =
     usePublicAuth();
   // from은 두 형태 모두 받는다:
   // - object: { pathname, search?, hash? } (publicMemberGate 등 권장 형식)
@@ -431,7 +431,6 @@ function PublicLoginPage() {
               </div>
             ) : null}
 
-            {identityPolicy?.legacy_phone_login_enabled && <Link className="public-auth-inline-message" to="/auth/phone">이메일을 등록하지 않은 기존 계정 찾기</Link>}
             <PublicOAuthButtons
               analyticsSurface="login_page"
               contextLabel="로그인"
