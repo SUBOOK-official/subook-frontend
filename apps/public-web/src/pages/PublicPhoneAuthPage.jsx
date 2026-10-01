@@ -24,6 +24,7 @@ export default function PublicPhoneAuthPage({ mode = "login" }) {
   const [canBind, setCanBind] = useState(false);
   const [existingAccount, setExistingAccount] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [switchingAccount, setSwitchingAccount] = useState(false);
   const duplicate = !retrying && (existingAccount || identity?.status === "existing_account");
   const codeInput = useRef(null);
   usePageMeta({ title: verifying ? "휴대폰 인증" : "휴대폰으로 시작하기", noindex: true });
@@ -37,7 +38,7 @@ export default function PublicPhoneAuthPage({ mode = "login" }) {
 
   const finish = async (result) => {
     if (result.status === "existing_account") {
-      setRetrying(false); setExistingAccount(true); await refreshProfile(); return;
+      await refreshProfile(); setRetrying(false); setExistingAccount(true); return;
     }
     if (result.status === "merge_required" || (result.status === "unverified" && result.can_merge)) {
       await refreshProfile();
@@ -77,15 +78,17 @@ export default function PublicPhoneAuthPage({ mode = "login" }) {
     try { await finish({ status: "verified" }); } catch (err) { setError(err.message); } finally { setBusy(false); }
   };
 
+  // 명시적으로 계정을 바꾸는 동안 자동 로그인 이동이 선택한 경로/안내를 덮어쓰지 않게 한다.
+  if (switchingAccount && !hasSession) return <MemberIdentityLayout step={2} title="로그인으로 연결하고 있어요"><p role="status" className="member-identity-message">잠시만 기다려 주세요.</p></MemberIdentityLayout>;
   if (verifying && !isLoading && !hasSession) return <Navigate to="/login" replace state={{ from: `/auth/verify-phone?next=${encodeURIComponent(next)}` }} />;
   const merged = identity?.status === "merged";
   const unavailable = !verifying && !identityPolicy?.legacy_phone_login_enabled;
   return <MemberIdentityLayout step={sent || duplicate ? 2 : 1} eyebrow={verifying ? "안전한 계정을 위한 한 번의 확인" : "기존 계정 찾기"}
     title={merged ? "대표 계정으로 만나요" : duplicate ? "기존 계정으로 이어서" : verifying ? "내 번호로, 내 계정 확인" : sent ? "인증번호를 입력해 주세요" : "기존 가입 계정 확인"}
-    description={merged ? "이 계정은 통합이 완료되었어요. 선택하신 대표 계정으로 로그인해 주세요." : duplicate ? "인증한 번호로 이용 중인 계정을 확인했어요.\n가입할 때 사용한 방법으로 로그인해 주세요." : verifying ? "휴대폰 번호 하나로 계정 하나를 이용해요.\n계속 이용하려면 내 번호를 인증해 주세요." : "휴대폰만으로 가입했던 계정을 확인하고,\n앞으로 사용할 이메일을 등록해 주세요."}>
+    description={merged ? "이 계정은 통합이 완료되었어요. 선택하신 대표 계정으로 로그인해 주세요." : duplicate ? "아래 이메일과 로그인 방법을 확인해 주세요." : verifying ? "휴대폰 번호 하나로 계정 하나를 이용해요.\n계속 이용하려면 내 번호를 인증해 주세요." : "휴대폰만으로 가입했던 계정을 확인하고,\n앞으로 사용할 이메일을 등록해 주세요."}>
     {merged ? <button className="member-identity-primary" onClick={async () => { await signOut(); navigate("/login"); }}>대표 계정으로 로그인</button>
       : unavailable ? <><p className="member-identity-message">{identityPolicy?.error ? "인증 서비스 상태를 불러오지 못했어요. 잠시 후 다시 시도해 주세요." : "휴대폰 로그인을 준비하고 있어요."}</p><Link className="member-identity-secondary" to="/login">기존 계정으로 로그인</Link></>
-      : duplicate ? <ExistingAccountNotice busy={busy} onLogin={async () => { setBusy(true); await signOut(); navigate("/login", { state: { notice: "이 전화번호로 가입한 기존 계정으로 로그인해 주세요." } }); }} onRetry={() => { setRetrying(true); setExistingAccount(false); setSent(false); setPhone(""); setCode(""); setError(""); setNotice(""); }} />
+      : duplicate ? <ExistingAccountNotice accounts={identity?.existing_accounts} next={next} busy={busy} onSwitchingAccount={setSwitchingAccount} onRetry={() => { setRetrying(true); setExistingAccount(false); setSent(false); setPhone(""); setCode(""); setError(""); setNotice(""); }} />
       : <><form className="member-identity-form" onSubmit={sent ? verify : send}>
         <label htmlFor="identity-phone">휴대폰 번호</label>
         <div className="member-identity-country"><span>대한민국 +82</span><input id="identity-phone" name="phone" type="tel" autoComplete="tel-national" inputMode="tel" placeholder="010 1234 5678" value={phone} onChange={(e) => setPhone(normalizeMemberPhone(e.target.value).slice(0, 11))} disabled={sent || busy} required /></div>

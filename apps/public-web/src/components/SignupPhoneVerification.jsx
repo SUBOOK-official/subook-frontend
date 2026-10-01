@@ -31,7 +31,7 @@ export default function SignupPhoneVerification({ email, phone, onPhoneChange, p
     setBusy(true); setError("");
     try {
       const result = await signupPhoneRequest({ action: "verify", id: challenge.id, secret: challenge.secret, code });
-      if (result.status === "existing_account") { setExistingAccount(challenge); onVerified(null); return; }
+      if (result.status === "existing_account") { setExistingAccount({ ...challenge, accounts: result.existing_accounts }); onVerified(null); return; }
       onVerified(challenge);
     } catch (err) { setError(err.message); }
     finally { setBusy(false); }
@@ -48,7 +48,7 @@ export default function SignupPhoneVerification({ email, phone, onPhoneChange, p
       <input aria-label="휴대폰 인증번호" className="public-auth-field-row__input" style={{ minWidth: 0, flex: 1 }} autoComplete="one-time-code" inputMode="numeric" placeholder="문자로 받은 6자리" maxLength={6} value={code} disabled={busy} onChange={(event) => setCode(event.target.value.replace(/\D/g, ""))} />
       <button type="button" className="public-auth-button" style={{ width: "auto", flexShrink: 0, padding: "0 12px", margin: 0 }} disabled={busy || code.length !== 6} onClick={verify}>확인</button>
     </div>}
-    {duplicate ? <ExistingAccountNotice onRetry={() => { setExistingAccount(null); setChallenge(null); setCode(""); }} />
+    {duplicate ? <ExistingAccountNotice accounts={existingAccount.accounts} onRetry={() => { setExistingAccount(null); setChallenge(null); setCode(""); }} />
       : <p className={`public-auth-inline-message public-auth-inline-message--${error ? "error" : verified ? "success" : "info"}`} role={error ? "alert" : "status"}>{error || (verified ? "휴대폰 인증 완료" : "휴대폰 인증을 마친 뒤 이메일 인증을 진행해 주세요.")}</p>}
   </div>;
 }

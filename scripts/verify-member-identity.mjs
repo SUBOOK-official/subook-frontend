@@ -19,10 +19,11 @@ function sessionFor(provider='phone') {
   const payload={sub:id,aud:'authenticated',role:'authenticated',exp:Math.floor(Date.now()/1000)+3600};
   return {access_token:`${Buffer.from('{"alg":"HS256"}').toString('base64url')}.${Buffer.from(JSON.stringify(payload)).toString('base64url')}.fixture`,refresh_token:'fixture-only',token_type:'bearer',expires_in:3600,expires_at:payload.exp,user};
 }
-async function setup({signedIn=false,verified=false,provider='phone',merge=false,emailVerified=true,duplicate=false,proofChecked=false}={}) {
+async function setup({signedIn=false,verified=false,provider='phone',merge=false,emailVerified=true,duplicate=false,proofChecked=false,
+  accounts=[{email_hint:'su***@naver.com',providers:['kakao']}],signOutFail=false}={}) {
   const context=await browser.newContext({viewport:{width:1440,height:1050}});
   const page=await context.newPage(); const errors=[]; page.on('pageerror',e=>errors.push(e.message));
-  const state={signedIn,verified,provider,terms:provider!=='phone',otpRequests:0,bindRequests:0,proofChecked,mergeRequests:0};
+  const state={signedIn,verified,provider,terms:provider!=='phone',otpRequests:0,bindRequests:0,proofChecked,mergeRequests:0,oauth:null};
   if(signedIn) await context.addInitScript(({key,session,mergeRequest})=>{
     sessionStorage.setItem(key,JSON.stringify(session));
     if(mergeRequest) sessionStorage.setItem('subook.member.merge',JSON.stringify(mergeRequest));
@@ -44,8 +45,10 @@ async function setup({signedIn=false,verified=false,provider='phone',merge=false
     }
     if(url.pathname.endsWith('/user'))return json(sessionFor(provider).user);
     const name=url.pathname.split('/').pop();
+    if(name==='authorize'){state.oauth={provider:url.searchParams.get('provider'),prompt:url.searchParams.get('prompt'),redirect:url.searchParams.get('redirect_to')};return route.fulfill({status:200,contentType:'text/html',body:'<h1>OAuth fixture</h1>'});}
+    if(name==='logout')return signOutFail?json({msg:'fixture unavailable'},400):route.fulfill({status:204,body:''});
     if(name==='get_member_identity_policy')return json({enabled:true,phone_signup_enabled:false,email_required:true,merge_enabled:true});
-    if(name==='get_my_member_identity')return json({enabled:true,status:state.verified?'verified':duplicate&&state.proofChecked?'existing_account':'unverified',phone:state.verified?'01012345678':null,can_merge:!state.verified&&state.proofChecked&&!duplicate});
+    if(name==='get_my_member_identity')return json({enabled:true,status:state.verified?'verified':duplicate&&state.proofChecked?'existing_account':'unverified',phone:state.verified?'01012345678':null,can_merge:!state.verified&&state.proofChecked&&!duplicate,existing_accounts:duplicate&&state.proofChecked?accounts:[]});
     if(name==='get_current_auth_account_role')return json([{account_role:'member',user_id:id,email:provider==='phone'?`${id}@oauth.subook.local`:'member@example.invalid',name:provider==='phone'?id:'회원',phone:'',email_verified_at:provider==='phone'||!emailVerified?null:now,terms_agreed_at:state.terms?now:null,privacy_agreed_at:state.terms?now:null}]);
     if(name==='verify_phone_otp'){if(body.p_code!=='123456')return json({success:false,error:'인증번호가 일치하지 않습니다.'});state.proofChecked=true;return json({success:true,status:duplicate?'existing_account':'merge_required',phone:duplicate?undefined:'01012345678'});}
     if(name==='start_member_account_merge')state.mergeRequests++;
@@ -85,9 +88,15 @@ try {
   await protectedAccount.page.getByRole('heading',{name:'기존 계정으로 이어서',exact:true}).waitFor();
   assert.equal(protectedAccount.state.mergeRequests,0);
   assert.equal(protectedAccount.state.bindRequests,0);
+  await protectedAccount.page.getByText('su***@naver.com',{exact:true}).waitFor();
+  assert.equal(await protectedAccount.page.getByRole('button',{name:'Google로 로그인',exact:true}).count(),0);
+  await protectedAccount.page.screenshot({path:`${output}/phone-account-hints-desktop.png`,fullPage:true});
   await protectedAccount.page.setViewportSize({width:390,height:844});
   await protectedAccount.page.screenshot({path:`${output}/phone-conflict-recovery-mobile.png`,fullPage:true});
   assert.equal(await protectedAccount.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  await protectedAccount.page.getByRole('button',{name:'카카오로 로그인',exact:true}).click();
+  await protectedAccount.page.getByRole('heading',{name:'OAuth fixture'}).waitFor();
+  assert.equal(protectedAccount.state.oauth.provider,'kakao');assert.equal(protectedAccount.state.oauth.prompt,'login');
   assert.deepEqual(protectedAccount.errors,[]); await protectedAccount.context.close();
   for(const proofChecked of [true,false]){
     const stale=await setup({signedIn:true,provider:'google',duplicate:true,proofChecked});
@@ -98,6 +107,41 @@ try {
     assert.equal(await stale.page.getByText('통합할 수 없는 계정입니다.').count(),0);
     assert.deepEqual(stale.errors,[]);await stale.context.close();
   }
+  for(const provider of ['email','google','reset']){
+    const hint=await setup({signedIn:true,provider:'google',duplicate:true,proofChecked:true,accounts:[{email_hint:'st***@gmail.com',providers:[provider==='reset'?'email':provider]}]});
+    await hint.page.goto(origin+'/auth/verify-phone?next=%2Fevent%2Finvite');
+    await hint.page.getByText('st***@gmail.com',{exact:true}).waitFor();
+    await hint.page.getByRole('button',{name:provider==='reset'?'비밀번호가 기억나지 않나요?':provider==='google'?'Google로 로그인':'이메일로 로그인',exact:true}).click();
+    if(provider==='google'){
+      await hint.page.getByRole('heading',{name:'OAuth fixture'}).waitFor();
+      assert.equal(hint.state.oauth.prompt,'select_account');
+      assert.equal(new URL(hint.state.oauth.redirect).searchParams.get('next'),'/event/invite');
+    }else{
+      await hint.page.waitForURL(origin+(provider==='reset'?'/forgot-password':'/login'));
+      if(provider==='email'){
+        await hint.page.getByText('st***@gmail.com에 해당하는 전체 이메일 주소로 로그인해 주세요.',{exact:true}).waitFor();
+        assert.equal(await hint.page.getByLabel('이메일',{exact:true}).inputValue(),'');
+      }
+    }
+    assert.deepEqual(hint.errors,[]);await hint.context.close();
+  }
+  const multiple=await setup({signedIn:true,provider:'google',duplicate:true,proofChecked:true,accounts:[
+    {email_hint:'su***@naver.com',providers:['kakao']},{email_hint:'st***@gmail.com',providers:['email','google']}]});
+  await multiple.page.goto(origin+'/auth/verify-phone');
+  await multiple.page.getByRole('heading',{name:'이 번호로 확인된 계정',exact:true}).waitFor();
+  assert.equal(await multiple.page.getByRole('article').count(),2);
+  await multiple.page.setViewportSize({width:320,height:740});
+  await multiple.page.screenshot({path:`${output}/phone-account-hints-multiple-320.png`,fullPage:true});
+  assert.equal(await multiple.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  await multiple.context.close();
+  const unavailable=await setup({signedIn:true,provider:'google',duplicate:true,proofChecked:true,accounts:[]});
+  await unavailable.page.goto(origin+'/auth/verify-phone');
+  await unavailable.page.getByRole('link',{name:'고객센터에 계정 찾기 문의',exact:true}).waitFor();
+  assert.equal(await unavailable.page.getByRole('button',{name:/로 로그인/}).count(),0);await unavailable.context.close();
+  const logoutFailure=await setup({signedIn:true,provider:'google',duplicate:true,proofChecked:true,signOutFail:true});
+  await logoutFailure.page.goto(origin+'/auth/verify-phone');await logoutFailure.page.getByRole('button',{name:'카카오로 로그인',exact:true}).click();
+  await logoutFailure.page.getByRole('alert').filter({hasText:'로그아웃하지 못했습니다'}).waitFor();
+  assert.equal(logoutFailure.state.oauth,null);await logoutFailure.context.close();
   const migrated=await setup({signedIn:true,verified:true,provider:'email',emailVerified:true});
   await migrated.page.goto(origin+'/auth/merge');
   await migrated.page.locator('.public-mypage-breadcrumb__title').waitFor();

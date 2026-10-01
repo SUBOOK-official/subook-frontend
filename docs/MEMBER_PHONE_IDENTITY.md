@@ -1,5 +1,17 @@
 # 휴대폰 인증과 대표 계정 선택
 
+## 번호 중복 시 계정 찾기 안내 (2026-10-01)
+
+사용자가 어느 계정으로 로그인해야 할지 모르겠다는 피드백을 주었다. 번호 인증 후 현재 로그인한 계정과 기존 계정의 **마스킹 이메일·실제 연결된 로그인 수단**을 구분해 표시한다. 근거 없이 이메일/카카오/Google을 모두 나열하지 않는다. 이메일 계정은 로그인·비밀번호 찾기, 소셜 계정은 해당 OAuth 시작으로 연결한다. 계정 정보가 없거나 기억나지 않으면 고객센터 문의와 다른 번호 인증을 제공한다.
+
+- Google 계정 찾기 화면을 실제 브라우저에서 확인해 식별 정보와 다음 행동을 가까이 배치했다: https://accounts.google.com/signin/usernamerecovery
+- 계정에 연결된 `auth.identities`를 기준으로 로그인 수단을 안내한다. 한 계정에 복수 identity가 있을 수 있으므로 최초 `raw_app_meta_data.provider` 하나로 판단하지 않는다: https://supabase.com/docs/guides/auth/identities
+- 소셜 URL을 준비한 뒤 현재 세션 종료 성공을 확인하고 이동한다. 이메일 로그인으로 이동할 때는 마스킹 이메일을 입력란에 넣지 않고 안내에 남긴다. 자동 로그인 리다이렉트가 사용자가 선택한 경로/안내를 덮어쓰지 않게 한다.
+- Google은 `prompt=select_account`, Kakao는 `prompt=login`으로 다른 계정을 선택/인증할 수 있도록 요청한다. Kakao `login`은 카카오톡 인앱 브라우저에서 지원하지 않는 제한이 있다. 공식 근거: https://developers.google.com/identity/openid-connect/openid-connect#authenticationuriparameters / https://developers.kakao.com/docs/ko/kakaologin/rest-api#request-code / https://supabase.com/docs/reference/javascript/auth-signinwithoauth
+- 검증: PC/390/320px·단일/복수 계정·누락 정보·카카오/Google 시작 파라미터·이메일 안내 보존·비밀번호 찾기·로그아웃 실패. OAuth 제공자의 실제 로그인 완료는 모의 응답으로 대체한다.
+
+## 인증 정책과 이전 전환 기록
+
 2026-10-01 오류 수정: 번호 중복 여부만으로 통합 화면에 보내던 분기를 실제 통합 자격과 일치시켰다. 관리자 권한을 함께 가진 기존 회원 등 통합할 수 없는 계정은 기존 계정 로그인 안내를 받는다. `/auth/merge`의 저장된 요청이 없으면 서버 상태를 다시 확인해 중복 안내/재인증/마이페이지로 복구한다. 정상적인 기존 계정의 재로그인 증명과 대표 선택 통합은 유지한다. `scripts/verify-member-identity.mjs`에 Google 번호 중복·오류 화면 재진입·인증 만료·인증 완료 재진입 회귀 시나리오를 포함한다.
 
 2026-10-01 사용자 정정: **이메일 필수, 기존 이메일/비밀번호·카카오/구글 가입 흐름 유지.** 전화번호 단독 가입은 의도하지 않은 구현이므로 폐지한다. 가입에 번호 인증을 추가하며 1번호 1계정·기존 회원 강제 인증·회원 선택 통합은 유지한다. 운영 검증·복구 절차는 Backend `docs/PHONE_IDENTITY_ROLLOUT.md`를 따른다.

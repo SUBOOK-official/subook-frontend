@@ -9,6 +9,7 @@ const origin=process.env.QA_ORIGIN||'http://127.0.0.1:4173';
 const output='.codex/phone-rollout';mkdirSync(output,{recursive:true});
 const browser=await chromium.launch({headless:true,channel:'chrome'});
 const id='00000000-0000-0000-0000-000000000911',now=new Date().toISOString();
+const existingAccounts=[{email_hint:'ol***@example.invalid',providers:['email']}];
 function session(provider='email'){
  const payload={sub:id,aud:'authenticated',role:'authenticated',exp:Math.floor(Date.now()/1000)+3600};
  const user={id,aud:'authenticated',role:'authenticated',email:provider==='phone'?'':'member@example.invalid',email_confirmed_at:provider==='phone'?null:now,phone:'821012345678',phone_confirmed_at:now,created_at:now,app_metadata:{provider,providers:[provider]},user_metadata:{},identities:provider==='kakao'?[{provider:'kakao',identity_data:{sub:'kakao-fixture'}}]:[]};
@@ -24,7 +25,7 @@ async function setup({provider='email',signedIn=false,duplicatePhone=false,dupli
   // 운영 번들의 분석/오류 수집 payload는 JSON이 아닐 수 있다. 외부 계측은 파싱 전에 차단한다.
   if(u.origin!==origin&&!u.hostname.endsWith('.supabase.co'))return route.fulfill({status:204,body:''});
   const body=u.pathname.startsWith('/api/auth/')||u.hostname.endsWith('.supabase.co')?route.request().postDataJSON()||{}:{};
-  if(u.pathname==='/api/auth/signup-phone')return json(body.action==='send'?{success:true,id:'00000000-0000-0000-0000-000000000912',secret:'a'.repeat(64)}:body.code==='123456'?{success:true,status:duplicatePhone?'existing_account':'verified'}:{error:'인증번호가 일치하지 않습니다.'},body.action==='verify'&&body.code!=='123456'?400:200);
+  if(u.pathname==='/api/auth/signup-phone')return json(body.action==='send'?{success:true,id:'00000000-0000-0000-0000-000000000912',secret:'a'.repeat(64)}:body.code==='123456'?{success:true,status:duplicatePhone?'existing_account':'verified',existing_accounts:duplicatePhone?existingAccounts:[]}:{error:'인증번호가 일치하지 않습니다.'},body.action==='verify'&&body.code!=='123456'?400:200);
   if(u.pathname==='/api/auth/send-phone-otp'){state.phoneOtp++;return json({success:true});}
   if(u.pathname==='/api/auth/kakao-phone'){
    state.status=kakaoMissingPhone?'unverified':duplicatePhone?'existing_account':'verified';state.verified=state.status==='verified';return json({success:true,status:kakaoMissingPhone?'sms_required':state.status});
@@ -37,7 +38,7 @@ async function setup({provider='email',signedIn=false,duplicatePhone=false,dupli
   if(u.pathname.endsWith('/user'))return json(session(provider).user);
   const name=u.pathname.split('/').pop();
   if(name==='get_member_identity_policy')return json({enabled:true,email_required:true,phone_signup_enabled:false,legacy_phone_login_enabled:true,merge_enabled:true});
-  if(name==='get_my_member_identity')return json({enabled:true,status:state.status||(state.verified?'verified':'unverified'),phone:state.verified?'01012345678':null,can_merge:false,is_legacy_account:false});
+  if(name==='get_my_member_identity')return json({enabled:true,status:state.status||(state.verified?'verified':'unverified'),phone:state.verified?'01012345678':null,can_merge:false,is_legacy_account:false,existing_accounts:state.status==='existing_account'?existingAccounts:[]});
   if(name==='get_current_auth_account_role')return json(preMember&&!state.verified?[{account_role:'guest'}]:[{account_role:'member',user_id:id,email:session(provider).user.email,name:'회원',phone:'01012345678',email_verified_at:provider==='phone'?null:now,terms_agreed_at:state.terms?now:null,privacy_agreed_at:state.terms?now:null}]);
   if(name==='verify_phone_otp'){state.status=duplicatePhone?'existing_account':'verified';state.verified=!duplicatePhone;return json({success:true,status:state.status});}
   if(name==='check_member_email_availability')return json(duplicateEmail?{is_available:false,account_role:'member'}:{is_available:true});
@@ -78,15 +79,15 @@ try{
  const duplicate=await setup({duplicatePhone:true});await duplicate.page.goto(origin+'/signup');
  await duplicate.page.locator('#public-signup-email').fill('member@example.invalid');await duplicate.page.locator('#public-signup-phone').fill('01012345678');
  await duplicate.page.getByRole('button',{name:'인증번호 받기',exact:true}).click();await duplicate.page.getByLabel('휴대폰 인증번호',{exact:true}).fill('123456');await duplicate.page.getByRole('button',{name:'확인',exact:true}).click();
- await duplicate.page.getByRole('heading',{name:'이미 가입한 계정이 있어요'}).waitFor();assert.equal(duplicate.state.emailOtp,0);await duplicate.page.getByRole('link',{name:'기존 계정으로 로그인',exact:true}).click();await duplicate.page.waitForURL(/\/login/);assert.deepEqual(duplicate.errors,[]);await duplicate.context.close();
+ await duplicate.page.getByText('ol***@example.invalid',{exact:true}).waitFor();assert.equal(duplicate.state.emailOtp,0);await duplicate.page.getByRole('button',{name:'이메일로 로그인',exact:true}).click();await duplicate.page.waitForURL(/\/login/);assert.deepEqual(duplicate.errors,[]);await duplicate.context.close();
  const google=await setup({provider:'google',signedIn:true,preMember:true,duplicatePhone:true});await google.page.goto(origin+'/mypage');await google.page.waitForURL(/verify-phone/);
  await google.page.getByLabel('휴대폰 번호',{exact:true}).fill('01012345678');await google.page.getByRole('button',{name:'인증번호 받기',exact:true}).click();await google.page.getByLabel('인증번호 6자리').fill('123456');await google.page.getByRole('button',{name:'인증하고 계속하기'}).click();
- await google.page.getByRole('heading',{name:'이미 가입한 계정이 있어요'}).waitFor();assert.equal(google.state.phoneOtp,1);assert.equal(google.page.url().includes('/merge'),false);
+ await google.page.getByText('ol***@example.invalid',{exact:true}).waitFor();assert.equal(google.state.phoneOtp,1);assert.equal(google.page.url().includes('/merge'),false);
  await google.page.screenshot({path:output+'/existing-account-desktop.png',fullPage:true});await google.page.setViewportSize({width:390,height:844});await google.page.screenshot({path:output+'/existing-account-mobile.png',fullPage:true});assert.equal(await google.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
- await google.page.getByRole('button',{name:'기존 계정으로 로그인',exact:true}).click();await google.page.waitForURL(/\/login/);assert.deepEqual(google.errors,[]);await google.context.close();
+ await google.page.getByRole('button',{name:'이메일로 로그인',exact:true}).click();await google.page.waitForURL(/\/login/);assert.deepEqual(google.errors,[]);await google.context.close();
  for(const [duplicatePhone,kakaoMissingPhone] of [[false,false],[true,false],[false,true]]){
   const kakao=await setup({provider:'kakao',signedIn:true,preMember:true,duplicatePhone,kakaoMissingPhone});await kakao.page.goto(origin+'/auth/callback');
-  if(duplicatePhone)await kakao.page.getByRole('heading',{name:'이미 가입한 계정이 있어요'}).waitFor();
+  if(duplicatePhone)await kakao.page.getByRole('heading',{name:'이 번호에 연결된 계정'}).waitFor();
   else if(kakaoMissingPhone)await kakao.page.getByLabel('휴대폰 번호',{exact:true}).waitFor();
   else await kakao.page.waitForURL(/oauth-consent/);
   assert.equal(kakao.state.phoneOtp,0);assert.deepEqual(kakao.errors,[]);await kakao.context.close();

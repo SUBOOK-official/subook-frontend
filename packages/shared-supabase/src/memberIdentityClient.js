@@ -56,3 +56,18 @@ export async function bindMemberPhone(action = "bind", request = {}) {
   if (!response.ok || !result.success) throw new Error(result.error || "계정 연결을 완료하지 못했습니다.");
   return result;
 }
+
+// 먼저 URL을 준비하고 현재 세션 종료가 성공한 뒤에만 외부 로그인으로 이동한다.
+export async function prepareExistingAccountOAuth(provider, next) {
+  if (!supabase || !["kakao", "google"].includes(provider)) throw new Error("로그인 방법을 확인해 주세요.");
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider,
+    options: {
+      redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(safeMemberNext(next))}`,
+      skipBrowserRedirect: true,
+      queryParams: { prompt: provider === "google" ? "select_account" : "login" },
+    },
+  });
+  if (error || !data?.url) throw new Error("로그인을 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+  return data.url;
+}
