@@ -4,11 +4,14 @@
 
 정정 배포 완료: Frontend `1e827cb`, Backend `54cf3a0`, production `dpl_J3Hxbf9ctyyehfVTcMVA2tYdx9uU` — READY. 운영 `/signup`에서 이메일/비밀번호·카카오/Google·번호 인증 필드를 확인했고, 실제 Auth API가 번호 증명 없는 이메일 가입 및 이메일 없는 번호 가입을 계정 생성 전에 거부함을 확인했다. 이 검증으로 문자·이메일 발송이나 테스트 계정 생성은 발생하지 않았다.
 
+후속 확정: 신규 이메일/구글/카카오 가입에서 인증 번호가 기존 계정과 겹치면 `existing_account`로 안내하고 기존 계정 로그인으로 이동한다. 신규 중복 가입을 계정 통합으로 보내지 않는다. 이메일 중복도 기존 로그인 안내를 유지한다. `ExistingAccountNotice`는 [Notion 로그인](https://www.notion.com/login)을 브라우저에서 시각 확인하고 제목·인증 완료 표식·주 행동 버튼 위계를 참고했으며 수북 공통 색상 토큰과 기존 책 이미지를 사용한다.
+
 - `/signup`: 기존 이메일/비밀번호·소셜 가입 화면. 이메일 입력 → 가입 전 SMS 확인 → 기존 이메일 OTP → 이름/비밀번호/약관 → 완료. SMS 증명 없이 Auth 계정을 만들 수 없도록 Before User Created hook으로 검증한다.
 - 카카오/구글은 OAuth 인증 레코드와 회원 등록을 분리한다. 이메일이 필수이며 회원 프로필은 번호 확인 후 생성한다. 카카오는 서버가 provider token으로 UserInfo를 조회하고 JWT identity와 sub 일치 및 `phone_number_verified=true`를 확인하면 SMS를 생략한다. 번호 미제공·조회 실패는 SMS로 진행한다. 클라이언트 metadata의 번호는 인증 근거가 아니다.
 - `/auth/phone`: 이미 생긴 전화번호 단독 계정의 복구 로그인만 허용(`shouldCreateUser=false`). `/auth/required-email`에서 이메일 확인·비밀번호 등록 전 이용을 막는다. 기존 계정/자산은 삭제하지 않는다.
 - `/auth/verify-phone`: 기존 회원 번호 인증. 마이페이지의 계정 통합 진입점에서도 사용.
 - `/auth/merge`: 로그인 소유 확인, 대표 선택, 명시적 통합 동의.
+- 통합은 최초 전화번호 정책 전환 전부터 존재한 계정 정리에만 허용한다. 신규 중복 가입은 UI 및 DB RPC 모두 통합 진입을 거부하며 회원 프로필/쿠폰도 만들지 않는다.
 - `/auth/oauth-consent`: 소셜 회원 이름·약관 동의, 이메일 가입 미완료 사용자의 비밀번호 설정 유지.
 - `/api/auth/signup-phone`: Auth 생성 전 SMS 발송/검증. 이메일·번호에 묶인 1회 증명, 5회 오입력 제한, 번호/IP 해시별 발송 제한.
 - `/api/auth/kakao-phone`: 카카오 서버 검증 번호만 서비스 전용 RPC로 연결. 공급자 토큰이나 인증번호는 로그에 기록하지 않는다.
