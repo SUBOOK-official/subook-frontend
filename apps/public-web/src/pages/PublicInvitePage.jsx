@@ -58,8 +58,38 @@ export default function PublicInvitePage() {
     return () => { cancelled = true; };
   }, [authLoading, isAuthenticated, user?.id, code, reload]);
 
+  // 친구가 다른 기기에서 가입한 경우에도 완료 내역을 갱신한다. 발급 재시도는 하지 않는다.
+  useEffect(() => {
+    if (!isAuthenticated || loading || error || summary?.can_invite !== true) return undefined;
+    let cancelled = false;
+    let refreshing = false;
+    const refresh = async () => {
+      if (document.visibilityState !== "visible" || refreshing) return;
+      refreshing = true;
+      try {
+        const nextSummary = await getMySignupReferral(supabase);
+        if (!cancelled) setSummary(nextSummary);
+      } catch { /* 일시적 갱신 실패 시 현재 표시를 유지하고 다음에 다시 확인한다. */ }
+      finally { refreshing = false; }
+    };
+    const timer = window.setInterval(refresh, 30000);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [isAuthenticated, user?.id, loading, error, summary?.can_invite]);
+
   const inviteUrl = summary?.code ? `${window.location.origin}${referralReturnPath(summary.code)}` : "";
   const received = summary?.received_reward;
+  const sentReward = summary?.sent_reward;
+  const inviteCompleted = summary?.can_invite === false;
+  const rewardedDate = sentReward?.rewarded_at ? new Date(sentReward.rewarded_at) : null;
+  const rewardedDateLabel = rewardedDate && !Number.isNaN(rewardedDate.getTime())
+    ? rewardedDate.toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul", year: "numeric", month: "long", day: "numeric" }) : "";
   const invalidCode = rawCode !== null && (!code || (offer && !offer.code_valid));
   const canJoin = !loading && !error && offer?.active && code && !invalidCode;
   const rewardLabel = REFERRAL_REWARD_AMOUNT.toLocaleString();
@@ -81,10 +111,9 @@ export default function PublicInvitePage() {
     <PublicPageFrame>
       <PublicSiteHeader />
       <div className="invite-page">
-        <section className="invite-hero" aria-labelledby="invite-title">
+        <section className={`invite-hero${inviteCompleted ? " invite-hero--completed" : ""}`} aria-labelledby="invite-title">
           <ContentContainer className="invite-hero-grid">
             <div className="invite-intro">
-              <p className="invite-eyebrow"><TicketIcon size={18} /> 수북 친구 초대</p>
               <h1 id="invite-title">나도 친구도<br /><strong>{rewardLabel}<span>원 쿠폰</span></strong></h1>
               <p className="invite-description">친구가 초대 링크로 가입하면<br />두 사람의 쿠폰함에 동시에, 바로.</p>
             </div>
@@ -98,8 +127,17 @@ export default function PublicInvitePage() {
               {!loading && !error && invalidCode ? <p className="invite-status" role="alert">{offer?.code_expired ? <>이미 초대가 완료되어 만료된 링크입니다.<br />이 링크로는 쿠폰을 받을 수 없습니다.</> : <>사용할 수 없는 초대 링크입니다.<br />친구에게 링크를 다시 받아 주세요.</>}</p> : null}
               {!loading && !error && isAuthenticated && summary ? (
                 <div className="invite-actions">
-                  {received ? <p className="invite-success" role="status"><CheckCircleIcon size={20} /><span>나와 친구에게 {rewardLabel}원 쿠폰이 지급되었습니다.</span></p> : code ? <p className="invite-member-note">초대 가입 혜택은 신규 회원에게 지급됩니다.<br />내 링크로 친구를 초대해 보세요.</p> : null}
-                  {summary.can_invite === false ? <p className="invite-success" role="status"><CheckCircleIcon size={20} /><span>친구 초대 혜택을 받았습니다.<br />1회 참여가 완료되어 내 초대 링크가 만료되었습니다.</span></p> : null}
+                  {inviteCompleted ? (
+                    <section className="invite-receipt" aria-label="친구 초대 지급 내역" role="status">
+                      <span className="invite-receipt-badge"><CheckCircleIcon size={16} /> 지급 완료</span>
+                      <h2>나의 초대로<br /><strong>{sentReward?.friend_name ? `${sentReward.friend_name}님이` : "친구가"}</strong> 가입했어요!</h2>
+                      <p>나와 친구의 쿠폰함에 한 장씩 넣어드렸어요.</p>
+                      <div className="invite-receipt-reward"><TicketIcon size={22} /><strong>{rewardLabel}<span>원 쿠폰</span></strong></div>
+                      {rewardedDateLabel ? <p className="invite-receipt-date">{rewardedDateLabel} 지급</p> : null}
+                      <Link className="invite-receipt-link" to="/mypage#coupons">내 쿠폰 확인하기 <ArrowRightIcon size={18} /></Link>
+                      <p className="invite-receipt-note">초대가 완료되어 이 링크는 만료되었어요.</p>
+                    </section>
+                  ) : received ? <p className="invite-success" role="status"><CheckCircleIcon size={20} /><span>초대받아 가입한 {rewardLabel}원 쿠폰이 지급되었어요. <Link to="/mypage#coupons">내 쿠폰 확인</Link></span></p> : code ? <p className="invite-member-note">초대 가입 혜택은 신규 회원에게 지급됩니다.<br />내 링크로 친구를 초대해 보세요.</p> : null}
                   {offer?.active && inviteUrl && summary.can_invite !== false ? <>
                     <button className="invite-primary" type="button" onClick={share}>친구에게 초대 링크 보내기 <ArrowRightIcon size={20} /></button>
                     <label className="invite-link-label" htmlFor="invite-link">내 초대 링크</label>
@@ -122,13 +160,6 @@ export default function PublicInvitePage() {
           </ContentContainer>
         </section>
         <ContentContainer className="invite-details">
-          {!loading && !error && isAuthenticated && summary ? (
-            <section className="invite-dashboard" aria-label="나의 초대 현황">
-              <div className="invite-dashboard-heading"><TicketIcon size={24} /><h2>함께 쌓은 혜택</h2></div>
-              <dl><div><dt>초대 가입 완료</dt><dd>{summary.reward_count}<span>명</span></dd></div><div><dt>받은 초대 쿠폰</dt><dd>{summary.reward_count}<span>장</span></dd></div></dl>
-              <Link to="/mypage#coupons">내 쿠폰함 <ChevronRightIcon size={18} /></Link>
-            </section>
-          ) : null}
           <section className="invite-how" aria-labelledby="invite-how-title">
             <div className="invite-section-heading"><p>함께 받는 방법</p><h2 id="invite-how-title">링크 하나로 시작하는<br className="invite-mobile-break" /> 우리 둘의 혜택</h2></div>
             <ol className="invite-steps">
