@@ -36,6 +36,13 @@ export default function PublicAccountMergePage() {
           result = await memberIdentityRpc("prove_member_account_merge", { p_id: saved.id, p_secret: saved.secret });
           if (!cancelled) setRequest(saved);
         } else {
+          // 오래된 링크/오류 화면에서도 서버의 최신 번호 상태를 다시 확인한다.
+          const identity = await memberIdentityRpc("get_my_member_identity");
+          if (cancelled) return;
+          if (!identity.can_merge || identity.status === "verified" || identity.status === "merged") {
+            navigate(identity.status === "verified" ? "/mypage" : "/auth/verify-phone", { replace: true });
+            return;
+          }
           result = await memberIdentityRpc("start_member_account_merge");
           const created = { id: result.id, secret: result.secret };
           if (!cancelled) { saveMergeRequest(created); setRequest(created); }
@@ -46,7 +53,7 @@ export default function PublicAccountMergePage() {
     };
     void load();
     return () => { cancelled = true; };
-  }, [hasSession, user?.id]);
+  }, [hasSession, user?.id, navigate]);
 
   const switchAccount = async (account, asTarget = false) => {
     setBusy(true); setError("");
