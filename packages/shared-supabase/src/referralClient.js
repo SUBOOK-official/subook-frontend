@@ -14,7 +14,7 @@ async function referralRpc(client, name, args = {}) {
       if (/^(P0001|42501|23|PGRST20)/.test(error.code ?? "")) break;
     } finally { clearTimeout(timer); }
   }
-  throw new Error(lastError?.code === "P0001" ? lastError.message : "초대 정보를 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+  throw Object.assign(new Error(lastError?.code === "P0001" ? lastError.message : "초대 정보를 확인하지 못했습니다. 잠시 후 다시 시도해 주세요."), { code: lastError?.code });
 }
 
 export const getSignupReferralOffer = (client, code = "") => referralRpc(client, "get_signup_referral_offer", { p_code: code || null });

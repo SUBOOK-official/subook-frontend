@@ -124,25 +124,32 @@ export async function getPublicAccountAccessState(user) {
     };
   }
 
-  const { data, error } = await supabase.rpc("get_current_auth_account_role");
+  const [{ data, error }, identityResult] = await Promise.all([
+    supabase.rpc("get_current_auth_account_role"), supabase.rpc("get_my_member_identity"),
+  ]);
+  // 이전 DB 버전만 호환. 네트워크 오류는 인증 완료로 간주하지 않는다.
+  const identity = identityResult.error?.code === "PGRST202" ? { enabled: false, status: "legacy" }
+    : identityResult.error || !identityResult.data ? { enabled: true, status: "error" } : identityResult.data;
 
   if (error) {
     if (!isMissingRpcError(error, "get_current_auth_account_role")) {
       return {
         ...(await getLegacyAccessState(user)),
+        identity,
         error,
       };
     }
 
-    return getLegacyAccessState(user);
+    return { ...(await getLegacyAccessState(user)), identity };
   }
 
   const row = Array.isArray(data) ? data[0] : data;
-  const accountRole = normalizeAccountRole(row?.account_role);
+  const accountRole = identity?.status === "merged" ? "member" : normalizeAccountRole(row?.account_role);
 
   return {
     accountRole,
     profile: accountRole === "member" ? buildProfileFromAccessRow(row) ?? buildFallbackProfile(user) : null,
+    identity,
     error: null,
   };
 }

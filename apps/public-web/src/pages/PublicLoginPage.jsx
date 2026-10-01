@@ -38,7 +38,7 @@ function PublicLoginPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const passwordInputRef = useRef(null);
-  const { hasSession, isAdminAccount, isAuthenticated, signOut } =
+  const { hasSession, isAdminAccount, isAuthenticated, signOut, identityPolicy } =
     usePublicAuth();
   // from은 두 형태 모두 받는다:
   // - object: { pathname, search?, hash? } (publicMemberGate 등 권장 형식)
@@ -57,7 +57,7 @@ function PublicLoginPage() {
     }
   }, [isAuthenticated, navigate, nextPath]);
 
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(location.state?.email || "");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(() =>
     getPublicAuthSessionPersistence(),
@@ -343,7 +343,7 @@ function PublicLoginPage() {
       return;
     }
 
-    if (!accessState.profile?.email_verified_at) {
+    if (!accessState.profile?.email_verified_at && !accessState.identity?.enabled) {
       // GA4 login_failure — 프로필의 이메일 인증이 비어 있어 가입 마무리로 되돌리는 케이스
       trackLoginFailure("email_unverified_profile", {
         method: "email",
@@ -379,6 +379,7 @@ function PublicLoginPage() {
           </div>
 
           <div className="public-auth-card__body">
+            {identityPolicy?.phone_signup_enabled && <Link className="public-auth-submit-button" to={`/auth/phone?next=${encodeURIComponent(nextPath)}`} style={{ display: "flex", justifyContent: "center", marginBottom: 24 }}>휴대폰 번호로 계속하기</Link>}
             <div className="public-auth-card__heading">
               <h1 className="public-auth-card__title" id="public-login-heading">
                 로그인

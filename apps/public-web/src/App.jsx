@@ -35,6 +35,8 @@ const PublicPolicyPage = lazy(() => import("./pages/PublicPolicyPage"));
 const PublicProductDetailPage = lazy(() => import("./pages/PublicProductDetailPage"));
 const PublicResetPasswordPage = lazy(() => import("./pages/PublicResetPasswordPage"));
 const PublicSignupPage = lazy(() => import("./pages/PublicSignupPage"));
+const PublicPhoneAuthPage = lazy(() => import("./pages/PublicPhoneAuthPage"));
+const PublicAccountMergePage = lazy(() => import("./pages/PublicAccountMergePage"));
 const PublicSignupSuccessPage = lazy(() => import("./pages/PublicSignupSuccessPage"));
 const PublicSubjectPage = lazy(() => import("./pages/PublicSubjectPage"));
 const PublicCollectionPage = lazy(() => import("./pages/PublicCollectionPage"));
@@ -72,20 +74,24 @@ function RedirectStoreToHome() {
 function SignupCompletionGate() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { isLoading, needsSignupCompletion } = usePublicAuth();
+  const { isLoading, needsSignupCompletion, needsPhoneVerification } = usePublicAuth();
 
   useEffect(() => {
-    if (isLoading || !needsSignupCompletion) return;
+    if (isLoading || !needsSignupCompletion || needsPhoneVerification) return;
     if (
       location.pathname === "/auth/oauth-consent"
       || location.pathname === "/auth/callback"
       || location.pathname === "/signup"
+      || location.pathname === "/auth/phone"
+      || location.pathname === "/auth/verify-phone"
+      || location.pathname === "/auth/merge"
+      || location.pathname === "/login"
     ) return;
     const nextPath = `${location.pathname}${location.search}${location.hash}`;
     // GA4 — 가입 미완료 사용자가 어느 화면에서 강제 이동되는지(가입 마무리 이탈 진단)
     trackEvent("signup_gate_redirect", { fromPath: location.pathname });
     navigate(`/auth/oauth-consent?next=${encodeURIComponent(nextPath)}`, { replace: true });
-  }, [isLoading, needsSignupCompletion, location.pathname, location.search, location.hash, navigate]);
+  }, [isLoading, needsSignupCompletion, needsPhoneVerification, location.pathname, location.search, location.hash, navigate]);
 
   return null;
 }
@@ -113,13 +119,33 @@ function ScrollToTop() {
   return null;
 }
 
+function SignupRoute() {
+  const { identityPolicy } = usePublicAuth();
+  if (!identityPolicy) return <PageLoadingFallback />;
+  if (identityPolicy.error) return <PublicPhoneAuthPage />;
+  return identityPolicy.phone_signup_enabled ? <PublicPhoneAuthPage mode="signup" /> : <PublicSignupPage />;
+}
+
+function MemberPhoneGate({ children }) {
+  const location = useLocation();
+  const { isLoading, needsPhoneVerification } = usePublicAuth();
+  const exempt = ["/auth/verify-phone", "/auth/merge", "/auth/phone", "/auth/callback", "/auth/reset-password", "/login", "/forgot-password"];
+  if (!isLoading && needsPhoneVerification && !exempt.includes(location.pathname)) {
+    return <Navigate replace to={`/auth/verify-phone?next=${encodeURIComponent(location.pathname + location.search)}`} />;
+  }
+  return children;
+}
+
 function App() {
   return (
     <>
       <SignupCompletionGate />
       <ScrollToTop />
       <Suspense fallback={<PageLoadingFallback />}>
-        <Routes>
+        <MemberPhoneGate><Routes>
+          <Route element={<PublicPhoneAuthPage />} path="/auth/phone" />
+          <Route element={<PublicPhoneAuthPage mode="verify" />} path="/auth/verify-phone" />
+          <Route element={<PublicAccountMergePage />} path="/auth/merge" />
           <Route element={<PublicResetPasswordPage />} path="/auth/reset-password" />
           <Route element={<PublicAuthCallbackPage />} path="/auth/callback" />
           <Route element={<PublicOAuthConsentPage />} path="/auth/oauth-consent" />
@@ -150,12 +176,12 @@ function App() {
           <Route element={<PublicCollectionPage type="series" />} path="/store/series/:slug" />
           <Route element={<PublicCollectionPage type="instructor" />} path="/store/instructor/:slug" />
           <Route element={<PublicProductDetailPage />} path="/store/:productId" />
-          <Route element={<PublicSignupPage />} path="/signup" />
+          <Route element={<SignupRoute />} path="/signup" />
           <Route element={<PublicSignupSuccessPage />} path="/signup-success" />
           <Route element={<RedirectStoreToHome />} path="/store" />
           <Route element={<PublicPolicyPage type="terms" />} path="/terms" />
           <Route element={<PublicNotFoundPage />} path="*" />
-        </Routes>
+        </Routes></MemberPhoneGate>
       </Suspense>
       <JeonilMiniPopup />
     </>

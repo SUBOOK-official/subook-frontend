@@ -115,6 +115,8 @@ function PublicOAuthConsentPage() {
     needsSignupCompletion,
     isAuthenticated,
     isOAuthUser,
+    isPhoneUser,
+    identity,
     refreshProfile,
     signOut,
     user,
@@ -122,10 +124,11 @@ function PublicOAuthConsentPage() {
   } = usePublicAuth();
   // OTP(email provider) 가입 미완료자는 비번도 NULL이므로 같은 페이지에서 받는다.
   // OAuth(카카오/구글)는 비번 칸 미노출.
-  const needsPasswordSetup = !isOAuthUser;
+  const needsPasswordSetup = !isOAuthUser && !isPhoneUser;
 
   const search = new URLSearchParams(location.search);
-  const next = search.get("next") || "/";
+  const rawNext = search.get("next") || "/";
+  const next = rawNext.startsWith("/") && !rawNext.startsWith("//") && !rawNext.includes("\\") ? rawNext : "/";
   const [referralCode] = useState(() => getSignupReferralCode(next.split("?")[1] || location.search));
 
   const [agreements, setAgreements] = useState({ terms: false, privacy: false, marketing: false });
@@ -138,8 +141,8 @@ function PublicOAuthConsentPage() {
   const [showPassword, setShowPassword] = useState(false);
 
   // 카카오/구글 메타데이터에서 이름·연락처 prefill (가능한 경우).
-  const initialName = useMemo(() => pickInitialName(user) || profile?.name || "", [user, profile]);
-  const initialPhone = useMemo(() => pickInitialPhone(user) || profile?.phone || "", [user, profile]);
+  const initialName = useMemo(() => pickInitialName(user) || (isPhoneUser && profile?.email?.endsWith("@oauth.subook.local") ? "" : profile?.name) || "", [user, profile, isPhoneUser]);
+  const initialPhone = useMemo(() => identity?.phone || pickInitialPhone(user) || profile?.phone || "", [user, profile, identity?.phone]);
 
   useEffect(() => {
     setFormValues((current) => ({
@@ -305,7 +308,15 @@ function PublicOAuthConsentPage() {
 
     setIsSubmitting(true);
     try {
-      if (referralCode) await attachSignupReferral(supabase, referralCode);
+      let referralNotice = "";
+      if (referralCode) {
+        try { await attachSignupReferral(supabase, referralCode); }
+        catch (referralError) {
+          if (referralError.code !== "P0001") throw referralError;
+          clearSignupReferral();
+          referralNotice = "초대 링크를 사용할 수 없어 초대 쿠폰 없이 가입을 완료했습니다.";
+        }
+      }
       // 이메일 provider 사용자(OTP 가입 미완료자)면 비번부터 설정. 실패 시 RPC 호출 안 함.
       if (needsPasswordSetup) {
         const { error: passwordError } = await supabase.auth.updateUser({
@@ -373,7 +384,7 @@ function PublicOAuthConsentPage() {
         } catch { /* 가입 완료 후 초대 페이지에서 재시도 */ }
       }
       await refreshProfile();
-      navigate(referralCode ? referralReturnPath(referralCode) : next, { replace: true });
+      navigate(referralCode ? referralReturnPath(referralCode) : next, { replace: true, state: { notice: referralNotice } });
     } catch (err) {
       console.error("complete_oauth_signup failed", err);
       // GA4 signup_failure — 예외로 떨어진 케이스
@@ -491,6 +502,7 @@ function PublicOAuthConsentPage() {
                       autoComplete="tel"
                       className="public-auth-field-row__input"
                       id="public-oauth-consent-phone"
+                      readOnly={Boolean(identity?.enabled && identity?.phone)}
                       inputMode="numeric"
                       onChange={handleChangeValue("phone")}
                       placeholder="010-1234-5678"

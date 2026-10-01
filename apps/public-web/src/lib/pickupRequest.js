@@ -181,6 +181,7 @@ async function fetchVerifiedPhone(userId) {
     return { verifiedPhone: "", error };
   }
 
+
   return {
     verifiedPhone: data?.phone_verified_at ? String(data?.verified_phone ?? "") : "",
     error: null,
@@ -250,6 +251,9 @@ async function verifyPhoneOtp(code) {
     return { verifiedPhone: "", error };
   }
 
+  if (!data?.success || data.status === "merge_required") {
+    return { verifiedPhone: "", error: new Error(data?.error || "계정 통합을 먼저 완료해 주세요. /auth/verify-phone에서 진행할 수 있습니다.") };
+  }
   // RPC가 실제 인증된 번호를 돌려준다 — 발송 후 입력 번호를 바꾼 경우 대비.
   return { verifiedPhone: String(data?.phone ?? "").replace(/\D/g, ""), error: null };
 }

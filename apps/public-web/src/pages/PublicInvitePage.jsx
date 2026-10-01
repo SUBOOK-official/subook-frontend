@@ -16,7 +16,7 @@ import "./PublicInvitePage.css";
 
 export default function PublicInvitePage() {
   usePageMeta({ title: "친구 초대 · 함께 4,000원 쿠폰", description: "친구가 초대 링크로 가입하면 나도 친구도 4,000원 쿠폰. 교재 3만원 이상 구매 시 사용할 수 있습니다.", noindex: true });
-  const { search } = useLocation();
+  const { search, state: navigationState } = useLocation();
   const rawCode = new URLSearchParams(search).get("ref");
   const code = normalizeReferralCode(rawCode);
   const { isAuthenticated, isLoading: authLoading, user } = usePublicAuth();
@@ -24,7 +24,7 @@ export default function PublicInvitePage() {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
+  const [notice, setNotice] = useState(navigationState?.notice || "");
   const [reload, setReload] = useState(0);
 
   useEffect(() => {

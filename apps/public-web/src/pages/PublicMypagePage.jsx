@@ -3842,6 +3842,7 @@ function SettingsTab({
   wishlistError,
   wishlistProducts,
 }) {
+  const { identity, identityPolicy, isPhoneUser } = usePublicAuth();
   // 사이드바에서 들어왔을 때 해당 섹션만 노출. section이 비면(null) 기존처럼 전체 노출(레거시 호환).
   const showProfile = !section || section === "profile";
   const showAddresses = !section || section === "addresses";
@@ -3946,7 +3947,7 @@ function SettingsTab({
                   const rawEmail = profileSnapshot?.email || user?.email || "";
                   if (!rawEmail) return "-";
                   if (/@oauth\.subook\.local$/i.test(rawEmail)) {
-                    return "카카오 계정 (이메일 미연동)";
+                    return isPhoneUser ? "휴대폰 계정 (이메일 미연동)" : "카카오 계정 (이메일 미연동)";
                   }
                   return rawEmail;
                 })()}{" "}
@@ -3955,7 +3956,7 @@ function SettingsTab({
             </div>
             <div className="public-mypage-profile-list__item">
               <dt>연락처</dt>
-              <dd>{profileSnapshot?.phone || "-"}</dd>
+              <dd>{identity?.phone || profileSnapshot?.phone || "-"}</dd>
             </div>
             <div className="public-mypage-profile-list__item">
               <dt>닉네임</dt>
@@ -4163,6 +4164,7 @@ function SettingsTab({
           title="계정"
         />
         <div className="public-mypage-account-actions">
+          {!isDemoPreview && identityPolicy?.merge_enabled && <Link className="public-auth-button public-auth-button--secondary" to="/auth/verify-phone?next=%2Fauth%2Fmerge">다른 계정의 이용 내역 통합</Link>}
           <button className="public-auth-button public-auth-button--secondary" disabled={isSigningOut} onClick={handleSignOut} type="button">
             {isDemoPreview ? "데모 종료" : isSigningOut ? "로그아웃 중..." : "로그아웃"}
           </button>
@@ -4193,6 +4195,7 @@ function ProfileEditor({
   profileErrors,
   profileForm,
 }) {
+  const { identity, isPhoneUser } = usePublicAuth();
   return (
     <form className="public-mypage-form" noValidate onSubmit={handleSaveProfile}>
       <div className="public-mypage-form-grid">
@@ -4209,7 +4212,7 @@ function ProfileEditor({
           <span className="public-mypage-static-field__label">이메일</span>
           <span className="public-mypage-static-field__value">
             {/@oauth\.subook\.local$/i.test(profileForm.email || "")
-              ? "카카오 계정 (이메일 미연동)"
+              ? (isPhoneUser ? "휴대폰 계정 (이메일 미연동)" : "카카오 계정 (이메일 미연동)")
               : profileForm.email}{" "}
             <em>(변경불가)</em>
           </span>
@@ -4219,8 +4222,9 @@ function ProfileEditor({
             연락처
           </label>
           <div className="public-auth-field-row__control">
-            <input className="public-auth-field-row__input" id="public-mypage-phone" inputMode="numeric" onChange={handleProfileChange("phone")} placeholder="010-1234-5678" type="tel" value={profileForm.phone} />
+            <input className="public-auth-field-row__input" id="public-mypage-phone" inputMode="numeric" onChange={handleProfileChange("phone")} placeholder="010-1234-5678" type="tel" value={identity?.enabled ? identity.phone || profileForm.phone : profileForm.phone} readOnly={Boolean(identity?.enabled)} />
           </div>
+          {identity?.enabled && <p className="public-auth-inline-message">인증된 번호입니다. 번호 변경은 고객센터로 문의해 주세요.</p>}
           {profileErrors.phone ? <p className="public-auth-inline-message public-auth-inline-message--error">{profileErrors.phone}</p> : null}
         </div>
         <div className={`public-auth-field-row ${profileErrors.nickname ? "is-error" : ""}`}>

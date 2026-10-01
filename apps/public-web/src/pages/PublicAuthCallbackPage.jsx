@@ -37,6 +37,7 @@ function PublicAuthCallbackPage() {
     isAdminAccount,
     accountRole,
     needsOAuthConsent,
+    needsPhoneVerification,
     signOut,
   } = usePublicAuth();
 
@@ -128,6 +129,11 @@ function PublicAuthCallbackPage() {
       return;
     }
 
+    if (next === "/auth/merge") { navigate(next, { replace: true }); return; }
+    if (needsPhoneVerification) {
+      navigate(`/auth/verify-phone?next=${encodeURIComponent(next)}`, { replace: true });
+      return;
+    }
     // OAuth 신규 가입자 → 약관 동의 페이지
     if (needsOAuthConsent) {
       // GA4 oauth_callback_route — 신규(동의 필요) vs 기존(바로 복귀) 비율
@@ -153,6 +159,7 @@ function PublicAuthCallbackPage() {
     isAdminAccount,
     accountRole,
     needsOAuthConsent,
+    needsPhoneVerification,
     next,
     navigate,
     signOut,

@@ -24,9 +24,6 @@ const SOLAPI_SEND_URL = "https://api.solapi.com/messages/v4/send";
 const SOLAPI_REQUEST_TIMEOUT_MS = 5_000;
 
 const CODE_TTL_SEC = 300; // 5분
-const RESEND_COOLDOWN_SEC = 60;
-const MAX_PER_USER_PER_DAY = 5;
-const MAX_PER_PHONE_PER_DAY = 8;
 
 function makeErrorResponse({ error, code }) {
   return { success: false, error, code };
@@ -40,9 +37,9 @@ function buildSolapiAuthHeader(apiKey, apiSecret) {
   return `HMAC-SHA256 apiKey=${apiKey}, date=${date}, salt=${salt}, signature=${signature}`;
 }
 
-async function sendSolapiMessage({ message, apiKey, apiSecret }) {
+export async function sendSolapiMessage({ message, apiKey, apiSecret, timeoutMs = SOLAPI_REQUEST_TIMEOUT_MS }) {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), SOLAPI_REQUEST_TIMEOUT_MS);
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const response = await fetch(SOLAPI_SEND_URL, {
@@ -104,7 +101,7 @@ async function sendOtpAlimtalk({ to, from, code, pfId, templateId, apiKey, apiSe
   });
 }
 
-export default async function handler(req, res) {
+async function sendPhoneOtp(req, res) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).json(makeErrorResponse({ error: "Method not allowed", code: "METHOD_NOT_ALLOWED" }));
@@ -135,6 +132,7 @@ export default async function handler(req, res) {
 
   const userRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
     headers: { apikey: serviceKey, Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(5000),
   });
   const userData = await userRes.json().catch(() => ({}));
   const userId = userData?.id;
@@ -144,61 +142,20 @@ export default async function handler(req, res) {
 
   // 번호 정규화·검증 (국내 휴대폰)
   const phone = String(req.body?.phone || "").replace(/\D/g, "");
-  if (!/^01[016789][0-9]{7,8}$/.test(phone)) {
+  if (!/^010[0-9]{8}$/.test(phone)) {
     return res.status(400).json(makeErrorResponse({ error: "올바른 휴대폰 번호를 입력해 주세요.", code: "INVALID_PHONE" }));
   }
 
-  // 레이트리밋 (PostgREST 직접 조회 — 행 수가 상한 이하라 배열 길이로 판정)
-  const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  const cooldownAfter = new Date(Date.now() - RESEND_COOLDOWN_SEC * 1000).toISOString();
-  const table = `${supabaseUrl}/rest/v1/phone_verification_codes`;
-
-  const [recentRes, userDayRes, phoneDayRes] = await Promise.all([
-    fetch(`${table}?select=id&user_id=eq.${userId}&created_at=gte.${encodeURIComponent(cooldownAfter)}&limit=1`, { headers: serviceHeaders }),
-    fetch(`${table}?select=id&user_id=eq.${userId}&created_at=gte.${encodeURIComponent(dayAgo)}&limit=${MAX_PER_USER_PER_DAY}`, { headers: serviceHeaders }),
-    fetch(`${table}?select=id&phone=eq.${phone}&created_at=gte.${encodeURIComponent(dayAgo)}&limit=${MAX_PER_PHONE_PER_DAY}`, { headers: serviceHeaders }),
-  ]);
-  const [recent, userDay, phoneDay] = await Promise.all([
-    recentRes.json().catch(() => []),
-    userDayRes.json().catch(() => []),
-    phoneDayRes.json().catch(() => []),
-  ]);
-
-  if (Array.isArray(recent) && recent.length > 0) {
-    return res.status(429).json(makeErrorResponse({
-      error: "잠시 후 다시 시도해 주세요. (재발송은 1분 간격)",
-      code: "RESEND_COOLDOWN",
-    }));
-  }
-  if (Array.isArray(userDay) && userDay.length >= MAX_PER_USER_PER_DAY) {
-    return res.status(429).json(makeErrorResponse({
-      error: "인증번호 발송 한도를 초과했습니다. 내일 다시 시도해 주세요.",
-      code: "USER_DAILY_LIMIT",
-    }));
-  }
-  if (Array.isArray(phoneDay) && phoneDay.length >= MAX_PER_PHONE_PER_DAY) {
-    return res.status(429).json(makeErrorResponse({
-      error: "해당 번호로의 인증 요청이 너무 많습니다. 내일 다시 시도해 주세요.",
-      code: "PHONE_DAILY_LIMIT",
-    }));
-  }
-
-  // 코드 생성·해시 저장 (평문 미저장 — verify_phone_otp RPC가 동일 해시로 비교)
   const code = String(randomInt(100000, 1000000));
   const codeHash = createHash("sha256").update(code + userId).digest("hex");
-  const expiresAt = new Date(Date.now() + CODE_TTL_SEC * 1000).toISOString();
-
-  const insertRes = await fetch(table, {
-    method: "POST",
-    headers: { ...serviceHeaders, Prefer: "return=minimal" },
-    body: JSON.stringify({ user_id: userId, phone, code_hash: codeHash, expires_at: expiresAt }),
+  const reservedResponse = await fetch(`${supabaseUrl}/rest/v1/rpc/reserve_member_phone_otp`, {
+    method: "POST", headers: serviceHeaders,
+    body: JSON.stringify({ p_user_id: userId, p_phone: phone, p_code_hash: codeHash }),
+    signal: AbortSignal.timeout(5000),
   });
-
-  if (!insertRes.ok) {
-    const insertError = await insertRes.text().catch(() => "");
-    console.error("Failed to store verification code:", insertRes.status, insertError.slice(0, 200));
-    return res.status(500).json(makeErrorResponse({ error: "인증번호 생성에 실패했습니다.", code: "STORE_FAILED" }));
-  }
+  const reserved = await reservedResponse.json().catch(() => null);
+  if (!reservedResponse.ok) return res.status(503).json(makeErrorResponse({ error: "인증 요청을 처리할 수 없습니다. 잠시 후 다시 시도해 주세요.", code: 503 }));
+  if (!reserved?.success) return res.status(429).json(makeErrorResponse({ error: reserved?.error || "인증 요청 한도를 초과했습니다.", code: 429 }));
 
   // 알림톡 우선 발송 — env(pfId·템플릿ID)가 있을 때만. 요청 실패 시 SMS로 즉시 폴백.
   // (알림톡이 접수된 뒤 카카오 단에서 실패하는 케이스는 솔라피 자동 대체발송이 처리 —
@@ -238,4 +195,9 @@ export default async function handler(req, res) {
   }
 
   return res.status(200).json({ success: true, expiresInSec: CODE_TTL_SEC });
+}
+
+export default async function handler(req, res) {
+  try { return await sendPhoneOtp(req, res); }
+  catch { return res.status(503).json(makeErrorResponse({ error: "인증 서비스 연결이 지연되고 있습니다. 잠시 후 다시 시도해 주세요.", code: 503 })); }
 }

@@ -7,6 +7,7 @@ import {
   trackLogout,
 } from "../lib/analytics";
 import { getPublicAccountAccessState } from "../lib/publicAuthAccess";
+import { getMemberIdentityPolicy } from "@shared-supabase/memberIdentityClient";
 
 const PublicAuthContext = createContext(null);
 
@@ -16,6 +17,8 @@ const PublicAuthContext = createContext(null);
 let lastSeenAuthUserId = null;
 
 function PublicAuthProvider({ children }) {
+  const [identityPolicy, setIdentityPolicy] = useState(null);
+  useEffect(() => { getMemberIdentityPolicy().then(setIdentityPolicy).catch(() => setIdentityPolicy({ error: true })); }, []);
   const [state, setState] = useState({
     session: null,
     user: null,
@@ -28,8 +31,10 @@ function PublicAuthProvider({ children }) {
 
   useEffect(() => {
     let isMounted = true;
+    let sessionRevision = 0;
 
     const applySession = async (nextSession) => {
+      const revision = ++sessionRevision;
       // 로그인/복원 어느 경로든 최종 사용자 id를 기록 (login 이벤트 중복 가드의 기준값)
       lastSeenAuthUserId = nextSession?.user?.id ?? null;
       if (!isMounted) {
@@ -50,7 +55,7 @@ function PublicAuthProvider({ children }) {
       }
 
       const accessState = await getPublicAccountAccessState(nextSession.user);
-      if (!isMounted) {
+      if (!isMounted || revision !== sessionRevision) {
         return;
       }
 
@@ -59,6 +64,7 @@ function PublicAuthProvider({ children }) {
         user: nextSession.user,
         profile: accessState.accountRole === "member" ? accessState.profile : null,
         accountRole: accessState.accountRole,
+        identity: accessState.identity,
         hasSession: true,
         isLoading: false,
         isConfigured: isSupabaseConfigured && Boolean(supabase),
@@ -122,10 +128,11 @@ function PublicAuthProvider({ children }) {
     }
 
     const accessState = await getPublicAccountAccessState(state.user);
-    setState((currentState) => ({
+    setState((currentState) => currentState.user?.id !== state.user.id ? currentState : ({
       ...currentState,
       profile: accessState.accountRole === "member" ? accessState.profile : null,
       accountRole: accessState.accountRole,
+      identity: accessState.identity,
       hasSession: Boolean(currentState.session?.user),
     }));
 
@@ -159,7 +166,10 @@ function PublicAuthProvider({ children }) {
     return result;
   };
 
-  const isOAuthUser = state.user?.app_metadata?.provider !== "email" && Boolean(state.user?.app_metadata?.provider);
+  const isOAuthUser = ["kakao", "google"].includes(state.user?.app_metadata?.provider);
+  const isPhoneUser = state.user?.app_metadata?.provider === "phone";
+  const needsPhoneVerification = state.hasSession && state.accountRole === "member"
+    && (state.identity?.enabled || state.identity?.status === "merged") && state.identity?.status !== "verified";
   const isEmailVerified = Boolean(state.profile?.email_verified_at);
   // terms_agreed_at 컬럼이 응답에 누락된 경우(레거시 RPC 캐시 등) NULL이 아닌 undefined일 수도 있음
   // → undefined인 경우 "이미 동의함"으로 간주 (이메일 가입자는 PublicSignupPage가 동의 강제).
@@ -190,15 +200,16 @@ function PublicAuthProvider({ children }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOAuthUser, state.accountRole, isEmailVerified, state.user?.id]);
 
-  // 게이트:
-  //   - 이메일 사용자: email_verified_at + 약관 동의 모두 필요
-  //   - OAuth 사용자: terms_agreed_at 필수 (이메일은 OAuth provider가 검증한 것으로 간주)
+  // 전화 정책 전환 후에는 기존 이메일 계정도 인증 번호를 기준으로 이용한다.
+  // 정책 전환 전에는 기존 이메일/OAuth 인증 조건을 유지한다.
   //   기존엔 OTP 가입자가 인증만 하고 약관 못 채운 채 떠나도 isAuthenticated=true가 됐었음(좀비).
   //   strict하게 hasAgreedToTerms를 모든 경로에 필수로 — 미완료 사용자는 사이트 진입 전 가입 마무리 게이트로.
   const isMemberVerified =
     state.accountRole === "member"
     && hasAgreedToTerms
-    && (isOAuthUser || isEmailVerified);
+    && !needsPhoneVerification
+    && ((state.identity?.enabled && state.identity?.status === "verified")
+      || isOAuthUser || isEmailVerified || (isPhoneUser && Boolean(state.user?.phone_confirmed_at)));
 
   const needsSignupCompletion =
     state.accountRole === "member" && state.hasSession && termsAgreedAt === null;
@@ -225,6 +236,9 @@ function PublicAuthProvider({ children }) {
     isAuthenticated: isMemberVerified,
     isAdminAccount: state.accountRole === "admin",
     isOAuthUser,
+    isPhoneUser,
+    identityPolicy,
+    needsPhoneVerification,
     hasAgreedToTerms,
     needsSignupCompletion,
     // 호환용 — 기존 호출자(App.jsx, PublicOAuthConsentPage, PublicAuthCallbackPage)는 needsOAuthConsent를
