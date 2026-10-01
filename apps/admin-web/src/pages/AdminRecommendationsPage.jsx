@@ -46,9 +46,11 @@ function RecommendationList({ placement }) {
     setBusy(true); setError(""); setNotice("");
     try {
       await addRecommendations(supabase, newProducts.map((product, index) => ({
-        product_id: product.id, sort_order: Math.min(9999, start + index * 10), headline: "", is_enabled: false,
+        product_id: product.id, sort_order: Math.min(9999, start + index * 10), headline: "", is_enabled: !isHero,
       })), placement);
-      if (await load()) setNotice(`${newProducts.length}종을 추가했습니다. 순서를 확인하고 노출을 켜주세요.`);
+      if (await load()) setNotice(isHero
+        ? `${newProducts.length}종을 추가했습니다. 순서를 확인하고 노출을 켜주세요.`
+        : `${newProducts.length}종을 노출 켜짐으로 추가했습니다.`);
       return true;
     } catch (failure) { setError(failure.code === "23505" ? "이미 추가된 교재가 있습니다. 새로고침 후 다시 추가해 주세요." : "추가 결과를 확인하지 못했습니다. 새로고침 후 다시 시도해 주세요."); return false; }
     finally { setBusy(false); }
