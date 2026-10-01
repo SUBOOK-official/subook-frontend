@@ -97,7 +97,6 @@ export default function PublicPhoneAuthPage({ mode = "login" }) {
           : <button className="member-identity-primary" disabled={busy || (!sent && cooldown > 0) || (sent && code.length !== 6)}>{busy ? "확인 중…" : sent ? "인증하고 계속하기" : "인증번호 받기"}</button>}
         {!sent && <small>입력한 번호로 인증번호를 보내드려요.</small>}
       </form>
-      <div className="member-identity-note"><strong>이메일과 휴대폰으로 안전하게.</strong>{identity?.is_legacy_account ? "이전에 같은 번호로 가입했던 계정이 여러 개라면, 각 계정의 로그인 확인 후 대표 계정을 선택할 수 있어요." : "이미 가입한 전화번호라면 기존 계정으로 로그인해 주세요."}</div>
       {verifying ? <button className="member-identity-text-button" style={{ marginTop: 22 }} onClick={async () => { await signOut(); navigate("/login"); }}>다른 계정으로 로그인</button>
         : <Link className="member-identity-secondary" to="/login" state={{ from: next }}>이메일 · 카카오 · 구글로 로그인</Link>}
       </>}
