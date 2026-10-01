@@ -1,6 +1,6 @@
 import { supabase } from "./publicSupabaseClient";
 
-export const normalizeMemberPhone = (value) => String(value || "").replace(/\D/g, "").replace(/^8210/, "010");
+export const normalizeMemberPhone = (value) => String(value || "").replace(/\D/g, "").replace(/^820?10/, "010");
 export const safeMemberNext = (value) => typeof value === "string" && value.startsWith("/") && !value.startsWith("//") && !value.includes("\\") ? value : "/";
 export async function memberIdentityRpc(name, params) {
   if (!supabase) throw new Error("서비스에 연결할 수 없습니다.");
@@ -20,8 +20,25 @@ export async function getMemberIdentityPolicy() {
 export async function sendMemberLoginOtp(phone) {
   const normalized = normalizeMemberPhone(phone);
   if (!/^010\d{8}$/.test(normalized)) throw new Error("010으로 시작하는 휴대폰 번호를 입력해 주세요.");
-  const { error } = await supabase.auth.signInWithOtp({ phone: `+82${normalized.slice(1)}` });
+  const { error } = await supabase.auth.signInWithOtp({ phone: `+82${normalized.slice(1)}`, options: { shouldCreateUser: false } });
   if (error) throw new Error("인증번호를 보내지 못했어요. 번호를 확인하고 잠시 후 다시 시도해 주세요.");
+}
+export async function signupPhoneRequest(body) {
+  const response = await fetch("/api/auth/signup-phone", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(20000),
+  });
+  const result = await response.json();
+  if (!response.ok || !result.success) throw new Error(result.error || "휴대폰 인증을 완료하지 못했습니다.");
+  return result;
+}
+export async function verifyKakaoMemberPhone(session) {
+  if (!session?.provider_token || !session.user?.identities?.some((item) => item.provider === "kakao")) return null;
+  const response = await fetch("/api/auth/kakao-phone", {
+    method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+    body: JSON.stringify({ providerToken: session.provider_token }), signal: AbortSignal.timeout(20000),
+  });
+  if (!response.ok) throw new Error("카카오 번호를 확인하지 못했습니다.");
+  return response.json();
 }
 export async function verifyMemberLoginOtp(phone, code) {
   const { data, error } = await supabase.auth.verifyOtp({ phone: `+82${normalizeMemberPhone(phone).slice(1)}`, token: code, type: "sms" });

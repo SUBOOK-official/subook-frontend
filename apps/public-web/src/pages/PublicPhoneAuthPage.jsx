@@ -72,10 +72,10 @@ export default function PublicPhoneAuthPage({ mode = "login" }) {
 
   if (verifying && !isLoading && !hasSession) return <Navigate to="/login" replace state={{ from: `/auth/verify-phone?next=${encodeURIComponent(next)}` }} />;
   const merged = identity?.status === "merged";
-  const unavailable = !verifying && !identityPolicy?.phone_signup_enabled;
+  const unavailable = !verifying && !identityPolicy?.legacy_phone_login_enabled;
   return <MemberIdentityLayout step={sent ? 2 : 1} eyebrow={verifying ? "안전한 계정을 위한 한 번의 확인" : "휴대폰으로 간편하게"}
-    title={merged ? "대표 계정으로 만나요" : verifying ? "내 번호로, 내 계정 확인" : sent ? "인증번호를 입력해 주세요" : <>수북에 오신 걸<br />환영해요.</>}
-    description={merged ? "이 계정은 통합이 완료되었어요. 선택하신 대표 계정으로 로그인해 주세요." : verifying ? "앞으로 휴대폰 번호 하나로 계정 하나를 이용해요.\n계속 이용하려면 내 번호를 인증해 주세요." : "가입도 로그인도 휴대폰 번호로 시작해요.\n처음이라면 인증 후 가입을 마무리해 주세요."}>
+    title={merged ? "대표 계정으로 만나요" : verifying ? "내 번호로, 내 계정 확인" : sent ? "인증번호를 입력해 주세요" : "기존 가입 계정 확인"}
+    description={merged ? "이 계정은 통합이 완료되었어요. 선택하신 대표 계정으로 로그인해 주세요." : verifying ? "휴대폰 번호 하나로 계정 하나를 이용해요.\n계속 이용하려면 내 번호를 인증해 주세요." : "휴대폰만으로 가입했던 계정을 확인하고,\n앞으로 사용할 이메일을 등록해 주세요."}>
     {merged ? <button className="member-identity-primary" onClick={async () => { await signOut(); navigate("/login"); }}>대표 계정으로 로그인</button>
       : unavailable ? <><p className="member-identity-message">{identityPolicy?.error ? "인증 서비스 상태를 불러오지 못했어요. 잠시 후 다시 시도해 주세요." : "휴대폰 로그인을 준비하고 있어요."}</p><Link className="member-identity-secondary" to="/login">기존 계정으로 로그인</Link></>
       : <><form className="member-identity-form" onSubmit={sent ? verify : send}>

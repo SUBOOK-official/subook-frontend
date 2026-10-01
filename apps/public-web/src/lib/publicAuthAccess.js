@@ -25,6 +25,8 @@ function buildFallbackProfile(user) {
     phone: fallbackPhone,
     marketing_opt_in: Boolean(metadata.marketing_opt_in),
     email_verified_at: null,
+    terms_agreed_at: null,
+    privacy_agreed_at: null,
   };
 }
 
@@ -144,7 +146,9 @@ export async function getPublicAccountAccessState(user) {
   }
 
   const row = Array.isArray(data) ? data[0] : data;
-  const accountRole = identity?.status === "merged" ? "member" : normalizeAccountRole(row?.account_role);
+  const role = normalizeAccountRole(row?.account_role);
+  // 소셜 인증 콜백의 임시 Auth 레코드는 번호 인증 전까지 회원 프로필이 없다.
+  const accountRole = identity?.status === "merged" || (role === "guest" && identity?.enabled && user.id) ? "member" : role;
 
   return {
     accountRole,

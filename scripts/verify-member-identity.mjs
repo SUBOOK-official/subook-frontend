@@ -7,6 +7,7 @@ const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
 const env = parseEnv(readFileSync('.env', 'utf8'));
 const project = new URL(env.VITE_SUPABASE_URL).hostname.split('.')[0];
+const origin = process.env.QA_ORIGIN || 'http://127.0.0.1:4173';
 const output = '.codex/qa-screenshots'; mkdirSync(output,{recursive:true});
 const browser = await chromium.launch({headless:true,channel:'chrome'});
 const id = '00000000-0000-0000-0000-000000000901';
@@ -33,7 +34,7 @@ async function setup({signedIn=false,verified=false,provider='phone',merge=false
     if(url.pathname==='/api/auth/send-phone-otp'){state.otpRequests++;return json({success:true,expiresInSec:300});}
     // 배너 등 부수 API도 로컬 프록시를 통해 외부 서비스로 나가지 않게 한다.
     if(url.pathname.startsWith('/api/'))return json([]);
-    if(url.origin==='http://127.0.0.1:5183') return route.continue();
+    if(url.origin===origin) return route.continue();
     if(!url.hostname.endsWith('.supabase.co')) return route.fulfill({status:204,body:''});
     const body=route.request().postDataJSON()||{};
     if(url.pathname.endsWith('/otp')){state.otpRequests++;return json({});}
@@ -43,7 +44,7 @@ async function setup({signedIn=false,verified=false,provider='phone',merge=false
     }
     if(url.pathname.endsWith('/user'))return json(sessionFor(provider).user);
     const name=url.pathname.split('/').pop();
-    if(name==='get_member_identity_policy')return json({enabled:true,phone_signup_enabled:true,merge_enabled:true});
+    if(name==='get_member_identity_policy')return json({enabled:true,phone_signup_enabled:false,email_required:true,merge_enabled:true});
     if(name==='get_my_member_identity')return json({enabled:true,status:state.verified?'verified':'unverified',phone:state.verified?'01012345678':null,can_merge:true});
     if(name==='get_current_auth_account_role')return json([{account_role:'member',user_id:id,email:provider==='phone'?`${id}@oauth.subook.local`:'member@example.invalid',name:provider==='phone'?id:'회원',phone:'',email_verified_at:provider==='phone'||!emailVerified?null:now,terms_agreed_at:state.terms?now:null,privacy_agreed_at:state.terms?now:null}]);
     if(name==='verify_phone_otp'){if(body.p_code!=='123456')return json({success:false,error:'인증번호가 일치하지 않습니다.'});return json({success:true,status:'merge_required',phone:'01012345678'});}
@@ -58,26 +59,9 @@ async function setup({signedIn=false,verified=false,provider='phone',merge=false
   return {page,context,state,errors};
 }
 try {
-  const signup=await setup();
-  await signup.page.goto('http://127.0.0.1:5183/signup');
-  await signup.page.getByRole('button',{name:'인증번호 받기',exact:true}).waitFor();
-  await signup.page.screenshot({path:`${output}/phone-signup-desktop.png`,fullPage:true});
-  await signup.page.setViewportSize({width:390,height:844});
-  await signup.page.screenshot({path:`${output}/phone-signup-mobile.png`,fullPage:true});
-  assert.equal(await signup.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
-  await signup.page.getByLabel('휴대폰 번호',{exact:true}).fill('01012345678');
-  await signup.page.getByRole('button',{name:'인증번호 받기',exact:true}).click();
-  await signup.page.getByLabel('인증번호 6자리').fill('000000');
-  await signup.page.getByRole('button',{name:'인증하고 계속하기'}).click();
-  await signup.page.getByRole('alert').waitFor(); assert.equal(signup.state.bindRequests,0);
-  await signup.page.getByLabel('인증번호 6자리').fill('123456');
-  await signup.page.getByRole('button',{name:'인증하고 계속하기'}).click();
-  await signup.page.waitForURL(/auth\/oauth-consent/);
-  assert.equal(await signup.page.locator('input[type=password]').count(),0);
-  assert.equal(signup.state.otpRequests,1); assert.equal(signup.state.bindRequests,1);
-  assert.deepEqual(signup.errors,[]); await signup.context.close();
+  // 신규 가입과 이메일 필수 정책은 verify-email-phone-signup.mjs에서 검증한다.
   const legacy=await setup({signedIn:true,provider:'email'});
-  await legacy.page.goto('http://127.0.0.1:5183/mypage');
+  await legacy.page.goto(origin+'/mypage');
   await legacy.page.waitForURL(/auth\/verify-phone/);
   await legacy.page.getByLabel('휴대폰 번호',{exact:true}).fill('01012345678');
   await legacy.page.getByRole('button',{name:'인증번호 받기',exact:true}).click();
@@ -91,10 +75,10 @@ try {
   await legacy.page.screenshot({path:`${output}/phone-merge-mobile.png`,fullPage:true});
   assert.equal(await legacy.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
   assert.deepEqual(legacy.errors,[]); await legacy.context.close();
-  const migrated=await setup({signedIn:true,verified:true,provider:'email',emailVerified:false});
-  await migrated.page.goto('http://127.0.0.1:5183/mypage');
+  const migrated=await setup({signedIn:true,verified:true,provider:'email',emailVerified:true});
+  await migrated.page.goto(origin+'/mypage');
   await migrated.page.locator('.public-mypage-breadcrumb__title').waitFor();
   assert.equal(new URL(migrated.page.url()).pathname,'/mypage');
   assert.deepEqual(migrated.errors,[]); await migrated.context.close();
-  console.log('PASS: 신규 휴대폰 가입/오입력/약관 이동/비밀번호 생략/기존 회원 강제 인증/통합 진입/기존 이메일 미인증 계정의 전화 인증 전환/모바일 넘침 없음. 모든 외부 요청 mocked.');
+  console.log('PASS: 기존 회원 강제 인증/통합 진입/이메일·번호 인증 계정 이용/모바일 넘침 없음. 모든 외부 요청 mocked.');
 } finally {await browser.close();}

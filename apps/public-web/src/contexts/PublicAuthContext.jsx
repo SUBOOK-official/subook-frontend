@@ -7,7 +7,7 @@ import {
   trackLogout,
 } from "../lib/analytics";
 import { getPublicAccountAccessState } from "../lib/publicAuthAccess";
-import { getMemberIdentityPolicy } from "@shared-supabase/memberIdentityClient";
+import { getMemberIdentityPolicy, verifyKakaoMemberPhone } from "@shared-supabase/memberIdentityClient";
 
 const PublicAuthContext = createContext(null);
 
@@ -15,6 +15,8 @@ const PublicAuthContext = createContext(null);
 // "직전에 본 사용자 id와 같은가"로 걸러 실제 로그인만 1회 계측한다. 모듈 스코프라
 // Provider 리마운트(StrictMode 이중 실행 포함)에도 안전.
 let lastSeenAuthUserId = null;
+let lastCheckedKakaoToken = null;
+let kakaoPhoneCheck = Promise.resolve();
 
 function PublicAuthProvider({ children }) {
   const [identityPolicy, setIdentityPolicy] = useState(null);
@@ -54,6 +56,12 @@ function PublicAuthProvider({ children }) {
         return;
       }
 
+      if (nextSession.provider_token && nextSession.provider_token !== lastCheckedKakaoToken) {
+        lastCheckedKakaoToken = nextSession.provider_token;
+        // 번호를 못 받았거나 카카오 연결이 지연되면 기존 문자 인증 경로로 진행한다.
+        kakaoPhoneCheck = verifyKakaoMemberPhone(nextSession).catch(() => null);
+      }
+      if (nextSession.provider_token) await kakaoPhoneCheck;
       const accessState = await getPublicAccountAccessState(nextSession.user);
       if (!isMounted || revision !== sessionRevision) {
         return;
@@ -168,6 +176,7 @@ function PublicAuthProvider({ children }) {
 
   const isOAuthUser = ["kakao", "google"].includes(state.user?.app_metadata?.provider);
   const isPhoneUser = state.user?.app_metadata?.provider === "phone";
+  const needsEmailRegistration = state.hasSession && state.accountRole === "member" && !state.user?.email;
   const needsPhoneVerification = state.hasSession && state.accountRole === "member"
     && (state.identity?.enabled || state.identity?.status === "merged") && state.identity?.status !== "verified";
   const isEmailVerified = Boolean(state.profile?.email_verified_at);
@@ -207,9 +216,9 @@ function PublicAuthProvider({ children }) {
   const isMemberVerified =
     state.accountRole === "member"
     && hasAgreedToTerms
+    && !needsEmailRegistration
     && !needsPhoneVerification
-    && ((state.identity?.enabled && state.identity?.status === "verified")
-      || isOAuthUser || isEmailVerified || (isPhoneUser && Boolean(state.user?.phone_confirmed_at)));
+    && (isOAuthUser || isEmailVerified);
 
   const needsSignupCompletion =
     state.accountRole === "member" && state.hasSession && termsAgreedAt === null;
@@ -237,6 +246,7 @@ function PublicAuthProvider({ children }) {
     isAdminAccount: state.accountRole === "admin",
     isOAuthUser,
     isPhoneUser,
+    needsEmailRegistration,
     identityPolicy,
     needsPhoneVerification,
     hasAgreedToTerms,

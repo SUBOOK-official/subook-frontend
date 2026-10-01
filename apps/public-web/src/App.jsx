@@ -36,6 +36,7 @@ const PublicProductDetailPage = lazy(() => import("./pages/PublicProductDetailPa
 const PublicResetPasswordPage = lazy(() => import("./pages/PublicResetPasswordPage"));
 const PublicSignupPage = lazy(() => import("./pages/PublicSignupPage"));
 const PublicPhoneAuthPage = lazy(() => import("./pages/PublicPhoneAuthPage"));
+const PublicRequiredEmailPage = lazy(() => import("./pages/PublicRequiredEmailPage"));
 const PublicAccountMergePage = lazy(() => import("./pages/PublicAccountMergePage"));
 const PublicSignupSuccessPage = lazy(() => import("./pages/PublicSignupSuccessPage"));
 const PublicSubjectPage = lazy(() => import("./pages/PublicSubjectPage"));
@@ -83,6 +84,7 @@ function SignupCompletionGate() {
       || location.pathname === "/auth/callback"
       || location.pathname === "/signup"
       || location.pathname === "/auth/phone"
+      || location.pathname === "/auth/required-email"
       || location.pathname === "/auth/verify-phone"
       || location.pathname === "/auth/merge"
       || location.pathname === "/login"
@@ -120,16 +122,16 @@ function ScrollToTop() {
 }
 
 function SignupRoute() {
-  const { identityPolicy } = usePublicAuth();
-  if (!identityPolicy) return <PageLoadingFallback />;
-  if (identityPolicy.error) return <PublicPhoneAuthPage />;
-  return identityPolicy.phone_signup_enabled ? <PublicPhoneAuthPage mode="signup" /> : <PublicSignupPage />;
+  return <PublicSignupPage />;
 }
 
 function MemberPhoneGate({ children }) {
   const location = useLocation();
-  const { isLoading, needsPhoneVerification } = usePublicAuth();
-  const exempt = ["/auth/verify-phone", "/auth/merge", "/auth/phone", "/auth/callback", "/auth/reset-password", "/login", "/forgot-password"];
+  const { isLoading, needsPhoneVerification, needsEmailRegistration } = usePublicAuth();
+  const exempt = ["/signup", "/auth/required-email", "/auth/verify-phone", "/auth/merge", "/auth/phone", "/auth/callback", "/auth/reset-password", "/login", "/forgot-password"];
+  if (!isLoading && needsEmailRegistration && !["/auth/required-email", "/auth/phone", "/auth/callback", "/login"].includes(location.pathname)) {
+    return <Navigate replace to="/auth/required-email" />;
+  }
   if (!isLoading && needsPhoneVerification && !exempt.includes(location.pathname)) {
     return <Navigate replace to={`/auth/verify-phone?next=${encodeURIComponent(location.pathname + location.search)}`} />;
   }
@@ -144,6 +146,7 @@ function App() {
       <Suspense fallback={<PageLoadingFallback />}>
         <MemberPhoneGate><Routes>
           <Route element={<PublicPhoneAuthPage />} path="/auth/phone" />
+          <Route element={<PublicRequiredEmailPage />} path="/auth/required-email" />
           <Route element={<PublicPhoneAuthPage mode="verify" />} path="/auth/verify-phone" />
           <Route element={<PublicAccountMergePage />} path="/auth/merge" />
           <Route element={<PublicResetPasswordPage />} path="/auth/reset-password" />

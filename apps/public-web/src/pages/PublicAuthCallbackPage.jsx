@@ -38,6 +38,7 @@ function PublicAuthCallbackPage() {
     accountRole,
     needsOAuthConsent,
     needsPhoneVerification,
+    needsEmailRegistration,
     signOut,
   } = usePublicAuth();
 
@@ -129,6 +130,7 @@ function PublicAuthCallbackPage() {
       return;
     }
 
+    if (needsEmailRegistration) { navigate("/auth/required-email", { replace: true }); return; }
     if (next === "/auth/merge") { navigate(next, { replace: true }); return; }
     if (needsPhoneVerification) {
       navigate(`/auth/verify-phone?next=${encodeURIComponent(next)}`, { replace: true });
@@ -160,6 +162,7 @@ function PublicAuthCallbackPage() {
     accountRole,
     needsOAuthConsent,
     needsPhoneVerification,
+    needsEmailRegistration,
     next,
     navigate,
     signOut,

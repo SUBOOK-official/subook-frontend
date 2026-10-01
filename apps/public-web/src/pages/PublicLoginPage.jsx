@@ -379,7 +379,6 @@ function PublicLoginPage() {
           </div>
 
           <div className="public-auth-card__body">
-            {identityPolicy?.phone_signup_enabled && <Link className="public-auth-submit-button" to={`/auth/phone?next=${encodeURIComponent(nextPath)}`} style={{ display: "flex", justifyContent: "center", marginBottom: 24 }}>휴대폰 번호로 계속하기</Link>}
             <div className="public-auth-card__heading">
               <h1 className="public-auth-card__title" id="public-login-heading">
                 로그인
@@ -432,6 +431,7 @@ function PublicLoginPage() {
               </div>
             ) : null}
 
+            {identityPolicy?.legacy_phone_login_enabled && <Link className="public-auth-inline-message" to="/auth/phone">휴대폰만으로 가입했던 계정 찾기</Link>}
             <PublicOAuthButtons
               analyticsSurface="login_page"
               contextLabel="로그인"

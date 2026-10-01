@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/publicSupabaseClient";
 import PublicOAuthButtons from "../components/PublicOAuthButtons";
+import SignupPhoneVerification from "../components/SignupPhoneVerification";
+import { normalizeMemberPhone } from "@shared-supabase/memberIdentityClient";
 import brandLogoImage from "../assets/brand/logo-horizontal.png";
 import PublicToastMessage from "../components/PublicToastMessage";
 import { ArrowRightIcon, CheckIcon, EyeIcon, EyeOffIcon } from "../components/icons";
@@ -90,7 +92,8 @@ function PublicSignupPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const [referralCode] = useState(() => getSignupReferralCode(location.search));
-  const { hasSession, isAdminAccount, isAuthenticated, signOut } = usePublicAuth();
+  const { hasSession, isAdminAccount, isAuthenticated, signOut, refreshProfile } = usePublicAuth();
+  const [phoneProof, setPhoneProof] = useState(null);
 
   const [formValues, setFormValues] = useState(() => ({
     // location.state.prefillEmail 로 넘어온 경우(로그인 페이지에서 legacy 안내 → 회원가입 CTA) 자동 입력
@@ -679,7 +682,6 @@ function PublicSignupPage() {
         return;
       }
     }
-    const agreedAt = new Date().toISOString();
     const { error: updateError } = await supabase.auth.updateUser({
       password: formValues.password,
       data: {
@@ -687,9 +689,6 @@ function PublicSignupPage() {
         nickname: formValues.name.trim(),
         phone: formValues.phone.trim(),
         marketing_opt_in: agreements.marketing,
-        terms_agreed_at: agreedAt,
-        privacy_agreed_at: agreedAt,
-        marketing_agreed_at: agreements.marketing ? agreedAt : null,
       },
     });
 
@@ -707,6 +706,14 @@ function PublicSignupPage() {
       setIsSubmitting(false);
       return;
     }
+
+    const { error: completionError } = await supabase.rpc("complete_oauth_signup", {
+      p_marketing_opt_in: agreements.marketing, p_name: formValues.name.trim(), p_phone: formValues.phone.trim(),
+    });
+    if (completionError) {
+      setPageAlert(completionError.message); setIsSubmitting(false); return;
+    }
+    await refreshProfile();
 
     // member_profiles.email_verified_at 마무리 처리 (트리거가 처리하지만 명시적으로 한 번 더 호출).
     // ⚠️ supabase.rpc()는 .catch()가 없는 thenable이라 .catch를 직접 호출하면
@@ -766,6 +773,10 @@ function PublicSignupPage() {
       return;
     }
     if (resendCooldown > 0 || verificationStatus === "sending") return;
+    if (!phoneProof || phoneProof.email !== normalizedEmail || phoneProof.phone !== normalizeMemberPhone(formValues.phone)) {
+      setCodeError("휴대폰 인증을 먼저 완료해 주세요.");
+      document.getElementById("public-signup-phone")?.focus(); return;
+    }
 
     // 재발송 여부는 상태를 바꾸기 전에 잡아둔다(아래에서 sending/sent로 덮이기 때문).
     const isResend = verificationStatus !== "idle";
@@ -773,7 +784,7 @@ function PublicSignupPage() {
     setVerificationStatus("sending");
     const { error } = await supabase.auth.signInWithOtp({
       email: normalizedEmail,
-      options: { shouldCreateUser: true },
+      options: { shouldCreateUser: true, data: { signup_phone_id: phoneProof.id, signup_phone_secret: phoneProof.secret } },
     });
 
     if (error) {
@@ -810,7 +821,7 @@ function PublicSignupPage() {
     if (verificationStatus === "verifying" || verificationStatus === "verified") return;
 
     setVerificationStatus("verifying");
-    const { error } = await supabase.auth.verifyOtp({
+    const { data: verifiedData, error } = await supabase.auth.verifyOtp({
       email: normalizedEmail,
       token: normalizedCode,
       type: "email",
@@ -834,6 +845,10 @@ function PublicSignupPage() {
     trackEmailVerified({ context: "signup_inline" });
     setVerificationStatus("verified");
     setVerifiedEmail(normalizedEmail);
+    const verifiedAccess = await getPublicAccountAccessState(verifiedData.user);
+    if (verifiedAccess.identity?.can_merge && verifiedAccess.identity?.status !== "verified") {
+      navigate("/auth/merge", { replace: true }); return;
+    }
     setCodeError("");
     setToastState({
       message: "이메일 인증이 완료되었어요. 나머지 정보를 입력해 주세요.",
@@ -994,6 +1009,8 @@ function PublicSignupPage() {
                 ) : null}
               </div>
 
+              <SignupPhoneVerification email={normalizedEmail} phone={formValues.phone} onPhoneChange={handleChangeValue("phone")} proof={phoneProof} onVerified={setPhoneProof} disabled={verificationStatus === "verified" || isSubmitting} />
+
               {/* 이메일이 '사용 가능' 으로 확인된 후에만 인증코드 받기 버튼 노출.
                   - 인증 완료(verified) 후에는 row를 숨김 (인증코드 row 자체가 ✓ 표시).
                   - sending / sent / verifying 중에는 버튼 라벨로 상태 안내. */}
@@ -1001,7 +1018,7 @@ function PublicSignupPage() {
                 <div className="public-auth-field-row" style={{ marginTop: -8 }}>
                   <button
                     className="public-auth-button"
-                    disabled={verificationStatus === "sending" || verificationStatus === "verifying" || resendCooldown > 0}
+                    disabled={!phoneProof || phoneProof.email !== normalizedEmail || verificationStatus === "sending" || verificationStatus === "verifying" || resendCooldown > 0}
                     onClick={handleSendOtp}
                     style={{ width: "100%" }}
                     type="button"
@@ -1012,7 +1029,7 @@ function PublicSignupPage() {
                         ? `${resendCooldown}초 후 다시 받을 수 있어요`
                         : verificationStatus === "sent" || verificationStatus === "verifying"
                           ? "인증코드 다시 받기"
-                          : "인증코드 받기"}
+                          : "이메일 인증코드 받기"}
                   </button>
                 </div>
               ) : null}
@@ -1185,26 +1202,6 @@ function PublicSignupPage() {
                 ) : null}
               </div>
 
-              <div className={`public-auth-field-row ${fieldErrors.phone ? "is-error" : ""}`}>
-                <label className="public-auth-field-row__label" htmlFor="public-signup-phone">
-                  연락처 <span className="public-auth-field-row__required">*</span>
-                </label>
-                <div className="public-auth-field-row__control">
-                  <input
-                    autoComplete="tel"
-                    className="public-auth-field-row__input"
-                    id="public-signup-phone"
-                    inputMode="numeric"
-                    onChange={handleChangeValue("phone")}
-                    placeholder="010-1234-5678"
-                    type="tel"
-                    value={formValues.phone}
-                  />
-                </div>
-                {fieldErrors.phone ? (
-                  <p className="public-auth-inline-message public-auth-inline-message--error">{fieldErrors.phone}</p>
-                ) : null}
-              </div>
 
               <div className={`public-auth-agreement-box ${fieldErrors.agreements ? "is-error" : ""}`}>
                 {/* 사업 정책: "전체 동의"는 마케팅(선택) 포함 일괄 처리. 라벨에 명시. */}
