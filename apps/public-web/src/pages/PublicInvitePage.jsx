@@ -46,6 +46,7 @@ export default function PublicInvitePage() {
           setSummary(nextSummary);
           clearSignupReferral();
           if (completion.status === "unavailable") setNotice("현재 초대 쿠폰을 발급할 수 없습니다. 잠시 후 다시 확인해 주세요.");
+          if (completion.status === "expired") setNotice("이미 사용된 초대 링크로 쿠폰이 지급되지 않았습니다.");
         }
       } catch (err) {
         if (!cancelled) setError(err.message);
@@ -94,11 +95,12 @@ export default function PublicInvitePage() {
               {loading ? <p className="invite-status" role="status">초대 정보를 확인하고 있습니다.</p> : null}
               {error ? <div className="invite-status" role="alert"><p>{error}</p><button className="invite-secondary" onClick={() => setReload((value) => value + 1)} type="button">다시 시도</button></div> : null}
               {!loading && !error && !offer?.active ? <p className="invite-status" role="status">현재 참여할 수 없는 이벤트입니다.</p> : null}
-              {!loading && !error && invalidCode ? <p className="invite-status" role="alert">사용할 수 없는 초대 링크입니다.<br />친구에게 링크를 다시 받아 주세요.</p> : null}
+              {!loading && !error && invalidCode ? <p className="invite-status" role="alert">{offer?.code_expired ? <>이미 초대가 완료되어 만료된 링크입니다.<br />이 링크로는 쿠폰을 받을 수 없습니다.</> : <>사용할 수 없는 초대 링크입니다.<br />친구에게 링크를 다시 받아 주세요.</>}</p> : null}
               {!loading && !error && isAuthenticated && summary ? (
                 <div className="invite-actions">
                   {received ? <p className="invite-success" role="status"><CheckCircleIcon size={20} /><span>나와 친구에게 {rewardLabel}원 쿠폰이 지급되었습니다.</span></p> : code ? <p className="invite-member-note">초대 가입 혜택은 신규 회원에게 지급됩니다.<br />내 링크로 친구를 초대해 보세요.</p> : null}
-                  {offer?.active && inviteUrl ? <>
+                  {summary.can_invite === false ? <p className="invite-success" role="status"><CheckCircleIcon size={20} /><span>친구 초대 혜택을 받았습니다.<br />1회 참여가 완료되어 내 초대 링크가 만료되었습니다.</span></p> : null}
+                  {offer?.active && inviteUrl && summary.can_invite !== false ? <>
                     <button className="invite-primary" type="button" onClick={share}>친구에게 초대 링크 보내기 <ArrowRightIcon size={20} /></button>
                     <label className="invite-link-label" htmlFor="invite-link">내 초대 링크</label>
                     <div className="invite-link-field">
@@ -139,7 +141,7 @@ export default function PublicInvitePage() {
             <summary>참여 전 확인해 주세요 <ChevronRightIcon size={18} /></summary>
             <ul>
               <li>이메일 인증 또는 소셜 로그인 후 필수 약관 동의와 가입 정보 입력을 완료하면 지급됩니다.</li>
-              <li>초대받은 친구는 신규 가입 시 1회, 초대한 회원은 친구가 가입할 때마다 1장씩 받습니다.</li>
+              <li>친구 한 명이 초대 링크로 가입을 완료하면 두 사람에게 한 장씩 지급됩니다. 초대 혜택은 1회이며, 지급 후 초대 링크는 만료됩니다.</li>
               <li>배송비를 제외한 할인 전 교재 금액 {REFERRAL_MIN_ORDER_AMOUNT.toLocaleString()}원 이상 주문에 쿠폰 1장을 사용할 수 있습니다.</li>
               {offer ? <li>{offer.valid_days ? `쿠폰은 발급일부터 ${offer.valid_days}일 동안 사용할 수 있습니다.` : "쿠폰의 사용 기한은 쿠폰함에서 확인할 수 있습니다."} 포인트는 기존 이용 조건에 따라 함께 사용할 수 있습니다.</li> : null}
             </ul>
