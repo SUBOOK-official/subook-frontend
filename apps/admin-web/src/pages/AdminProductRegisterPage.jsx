@@ -13,7 +13,7 @@ import { PICKUP_FEE_POLICY } from "@shared-domain/settlement";
 import { pickupRequestStatusLabel, shipmentStatusLabel } from "@shared-domain/status";
 import { CheckIcon, CloseIcon, PlusIcon } from "../components/icons";
 import { BRAND_OPTIONS, SUBJECT_OPTIONS } from "../lib/productCategories";
-import { MAX_DETAIL_PHOTOS } from "../lib/adminImageUpload";
+import { COVER_BUCKET, DETAIL_BUCKET, MAX_DETAIL_PHOTOS, uploadImageToBucket, validateImageFile } from "../lib/adminImageUpload";
 import { BusyText, InlineLoading, LoadingOverlay } from "../components/Loading";
 import {
   prepareStudioImagePayload,
@@ -29,10 +29,6 @@ import { getRegistrationDetailUrls } from "../lib/registrationPhotos";
 //   교재 = products(카탈로그), 재고/권 = books(1권=1row), 고객 = shipments(소유)
 //   할인/등급/메타 처리는 admin_register_customer_inventory RPC가 담당.
 
-const COVER_BUCKET = "product-covers";
-const DETAIL_BUCKET = "inspection-images";
-const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
-const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
 // 기존 교재 검색 결과 상한 — RPC clamp(100) 이내. 상한에 걸리면 목록 하단에 안내 표시.
 const PROD_SEARCH_LIMIT = 50;
 
@@ -203,28 +199,6 @@ function computeSellPrice(original, type, value) {
   if (type === "amount" && v !== null) return Math.max(0, Math.round(o - v));
   if (type === "rate" && v !== null) return Math.max(0, Math.round(o * (1 - Math.min(Math.max(v, 0), 100) / 100)));
   return Math.round(o);
-}
-
-function sanitizeFileName(name) {
-  return String(name || "image")
-    .replace(/[^a-zA-Z0-9._-]/g, "_")
-    .slice(0, 80);
-}
-
-async function uploadImageToBucket(bucket, file) {
-  if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
-    throw new Error("JPG/PNG/WebP/GIF만 업로드 가능합니다.");
-  }
-  if (file.size > MAX_IMAGE_BYTES) {
-    throw new Error("이미지는 15MB 이하여야 합니다.");
-  }
-  const path = `register/${Date.now()}-${Math.random().toString(36).slice(2, 10)}-${sanitizeFileName(file.name)}`;
-  const { error } = await supabase.storage
-    .from(bucket)
-    .upload(path, file, { contentType: file.type, upsert: false, cacheControl: "3600" });
-  if (error) throw error;
-  const { data } = supabase.storage.from(bucket).getPublicUrl(path);
-  return data?.publicUrl ?? null;
 }
 
 // AI 변환을 거친 표지는 파일명에 _studio가 붙는다(studioResultToFile).
@@ -1215,12 +1189,10 @@ function AdminProductRegisterPage() {
     const autoStudio = forceStudio || list.find((x) => x.uid === uid)?.coverAutoStudio === true;
     setItemBusy(kind, uid, "coverBusy", true);
     try {
-      if (!ALLOWED_IMAGE_TYPES.includes(file.type) || file.size > MAX_IMAGE_BYTES) {
-        throw new Error("JPG/PNG/WebP/GIF 이미지를 15MB 이하로 올려주세요.");
-      }
+      validateImageFile(file);
       const originalFile = await rotateLandscapePhoto(file);
       // AI 호출 전에 실물 원본을 보관한다. 실패하거나 초안을 복원해도 원본을 잃지 않는다.
-      const rawUrl = originalCoverUrl || await uploadImageToBucket(DETAIL_BUCKET, originalFile);
+      const rawUrl = originalCoverUrl || await uploadImageToBucket(DETAIL_BUCKET, originalFile, "register");
       if (!rawUrl) throw new Error("실물 표지 원본을 저장하지 못했습니다.");
       if (kind === "new") patchRow(uid, { originalCoverUrl: rawUrl });
       else patchAddition(uid, { originalCoverUrl: rawUrl });
@@ -1235,7 +1207,7 @@ function AdminProductRegisterPage() {
         const generated = await requestStudioGeneration(accessToken, payload);
         uploadFile = studioResultToFile(generated, file.name);
       }
-      const url = autoStudio ? await uploadImageToBucket(COVER_BUCKET, uploadFile) : rawUrl;
+      const url = autoStudio ? await uploadImageToBucket(COVER_BUCKET, uploadFile, "register") : rawUrl;
       if (url) {
         if (kind === "new") patchRow(uid, { coverUrl: url });
         else patchAddition(uid, { coverUrl: url });
@@ -1272,11 +1244,9 @@ function AdminProductRegisterPage() {
     let firstUploadedFile = null;
     for (const file of incoming) {
       try {
-        if (!ALLOWED_IMAGE_TYPES.includes(file.type) || file.size > MAX_IMAGE_BYTES) {
-          throw new Error("JPG/PNG/WebP/GIF 이미지를 15MB 이하로 올려주세요.");
-        }
+        validateImageFile(file);
         const originalFile = await rotateLandscapePhoto(file);
-        const url = await uploadImageToBucket(DETAIL_BUCKET, originalFile);
+        const url = await uploadImageToBucket(DETAIL_BUCKET, originalFile, "register");
         if (url) {
           urls.push(url);
           firstUploadedFile ??= originalFile;

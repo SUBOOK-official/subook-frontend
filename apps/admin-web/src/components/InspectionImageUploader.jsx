@@ -1,40 +1,5 @@
 import { useRef, useState } from "react";
-import { supabase } from "@shared-supabase/adminSupabaseClient";
-
-const BUCKET = "inspection-images";
-const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
-const MAX_SIZE_BYTES = 10 * 1024 * 1024;
-
-function sanitizeName(name) {
-  return String(name)
-    .replace(/[^a-zA-Z0-9._-]/g, "_")
-    .slice(0, 80);
-}
-
-function buildObjectPath(bookId, file) {
-  const ts = Date.now();
-  const rand = Math.random().toString(36).slice(2, 8);
-  const safe = sanitizeName(file.name || "image");
-  return `book-${bookId}/${ts}-${rand}-${safe}`;
-}
-
-async function uploadOne(bookId, file) {
-  if (!ALLOWED_TYPES.has(file.type)) {
-    throw new Error(`지원 안 함: ${file.type || "(불명)"}. JPG/PNG/WebP만 가능합니다.`);
-  }
-  if (file.size > MAX_SIZE_BYTES) {
-    throw new Error(`${file.name}: 파일이 10MB를 초과합니다.`);
-  }
-
-  const path = buildObjectPath(bookId, file);
-  const { error: uploadError } = await supabase.storage
-    .from(BUCKET)
-    .upload(path, file, { cacheControl: "3600", upsert: false, contentType: file.type });
-  if (uploadError) throw uploadError;
-
-  const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
-  return data?.publicUrl ?? null;
-}
+import { DETAIL_BUCKET, MAX_IMAGE_MB, uploadImageToBucket } from "../lib/adminImageUpload";
 
 /**
  * 검수 사진 업로드 컴포넌트.
@@ -59,7 +24,7 @@ function InspectionImageUploader({ bookId, disabled, onUploaded }) {
     const errors = [];
     for (let i = 0; i < files.length; i += 1) {
       try {
-        const url = await uploadOne(bookId, files[i]);
+        const url = await uploadImageToBucket(DETAIL_BUCKET, files[i], `book-${bookId}`);
         if (url) uploadedUrls.push(url);
       } catch (err) {
         errors.push(err?.message || String(err));
@@ -85,7 +50,7 @@ function InspectionImageUploader({ bookId, disabled, onUploaded }) {
         <input
           ref={inputRef}
           type="file"
-          accept="image/jpeg,image/png,image/webp"
+          accept="image/jpeg,image/png,image/webp,image/gif"
           multiple
           disabled={disabled || busy}
           onChange={handleFileChange}
@@ -100,7 +65,7 @@ function InspectionImageUploader({ bookId, disabled, onUploaded }) {
       {error ? (
         <p className="text-xs font-bold text-red-600">{error}</p>
       ) : (
-        <p className="text-xs text-slate-500">JPG/PNG/WebP, 한 장당 최대 10MB. 업로드한 URL이 아래 검수 사진 URL 목록에 자동 추가됩니다.</p>
+        <p className="text-xs text-slate-500">JPG/PNG/WebP/GIF, 한 장당 최대 {MAX_IMAGE_MB}MB. 업로드한 URL이 아래 검수 사진 URL 목록에 자동 추가됩니다.</p>
       )}
     </div>
   );

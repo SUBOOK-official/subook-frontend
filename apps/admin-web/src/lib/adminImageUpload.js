@@ -10,7 +10,18 @@ export const DETAIL_BUCKET = "inspection-images";
 export const MAX_DETAIL_PHOTOS = 2;
 
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
-const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
+export const MAX_IMAGE_MB = 15;
+const MAX_IMAGE_BYTES = MAX_IMAGE_MB * 1024 * 1024;
+
+export function validateImageFile(file) {
+  if (!ALLOWED_IMAGE_TYPES.includes(file?.type)) {
+    throw new Error("JPG/PNG/WebP/GIF만 업로드 가능합니다.");
+  }
+  if (!file.size) throw new Error("빈 이미지 파일은 업로드할 수 없습니다.");
+  if (file.size > MAX_IMAGE_BYTES) {
+    throw new Error(`이미지는 한 장당 ${MAX_IMAGE_MB}MB 이하여야 합니다. (${(file.size / 1024 / 1024).toFixed(1)}MB)`);
+  }
+}
 
 function sanitizeFileName(name) {
   return String(name || "image")
@@ -19,17 +30,20 @@ function sanitizeFileName(name) {
 }
 
 export async function uploadImageToBucket(bucket, file, prefix = "edit") {
-  if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
-    throw new Error("JPG/PNG/WebP/GIF만 업로드 가능합니다.");
-  }
-  if (file.size > MAX_IMAGE_BYTES) {
-    throw new Error("이미지는 15MB 이하여야 합니다.");
-  }
+  validateImageFile(file);
   const path = `${prefix}/${Date.now()}-${Math.random().toString(36).slice(2, 10)}-${sanitizeFileName(file.name)}`;
   const { error } = await supabase.storage
     .from(bucket)
     .upload(path, file, { contentType: file.type, upsert: false, cacheControl: "3600" });
-  if (error) throw error;
+  if (error) {
+    // Supabase의 새 코드와 기존 "maximum allowed size" 응답을 모두 처리한다.
+    // https://supabase.com/docs/guides/storage/debugging/error-codes
+    if (error.code === "EntityTooLarge" || String(error.statusCode) === "413"
+      || /maximum allowed size|entity too large|payload too large/i.test(error.message || "")) {
+      throw new Error("사진이 저장소의 용량 제한을 초과했습니다. 더 작은 파일로 다시 시도해 주세요.", { cause: error });
+    }
+    throw error;
+  }
   const { data } = supabase.storage.from(bucket).getPublicUrl(path);
   return data?.publicUrl ?? null;
 }
