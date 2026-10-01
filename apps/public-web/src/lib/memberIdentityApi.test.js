@@ -28,7 +28,7 @@ test('SMS hook은 유효한 서명+발송 예약에만 1번 전송하고 실패�
   let sent=0; let duplicate=false; let unavailable=false;
   t.mock.method(globalThis,'fetch',async(url)=>{
     if(String(url).endsWith('reserve_member_auth_sms_hook'))return Response.json(duplicate?{sent:true}:{success:true});
-    if(String(url).endsWith('complete_member_auth_sms_hook'))return Response.json(null);
+    if(String(url).endsWith('complete_member_auth_sms_hook'))return new Response(null,{status:204});
     if(String(url).startsWith('https://api.solapi.com/')){sent++;return unavailable?Response.json({errorCode:'failed'},{status:500}):Response.json({statusCode:'2000'});}
     throw Error('Unexpected request');
   });

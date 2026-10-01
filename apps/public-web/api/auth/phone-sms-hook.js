@@ -46,7 +46,9 @@ export async function handleSmsHook(request) {
       body: JSON.stringify(body), signal: AbortSignal.timeout(timeout),
     });
     if (!response.ok) throw new Error("SMS reservation failed");
-    return response.json();
+    // returns void RPC는 PostgREST가 204/빈 본문을 보낸다. 기록 성공을 JSON 오류로 뒤집지 않는다.
+    const text = await response.text();
+    return text ? JSON.parse(text) : null;
   };
   const hookId = request.headers.get("webhook-id");
   try {
