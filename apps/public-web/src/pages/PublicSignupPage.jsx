@@ -22,6 +22,8 @@ import {
   normalizeEmail,
 } from "../lib/publicAuthFormUtils";
 import { saveSignupSuccessState } from "../lib/publicSignupSuccessState";
+import { attachSignupReferral, completeSignupReferral } from "@shared-supabase/referralClient";
+import { clearSignupReferral, getSignupReferralCode, referralReturnPath } from "../lib/signupReferral";
 import {
   trackEmailVerified,
   trackEvent,
@@ -87,6 +89,7 @@ const agreementItems = [
 function PublicSignupPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [referralCode] = useState(() => getSignupReferralCode(location.search));
   const { hasSession, isAdminAccount, isAuthenticated, signOut } = usePublicAuth();
 
   const [formValues, setFormValues] = useState(() => ({
@@ -667,6 +670,15 @@ function PublicSignupPage() {
       return;
     }
 
+    if (referralCode) {
+      try {
+        await attachSignupReferral(supabase, referralCode);
+      } catch (error) {
+        setPageAlert(error.message);
+        setIsSubmitting(false);
+        return;
+      }
+    }
     const agreedAt = new Date().toISOString();
     const { error: updateError } = await supabase.auth.updateUser({
       password: formValues.password,
@@ -707,6 +719,13 @@ function PublicSignupPage() {
       /* 트리거가 이미 처리하므로 실패해도 무시 */
     }
 
+    if (referralCode) {
+      try {
+        await completeSignupReferral(supabase);
+        clearSignupReferral();
+      } catch { /* 가입은 완료됨. 초대 페이지에서 발급 상태 확인 및 멱등 재시도 */ }
+    }
+
     // GA4 sign_up — 이메일 가입 확정 시점 (OAuth 가입은 동의 페이지 완료 시 발화)
     trackSignUp("email", {
       marketingOptIn: agreements.marketing,
@@ -724,7 +743,7 @@ function PublicSignupPage() {
       tone: "success",
     });
     setIsSubmitting(false);
-    navigate("/", { replace: true });
+    navigate(referralCode ? referralReturnPath(referralCode) : "/", { replace: true });
   };
 
   // 이메일에 6자리 인증코드 발송. user는 임시 생성됨(비번 없음).
@@ -902,8 +921,10 @@ function PublicSignupPage() {
               dividerLabel="또는 이메일로 계속"
               dividerPosition="bottom"
               placement="top"
-              redirectTo={`${window.location.origin}/auth/callback?next=${encodeURIComponent("/mypage")}`}
+              redirectTo={`${window.location.origin}/auth/callback?next=${encodeURIComponent(referralCode ? referralReturnPath(referralCode) : "/mypage")}`}
             />
+
+            {referralCode ? <p className="public-auth-alert public-auth-alert--info">가입을 완료하면 나와 초대한 친구에게 각각 4,000원 쿠폰이 지급됩니다. 교재 3만원 이상 구매 시 사용할 수 있습니다.</p> : null}
 
             {hasSession && isAdminAccount ? (
               <div className="public-auth-alert public-auth-alert--info public-auth-alert--action">

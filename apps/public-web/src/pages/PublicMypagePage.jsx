@@ -3126,6 +3126,7 @@ function CouponsView() {
   return (
     <div className="public-mypage-stack">
       {/* 쿠폰 상태 탭 — 입력 칸보다 위, 상단 sticky 고정 */}
+      <Link className="public-mypage-coupon-download-title" to="/event/invite">친구 초대하고 함께 4,000원 쿠폰 받기 →</Link>
       <div className="public-mypage-coupon-tabs public-mypage-coupon-tabs--sticky">
         {[
           { key: "available", label: "보유" },

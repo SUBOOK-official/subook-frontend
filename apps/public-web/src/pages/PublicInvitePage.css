@@ -1,0 +1,21 @@
+.invite-content { padding-block: 48px 72px; }
+.invite-card { max-width: 520px; margin: 0 auto; padding: 32px; border: 1px solid var(--public-ds-border); border-radius: 16px; background: var(--public-ds-card); color: var(--public-ds-text-primary); }
+.invite-eyebrow { color: var(--public-ds-text-muted); font-size: 13px; font-weight: 700; margin: 0 0 16px; }
+.invite-card h1 { margin: 0; font-size: 36px; line-height: 1.35; letter-spacing: -0.04em; }
+.invite-card h1 strong { color: var(--public-ds-primary); }
+.invite-description { line-height: 1.7; margin: 16px 0 24px; color: var(--public-ds-text-secondary); }
+.invite-ticket { display: flex; flex-direction: column; gap: 8px; padding: 24px; margin-block: 24px; border: 1px dashed var(--public-ds-primary); border-radius: 12px; background: var(--public-ds-bg); text-align: center; }
+.invite-ticket strong { font-size: 42px; color: var(--public-ds-primary); letter-spacing: -0.04em; }
+.invite-ticket span { font-size: 14px; }
+.invite-actions { display: flex; flex-direction: column; gap: 12px; }
+.invite-primary, .invite-secondary { display: flex; justify-content: center; align-items: center; min-height: 48px; padding: 12px 18px; border-radius: 8px; font-size: 15px; font-weight: 700; text-decoration: none; cursor: pointer; }
+.invite-primary { border: 1px solid var(--public-ds-primary); color: var(--public-ds-card); background: var(--public-ds-primary); }
+.invite-secondary { border: 1px solid var(--public-ds-border); color: var(--public-ds-text-primary); background: var(--public-ds-card); }
+.invite-text-link { text-align: center; color: var(--public-ds-primary); font-weight: 600; }
+.invite-link-label { font-size: 12px; color: var(--public-ds-text-muted); }
+.invite-link-label input { width: 100%; box-sizing: border-box; padding: 12px; margin-top: 6px; border: 1px solid var(--public-ds-border); border-radius: 8px; background: var(--public-ds-bg); color: var(--public-ds-text-secondary); font-size: 12px; }
+.invite-count, .invite-notice { font-size: 14px; line-height: 1.6; text-align: center; }
+.invite-success { color: var(--public-ds-primary); font-weight: 700; }
+.invite-terms { padding-left: 18px; margin: 28px 0 0; font-size: 12px; line-height: 1.8; color: var(--public-ds-text-muted); }
+.invite-terms li + li { margin-top: 6px; }
+@media (max-width: 600px) { .invite-content { padding-block: 24px 40px; } .invite-card { padding: 24px 20px; } .invite-card h1 { font-size: 32px; } }

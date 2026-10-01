@@ -18,6 +18,7 @@ const PublicThemePage = lazy(() => import("./pages/PublicThemePage"));
 const PublicHomePage = lazy(() => import("./pages/PublicHomePage"));
 const PublicJeonilEventPage = lazy(() => import("./pages/PublicJeonilEventPage"));
 const PublicKakaoCouponPage = lazy(() => import("./pages/PublicKakaoCouponPage"));
+const PublicInvitePage = lazy(() => import("./pages/PublicInvitePage"));
 const PublicLoginPage = lazy(() => import("./pages/PublicLoginPage"));
 const PublicMypagePage = lazy(() => import("./pages/PublicMypagePage"));
 const PublicNoticesPage = lazy(() => import("./pages/PublicNoticesPage"));
@@ -126,6 +127,7 @@ function App() {
           <Route element={<PublicB2bPage />} path="/b2b" />
           <Route element={<PublicCatalogPage />} path="/catalog" />
           <Route element={<PublicKakaoCouponPage />} path="/event/kakao-coupon" />
+          <Route element={<PublicInvitePage />} path="/event/invite" />
           <Route element={<PublicFaqPage />} path="/faq" />
           <Route element={<PublicForgotPasswordPage />} path="/forgot-password" />
           <Route element={<PublicHomePage />} path="/" />

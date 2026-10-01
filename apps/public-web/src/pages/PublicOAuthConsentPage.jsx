@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@shared-supabase/publicSupabaseClient";
+import { attachSignupReferral, completeSignupReferral } from "@shared-supabase/referralClient";
+import { clearSignupReferral, getSignupReferralCode, referralReturnPath } from "../lib/signupReferral";
 import PublicAgreementDialog from "../components/PublicAgreementDialog";
 import brandLogoImage from "../assets/brand/logo-horizontal.png";
 import { CheckIcon } from "../components/icons";
@@ -124,6 +126,7 @@ function PublicOAuthConsentPage() {
 
   const search = new URLSearchParams(location.search);
   const next = search.get("next") || "/";
+  const [referralCode] = useState(() => getSignupReferralCode(next.split("?")[1] || location.search));
 
   const [agreements, setAgreements] = useState({ terms: false, privacy: false, marketing: false });
   const [activeAgreementKey, setActiveAgreementKey] = useState("");
@@ -155,7 +158,7 @@ function PublicOAuthConsentPage() {
 
   // 이미 인증 완료된 사용자는 next로 즉시 이동
   useEffect(() => {
-    if (isLoading) return;
+    if (isLoading || isSubmitting) return;
     if (!hasSession) {
       navigate("/login", { replace: true });
       return;
@@ -163,7 +166,7 @@ function PublicOAuthConsentPage() {
     if (isAuthenticated && !needsSignupCompletion) {
       navigate(next, { replace: true });
     }
-  }, [isLoading, hasSession, isAuthenticated, needsSignupCompletion, next, navigate]);
+  }, [isLoading, isSubmitting, hasSession, isAuthenticated, needsSignupCompletion, next, navigate]);
 
   // GA4 signup_consent_shown — 가입 마무리 화면 노출(1회). sign_up과의 격차 = 마무리 이탈.
   const consentShownTrackedRef = useRef(false);
@@ -302,10 +305,12 @@ function PublicOAuthConsentPage() {
 
     setIsSubmitting(true);
     try {
+      if (referralCode) await attachSignupReferral(supabase, referralCode);
       // 이메일 provider 사용자(OTP 가입 미완료자)면 비번부터 설정. 실패 시 RPC 호출 안 함.
       if (needsPasswordSetup) {
         const { error: passwordError } = await supabase.auth.updateUser({
           password: formValues.password,
+          ...(referralCode ? { data: { terms_agreed_at: new Date().toISOString(), privacy_agreed_at: new Date().toISOString() } } : {}),
         });
         if (passwordError) {
           // GA4 signup_failure — 비밀번호 설정 단계에서 중단
@@ -361,8 +366,14 @@ function PublicOAuthConsentPage() {
         needsPassword: needsPasswordSetup,
       });
 
+      if (referralCode) {
+        try {
+          await completeSignupReferral(supabase);
+          clearSignupReferral();
+        } catch { /* 가입 완료 후 초대 페이지에서 재시도 */ }
+      }
       await refreshProfile();
-      navigate(next, { replace: true });
+      navigate(referralCode ? referralReturnPath(referralCode) : next, { replace: true });
     } catch (err) {
       console.error("complete_oauth_signup failed", err);
       // GA4 signup_failure — 예외로 떨어진 케이스
@@ -372,7 +383,7 @@ function PublicOAuthConsentPage() {
         errorMessage: err?.message ?? "",
         uiSurface: "oauth_consent",
       });
-      setErrorMessage("동의 처리 중 오류가 발생했어요. 잠시 후 다시 시도해 주세요.");
+      setErrorMessage(err?.message || "동의 처리 중 오류가 발생했어요. 잠시 후 다시 시도해 주세요.");
       setIsSubmitting(false);
     }
   };
