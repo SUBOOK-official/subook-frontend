@@ -8,6 +8,7 @@ import {
 } from "@shared-supabase/publicSupabaseClient";
 import PublicOAuthButtons from "../components/PublicOAuthButtons";
 import brandLogoImage from "../assets/brand/logo-horizontal.png";
+import loginBooksImage from "../assets/member-auth-books.webp";
 import {
   AlertTriangleIcon,
   ArrowRightIcon,
@@ -29,12 +30,15 @@ import {
   isSocialOnlyAccount,
 } from "../lib/publicAuthProviders";
 import { saveSignupSuccessState } from "../lib/publicSignupSuccessState";
+import { usePageMeta } from "../lib/usePageMeta";
+import "./PublicLoginPage.css";
 
 // 차단(제재) 계정 공통 안내 — GoTrue 밴(user_banned) 또는 role RPC 'blocked' 감지 시 노출
 const BLOCKED_ACCOUNT_NOTICE =
   "이용이 제한된 계정입니다. 문의가 필요하시면 subook2025@gmail.com 으로 연락해 주세요.";
 
 function PublicLoginPage() {
+  usePageMeta({ title: "로그인", description: "수북에서 오늘의 공부를 이어가세요. 이메일, 카카오, 구글 계정으로 로그인할 수 있습니다.", noindex: true });
   const location = useLocation();
   const navigate = useNavigate();
   const passwordInputRef = useRef(null);
@@ -363,26 +367,32 @@ function PublicLoginPage() {
   };
 
   return (
-    <main className="public-auth-route">
-      <div className="public-auth-shell">
+    <main className="public-login-page">
+      <header className="public-login-header">
+        <Link className="public-login-brand" to="/">
+          <img alt="수북 SUBOOK" src={brandLogoImage} width="144" height="35" />
+        </Link>
+        <Link className="public-login-browse" to="/">교재 둘러보기 <ArrowRightIcon size={16} /></Link>
+      </header>
+      <div className="public-login-layout">
+        <aside className="public-login-story" aria-labelledby="public-login-story-title">
+          <img className="public-login-story__image" src={loginBooksImage} width="900" height="1200" alt="" fetchPriority="high" />
+          <div className="public-login-story__copy">
+            <p className="public-login-story__eyebrow">수능을 위한 가장 똑똑한 선택</p>
+            <h2 id="public-login-story-title">좋은 책으로,<br />다음 페이지를.</h2>
+            <p className="public-login-story__description">필요한 교재를 만나고,<br />남은 교재의 가치를 이어가세요.</p>
+          </div>
+        </aside>
         <section
           aria-labelledby="public-login-heading"
-          className="public-auth-card public-auth-card--login"
+          className="public-auth-card public-auth-card--login public-login-panel"
         >
-          <div className="public-auth-brand-lockup">
-            <Link className="public-auth-brand" to="/">
-              <img alt="수북 SUBOOK" className="public-auth-brand__logo" src={brandLogoImage} />
-            </Link>
-            <p className="public-auth-brand-lockup__tagline">
-              수능을 위한 가장 똑똑한 선택
-            </p>
-          </div>
-
           <div className="public-auth-card__body">
             <div className="public-auth-card__heading">
               <h1 className="public-auth-card__title" id="public-login-heading">
                 로그인
               </h1>
+              <p className="public-login-description">수북에서 오늘의 공부를 이어가세요.</p>
             </div>
 
             {hasSession && isAdminAccount ? (
@@ -402,12 +412,12 @@ function PublicLoginPage() {
             ) : null}
 
             {pageNotice ? (
-              <div className="public-auth-alert public-auth-alert--success">
+              <div className="public-auth-alert public-auth-alert--success" role="status">
                 {pageNotice}
               </div>
             ) : null}
             {pageError ? (
-              <div className="public-auth-alert public-auth-alert--error">
+              <div className="public-auth-alert public-auth-alert--error" role="alert">
                 <p>{pageError}</p>
                 {withdrawalRecoveryEmail ? (
                   <div className="public-auth-alert__actions">
@@ -457,6 +467,8 @@ function PublicLoginPage() {
                 <div className="public-auth-field-row__control">
                   <input
                     autoComplete="email"
+                    aria-invalid={Boolean(fieldErrors.email)}
+                    aria-describedby={fieldErrors.email ? "public-login-email-error" : undefined}
                     className="public-auth-field-row__input"
                     id="public-login-email"
                     onChange={handleEmailChange}
@@ -479,7 +491,7 @@ function PublicLoginPage() {
                   />
                 </div>
                 {fieldErrors.email ? (
-                  <p className="public-auth-inline-message public-auth-inline-message--error">
+                  <p className="public-auth-inline-message public-auth-inline-message--error" id="public-login-email-error" role="alert">
                     {fieldErrors.email}
                   </p>
                 ) : null}
@@ -488,15 +500,15 @@ function PublicLoginPage() {
               <div
                 className={`public-auth-field-row ${fieldErrors.password ? "is-error" : ""}`}
               >
-                <label
-                  className="public-auth-field-row__label"
-                  htmlFor="public-login-password"
-                >
-                  비밀번호
-                </label>
+                <div className="public-login-password-label">
+                  <label className="public-auth-field-row__label" htmlFor="public-login-password">비밀번호</label>
+                  <Link to="/forgot-password" onClick={() => trackSelectContent("auth_entry", "forgot_password", { uiSurface: "login" })}>비밀번호 찾기</Link>
+                </div>
                 <div className="public-auth-field-row__control public-auth-field-row__control--with-action">
                   <input
                     autoComplete="current-password"
+                    aria-invalid={Boolean(fieldErrors.password)}
+                    aria-describedby={fieldErrors.password ? "public-login-password-error" : undefined}
                     className="public-auth-field-row__input"
                     id="public-login-password"
                     onBlur={() => setIsCapsLockOn(false)}
@@ -540,7 +552,7 @@ function PublicLoginPage() {
                   </p>
                 ) : null}
                 {fieldErrors.password ? (
-                  <p className="public-auth-inline-message public-auth-inline-message--error">
+                  <p className="public-auth-inline-message public-auth-inline-message--error" id="public-login-password-error" role="alert">
                     {fieldErrors.password}
                   </p>
                 ) : null}
@@ -609,43 +621,24 @@ function PublicLoginPage() {
                     <span>로그인 중...</span>
                   </>
                 ) : (
-                  "로그인"
+                  <>로그인 <ArrowRightIcon size={18} /></>
                 )}
               </button>
             </form>
 
-            {/* GA4 select_content(auth_entry) — 로그인에서 빠져나가는 3갈래 비교 */}
-            <div className="public-auth-link-row">
+            <div className="public-login-signup">
+              <span>수북이 처음이라면</span>
               <Link
-                className="public-auth-link-row__link"
-                onClick={() =>
-                  trackSelectContent("auth_entry", "forgot_password", {
-                    uiSurface: "login",
-                  })
-                }
-                to="/forgot-password"
-              >
-                비밀번호 찾기
-              </Link>
-              <span
-                aria-hidden="true"
-                className="public-auth-link-row__separator"
-              />
-              <Link
-                className="public-auth-link-row__link"
                 onClick={() =>
                   trackSelectContent("auth_entry", "signup", { uiSurface: "login" })
                 }
                 to="/signup"
               >
-                회원가입
+                회원가입 <ArrowRightIcon size={15} />
               </Link>
-              <span
-                aria-hidden="true"
-                className="public-auth-link-row__separator"
-              />
+            </div>
+            <div className="public-login-guest">
               <Link
-                className="public-auth-link-row__link"
                 onClick={() =>
                   trackSelectContent("auth_entry", "guest_order_lookup", {
                     uiSurface: "login",
@@ -659,6 +652,7 @@ function PublicLoginPage() {
           </div>
         </section>
       </div>
+      <p className="public-login-footer">책의 가치를 잇다, 수북.</p>
     </main>
   );
 }
