@@ -41,12 +41,12 @@ test("scoped search preserves an explicitly selected price sort", () => {
   assert.equal(parseStorefrontQuery(buildScopedStoreSearchQuery(parseStorefrontQuery(query), "")).sortOption, "price_asc");
 });
 
-test("theme search keeps curated ordering without offering unsupported relevance sorting", () => {
-  const options = { allowRelevanceSort: false, sortOptions: STORE_SORT_OPTIONS.filter(({ value }) => value !== "popular") };
+test("theme search keeps popularity ordering without offering unsupported relevance sorting", () => {
+  const options = { allowRelevanceSort: false, sortOptions: STORE_SORT_OPTIONS.filter(({ value }) => value !== "recommended") };
   const current = parseStorefrontQuery("?subject=수학&year=2027&page=3", options);
   const result = parseStorefrontQuery(buildScopedStoreSearchQuery(current, "브릿지", options), options);
   assert.equal(result.searchKeyword, "브릿지");
-  assert.equal(result.sortOption, "recommended");
+  assert.equal(result.sortOption, "popular");
   assert.equal(result.selectedSubject, "수학");
   assert.deepEqual(result.selectedFilters.years, ["2027"]);
   assert.equal(result.page, 1);
@@ -287,17 +287,18 @@ test("discount filter and sort survive URL round-trip", () => {
 });
 
 test("theme URLs replace unsupported rankings while preserving filters and supported sorts", () => {
-  const options = { sortOptions: STORE_SORT_OPTIONS.filter((option) => option.value !== "popular"), allowRelevanceSort: false };
-  for (const sort of ["popular", "relevance"]) {
+  const options = { sortOptions: STORE_SORT_OPTIONS.filter((option) => option.value !== "recommended"), allowRelevanceSort: false };
+  for (const sort of ["recommended", "relevance"]) {
     const parsed = parseStorefrontQuery(`?sort=${sort}&q=수학&discount=sale&page=2`, options);
-    assert.equal(parsed.sortOption, "recommended");
+    assert.equal(parsed.sortOption, "popular");
     assert.equal(parsed.searchKeyword, "수학");
     assert.deepEqual(parsed.selectedFilters.discounts, ["sale"]);
     const query = serializeStorefrontQuery({ ...parsed, currentPage: parsed.page });
-    assert.equal(parseStorefrontQuery(query, options).sortOption, "recommended");
+    assert.equal(parseStorefrontQuery(query, options).sortOption, "popular");
     assert.equal(parseStorefrontQuery(query, options).page, 2);
   }
-  assert.equal(parseStorefrontQuery("?q=수학", options).sortOption, "recommended");
+  assert.equal(parseStorefrontQuery("", options).sortOption, "popular");
+  assert.equal(parseStorefrontQuery("?q=수학", options).sortOption, "popular");
   assert.equal(parseStorefrontQuery("?sort=discount_desc", options).sortOption, "discount_desc");
   assert.equal(parseStorefrontQuery("?sort=popular").sortOption, "popular");
   assert.equal(parseStorefrontQuery("?q=수학").sortOption, "relevance");

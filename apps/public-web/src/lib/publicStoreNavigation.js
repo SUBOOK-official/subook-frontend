@@ -17,7 +17,7 @@ export const STORE_SORT_OPTIONS = [
 // 검색어가 있을 때만 노출되는 관련도 정렬 — 서버 match_score(FTS 유사도) 기준.
 export const STORE_SEARCH_SORT_OPTION = { value: "relevance", label: "관련도순" };
 
-// 스토어 기본 정렬 — 드롭다운 노출 순서와 무관하게 초기 선택값만 '인기순'으로 지정.
+// 메인 목록 기본값. 관에서 지원하지 않으면 해당 관의 첫 번째 정렬을 사용한다.
 export const STORE_DEFAULT_SORT = "recommended";
 
 export function isValidStoreSort(value) {
@@ -152,7 +152,9 @@ export function parseStorefrontQuery(search, { sortOptions = STORE_SORT_OPTIONS,
   const requestedSort = params.get("sort");
   // 검색어가 있는데 정렬이 명시되지 않았으면 기본을 관련도순으로.
   // (검색 중 '인기순'을 직접 고르면 serialize가 sort=popular를 URL에 명시해 왕복 유지)
-  const fallbackSort = searchKeyword && allowRelevanceSort ? STORE_SEARCH_SORT_OPTION.value : STORE_DEFAULT_SORT;
+  const defaultSort = sortOptions.some((option) => option.value === STORE_DEFAULT_SORT)
+    ? STORE_DEFAULT_SORT : sortOptions[0]?.value ?? STORE_DEFAULT_SORT;
+  const fallbackSort = searchKeyword && allowRelevanceSort ? STORE_SEARCH_SORT_OPTION.value : defaultSort;
   const supportsRequestedSort = sortOptions.some((option) => option.value === requestedSort)
     || (allowRelevanceSort && requestedSort === STORE_SEARCH_SORT_OPTION.value);
   const sortOption = supportsRequestedSort ? requestedSort : fallbackSort;

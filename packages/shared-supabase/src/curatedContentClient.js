@@ -53,6 +53,14 @@ export function getPublicThemePage(client, themeId, { limit = 24, offset = 0 } =
   }).abortSignal(signal));
 }
 
+// 메인 목록과 동일한 인기순을 사용하되 테마 정렬에 필요한 ID만 가져온다.
+export function listPublicStorePopularity(client, { limit = 500, offset = 0 } = {}) {
+  requireCuratedClient(client);
+  return requestCuratedContent((signal) => client.rpc("list_public_store_products", {
+    p_sort: "popular", p_limit: limit, p_offset: offset,
+  }).select("id,total_count").abortSignal(signal));
+}
+
 export function getCheckoutBookPricing(client, bookIds) {
   requireCuratedClient(client);
   return requestCuratedContent((signal) => client.rpc("get_books_pricing_for_order", { p_book_ids: bookIds.map(Number) }).abortSignal(signal));
