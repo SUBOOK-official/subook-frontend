@@ -92,6 +92,7 @@ function ProductCard({
   // 카드 하단 액션 슬롯(예: 찜 목록의 품절 카드 "재입고 알림" 버튼). 카드 전체를 덮는
   // overlay 링크 위에서 클릭돼야 하므로 __footer가 z-index를 올린다.
   footer = null,
+  hideCondition = false,
   isFavorite = false,
   onToggleFavorite,
   product,
@@ -122,7 +123,7 @@ function ProductCard({
   // 콜라보 신품 교재는 중고 검수 등급 개념이 없어 등급 칩을 빼둔다 (상세 화면과 동일).
   const isFeatured = Boolean(findFeaturedProductEntry(product));
   const tags = getStoreCardTags(product).filter(
-    (tag) => !(isFeatured && tag.key === "condition"),
+    (tag) => !((isFeatured || hideCondition) && tag.key === "condition"),
   );
   const metaLine = getStoreCardMetaLine(product);
   // 출시 전 콜라보 교재는 가격·할인율을 감추고 오픈일만 알린다.

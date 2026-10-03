@@ -9,6 +9,8 @@ import FeaturedProductDetail, {
   hasFeaturedProductDetail,
 } from "../components/FeaturedProductDetail";
 import PublicFooter from "../components/PublicFooter";
+import ProductOptionPicker from "../components/ProductOptionPicker";
+import ProductOptionSheet from "../components/ProductOptionSheet";
 import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
 import AiSummaryNoticeDialog from "../components/AiSummaryNoticeDialog";
@@ -114,7 +116,6 @@ const HEADER_OFFSET_PX = 72;
 // 모두 항상 렌더링되고 nav는 앵커 스크롤 + 스크롤스파이만 담당한다.
 const DETAIL_SECTIONS = [
   { key: "info", label: "교재 상세 정보" },
-  { key: "grade", label: "수북 검수 정책" },
   {
     key: "shipping",
     // 모바일에서는 '안내'를 숨겨 라벨을 짧게 (배송 및 교환 반품)
@@ -129,44 +130,12 @@ const DETAIL_SECTIONS = [
   { key: "reviews", label: "구매 후기" },
 ];
 
-// 등급 라벨 → CSS modifier(--grade-s/a-plus/a). 색상 변별력을 위해 등급별 다른 톤.
-function getGradeTone(label) {
-  if (!label) return null;
-  const normalized = String(label).trim().toUpperCase();
-  if (normalized === "S") return "s";
-  if (normalized === "A+") return "a-plus";
-  if (normalized === "A") return "a";
-  return null;
-}
-
-function ProductChips({ subject, bookType, brand, conditionGradeLabel }) {
-  const gradeTone = getGradeTone(conditionGradeLabel);
-  const items = [
-    subject ? { type: "subject", label: subject } : null,
-    bookType ? { type: "type", label: bookType } : null,
-    brand ? { type: "brand", label: brand } : null,
-    conditionGradeLabel
-      ? { type: "grade", label: conditionGradeLabel, tone: gradeTone }
-      : null,
-  ].filter(Boolean);
-
-  if (items.length === 0) return null;
-
-  return (
-    <div className="public-detail-chips">
-      {items.map((item) => {
-        const className =
-          item.type === "grade" && item.tone
-            ? `public-detail-chip public-detail-chip--grade public-detail-chip--grade-${item.tone}`
-            : `public-detail-chip public-detail-chip--${item.type}`;
-        return (
-          <span className={className} key={`${item.type}-${item.label}`}>
-            {item.label}
-          </span>
-        );
-      })}
-    </div>
-  );
+function ProductChips({ subject, bookType, brand }) {
+  const items = [brand, subject, bookType].filter(Boolean);
+  if (!items.length) return null;
+  return <div className="public-detail-chips">{items.map((label, index) =>
+    <span className="public-detail-chip" key={index}>{label}</span>
+  )}</div>;
 }
 
 function ProductPriceLine({ priceValue, originalPriceValue, discountRate }) {
@@ -210,150 +179,6 @@ function ProductPriceLine({ priceValue, originalPriceValue, discountRate }) {
           >
             {formatCurrency(originalPriceValue)}
           </s>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
-// 옵션 dropdown 트리거의 chevron 아이콘. 열림 상태는 CSS에서 회전시켜 표현.
-function OptionChevronIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="public-detail-option-row__chevron"
-      fill="none"
-      height="16"
-      viewBox="0 0 16 16"
-      width="16"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path
-        d="M4 6L8 10L12 6"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.6"
-      />
-    </svg>
-  );
-}
-
-// 회차(option) 선택 dropdown — 고르면 아래 선택목록에 추가만 하고 placeholder로 되돌아간다.
-// 라벨에서 등급('S (새 책)')은 빼고 회차명만 노출. 전량 품절 회차는 비활성화.
-// 네이티브 <select>는 OS 다크모드 등 환경에 따라 팝업 배색을 브라우저가 강제해 디자인을
-// 완전히 통제할 수 없어, 버튼 + listbox 조합의 커스텀 드롭다운으로 직접 구현한다.
-// showLowStock: 콜라보(hideStockCount) 상품은 재고 1~5개 회차에 '품절임박'을 붙인다.
-function VariantSelect({ groups, onAdd, disabled, productId, showLowStock = false }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const containerRef = useRef(null);
-  const labelId = "public-detail-option-label";
-  const soldOutCount = groups.filter((group) => group.soldOut).length;
-
-  useEffect(() => {
-    if (!isOpen) return undefined;
-
-    const handlePointerDown = (event) => {
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(event.target)
-      ) {
-        setIsOpen(false);
-      }
-    };
-
-    const handleKeyDown = (event) => {
-      if (event.key === "Escape") {
-        setIsOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isOpen]);
-
-  // 비활성(재고 없음) 전환 시 열려 있던 팝업은 닫아준다.
-  useEffect(() => {
-    if (disabled) {
-      setIsOpen(false);
-    }
-  }, [disabled]);
-
-  if (!groups.length) return null;
-
-  const handleSelect = (group) => {
-    if (group.soldOut) return;
-    onAdd(group.key);
-    setIsOpen(false);
-  };
-
-  return (
-    <div className="public-detail-option-row">
-      <label className="public-detail-option-row__label" id={labelId}>
-        옵션 선택
-      </label>
-      <div className="public-detail-option-row__dropdown" ref={containerRef}>
-        <button
-          aria-expanded={isOpen}
-          aria-haspopup="listbox"
-          aria-labelledby={`${labelId} public-detail-option-trigger`}
-          className={`public-detail-option-row__trigger${isOpen ? " is-open" : ""}`}
-          disabled={disabled}
-          id="public-detail-option-trigger"
-          onClick={() => {
-            const next = !isOpen;
-            // GA4 — 옵션 드롭다운 열림/닫힘 (선택까지 못 간 이탈 관찰용)
-            trackEvent("product_option_open", {
-              ...(productId != null ? { itemId: String(productId) } : {}),
-              uiAction: next ? "open" : "close",
-              optionCount: groups.length,
-              soldoutCount: soldOutCount,
-            });
-            setIsOpen(next);
-          }}
-          type="button"
-        >
-          <span className="public-detail-option-row__trigger-label">
-            옵션을 선택해 주세요
-          </span>
-          <OptionChevronIcon />
-        </button>
-
-        {isOpen ? (
-          <ul
-            aria-labelledby={labelId}
-            className="public-detail-option-row__listbox"
-            role="listbox"
-          >
-            {groups.map((group) => (
-              <li
-                aria-disabled={group.soldOut ? "true" : undefined}
-                aria-selected="false"
-                className={`public-detail-option-row__option${group.soldOut ? " is-disabled" : ""}`}
-                key={group.key || "__default__"}
-                onClick={() => handleSelect(group)}
-                role="option"
-              >
-                <span className="public-detail-option-row__option-label">
-                  {group.label}
-                </span>
-                {group.soldOut ? (
-                  <span className="public-detail-option-row__option-badge">
-                    품절
-                  </span>
-                ) : showLowStock && isLowStockCount(group.availableCount) ? (
-                  <span className="public-detail-option-row__option-badge">
-                    품절임박
-                  </span>
-                ) : null}
-              </li>
-            ))}
-          </ul>
         ) : null}
       </div>
     </div>
@@ -440,9 +265,7 @@ function SelectedOptionRow({
 // S 등급은 미사용(신규 입고 전량)이라 항상 "필기 0%·훼손 없음"이 되어, 모든 상품에
 // 똑같이 붙이면 신호가 0인 cried-wolf가 된다. 그래서 S·미등급에서는 통째로 숨긴다.
 function ConditionReport({ display }) {
-  const gradeTone = getGradeTone(display?.conditionGradeLabel);
-  // a-plus / a 만 노출 대상. s · null(미등급)은 숨김.
-  if (gradeTone !== "a-plus" && gradeTone !== "a") return null;
+  if (!["A+", "A"].includes(display?.conditionGradeLabel)) return null;
 
   const writing =
     typeof display?.writingPercentage === "number" &&
@@ -669,86 +492,6 @@ function DetailInfoContent({ activeDisplay }) {
   );
 }
 
-// 강사 사진 — public/policy/grade-policy.jpg 가 없으면(아직 안 올렸으면) 회색 틀로 폴백.
-// 파일만 그 경로에 추가하면 자동으로 실제 사진이 노출된다.
-const GRADE_POLICY_IMAGE_URL = "/policy/grade-policy.jpg";
-
-function GradePolicyImage() {
-  const [imageFailed, setImageFailed] = useState(false);
-
-  if (imageFailed) {
-    return (
-      <div
-        aria-label="강사 사진 (준비 중)"
-        className="public-detail-grade-layout__image"
-      >
-        <span>강사 사진</span>
-      </div>
-    );
-  }
-
-  return (
-    <div className="public-detail-grade-layout__image public-detail-grade-layout__image--photo">
-      <img
-        alt="수북 검수 담당자"
-        onError={() => setImageFailed(true)}
-        src={GRADE_POLICY_IMAGE_URL}
-      />
-    </div>
-  );
-}
-
-// 수북 검수 정책 섹션 (구 "상태 등급 안내" 탭) — 강사 사진 + 검수 항목 칩 + 등급 안내.
-function DetailGradeContent() {
-  return (
-    <>
-      <h3 className="public-detail-tab-content__heading">수북 검수 정책</h3>
-      <div className="public-detail-grade-layout">
-        <GradePolicyImage />
-        <div className="public-detail-grade-layout__content">
-          <p className="public-detail-grade-intro">
-            수북은 전문 QC센터에서 검수를 마친 상태가 검증된 교재만을
-            판매합니다.
-          </p>
-          <div className="public-detail-grade-checks">
-            <span className="public-detail-grade-checks__item">필기율 검사</span>
-            <span className="public-detail-grade-checks__item">
-              표지/페이지 찢김, 구겨짐 등 하자 검사
-            </span>
-            <span className="public-detail-grade-checks__item">교재 적합성 검사</span>
-            <span className="public-detail-grade-checks__item">불법 복제본 검열</span>
-          </div>
-          <h4 className="public-detail-grade-subheading">등급 안내</h4>
-          <div className="public-detail-grade-list">
-            <div className="public-detail-grade-list__item">
-              <p className="public-detail-grade-list__title">
-                <strong className="public-detail-grade-list__label">S급</strong>{" "}
-                - 미사용 새책
-              </p>
-              <p className="public-detail-grade-list__desc">
-                랩핑조차 뜯지 않았거나, 사용감이 느껴지지 않는 완전한 새 책
-                상태.
-              </p>
-            </div>
-            <div className="public-detail-grade-list__item">
-              <p className="public-detail-grade-list__title">
-                <strong className="public-detail-grade-list__label">
-                  A+급
-                </strong>{" "}
-                - 극미한 사용감
-              </p>
-              <p className="public-detail-grade-list__desc">
-                10%미만의 연필 필기 ,이름만 적은 수준, 거의 새책에 준하는
-                상태.
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </>
-  );
-}
-
 // 배송 및 교환 반품 안내 섹션 (구 "배송 안내" + "교환 및 반품 안내" 탭을 한 섹션으로 통합)
 function DetailShippingContent() {
   return (
@@ -774,7 +517,7 @@ function DetailShippingContent() {
           배송비(편도)는 구매자 부담입니다.
         </li>
         <li>
-          실제 상태가 검수 등급과 다르거나 페이지 누락·심한 훼손이 확인된 경우, 왕복 배송비
+          실제 상태가 상품 안내와 다르거나 페이지 누락·심한 훼손이 확인된 경우, 왕복 배송비
           부담 없이 무료로 교환·반품해 드립니다.
         </li>
         <li>
@@ -1067,6 +810,7 @@ function RelatedProductsRail({
               role="listitem"
             >
               <ProductCard
+                hideCondition
                 analyticsListName={title}
                 isFavorite={favoriteIds.includes(String(relatedProduct.id))}
                 onToggleFavorite={onToggleFavorite}
@@ -1281,18 +1025,13 @@ function PublicProductDetailPage() {
     }
     return links;
   }, [product]);
-  // 콜라보 교재는 출판사가 새로 만든 신품이라 중고 검수 등급(S/A+/A) 개념이 없다.
-  // → '수북 검수 정책' 섹션과 등급 칩을 통째로 뺀다 (2026-08-31 사용자 결정).
-  const detailSections = useMemo(
-    () =>
-      featuredDetailKey
-        ? DETAIL_SECTIONS.filter((section) => section.key !== "grade")
-        : DETAIL_SECTIONS,
-    [featuredDetailKey],
-  );
+  const detailSections = DETAIL_SECTIONS;
   // 다중 옵션 선택: [{ key: 회차, quantity }]. 단일재고 모델이라 회차별 수량은 그 회차의
   // 남은 책 수로 캡되고, 담기/구매 시 회차별로 distinct한 book_id가 할당된다.
   const [selections, setSelections] = useState([]);
+  const [optionSheetOpen, setOptionSheetOpen] = useState(false);
+  const optionSheetTriggerRef = useRef(null);
+  useEffect(() => { setOptionSheetOpen(false); }, [productId]);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -2071,7 +1810,8 @@ function PublicProductDetailPage() {
             (item) => item.key === selection.key,
           );
           if (!group) return null;
-          const label = group.key === "" ? product.title : group.label;
+          const label = group.key === "" ? product.title
+            : /^\d+$/.test(group.label) ? `옵션 ${group.label}` : group.label;
           return (
             <SelectedOptionRow
               group={group}
@@ -2089,6 +1829,26 @@ function PublicProductDetailPage() {
         })}
       </div>
     );
+  };
+
+  const openOptionSheet = () => {
+    trackEvent("product_option_open", {
+      itemId: String(product.id), uiAction: "open",
+      optionCount: variantGroups.length,
+      soldoutCount: variantGroups.filter(group => group.soldOut).length,
+    });
+    setOptionSheetOpen(true);
+  };
+
+  const closeOptionSheet = () => {
+    trackEvent("product_option_open", {
+      itemId: String(product.id), uiAction: "close",
+      optionCount: variantGroups.length,
+      soldoutCount: variantGroups.filter(group => group.soldOut).length,
+    });
+    setOptionSheetOpen(false);
+    // 선택 후 트리거가 '옵션 변경'으로 교체되므로 새 버튼으로 포커스를 돌린다.
+    requestAnimationFrame(() => optionSheetTriggerRef.current?.focus({ preventScroll: true }));
   };
 
   const pageContent = (
@@ -2242,9 +2002,6 @@ function PublicProductDetailPage() {
                 <ProductChips
                   brand={product.brand}
                   bookType={product.bookType}
-                  conditionGradeLabel={
-                    featuredDetailKey ? null : product.conditionGradeLabel
-                  }
                   subject={product.subject}
                 />
 
@@ -2296,17 +2053,16 @@ function PublicProductDetailPage() {
                   </div>
                 ) : null}
 
-                {/* 회차/옵션 선택 — 재고 있을 때만 노출. 품절이면 아래 재입고 알림으로 대체.
-                    옵션이 2개 이상일 때만 드롭다운 노출. 단일옵션(수능특강 등)은 드롭다운 없이
-                    상품이 바로 선택된 상태로 표시(자동 선택). */}
+                {/* 옵션/실제 권별 재고·금액 계산은 유지하고 선택 UI만 변경한다. */}
+                <div className="public-detail-purchase">
                 {canPurchase ? (
                   <>
                     {variantGroups.length > 1 ? (
-                      <VariantSelect
-                        disabled={!productHasStock}
+                      <ProductOptionPicker
+                        selections={selections}
+                        onRemove={handleRemoveVariant}
                         groups={variantGroups}
                         onAdd={handleAddVariant}
-                        productId={product.id}
                         showLowStock={featuredEntry?.hideStockCount === true}
                       />
                     ) : null}
@@ -2327,15 +2083,15 @@ function PublicProductDetailPage() {
                       </dd>
                     </div>
                     <div>
-                      <dt>총 상품 금액 ({selectionCount}개)</dt>
+                      <dt>상품 금액 <small>{selectionCount}권 선택</small></dt>
                       <dd className="public-detail-hero__summary-total">
-                        {hasSelection ? formatCurrency(selectionSubtotal) : "-"}
+                        {hasSelection ? formatCurrency(selectionSubtotal) : "옵션을 선택해 주세요"}
                       </dd>
                     </div>
                   </dl>
                 )}
 
-                <div className="public-detail-hero__actions">
+                <div className={`public-detail-hero__actions${!canPurchase ? " public-detail-hero__actions--single" : ""}${isPreRelease ? " public-detail-hero__actions--pre-release" : ""}`}>
                   <button
                     aria-label={isProductFavorite ? "찜 취소" : "찜하기"}
                     aria-pressed={isProductFavorite}
@@ -2417,6 +2173,7 @@ function PublicProductDetailPage() {
                     </button>
                   )}
                 </div>
+                </div>
               </div>
             </div>
 
@@ -2477,19 +2234,6 @@ function PublicProductDetailPage() {
                 </>
               )}
             </section>
-
-            {featuredDetailKey ? null : (
-              <section
-                aria-label="수북 검수 정책"
-                className="public-detail-tab-content"
-                id="detail-section-grade"
-                ref={(element) => {
-                  sectionRefs.current.grade = element;
-                }}
-              >
-                <DetailGradeContent />
-              </section>
-            )}
 
             <section
               aria-label="배송 및 교환 반품 안내"
@@ -2556,7 +2300,24 @@ function PublicProductDetailPage() {
         />
       ) : null}
 
-      {/* 모바일 sticky 구매바 — 모바일에서만 표시 (CSS @media로 제어) */}
+      {optionSheetOpen && canPurchase && <ProductOptionSheet
+        title={product.title}
+        subtotal={selectionSubtotal}
+        count={selectionCount}
+        onClose={closeOptionSheet}
+      >
+        {variantGroups.length > 1 && <ProductOptionPicker
+          groups={variantGroups}
+          selections={selections}
+          onAdd={handleAddVariant}
+          onRemove={handleRemoveVariant}
+          showLowStock={featuredEntry?.hideStockCount === true}
+        />}
+        {renderSelectedOptions()}
+      </ProductOptionSheet>}
+
+      {/* 모바일에서는 필요할 때 옵션 시트를 열어 상세 사진을 넓게 볼 수 있다. */}
+      {product && !isLoading && !error && !notFound && !isPreRelease && (
       <div
         className="public-detail-sticky-bar"
         role="region"
@@ -2576,13 +2337,14 @@ function PublicProductDetailPage() {
         </button>
         <div className="public-detail-sticky-bar__price">
           <span className="public-detail-sticky-bar__price-label">
-            총 {selectionCount}개
+            {hasSelection ? `${selectionCount}권 선택` : "판매가"}
           </span>
           <span className="public-detail-sticky-bar__price-value">
-            {hasSelection ? formatCurrency(selectionSubtotal) : "-"}
+            {hasSelection ? formatCurrency(selectionSubtotal) : formatCurrency(priceValue)}
           </span>
+          {canPurchase && hasSelection && <button type="button" ref={optionSheetTriggerRef} className="public-detail-sticky-bar__edit" onClick={openOptionSheet}>옵션 변경</button>}
         </div>
-        {canPurchase ? (
+        {canPurchase && !hasSelection ? <button type="button" ref={optionSheetTriggerRef} className="public-detail-sticky-bar__btn public-detail-sticky-bar__btn--buy public-detail-sticky-bar__btn--choose" onClick={openOptionSheet}>옵션 선택</button> : canPurchase ? (
           <>
             <button
               className="public-detail-sticky-bar__btn public-detail-sticky-bar__btn--cart"
@@ -2621,7 +2383,7 @@ function PublicProductDetailPage() {
                 : <><BellIcon size={14} /> 재입고 알림</>}
           </button>
         )}
-      </div>
+      </div>)}
     </div>
   );
 
