@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   clearStoreFilterGroup,
+  buildScopedStoreSearchQuery,
   cloneStoreFilters,
   countSelectedStoreFilters,
   STORE_DEFAULT_SUBJECT,
@@ -12,6 +13,44 @@ import {
   serializeStorefrontQuery,
   toggleStoreFilterSelection,
 } from "./publicStoreNavigation.js";
+
+test("category search preserves all selected constraints and resets pagination", () => {
+  const current = parseStorefrontQuery("?subject=수학&type=N제&brand=시대인재&year=2027&grade=S&discount=sale&page=3");
+  const result = parseStorefrontQuery(buildScopedStoreSearchQuery(current, "  볼텍스  "));
+  assert.equal(result.searchKeyword, "볼텍스");
+  assert.equal(result.selectedSubject, "수학");
+  assert.deepEqual(result.selectedFilters, current.selectedFilters);
+  assert.equal(result.page, 1);
+  assert.equal(result.sortOption, "relevance");
+});
+
+test("clearing category search preserves filters and restores the default sort", () => {
+  const current = parseStorefrontQuery("?subject=국어&brand=강남대성&q=파이널&page=2");
+  const result = parseStorefrontQuery(buildScopedStoreSearchQuery(current, "   "));
+  assert.equal(result.searchKeyword, "");
+  assert.equal(result.selectedSubject, "국어");
+  assert.deepEqual(result.selectedFilters, current.selectedFilters);
+  assert.equal(result.sortOption, "recommended");
+  assert.equal(result.page, 1);
+});
+
+test("scoped search preserves an explicitly selected price sort", () => {
+  const current = parseStorefrontQuery("?brand=시대인재&sort=price_asc&page=2");
+  const query = buildScopedStoreSearchQuery(current, "서바이벌");
+  assert.equal(parseStorefrontQuery(query).sortOption, "price_asc");
+  assert.equal(parseStorefrontQuery(buildScopedStoreSearchQuery(parseStorefrontQuery(query), "")).sortOption, "price_asc");
+});
+
+test("theme search keeps curated ordering without offering unsupported relevance sorting", () => {
+  const options = { allowRelevanceSort: false, sortOptions: STORE_SORT_OPTIONS.filter(({ value }) => value !== "popular") };
+  const current = parseStorefrontQuery("?subject=수학&year=2027&page=3", options);
+  const result = parseStorefrontQuery(buildScopedStoreSearchQuery(current, "브릿지", options), options);
+  assert.equal(result.searchKeyword, "브릿지");
+  assert.equal(result.sortOption, "recommended");
+  assert.equal(result.selectedSubject, "수학");
+  assert.deepEqual(result.selectedFilters.years, ["2027"]);
+  assert.equal(result.page, 1);
+});
 
 test("parseStorefrontQuery falls back to the default subject for invalid values", () => {
   const parsed = parseStorefrontQuery("?subject=없는과목&sort=unknown&page=-2");

@@ -214,6 +214,18 @@ export function cloneStoreFilters(filters = {}) {
   }, createStoreInitialFilters());
 }
 
+// 현재 관·카테고리는 유지하고 검색어와 첫 페이지만 변경한다.
+export function buildScopedStoreSearchQuery(current, keyword, { allowRelevanceSort = true } = {}) {
+  const searchKeyword = String(keyword ?? "").trim();
+  let sortOption = current.sortOption;
+  if (!searchKeyword && sortOption === STORE_SEARCH_SORT_OPTION.value) {
+    sortOption = STORE_DEFAULT_SORT;
+  } else if (searchKeyword && !current.searchKeyword && sortOption === STORE_DEFAULT_SORT && allowRelevanceSort) {
+    sortOption = STORE_SEARCH_SORT_OPTION.value;
+  }
+  return serializeStorefrontQuery({ ...current, searchKeyword, sortOption, currentPage: 1 });
+}
+
 export function clearStoreFilterGroup(filters, groupKey) {
   const nextFilters = cloneStoreFilters(filters);
   if (STORE_FILTER_OPTIONS_BY_KEY[groupKey]) {

@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
 import ContentContainer from "../ContentContainer";
 import ProductCard, { ProductCardSkeleton } from "../ProductCard";
-import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, CloseIcon } from "../icons";
+import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, CloseIcon, SearchIcon } from "../icons";
 import {
   HOME_SIDEBAR_FILTER_GROUP_KEYS,
   STORE_DEFAULT_SORT,
@@ -12,6 +12,7 @@ import {
   STORE_SEARCH_SORT_OPTION,
   STORE_SORT_OPTIONS,
   STORE_SUBJECTS,
+  buildScopedStoreSearchQuery,
   clearStoreFilterGroup,
   cloneStoreFilters,
   countSelectedStoreFilters,
@@ -86,12 +87,14 @@ function getPaginationItems(currentPage, totalPages) {
   return items;
 }
 
-function HomeStoreGrid({ favoriteIds = [], onToggleFavorite, loadProducts = fetchStorefrontProducts, queryPath = "/", sortOptions = STORE_SORT_OPTIONS, allowRelevanceSort = true }) {
+function HomeStoreGrid({ favoriteIds = [], onToggleFavorite, loadProducts = fetchStorefrontProducts, queryPath = "/", sortOptions = STORE_SORT_OPTIONS, allowRelevanceSort = true, searchLabel = "카테고리 내 검색" }) {
   const { isAuthenticated } = usePublicAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const sortMenuRef = useRef(null);
   const sectionTopRef = useRef(null);
+  const searchInputRef = useRef(null);
+  const searchInputId = useId();
 
   const initialQueryState = useMemo(
     () => parseStorefrontQuery(location.search, { sortOptions, allowRelevanceSort }),
@@ -111,6 +114,7 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite, loadProducts = fetc
   const [sortOption, setSortOption] = useState(initialQueryState.sortOption);
   const [currentPage, setCurrentPage] = useState(initialQueryState.page);
   const [searchKeyword, setSearchKeyword] = useState(initialQueryState.searchKeyword);
+  const [searchDraft, setSearchDraft] = useState(initialQueryState.searchKeyword);
   const [isSortMenuOpen, setIsSortMenuOpen] = useState(false);
   const requestSeqRef = useRef(0);
   const [isMobileViewport, setIsMobileViewport] = useState(() =>
@@ -246,6 +250,10 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite, loadProducts = fetc
     setCurrentPage((current) => (current === next.page ? current : next.page));
     setSearchKeyword((current) => (current === next.searchKeyword ? current : next.searchKeyword));
   }, [location.search, sortOptions, allowRelevanceSort]);
+
+  useEffect(() => {
+    setSearchDraft(searchKeyword);
+  }, [searchKeyword]);
 
   // 상태 → URL 동기화
   //   - location.pathname === "/" 가드: 다른 페이지에서 발동되면 강제로 "/"로 튕기는 사고 방지
@@ -397,12 +405,30 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite, loadProducts = fetc
     setCurrentPage(1);
   };
 
-  // uiSurface: search_chip / empty_state
+  const handleSearchSubmit = (event) => {
+    event.preventDefault();
+    const keyword = searchDraft.trim();
+    setSearchDraft(keyword);
+    if (keyword) {
+      trackEvent("search_submit", { searchTerm: keyword, uiSurface: "category_search" });
+    } else if (searchKeyword) {
+      trackEvent("search_clear", { searchTerm: searchKeyword, uiSurface: "category_search" });
+    }
+    const nextSearch = buildScopedStoreSearchQuery({
+      selectedSubject, selectedFilters, sortOption, searchKeyword,
+    }, keyword, { allowRelevanceSort });
+    // URL을 먼저 변경해 새로고침·공유·뒤로가기에서도 같은 검색 조건을 복원한다.
+    navigate({ pathname: queryPath, search: nextSearch ? `?${nextSearch}` : "" });
+    searchInputRef.current?.blur();
+  };
+
+  // uiSurface: search_chip / empty_state / category_search
   const handleClearSearchKeyword = (uiSurface = "search_chip") => {
     if (searchKeyword.trim()) {
       trackEvent("search_clear", { searchTerm: searchKeyword.trim(), uiSurface });
     }
     setSearchKeyword("");
+    setSearchDraft("");
     // 검색 전용 정렬(관련도순)은 검색 해제와 함께 평시 기본(인기순)으로 복원
     if (sortOption === STORE_SEARCH_SORT_OPTION.value) {
       setSortOption(STORE_DEFAULT_SORT);
@@ -705,6 +731,33 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite, loadProducts = fetc
 
           {/* 우측 메인 — 툴바 + 그리드 + 페이지네이션 (과목 선택은 좌측 사이드바로 이동) */}
           <div className="public-home-store-grid__main">
+            <form className="public-home-store-grid__search" role="search" aria-label={searchLabel} onSubmit={handleSearchSubmit}>
+              <label className="public-home-store-grid__search-label" htmlFor={searchInputId}>{searchLabel}</label>
+              <div className="public-home-store-grid__search-field">
+                <SearchIcon size={20} aria-hidden="true" />
+                <input
+                  id={searchInputId}
+                  ref={searchInputRef}
+                  className="public-home-store-grid__search-input"
+                  type="search"
+                  enterKeyHint="search"
+                  autoComplete="off"
+                  placeholder="교재명, 강사명으로 검색"
+                  value={searchDraft}
+                  onChange={(event) => setSearchDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && (event.nativeEvent.isComposing || event.keyCode === 229)) event.preventDefault();
+                  }}
+                />
+                {searchDraft || searchKeyword ? (
+                  <button className="public-home-store-grid__search-clear" type="button" aria-label="검색어 지우기" onClick={() => {
+                    handleClearSearchKeyword("category_search");
+                    searchInputRef.current?.focus();
+                  }}><CloseIcon size={18} aria-hidden="true" /></button>
+                ) : null}
+                <button className="public-home-store-grid__search-submit" type="submit">검색</button>
+              </div>
+            </form>
             {/* 툴바: (모바일) 필터 트리거 + 정렬 */}
             <div className="public-home-store-grid__toolbar">
           {/* 모바일 전용 필터 트리거 — 데스크톱에선 CSS로 숨김 (좌측 sidebar 사용) */}
@@ -770,7 +823,7 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite, loadProducts = fetc
 
         {/* 활성 검색 / 필터 요약 */}
         {searchKeyword || selectedFilterCount > 0 ? (
-          <div className="public-home-store-grid__active-filters">
+          <div className="public-home-store-grid__active-filters" aria-live="polite" aria-atomic="true">
             {searchKeyword ? (
               <span className="public-home-store-grid__search-chip">
                 {`"${searchKeyword}" 검색 결과 ${isLoading || hasFatalError ? "…" : `${totalCount.toLocaleString("ko-KR")}건`}`}

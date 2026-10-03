@@ -660,42 +660,91 @@ img {
   flex-wrap: wrap;
 }
 
-.public-home-store-grid__toolbar-left {
-  position: relative;
-  flex: 1 1 280px;
-  min-width: 240px;
-  max-width: 420px;
+.public-home-store-grid__search {
+  margin-bottom: 20px;
+}
+
+.public-home-store-grid__search-label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--public-primary);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.public-home-store-grid__search-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 2px solid var(--public-primary);
+  color: var(--public-primary);
+}
+
+.public-home-store-grid__search-field:focus-within {
+  box-shadow: 0 2px 0 var(--public-primary);
+}
+
+.public-home-store-grid__search-field > svg {
+  flex-shrink: 0;
 }
 
 .public-home-store-grid__search-input {
-  width: 100%;
-  border: 1px solid var(--public-border);
-  border-radius: 8px;
-  padding: 10px 36px 10px 14px;
-  font-size: 14px;
-  background: #ffffff;
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  border-radius: 0;
+  padding: 12px 0;
+  font-size: 16px;
+  color: var(--public-text);
+  background: transparent;
 }
 
 .public-home-store-grid__search-input:focus {
-  outline: 2px solid var(--public-primary, #080F47);
-  outline-offset: -1px;
+  outline: none;
+}
+
+.public-home-store-grid__search-input::placeholder {
+  color: var(--public-text-muted);
+}
+
+.public-home-store-grid__search-input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
 }
 
 .public-home-store-grid__search-clear {
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
   background: transparent;
   border: 0;
-  width: 24px;
-  height: 24px;
+  flex: 0 0 44px;
+  height: 44px;
   cursor: pointer;
-  font-size: 16px;
-  color: var(--public-text-muted, #6e6e73);
+  color: var(--public-text-muted);
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.public-home-store-grid__search-submit {
+  flex-shrink: 0;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--public-radius-sm);
+  background: var(--public-primary);
+  color: var(--public-ds-card);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.public-home-store-grid__search-submit:hover {
+  background: var(--public-ds-primary-strong);
+}
+
+.public-home-store-grid__search-clear:focus-visible,
+.public-home-store-grid__search-submit:focus-visible {
+  outline: 2px solid var(--public-primary);
+  outline-offset: 3px;
 }
 
 .public-home-store-grid__toolbar-right {

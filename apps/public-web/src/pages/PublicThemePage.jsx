@@ -52,6 +52,7 @@ export default function PublicThemePage() {
     </main></ContentContainer>
     {!current.loading && !current.error && current.theme && <HomeStoreGrid key={themeId} queryPath={`/themes/${themeId}`} loadProducts={loadProducts} favoriteIds={favoriteIds}
       sortOptions={THEME_SORT_OPTIONS} allowRelevanceSort={false}
+      searchLabel={`${current.theme.title} 내 검색`}
       onToggleFavorite={(id) => { if (requireMember("favorite")) void toggleFavorite(id, { uiSurface: "theme_card" }); }} />}
     <PublicFooter />{memberGateDialog}</PublicPageFrame>;
 }
