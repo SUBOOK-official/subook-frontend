@@ -303,3 +303,30 @@ test("theme URLs replace unsupported rankings while preserving filters and suppo
   assert.equal(parseStorefrontQuery("?sort=popular").sortOption, "popular");
   assert.equal(parseStorefrontQuery("?q=수학").sortOption, "relevance");
 });
+
+test("theme context clears hidden URL filters while keeping search and other selections", () => {
+  const options = { filterContext: { brands: "시대인재" }, allowRelevanceSort: false,
+    sortOptions: STORE_SORT_OPTIONS.filter(({ value }) => value !== "recommended") };
+  const parsed = parseStorefrontQuery("?brands=강남대성&subject=수학&type=N제&year=2027&q=브릿지&page=2", options);
+  assert.deepEqual(parsed.selectedFilters.brands, []);
+  assert.deepEqual(parsed.selectedFilters.types, ["N제"]);
+  assert.deepEqual(parsed.selectedFilters.years, ["2027"]);
+  assert.equal(parsed.selectedSubject, "수학");
+  assert.equal(parsed.sortOption, "popular");
+  const query = serializeStorefrontQuery({ ...parsed, currentPage: parsed.page });
+  assert.equal(new URLSearchParams(query).has("brand"), false);
+  assert.deepEqual(parseStorefrontQuery(query, options), parsed);
+  const searched = parseStorefrontQuery(buildScopedStoreSearchQuery(parsed, "서바이벌", options), options);
+  assert.deepEqual(searched.selectedFilters, parsed.selectedFilters);
+  assert.equal(searched.page, 1);
+});
+
+test("fully fixed themes ignore legacy filter URLs and home filters remain available", () => {
+  const query = "?subject=수학&brand=강남대성&type=N제&year=2025";
+  const theme = parseStorefrontQuery(query, { filterContext: { subject: "국어", brands: "전일학원", types: "모의고사", years: "2027" } });
+  assert.equal(theme.selectedSubject, "전체");
+  assert.equal(countSelectedStoreFilters(theme.selectedFilters), 0);
+  const home = parseStorefrontQuery(query);
+  assert.equal(home.selectedSubject, "수학");
+  assert.equal(countSelectedStoreFilters(home.selectedFilters), 3);
+});

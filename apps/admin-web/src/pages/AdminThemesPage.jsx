@@ -7,9 +7,13 @@ import { listContentThemes, saveContentTheme } from "@shared-supabase/contentThe
 import { getCuratedProductDetails } from "@shared-supabase/curatedContentClient";
 import { uploadPromotionImage } from "@shared-supabase/sitePromotionsClient";
 import { preparePromotionImage } from "../lib/promotionImage";
+import { BRAND_OPTIONS, BOOK_TYPE_OPTIONS, SUBJECT_OPTIONS } from "../lib/productCategories";
+import { STOREFRONT_FEATURED_YEARS } from "@shared-domain/storefrontYears";
+import { normalizeThemeFilterContext, THEME_FILTER_FIELDS, themeFilterContextLabels } from "@shared-domain/themeFilters";
 const input = "mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white";
 const button = "rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold disabled:opacity-50";
 const primary = "rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white disabled:opacity-50";
+const contextOptions = { brands: BRAND_OPTIONS, types: BOOK_TYPE_OPTIONS, years: STOREFRONT_FEATURED_YEARS.map(String), subject: SUBJECT_OPTIONS };
 
 export default function AdminThemesPage() {
   const [filter, setFilter] = useState("all");
@@ -50,7 +54,8 @@ export default function AdminThemesPage() {
         chosen = theme.product_ids.map((id) => products.get(String(id)) ?? { id, title: `삭제되었거나 조회할 수 없는 교재 #${id}` });
       }
       setSelected(chosen);
-      setEditor(theme ? { ...theme } : { id: crypto.randomUUID(), title: "", image_url: "", product_ids: [], is_enabled: false, sort_order: 100 });
+      setEditor(theme ? { ...theme, description: theme.description ?? "", filter_context: normalizeThemeFilterContext(theme.filter_context) }
+        : { id: crypto.randomUUID(), title: "", description: "", filter_context: {}, image_url: "", product_ids: [], is_enabled: false, sort_order: 100 });
     } catch { setError("테마의 교재를 불러오지 못했습니다."); }
     finally { setBusy(false); }
   }
@@ -82,7 +87,7 @@ export default function AdminThemesPage() {
     } catch (failure) { setError(failure.message || "테마를 저장하지 못했습니다. 다시 시도해주세요."); }
     finally { setBusy(false); }
   }
-  return <AdminShell activeModule="themes" title="테마관 관리" description="아이콘 사진(1:1), 테마명, 테마에 포함할 교재를 등록합니다.">
+  return <AdminShell activeModule="themes" title="테마관 관리" description="관의 소개와 고정 조건, 구매자에게 보여줄 교재를 관리합니다.">
     <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
       <div className="flex flex-wrap gap-2" role="group" aria-label="테마 노출 필터">{[["all", "전체"], ["enabled", "노출 중"], ["disabled", "비노출"]].map(([value, label]) => <button type="button" key={value} className={filter === value ? primary : button} aria-pressed={filter === value} onClick={() => setFilter(value)}>{label}</button>)}</div>
       <div className="flex gap-2"><button className={button} disabled={busy || loading} onClick={load}>새로고침</button><button className={primary} disabled={busy} onClick={() => edit(null)}>새 테마관</button></div>
@@ -95,6 +100,8 @@ export default function AdminThemesPage() {
         <div className="flex h-40 items-center justify-center bg-slate-50 p-3"><img className="h-28 w-28 rounded-full object-cover" src={theme.image_url} alt="" loading="lazy" /></div>
         <div className="p-5"><div className="mb-2 flex items-center justify-between gap-2 text-xs"><span className="text-slate-500">테마관 · 순서 {theme.sort_order}</span><span className={`rounded-full px-2 py-1 font-bold ${theme.is_enabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>{theme.is_enabled ? "노출 중" : "비노출"}</span></div>
         <h2 className="mb-2 text-base font-bold text-slate-900">{theme.title}</h2><p className="text-xs leading-6 text-slate-500">포함 교재 {theme.product_ids.length}권</p>
+        {theme.description && <p className="mt-2 text-sm text-slate-600">{theme.description}</p>}
+        <p className="mt-2 text-xs text-slate-500">고정 조건: {themeFilterContextLabels(theme.filter_context).join(" · ") || "없음"}</p>
         <div className="mt-4 flex gap-2"><button disabled={busy} className={button} onClick={() => edit(theme)}>수정</button></div></div>
       </article>)}
       {!themes.some((theme) => filter === "all" || theme.is_enabled === (filter === "enabled")) && <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center text-slate-500 xl:col-span-2">등록된 항목이 없습니다. 새 테마관을 추가해주세요.</div>}
@@ -106,6 +113,19 @@ export default function AdminThemesPage() {
         <label className="block text-sm font-semibold">아이콘 사진 (1:1)<input type="file" accept="image/png,image/jpeg,image/webp" className={input} onChange={(event) => { void upload(event.target.files?.[0]); event.target.value = ""; }} /></label>
         {editor.image_url && <img className="h-24 w-24 rounded-full object-cover" src={editor.image_url} alt="테마 아이콘 미리보기" />}
         <label className="block text-sm font-semibold">테마명<input required maxLength={20} className={input} value={editor.title} placeholder="시대인재관, 추석할인, 메가세일" onChange={(event) => setEditor({ ...editor, title: event.target.value })} /></label>
+        <label className="block text-sm font-semibold">관 소개<textarea maxLength={120} rows={2} className={input} value={editor.description} placeholder="이 관에서 어떤 교재를 만날 수 있는지 짧게 소개해주세요." onChange={(event) => setEditor({ ...editor, description: event.target.value })} /><span className="mt-1 block text-xs font-normal text-slate-500">{editor.description.length}/120자 · 테마관 상단에 표시됩니다.</span></label>
+        <section className="rounded-xl border border-slate-200 bg-slate-50 p-4" aria-labelledby="theme-context-title">
+          <h3 id="theme-context-title" className="font-bold">관의 고정 조건</h3>
+          <p className="mt-1 text-sm leading-6 text-slate-600">이미 정해진 조건은 구매자 필터에서 숨깁니다. 예: 시대관은 브랜드를 시대인재로 설정합니다. 선택한 교재는 분류와 관계없이 그대로 유지됩니다.</p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">{THEME_FILTER_FIELDS.map(({ key, label }) => {
+            const value = editor.filter_context[key] ?? "";
+            const options = [...new Set([...contextOptions[key], ...(value ? [value] : [])])];
+            return <label key={key} className="block text-sm font-semibold">고정 {label}<select className={input} value={value} onChange={(event) => setEditor((current) => ({ ...current, filter_context: normalizeThemeFilterContext({ ...current.filter_context, [key]: event.target.value }) }))}>
+              <option value="">고정 안 함 · 필터 표시</option>{options.map((option) => <option key={option} value={option}>{option}</option>)}
+            </select></label>;
+          })}</div>
+          <p className="mt-3 text-xs text-slate-600">표시할 필터: {THEME_FILTER_FIELDS.filter(({ key }) => !editor.filter_context[key]).map(({ label }) => label).join(" · ") || "없음 (검색과 정렬만 표시)"}</p>
+        </section>
         <label className="block text-sm font-semibold">홈 노출 순서<input required type="number" min="0" max="9999" className={input} value={editor.sort_order} onChange={(event) => setEditor({ ...editor, sort_order: event.target.value })} /></label>
         <CuratedProductPicker selectedIds={selected.map((product) => product.id)} onAdd={addProducts} disabled={busy} />
         <h3 className="font-bold">선택한 교재 ({selected.length}권)</h3>

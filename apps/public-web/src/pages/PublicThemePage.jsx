@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
+import { themeFilterContextLabels } from "@shared-domain/themeFilters";
 import { supabase } from "@shared-supabase/publicSupabaseClient";
 import { getPublicThemePage, listPublicStorePopularity } from "@shared-supabase/curatedContentClient";
 import { filterStorefrontProducts, normalizeStorefrontProductRow, sortStorefrontProducts } from "../lib/storefront";
@@ -46,16 +47,26 @@ export default function PublicThemePage() {
     rows = selectDiscountProducts(rows, filters);
     return { products: rows.slice(filters.offset, filters.offset + filters.limit), totalCount: rows.length };
   }, [current.products]);
-  return <PublicPageFrame><PublicSiteHeader />
+  return <PublicPageFrame><PublicSiteHeader /><div className="public-theme-layout">
     <ContentContainer><main className="public-theme-page">
       {current.loading ? <div className="public-theme-page__products" aria-label="교재를 불러오는 중" aria-busy="true">{Array.from({ length: 8 }, (_, index) => <ProductCardSkeleton key={index} />)}</div>
         : current.error ? <div role="alert"><p>테마를 불러오지 못했어요.</p><button onClick={() => setRetry((value) => value + 1)}>다시 시도</button></div>
-          : !current.theme ? <h1>종료되었거나 공개되지 않은 테마입니다.</h1> : <header><img src={current.theme.image_url} alt="" width="80" height="80" /><h1>{current.theme.title}</h1><p>{current.products.length}개의 교재</p></header>}
+          : !current.theme ? <h1>종료되었거나 공개되지 않은 테마입니다.</h1> : <>
+            <nav className="public-theme-page__breadcrumb" aria-label="현재 위치"><Link to="/">홈</Link><span aria-hidden="true">/</span><span>테마관</span></nav>
+            <header className="public-theme-page__header">
+              <div className="public-theme-page__intro"><p className="public-theme-page__eyebrow">수북 테마관</p><h1>{current.theme.title}</h1>
+                {current.theme.description && <p className="public-theme-page__description">{current.theme.description}</p>}
+                {themeFilterContextLabels(current.theme.filter_context).length > 0 && <ul className="public-theme-page__context" aria-label="관의 고정 조건">{themeFilterContextLabels(current.theme.filter_context).map((label) => <li key={label}>{label}</li>)}</ul>}
+              </div>
+              <img className="public-theme-page__icon" src={current.theme.image_url} alt="" width="100" height="100" />
+            </header>
+          </>}
     </main></ContentContainer>
     {!current.loading && !current.error && current.theme && <HomeStoreGrid key={themeId} queryPath={`/themes/${themeId}`} loadProducts={loadProducts} favoriteIds={favoriteIds}
       sortOptions={THEME_SORT_OPTIONS} allowRelevanceSort={false}
+      filterContext={current.theme.filter_context} showResultCount
       searchLabel={`${current.theme.title} 내 검색`}
       showSearch
       onToggleFavorite={(id) => { if (requireMember("favorite")) void toggleFavorite(id, { uiSurface: "theme_card" }); }} />}
-    <PublicFooter />{memberGateDialog}</PublicPageFrame>;
+    </div><PublicFooter />{memberGateDialog}</PublicPageFrame>;
 }

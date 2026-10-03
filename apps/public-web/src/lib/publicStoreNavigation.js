@@ -1,4 +1,5 @@
 import { STOREFRONT_FEATURED_YEARS, STOREFRONT_OTHER_YEAR } from "../../../../packages/shared-domain/src/storefrontYears.js";
+import { normalizeThemeFilterContext } from "../../../../packages/shared-domain/src/themeFilters.js";
 
 export const STORE_SUBJECTS = ["전체", "국어", "수학", "영어", "과학", "사회", "한국사", "기타"];
 export const STORE_DEFAULT_SUBJECT = STORE_SUBJECTS[0];
@@ -134,7 +135,7 @@ function getFilterQueryValue(params, singularKey, legacyPluralKey) {
   return params.get(singularKey) ?? params.get(legacyPluralKey);
 }
 
-export function parseStorefrontQuery(search, { sortOptions = STORE_SORT_OPTIONS, allowRelevanceSort = true } = {}) {
+export function parseStorefrontQuery(search, { sortOptions = STORE_SORT_OPTIONS, allowRelevanceSort = true, filterContext } = {}) {
   const params = new URLSearchParams(search);
   const filters = {
     discounts: sanitizeFilterList("discounts", parseFilterList(params.get("discount"))),
@@ -147,7 +148,10 @@ export function parseStorefrontQuery(search, { sortOptions = STORE_SORT_OPTIONS,
     ),
   };
 
-  const selectedSubject = normalizeStoreSubject(params.get("subject"));
+  const context = normalizeThemeFilterContext(filterContext);
+  // 숨긴 필터가 예전 URL에 남아 결과를 제한하지 않도록 해제한다.
+  Object.keys(context).forEach((key) => { if (key in filters) filters[key] = []; });
+  const selectedSubject = context.subject ? STORE_DEFAULT_SUBJECT : normalizeStoreSubject(params.get("subject"));
   const searchKeyword = normalizeQueryValue(params.get("q"));
   const requestedSort = params.get("sort");
   // 검색어가 있는데 정렬이 명시되지 않았으면 기본을 관련도순으로.

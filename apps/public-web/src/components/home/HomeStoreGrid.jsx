@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
+import { normalizeThemeFilterContext } from "@shared-domain/themeFilters";
 import ContentContainer from "../ContentContainer";
 import ProductCard, { ProductCardSkeleton } from "../ProductCard";
 import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, CloseIcon, SearchIcon } from "../icons";
@@ -87,7 +88,7 @@ function getPaginationItems(currentPage, totalPages) {
   return items;
 }
 
-function HomeStoreGrid({ favoriteIds = [], onToggleFavorite, loadProducts = fetchStorefrontProducts, queryPath = "/", sortOptions = STORE_SORT_OPTIONS, allowRelevanceSort = true, showSearch = false, searchLabel = "테마 내 검색" }) {
+function HomeStoreGrid({ favoriteIds = [], onToggleFavorite, loadProducts = fetchStorefrontProducts, queryPath = "/", sortOptions = STORE_SORT_OPTIONS, allowRelevanceSort = true, showSearch = false, searchLabel = "테마 내 검색", filterContext, showResultCount = false }) {
   const { isAuthenticated } = usePublicAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -95,10 +96,13 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite, loadProducts = fetc
   const sectionTopRef = useRef(null);
   const searchInputRef = useRef(null);
   const searchInputId = useId();
+  const context = useMemo(() => normalizeThemeFilterContext(filterContext), [filterContext]);
+  const visibleFilterGroups = useMemo(() => HOME_SIDEBAR_FILTER_GROUPS.filter((group) => !context[group.key]), [context]);
+  const hasVisibleFilters = !context.subject || visibleFilterGroups.length > 0;
 
   const initialQueryState = useMemo(
-    () => parseStorefrontQuery(location.search, { sortOptions, allowRelevanceSort }),
-    [location.search, sortOptions, allowRelevanceSort],
+    () => parseStorefrontQuery(location.search, { sortOptions, allowRelevanceSort, filterContext: context }),
+    [location.search, sortOptions, allowRelevanceSort, context],
   );
 
   // 서버 페이지네이션 모델 — products는 데스크톱에선 "현재 페이지", 모바일에선 "누적 목록".
@@ -239,7 +243,7 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite, loadProducts = fetc
 
   // URL 쿼리 → 상태 동기화 (브라우저 뒤로가기 등)
   useEffect(() => {
-    const next = parseStorefrontQuery(location.search, { sortOptions, allowRelevanceSort });
+    const next = parseStorefrontQuery(location.search, { sortOptions, allowRelevanceSort, filterContext: context });
     setSelectedSubject((current) => (current === next.selectedSubject ? current : next.selectedSubject));
     setSelectedFilters((current) =>
       JSON.stringify(current) === JSON.stringify(next.selectedFilters)
@@ -249,7 +253,7 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite, loadProducts = fetc
     setSortOption((current) => (current === next.sortOption ? current : next.sortOption));
     setCurrentPage((current) => (current === next.page ? current : next.page));
     setSearchKeyword((current) => (current === next.searchKeyword ? current : next.searchKeyword));
-  }, [location.search, sortOptions, allowRelevanceSort]);
+  }, [location.search, sortOptions, allowRelevanceSort, context]);
 
   useEffect(() => {
     setSearchDraft(searchKeyword);
@@ -497,7 +501,7 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite, loadProducts = fetc
         },
       });
     }
-    HOME_SIDEBAR_FILTER_GROUPS.forEach((group) => {
+    visibleFilterGroups.forEach((group) => {
       (selectedFilters[group.key] ?? []).forEach((value) => {
         const option = group.options.find(
           (opt) => (typeof opt === "string" ? opt : opt.value) === value,
@@ -516,7 +520,7 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite, loadProducts = fetc
       });
     });
     return chips;
-  }, [selectedSubject, selectedFilters]);
+  }, [selectedSubject, selectedFilters, visibleFilterGroups]);
 
   // 키워드 입고 알림 — 예전엔 window.confirm→카카오 채널로 흩어져 있던 동선을
   // 실제 구독(subscribe_restock_keyword)으로 통일. 입고되면 알림함(인앱)으로 알림.
@@ -630,7 +634,7 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite, loadProducts = fetc
   // 과목 선택 — 사이드바 최상단 그룹. 필터(유형·브랜드)와 같은 칩 UI를 쓰되 과목은
   // 단일 선택(라디오처럼)이라 toggle이 아니라 handleSelectSubject로 교체한다.
   // STORE_SUBJECTS[0] === "전체"라 첫 옵션이 곧 초기화 역할(별도 리셋 버튼 불필요).
-  const subjectGroupJsx = (
+  const subjectGroupJsx = !context.subject && (
     <div className="public-home-store-grid__sidebar-group" key="subject">
       <h3 className="public-home-store-grid__sidebar-label">과목</h3>
       <ul className="public-home-store-grid__sidebar-list" role="list">
@@ -655,7 +659,7 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite, loadProducts = fetc
 
   // 사이드바·바텀시트 양쪽에서 재사용하는 필터 그룹 마크업. dependency가 많아
   // memoize 효과 미미하므로 그냥 inline 변수.
-  const filterGroupsJsx = HOME_SIDEBAR_FILTER_GROUPS.map((group) => {
+  const filterGroupsJsx = visibleFilterGroups.map((group) => {
     const hasSelected = selectedFilters[group.key].length > 0;
     return (
       <div className="public-home-store-grid__sidebar-group" key={group.key}>
@@ -693,12 +697,27 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite, loadProducts = fetc
     );
   });
 
+  const searchForm = showSearch ? <form className="public-home-store-grid__search" role="search" aria-label={searchLabel} onSubmit={handleSearchSubmit}>
+    <label className="public-home-store-grid__search-label" htmlFor={searchInputId}>{searchLabel}</label>
+    <div className="public-home-store-grid__search-field">
+      <SearchIcon size={20} aria-hidden="true" />
+      <input id={searchInputId} ref={searchInputRef} className="public-home-store-grid__search-input" type="search" enterKeyHint="search" autoComplete="off"
+        placeholder="교재명, 강사명으로 검색" value={searchDraft} onChange={(event) => setSearchDraft(event.target.value)}
+        onKeyDown={(event) => { if (event.key === "Enter" && (event.nativeEvent.isComposing || event.keyCode === 229)) event.preventDefault(); }} />
+      {searchDraft || searchKeyword ? <button className="public-home-store-grid__search-clear" type="button" aria-label="검색어 지우기" onClick={() => {
+        handleClearSearchKeyword("category_search"); searchInputRef.current?.focus();
+      }}><CloseIcon size={18} aria-hidden="true" /></button> : null}
+      <button className="public-home-store-grid__search-submit" type="submit">검색</button>
+    </div>
+  </form> : null;
+
   return (
     <section className="public-home-store-grid" aria-label="전체 교재" ref={sectionTopRef}>
       <ContentContainer>
-        <div className="public-home-store-grid__layout">
+        {searchForm}
+        <div className={`public-home-store-grid__layout${hasVisibleFilters ? "" : " public-home-store-grid__layout--no-filters"}`}>
           {/* 좌측 세로 사이드바 (PC만) — 모바일에선 CSS로 숨기고 바텀시트로 노출 */}
-          <aside className="public-home-store-grid__sidebar" aria-label="필터">
+          {hasVisibleFilters && <aside className="public-home-store-grid__sidebar" aria-label="필터">
             {subjectGroupJsx}
             {filterGroupsJsx}
             {selectedSummaryChips.length > 0 ? (
@@ -727,41 +746,14 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite, loadProducts = fetc
                 </button>
               </div>
             ) : null}
-          </aside>
+          </aside>}
 
           {/* 우측 메인 — 툴바 + 그리드 + 페이지네이션 (과목 선택은 좌측 사이드바로 이동) */}
           <div className="public-home-store-grid__main">
-            {showSearch ? <form className="public-home-store-grid__search" role="search" aria-label={searchLabel} onSubmit={handleSearchSubmit}>
-              <label className="public-home-store-grid__search-label" htmlFor={searchInputId}>{searchLabel}</label>
-              <div className="public-home-store-grid__search-field">
-                <SearchIcon size={20} aria-hidden="true" />
-                <input
-                  id={searchInputId}
-                  ref={searchInputRef}
-                  className="public-home-store-grid__search-input"
-                  type="search"
-                  enterKeyHint="search"
-                  autoComplete="off"
-                  placeholder="교재명, 강사명으로 검색"
-                  value={searchDraft}
-                  onChange={(event) => setSearchDraft(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" && (event.nativeEvent.isComposing || event.keyCode === 229)) event.preventDefault();
-                  }}
-                />
-                {searchDraft || searchKeyword ? (
-                  <button className="public-home-store-grid__search-clear" type="button" aria-label="검색어 지우기" onClick={() => {
-                    handleClearSearchKeyword("category_search");
-                    searchInputRef.current?.focus();
-                  }}><CloseIcon size={18} aria-hidden="true" /></button>
-                ) : null}
-                <button className="public-home-store-grid__search-submit" type="submit">검색</button>
-              </div>
-            </form> : null}
             {/* 툴바: (모바일) 필터 트리거 + 정렬 */}
             <div className="public-home-store-grid__toolbar">
           {/* 모바일 전용 필터 트리거 — 데스크톱에선 CSS로 숨김 (좌측 sidebar 사용) */}
-          <button
+          {hasVisibleFilters && <button
             aria-haspopup="dialog"
             className="public-home-store-grid__mobile-filter-trigger"
             onClick={() => {
@@ -782,7 +774,8 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite, loadProducts = fetc
               <path d="M5.33409 4.54491C6.3494 3.63637 7.55145 2.9322 8.87555 2.49707C9.60856 3.4128 10.7358 3.99928 12 3.99928C13.2642 3.99928 14.3914 3.4128 15.1245 2.49707C16.4486 2.9322 17.6506 3.63637 18.6659 4.54491C18.2405 5.637 18.2966 6.90531 18.9282 7.99928C19.5602 9.09388 20.6314 9.77679 21.7906 9.95392C21.9279 10.6142 22 11.2983 22 11.9993C22 12.7002 21.9279 13.3844 21.7906 14.0446C20.6314 14.2218 19.5602 14.9047 18.9282 15.9993C18.2966 17.0932 18.2405 18.3616 18.6659 19.4536C17.6506 20.3622 16.4486 21.0664 15.1245 21.5015C14.3914 20.5858 13.2642 19.9993 12 19.9993C10.7358 19.9993 9.60856 20.5858 8.87555 21.5015C7.55145 21.0664 6.3494 20.3622 5.33409 19.4536C5.75952 18.3616 5.7034 17.0932 5.0718 15.9993C4.43983 14.9047 3.36862 14.2218 2.20935 14.0446C2.07212 13.3844 2 12.7002 2 11.9993C2 11.2983 2.07212 10.6142 2.20935 9.95392C3.36862 9.77679 4.43983 9.09388 5.0718 7.99928C5.7034 6.90531 5.75952 5.637 5.33409 4.54491ZM13.5 14.5974C14.9349 13.7689 15.4265 11.9342 14.5981 10.4993C13.7696 9.0644 11.9349 8.57277 10.5 9.4012C9.06512 10.2296 8.5735 12.0644 9.40192 13.4993C10.2304 14.9342 12.0651 15.4258 13.5 14.5974Z" />
             </svg>
             <span>카테고리{selectedFilterCount > 0 ? ` · ${selectedFilterCount}` : ""}</span>
-          </button>
+          </button>}
+          {showResultCount && <p className="public-theme-results-count" role="status">{isLoading ? "불러오는 중" : hasFatalError ? "조회 실패" : `교재 ${totalCount.toLocaleString("ko-KR")}개`}</p>}
           <div className="public-home-store-grid__toolbar-right">
             <div className="public-home-store-grid__sort-wrap" ref={sortMenuRef}>
               <button
