@@ -87,7 +87,7 @@ function getPaginationItems(currentPage, totalPages) {
   return items;
 }
 
-function HomeStoreGrid({ favoriteIds = [], onToggleFavorite, loadProducts = fetchStorefrontProducts, queryPath = "/", sortOptions = STORE_SORT_OPTIONS, allowRelevanceSort = true, searchLabel = "카테고리 내 검색" }) {
+function HomeStoreGrid({ favoriteIds = [], onToggleFavorite, loadProducts = fetchStorefrontProducts, queryPath = "/", sortOptions = STORE_SORT_OPTIONS, allowRelevanceSort = true, showSearch = false, searchLabel = "테마 내 검색" }) {
   const { isAuthenticated } = usePublicAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -731,7 +731,7 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite, loadProducts = fetc
 
           {/* 우측 메인 — 툴바 + 그리드 + 페이지네이션 (과목 선택은 좌측 사이드바로 이동) */}
           <div className="public-home-store-grid__main">
-            <form className="public-home-store-grid__search" role="search" aria-label={searchLabel} onSubmit={handleSearchSubmit}>
+            {showSearch ? <form className="public-home-store-grid__search" role="search" aria-label={searchLabel} onSubmit={handleSearchSubmit}>
               <label className="public-home-store-grid__search-label" htmlFor={searchInputId}>{searchLabel}</label>
               <div className="public-home-store-grid__search-field">
                 <SearchIcon size={20} aria-hidden="true" />
@@ -757,7 +757,7 @@ function HomeStoreGrid({ favoriteIds = [], onToggleFavorite, loadProducts = fetc
                 ) : null}
                 <button className="public-home-store-grid__search-submit" type="submit">검색</button>
               </div>
-            </form>
+            </form> : null}
             {/* 툴바: (모바일) 필터 트리거 + 정렬 */}
             <div className="public-home-store-grid__toolbar">
           {/* 모바일 전용 필터 트리거 — 데스크톱에선 CSS로 숨김 (좌측 sidebar 사용) */}
