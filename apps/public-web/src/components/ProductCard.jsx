@@ -4,7 +4,6 @@ import { formatCurrency } from "@shared-domain/format";
 import { trackException, trackSelectItem } from "../lib/analytics";
 import {
   COLLAB_OPEN_LABEL,
-  findFeaturedProductEntry,
   isJeonilMockExam,
   isPreReleaseProduct,
   resolveFeaturedCoverUrl,
@@ -65,6 +64,7 @@ function ProductCardFavoriteButton({ filled = false, onToggle }) {
   return (
     <button
       aria-label={filled ? "찜 취소" : "찜하기"}
+      aria-pressed={filled}
       className={`public-product-card__favorite ${filled ? "is-active" : ""}`}
       onClick={(event) => {
         event.preventDefault();
@@ -92,7 +92,6 @@ function ProductCard({
   // 카드 하단 액션 슬롯(예: 찜 목록의 품절 카드 "재입고 알림" 버튼). 카드 전체를 덮는
   // overlay 링크 위에서 클릭돼야 하므로 __footer가 z-index를 올린다.
   footer = null,
-  hideCondition = false,
   isFavorite = false,
   onToggleFavorite,
   product,
@@ -120,11 +119,10 @@ function ProductCard({
     resolveFeaturedCoverUrl(product, getStoreCardCoverImageUrl(product)),
   );
   const { discountRate, originalPrice, price } = getProductCardPrice(product);
-  // 콜라보 신품 교재는 중고 검수 등급 개념이 없어 등급 칩을 빼둔다 (상세 화면과 동일).
-  const isFeatured = Boolean(findFeaturedProductEntry(product));
-  const tags = getStoreCardTags(product).filter(
-    (tag) => !((isFeatured || hideCondition) && tag.key === "condition"),
-  );
+  // 새 상품만 취급하므로 검수 등급은 카드에 표시하지 않는다.
+  const tags = getStoreCardTags(product)
+    .filter((tag) => tag.key !== "condition")
+    .sort((left, right) => Number(right.key === "brand") - Number(left.key === "brand"));
   const metaLine = getStoreCardMetaLine(product);
   // 출시 전 콜라보 교재는 가격·할인율을 감추고 오픈일만 알린다.
   const isPreRelease = isPreReleaseProduct(product);
@@ -328,15 +326,17 @@ function ProductCard({
             <span className="public-product-card__upcoming-price">출시 예정</span>
           ) : (
             <>
-              {discountRate !== null ? (
-                <span className="public-product-card__discount">{discountRate}%</span>
-              ) : null}
+              <div className="public-product-card__price-main">
+                {discountRate !== null ? (
+                  <span className="public-product-card__discount">{discountRate}%</span>
+                ) : null}
+                <span className="public-product-card__sale-price">{saleLabel}</span>
+              </div>
               {originalPrice !== null ? (
                 <span className="public-product-card__original-price">
                   {formatCurrency(originalPrice)}
                 </span>
               ) : null}
-              <span className="public-product-card__sale-price">{saleLabel}</span>
             </>
           )}
         </div>
@@ -377,7 +377,6 @@ function ProductCardSkeleton({ badge = null, className = "" }) {
         <div className="public-product-card__tags">
           <span className="public-store-skeleton public-store-skeleton--tag" />
           <span className="public-store-skeleton public-store-skeleton--tag is-wide" />
-          <span className="public-store-skeleton public-store-skeleton--tag is-short" />
         </div>
         <span className="public-store-skeleton public-store-skeleton--title" />
         <span className="public-store-skeleton public-store-skeleton--title is-short" />

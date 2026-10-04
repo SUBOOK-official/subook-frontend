@@ -810,7 +810,6 @@ function RelatedProductsRail({
               role="listitem"
             >
               <ProductCard
-                hideCondition
                 analyticsListName={title}
                 isFavorite={favoriteIds.includes(String(relatedProduct.id))}
                 onToggleFavorite={onToggleFavorite}
