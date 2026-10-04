@@ -12,12 +12,17 @@ function signed(raw, timestamp = Math.floor(Date.now()/1000)) {
 }
 test('SMS hook 서명은 원문/시간/서명을 검증한다',()=>{
   const raw='{"user":{"phone":"821012345678"},"sms":{"otp":"123456"}}';
-  const headers=signed(raw);
-  assert.equal(verifySmsHook(raw,headers,secret),true);
-  assert.equal(verifySmsHook(raw+' ',headers,secret),false);
-  assert.equal(verifySmsHook(raw,signed(raw,Math.floor(Date.now()/1000)-301),secret),false);
-  assert.equal(verifySmsHook(raw,signed(raw,Math.floor(Date.now()/1000)+301),secret),false);
-  assert.equal(verifySmsHook(raw,headers,''),false);
+  // 실행 중 초가 바뀌어 미래 301초가 허용 범위 300초로 들어오는 흔들림을 막는다.
+  const timestamp=1700000000;
+  const now=timestamp*1000;
+  const headers=signed(raw,timestamp);
+  assert.equal(verifySmsHook(raw,headers,secret,now),true);
+  assert.equal(verifySmsHook(raw+' ',headers,secret,now),false);
+  assert.equal(verifySmsHook(raw,signed(raw,timestamp-300),secret,now),true);
+  assert.equal(verifySmsHook(raw,signed(raw,timestamp+300),secret,now),true);
+  assert.equal(verifySmsHook(raw,signed(raw,timestamp-301),secret,now),false);
+  assert.equal(verifySmsHook(raw,signed(raw,timestamp+301),secret,now),false);
+  assert.equal(verifySmsHook(raw,headers,'',now),false);
 });
 test('SMS hook은 유효한 서명+발송 예약에만 1번 전송하고 실패를 숨기지 않는다',async(t)=>{
   const values={SUPABASE_SEND_SMS_HOOK_SECRET:secret,SUPABASE_URL:'https://fixture.invalid',SUPABASE_SERVICE_ROLE_KEY:'fixture',SOLAPI_API_KEY:'fixture',SOLAPI_API_SECRET:'fixture',SOLAPI_FROM:'01000000000'};
