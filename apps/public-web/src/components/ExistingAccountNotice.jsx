@@ -8,7 +8,7 @@ import "./ExistingAccountNotice.css";
 
 const labels = { email: "이메일", kakao: "카카오", google: "Google" };
 
-export default function ExistingAccountNotice({ accounts = [], onRetry, onSwitchingAccount, busy = false, next = "/" }) {
+export default function ExistingAccountNotice({ accounts = [], remembered = false, onRetry, onSwitchingAccount, busy = false, next = "/" }) {
   const { hasSession, user, signOut } = usePublicAuth();
   const navigate = useNavigate();
   const [active, setActive] = useState("");
@@ -39,7 +39,7 @@ export default function ExistingAccountNotice({ accounts = [], onRetry, onSwitch
   };
 
   return <section className="existing-account-notice" aria-label="기존 가입 계정 안내">
-    <span className="existing-account-notice__verified"><CheckIcon size={15} /> 휴대폰 인증 완료</span>
+    <span className="existing-account-notice__verified"><CheckIcon size={15} /> {remembered ? "이전에 확인한 계정" : "휴대폰 인증 완료"}</span>
     {hasSession && user?.email && <div className="existing-account-notice__current"><span>현재 로그인한 계정</span><strong>{user.email}</strong></div>}
     <h2>{matches.length > 1 ? "이 번호로 확인된 계정" : "이 번호에 연결된 계정"}</h2>
     {matches.length ? <>

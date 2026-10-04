@@ -26,6 +26,7 @@ export default function PublicPhoneAuthPage({ mode = "login" }) {
   const [retrying, setRetrying] = useState(false);
   const [switchingAccount, setSwitchingAccount] = useState(false);
   const duplicate = !retrying && (existingAccount || identity?.status === "existing_account");
+  const remembered = duplicate && identity?.existing_account_remembered;
   const codeInput = useRef(null);
   usePageMeta({ title: verifying ? "휴대폰 인증" : "휴대폰으로 시작하기", noindex: true });
   useEffect(() => { getSignupReferralCode(location.search); }, [location.search]);
@@ -85,10 +86,10 @@ export default function PublicPhoneAuthPage({ mode = "login" }) {
   const unavailable = !verifying && !identityPolicy?.legacy_phone_login_enabled;
   return <MemberIdentityLayout step={sent || duplicate ? 2 : 1} eyebrow={verifying ? "안전한 계정을 위한 한 번의 확인" : "기존 계정 찾기"}
     title={merged ? "대표 계정으로 만나요" : duplicate ? "기존 계정으로 이어서" : verifying ? "내 번호로, 내 계정 확인" : sent ? "인증번호를 입력해 주세요" : "기존 가입 계정 확인"}
-    description={merged ? "이 계정은 통합이 완료되었어요. 선택하신 대표 계정으로 로그인해 주세요." : duplicate ? "아래 이메일과 로그인 방법을 확인해 주세요." : verifying ? "휴대폰 번호 하나로 계정 하나를 이용해요.\n계속 이용하려면 내 번호를 인증해 주세요." : "휴대폰만으로 가입했던 계정을 확인하고,\n앞으로 사용할 이메일을 등록해 주세요."}>
+    description={merged ? "이 계정은 통합이 완료되었어요. 선택하신 대표 계정으로 로그인해 주세요." : remembered ? "이전에 휴대폰 인증으로 확인한 계정이에요.\n문자 인증 없이 아래 방법으로 로그인해 주세요." : duplicate ? "아래 이메일과 로그인 방법을 확인해 주세요." : verifying ? "휴대폰 번호 하나로 계정 하나를 이용해요.\n계속 이용하려면 내 번호를 인증해 주세요." : "휴대폰만으로 가입했던 계정을 확인하고,\n앞으로 사용할 이메일을 등록해 주세요."}>
     {merged ? <button className="member-identity-primary" onClick={async () => { await signOut(); navigate("/login"); }}>대표 계정으로 로그인</button>
       : unavailable ? <><p className="member-identity-message">{identityPolicy?.error ? "인증 서비스 상태를 불러오지 못했어요. 잠시 후 다시 시도해 주세요." : "휴대폰 로그인을 준비하고 있어요."}</p><Link className="member-identity-secondary" to="/login">기존 계정으로 로그인</Link></>
-      : duplicate ? <ExistingAccountNotice accounts={identity?.existing_accounts} next={next} busy={busy} onSwitchingAccount={setSwitchingAccount} onRetry={() => { setRetrying(true); setExistingAccount(false); setSent(false); setPhone(""); setCode(""); setError(""); setNotice(""); }} />
+      : duplicate ? <ExistingAccountNotice accounts={identity?.existing_accounts} remembered={remembered} next={next} busy={busy} onSwitchingAccount={setSwitchingAccount} onRetry={() => { setRetrying(true); setExistingAccount(false); setSent(false); setPhone(""); setCode(""); setError(""); setNotice(""); }} />
       : <><form className="member-identity-form" onSubmit={sent ? verify : send}>
         <label htmlFor="identity-phone">휴대폰 번호</label>
         <div className="member-identity-country"><span>대한민국 +82</span><input id="identity-phone" name="phone" type="tel" autoComplete="tel-national" inputMode="tel" placeholder="010 1234 5678" value={phone} onChange={(e) => setPhone(normalizeMemberPhone(e.target.value).slice(0, 11))} disabled={sent || busy} required /></div>
