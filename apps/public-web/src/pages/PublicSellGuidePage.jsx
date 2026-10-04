@@ -98,7 +98,7 @@ export default function PublicSellGuidePage() {
 
         <section className="sell-guide__conditions" id="sell-conditions" aria-labelledby="sell-conditions-title">
           <div className="sell-guide__container sell-guide__conditions-layout">
-            <div className="sell-guide__section-heading"><div><p className="sell-guide__eyebrow">판매 가능한 교재</p><h2 id="sell-conditions-title">이런 교재를<br />기다리고 있어요.</h2></div><p>아직 펼치지 않은 새 교재가<br />다음 수험생에게 이어질 수 있도록.</p></div>
+            <div className="sell-guide__section-heading"><div><p className="sell-guide__eyebrow">판매 가능한 교재</p><h2 id="sell-conditions-title">이런 교재를<br /> 기다리고 있어요.</h2></div><p>아직 펼치지 않은 새 교재가<br />다음 수험생에게 이어질 수 있도록.</p></div>
             <div>
               <ul className="sell-guide__checklist">
                 <li><CheckIcon size={22} /><div><h3>필기 없는 새 교재</h3><p>풀이·메모·형광펜 자국이 없고, 표지와 내지가 양호한 미사용 교재</p></div></li>
