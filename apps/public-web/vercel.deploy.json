@@ -6,6 +6,11 @@
   "crons": [{ "path": "/api/banner-copy?refresh=1", "schedule": "*/10 * * * *" }],
   "redirects": [
     {
+      "source": "/sell/",
+      "destination": "/sell",
+      "permanent": true
+    },
+    {
       "source": "/products/:path*",
       "destination": "/",
       "permanent": true
