@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import AdminDialog from "./AdminDialog";
+import RefundRequestItems from "./RefundRequestItems";
 import { BusyText } from "./Loading";
 import { supabase } from "@shared-supabase/adminSupabaseClient";
 import { formatCurrency, formatDate } from "@shared-domain/format";
@@ -221,6 +222,7 @@ export default function AdminReturnRefundDialog({ order, onClose, onCompleted, o
         {!loading && !active && order.status !== "refunded" ? (
           <fieldset disabled={busy || loadFailed} className="space-y-4">
             {order.refund_request_reason ? <p className="text-sm text-slate-600">기존 신청 사유: {order.refund_request_reason}</p> : null}
+            <RefundRequestItems order={order} />
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h4 className="font-bold text-sm">① 어떤 교재를 환불하나요?</h4>
               <button type="button" className="text-sm font-semibold text-indigo-700 underline" onClick={() => changeSelection(ids.length === unrefundedItems.length ? [] : unrefundedItems.map(item => item.id))}>

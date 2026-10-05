@@ -234,6 +234,8 @@ function ConfirmDialog({
   analyticsExtra,
   analyticsName,
   body,
+  children,
+  confirmDisabled = false,
   confirmLabel,
   confirmTone = "danger",
   onClose,
@@ -262,7 +264,7 @@ function ConfirmDialog({
   // 카테고리 필드를 사용하는 경우(onReasonCategoryChange 제공) 선택도 필수.
   const requireCategory = Boolean(onReasonCategoryChange);
   const isCategoryMissing = requireCategory && !reasonCategoryValue;
-  const isConfirmDisabled = busy || isReasonTooShort || isCategoryMissing;
+  const isConfirmDisabled = busy || confirmDisabled || isReasonTooShort || isCategoryMissing;
   const isChangeOfMind = reasonCategoryValue === "change_of_mind";
 
   // GA4 — 시트 자체의 닫기(배경·×·Escape·스와이프)는 ResponsiveSheet가 기록하고,
@@ -318,6 +320,7 @@ function ConfirmDialog({
       title={title}
     >
       <p className="public-mypage-confirm__body">{body}</p>
+      {children}
       {reasonInput ? (
         <div className="public-mypage-confirm__reason">
           {requireCategory ? (

@@ -10,6 +10,17 @@ import {
   mapRecentShipmentRowToDisplay,
 } from "./publicMypageUtils.js";
 
+test("환불 신청 품목과 옵션을 유지하고 기환불 품목을 구분한다", () => {
+  const order=mapOrderToDisplayOrder({id:1,status:"delivered",refund_requested_at:"now",refund_requested_item_ids:[12],
+    items:[{id:11,title:"모의고사",option_label:"5",refunded_at:"before"},{id:12,title:"모의고사",option_label:"6"}]});
+  assert.deepEqual(order.refundRequestedItemIds,[12]);
+  assert.equal(order.items[0].refundedAt,"before");
+  assert.equal(order.items[1].optionLabel,"6");
+  assert.equal(order.canRequestRefund,false);
+  assert.equal(order.refundRequestItemsError,false);
+  assert.equal(mapOrderToDisplayOrder({refund_request_items_error:true}).refundRequestItemsError,true);
+});
+
 test("진행 중 반품은 구매확정 차단, 일부 환불·접수 종결 뒤 잔여 주문 확정 허용", () => {
   const order = { id: 1, status: "delivered", items: [] };
   assert.equal(mapOrderToDisplayOrder(order).canConfirm, true);

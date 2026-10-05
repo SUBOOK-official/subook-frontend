@@ -1,4 +1,5 @@
 import { isSupabaseConfigured, supabase } from "@shared-supabase/publicSupabaseClient";
+import { attachRefundRequestItems } from "@shared-supabase/refundRequestItems";
 import {
   trackEvent,
   trackMemberWithdraw,
@@ -431,13 +432,16 @@ async function fetchOrders() {
     return { orders: [], source: "fallback", error };
   }
 
-  const progress = await supabase.rpc("get_my_order_return_progress");
+  const [progress, ordersWithRequests] = await Promise.all([
+    supabase.rpc("get_my_order_return_progress"),
+    attachRefundRequestItems(supabase, Array.isArray(data) ? data : []),
+  ]);
   const latestReturn = new Map();
   for (const row of Array.isArray(progress.data) ? progress.data : []) {
     if (!latestReturn.has(row.order_id)) latestReturn.set(row.order_id, row);
   }
   return {
-    orders: (Array.isArray(data) ? data : []).map(order => ({ ...order, return_progress: latestReturn.get(order.id) ?? null })),
+    orders: ordersWithRequests.map(order => ({ ...order, return_progress: latestReturn.get(order.id) ?? null })),
     source: "supabase",
     error: null,
   };
@@ -1182,7 +1186,7 @@ async function confirmMemberPurchase({ user, orderId, demoMode = false, analytic
   };
 }
 
-async function requestMemberRefund({ user, orderId, reason, demoMode = false, analytics }) {
+async function requestMemberRefund({ user, orderId, itemIds = [], reason, demoMode = false, analytics }) {
   if (!user) {
     return {
       error: new Error("로그인된 회원 정보를 찾지 못했습니다."),
@@ -1190,6 +1194,9 @@ async function requestMemberRefund({ user, orderId, reason, demoMode = false, an
     };
   }
 
+  if (!Array.isArray(itemIds) || !itemIds.length) {
+    return { error: new Error("환불할 교재를 한 권 이상 선택해주세요."), source: "validation" };
+  }
   const trimmedReason = normalizeText(reason);
   // P1-8: 환불 신청 최소 20자. UI에서 카테고리 prefix를 자동 추가하므로 실제 본문은 충분히 받게 됨.
   if (trimmedReason.length < 20) {
@@ -1213,6 +1220,7 @@ async function requestMemberRefund({ user, orderId, reason, demoMode = false, an
   const { error } = await supabase.rpc("request_member_refund", {
     p_order_id: orderId,
     p_reason: trimmedReason,
+    p_item_ids: itemIds,
   });
 
   if (error) {

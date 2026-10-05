@@ -2,12 +2,14 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { Link, useSearchParams } from "react-router-dom";
 import AdminDialog from "../components/AdminDialog";
 import AdminReturnRefundDialog from "../components/AdminReturnRefundDialog";
+import RefundRequestItems from "../components/RefundRequestItems";
 import AdminShell from "../components/AdminShell";
 import AdminPagination from "../components/AdminPagination";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import StatusBadge from "@shared-domain/StatusBadge";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { getAdminOrderPurchaseRounds } from "@shared-supabase/adminOrderPurchaseRounds";
+import { attachRefundRequestItems } from "@shared-supabase/refundRequestItems";
 import { formatCurrency, formatDate } from "@shared-domain/format";
 import { orderStatusLabel } from "@shared-domain/status";
 import {
@@ -482,6 +484,7 @@ function AdminOrdersPage() {
         nextTotalCount = Number(raw.total_count) || 0;
       }
 
+      nextOrders = await attachRefundRequestItems(supabase, nextOrders);
       try {
         const purchaseRounds = await getAdminOrderPurchaseRounds(supabase, nextOrders);
         nextOrders = nextOrders.map((order) => ({ ...order, purchase_round: purchaseRounds[order.id] }));
@@ -1555,6 +1558,7 @@ function AdminOrdersPage() {
             <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">
               {selectedOrder.refund_request_reason || "사유 미기재"}
             </p>
+            <RefundRequestItems order={selectedOrder} />
             <p className="mt-2 text-xs text-slate-500">자동 구매확정·정산 송금이 재개된 상태입니다.</p>
           </div>
         ) : (
@@ -1570,6 +1574,7 @@ function AdminOrdersPage() {
           <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">
             {selectedOrder.refund_request_reason || "사유 미기재"}
           </p>
+          <RefundRequestItems order={selectedOrder} />
           <p className="mt-2 text-xs text-rose-600">
             처리 전까지 자동 구매확정·정산 송금이 보류됩니다 — 아래 "환불처리"로 진행하거나, 협의 종결 시 신청 반려로 재개하세요.
           </p>
@@ -1605,6 +1610,7 @@ function AdminOrdersPage() {
               {selectedOrder.refund_request_reason}
             </p>
           )}
+          <RefundRequestItems order={selectedOrder} />
           {selectedOrder.refund_reason && (
             <p className="mt-1 text-sm text-slate-700">
               <span className="text-xs font-semibold text-slate-500">처리 메모: </span>

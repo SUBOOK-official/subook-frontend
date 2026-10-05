@@ -1,0 +1,17 @@
+.refund-item-picker { border: 0; padding: 0; margin: 24px 0; min-width: 0; }
+.refund-item-picker legend { font-size: 15px; font-weight: 700; color: var(--public-ds-text); }
+.refund-item-picker legend span { margin-left: 6px; font-size: 11px; color: var(--public-ds-accent); }
+.refund-item-picker__hint { margin: 8px 0 12px; font-size: 12px; line-height: 1.6; color: var(--public-ds-text-muted); }
+.refund-item-picker__all { display: block; margin: 0 0 10px auto; padding: 4px 0; border: 0; background: none; color: var(--public-ds-primary); font: inherit; font-size: 12px; font-weight: 600; text-decoration: underline; cursor: pointer; }
+.refund-item-picker__list { display: grid; gap: 8px; }
+.refund-item-picker__item { display: flex; align-items: flex-start; gap: 12px; padding: 14px; border: 1px solid var(--public-ds-border); border-radius: 12px; cursor: pointer; }
+.refund-item-picker__item.is-selected { border-color: var(--public-ds-primary); background: var(--public-ds-bg); }
+.refund-item-picker__item.is-refunded { opacity: .55; cursor: default; }
+.refund-item-picker__item input { flex-shrink: 0; width: 18px; height: 18px; margin: 2px 0 0; accent-color: var(--public-ds-primary); }
+.refund-item-picker__cover { flex-shrink: 0; width: 36px; height: 50px; object-fit: contain; border-radius: 3px; }
+.refund-item-picker__details { display: grid; gap: 6px; min-width: 0; }
+.refund-item-picker__details strong { font-size: 13px; font-weight: 650; line-height: 1.6; overflow-wrap: anywhere; }
+.refund-item-picker__option { justify-self: start; padding: 3px 7px; border-radius: 4px; background: #eef0f8; color: var(--public-ds-primary); font-size: 12px; font-weight: 650; overflow-wrap: anywhere; }
+.refund-item-picker__meta { font-size: 12px; color: var(--public-ds-text-muted); }
+.refund-item-picker__summary { margin: 12px 0 0; font-size: 12px; font-weight: 600; color: var(--public-ds-primary); }
+.refund-item-picker button:focus-visible, .refund-item-picker input:focus-visible { outline: 2px solid var(--public-ds-primary); outline-offset: 3px; }

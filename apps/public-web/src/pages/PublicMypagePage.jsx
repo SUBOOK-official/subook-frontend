@@ -7,6 +7,7 @@ import PublicSiteHeader from "../components/PublicSiteHeader";
 import ContentContainer from "../components/ContentContainer";
 import ProductCard, { ProductCardSkeleton } from "../components/ProductCard";
 import PublicFooter from "../components/PublicFooter";
+import RefundItemPicker from "../components/RefundItemPicker";
 import {
   CANCEL_REASON_CATEGORIES,
   ConfirmDialog,
@@ -288,6 +289,7 @@ function PublicMypagePage() {
   const [confirmState, setConfirmState] = useState(initialConfirmState);
   const [confirmReason, setConfirmReason] = useState("");
   const [confirmReasonCategory, setConfirmReasonCategory] = useState("");
+  const [refundItemIds, setRefundItemIds] = useState([]);
   const [isConfirmBusy, setIsConfirmBusy] = useState(false);
   const [wishlistProducts, setWishlistProducts] = useState([]);
   const [wishlistError, setWishlistError] = useState("");
@@ -663,6 +665,7 @@ function PublicMypagePage() {
     setConfirmState(initialConfirmState);
     setConfirmReason("");
     setConfirmReasonCategory("");
+    setRefundItemIds([]);
     setIsConfirmBusy(false);
   };
 
@@ -1447,6 +1450,7 @@ function PublicMypagePage() {
     }
 
     if (confirmState.type === "refund_order") {
+      if (!refundItemIds.length || isConfirmBusy) return;
       setBusyOrderId(confirmState.itemId);
       setIsConfirmBusy(true);
       // P1-8: 카테고리 + 상세사유를 한 문자열로 합쳐서 RPC에 전달.
@@ -1457,6 +1461,7 @@ function PublicMypagePage() {
       const result = await requestMemberRefund({
         user: effectiveUser,
         orderId: confirmState.itemId,
+        itemIds: refundItemIds,
         reason: combinedReason,
         demoMode: isDemoPreview,
         // GA4 refund_request — 사유 분류·주문 상태 (사유 본문은 미전송)
@@ -1471,7 +1476,6 @@ function PublicMypagePage() {
           message: result.error.message || "환불 신청에 실패했습니다.",
           tone: "error",
         });
-        closeConfirmDialog();
         return;
       }
 
@@ -1617,13 +1621,14 @@ function PublicMypagePage() {
       open: true,
       type: "refund_order",
       itemId: order.id,
+      refundItems: order.items ?? [],
       analytics: {
         orderId: String(order.id),
         orderStatus: order.status,
         value: Number(order.totalAmount) || 0,
       },
-      title: "환불을 신청하시겠습니까?",
-      body: "환불 사유를 정확하게 알려주세요. 운영자 검토 후 환불이 진행됩니다.",
+      title: "어떤 교재를 환불할까요?",
+      body: "환불할 교재와 사유를 알려주세요. 운영자가 확인 후 안내해드릴게요.",
       confirmLabel: "환불 신청",
       confirmTone: "danger",
       reasonInput: true,
@@ -2177,6 +2182,7 @@ function PublicMypagePage() {
         busy={isConfirmBusy}
         confirmLabel={confirmState.confirmLabel}
         confirmTone={confirmState.confirmTone}
+        confirmDisabled={confirmState.type === "refund_order" && refundItemIds.length === 0}
         onClose={closeConfirmDialog}
         onConfirm={() => {
           void handleConfirmAction();
@@ -2221,7 +2227,9 @@ function PublicMypagePage() {
         reasonPlaceholder={confirmState.reasonPlaceholder}
         reasonValue={confirmReason}
         title={confirmState.title}
-      />
+      >
+        {confirmState.type === "refund_order" ? <RefundItemPicker items={confirmState.refundItems} selectedIds={refundItemIds} onChange={setRefundItemIds} disabled={isConfirmBusy} /> : null}
+      </ConfirmDialog>
       {memberGateDialog}
 
       <ReviewComposerSheet
@@ -3586,9 +3594,9 @@ function PurchasesView({
                         </button>
                       ) : null}
                       {/* 환불 처리 전 대기 상태만 표시 — refunded면 상단 status 배지가 이미 알려주므로 중복 제거 */}
-                      {order.refundRequestedAt && order.status !== "refunded" ? (
+                      {order.refundRequestedAt && order.status !== "refunded" && (order.refundRequestItemsError || !order.refundRequestedItemIds?.length || order.refundRequestedItemIds.some(id => String(id) === String(item.id))) ? (
                         <span className="public-mypage-purchase-card__refund-status">
-                          {getBuyerReturnLabel(order.returnProgress?.status) || "환불 신청 접수됨"}
+                          {order.refundRequestItemsError ? "환불 신청 교재 조회 실패 · 새로고침해주세요" : !order.refundRequestedItemIds?.length ? "환불 신청 접수됨 · 대상 교재 확인 중" : getBuyerReturnLabel(order.returnProgress?.status) || "이 교재 환불 신청 접수됨"}
                         </span>
                       ) : null}
                     </div>

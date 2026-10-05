@@ -951,6 +951,8 @@ export function mapOrderToDisplayOrder(order) {
     canRequestRefund,
     canReturn,
     refundRequestedAt,
+    refundRequestedItemIds: order.refund_requested_item_ids ?? [],
+    refundRequestItemsError: Boolean(order.refund_request_items_error),
     returnProgress: order.return_progress ?? null,
     refundRequestReason: order.refund_request_reason ?? null,
     // 환불 누계 (부분환불이면 status 유지 + 이 값만 증가 — 상세보기 시트의 환불 금액 행)
