@@ -3,8 +3,10 @@ import react from "@vitejs/plugin-react";
 import autoprefixer from "autoprefixer";
 import tailwindcss from "tailwindcss";
 import { existsSync } from "node:fs";
+import { writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { buildSellGuidePages } from "./build/sellGuideHtml.js";
 
 const appRoot = dirname(fileURLToPath(import.meta.url));
 const frontendRepoRoot = resolve(appRoot, "../..");
@@ -49,7 +51,18 @@ export default defineConfig({
   root: appRoot,
   cacheDir: resolve(appRoot, ".vite"),
   envDir,
-  plugins: [react()],
+  plugins: [react(), {
+    name: "sell-guide-html",
+    apply: "build",
+    async writeBundle(options, bundle) {
+      const indexHtml = bundle["index.html"]?.source;
+      if (typeof indexHtml !== "string") throw new Error("판매 안내 HTML 생성 실패: index.html 없음");
+      const { clientHtml, crawlerHtml } = buildSellGuidePages(indexHtml);
+      const outputDir = resolve(appRoot, options.dir ?? "dist");
+      await writeFile(resolve(outputDir, "sell-page.html"), clientHtml);
+      await writeFile(resolve(outputDir, "sell-crawler.html"), crawlerHtml);
+    },
+  }],
   build: {
     rollupOptions: {
       output: {

@@ -41,6 +41,17 @@ export function usePageMeta({ title, description, noindex, canonicalPath, image,
     const prevOgDesc = ogDescMeta.getAttribute("content");
     ogDescMeta.setAttribute("content", description ?? DEFAULT_DESCRIPTION);
 
+    // /sell처럼 전용 초기 HTML로 진입한 뒤 SPA 이동해도 공유 제목이 남지 않게 한다.
+    const twitterMetas = [
+      ["twitter:title", nextTitle],
+      ["twitter:description", description ?? DEFAULT_DESCRIPTION],
+    ].map(([name, value]) => {
+      const element = ensureMeta("name", name);
+      const previous = element.getAttribute("content");
+      element.setAttribute("content", value);
+      return { element, previous };
+    });
+
     let prevRobots = null;
     let robotsMeta = null;
     if (noindex) {
@@ -93,6 +104,10 @@ export function usePageMeta({ title, description, noindex, canonicalPath, image,
       if (prevDesc != null) descMeta.setAttribute("content", prevDesc);
       if (prevOgTitle != null) ogTitleMeta.setAttribute("content", prevOgTitle);
       if (prevOgDesc != null) ogDescMeta.setAttribute("content", prevOgDesc);
+      for (const { element, previous } of twitterMetas) {
+        if (previous != null) element.setAttribute("content", previous);
+        else element.remove();
+      }
       if (robotsMeta && prevRobots != null) robotsMeta.setAttribute("content", prevRobots);
       if (robotsMeta && prevRobots == null) robotsMeta.remove();
       if (canonicalLink) {

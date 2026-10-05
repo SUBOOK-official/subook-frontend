@@ -23,7 +23,7 @@ const SELL_GUIDE_PATH = "/sell";
 
 function PublicHomePage() {
   // 홈 브랜드 메타는 index.html·prerender-home.js와 동일하게 유지.
-  usePageMeta({});
+  usePageMeta({ canonicalPath: "/" });
   const navigate = useNavigate();
   const promotions = useSitePromotions();
   const automaticSlides = useAutomaticBookBanners();

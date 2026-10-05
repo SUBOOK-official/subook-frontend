@@ -8,7 +8,7 @@
 // ⚠ api/와 동일한 의존성 제로 제약 — @vercel/functions의 rewrite()/next() 대신 그 헬퍼가
 //   만드는 와이어 프로토콜 헤더(x-middleware-rewrite / x-middleware-next)를 직접 반환.
 // ⚠ BOT 정규식은 vercel.deploy.json의 UA 정규식과 반드시 동기 유지
-//   (복제 지점: /store/subject·series·instructor·/store/:id·/faq rewrite + 이 파일)
+//   (복제 지점: /store/subject·series·instructor·/store/:id·/faq·/sell rewrite + 이 파일)
 
 export const config = { matcher: "/" };
 
