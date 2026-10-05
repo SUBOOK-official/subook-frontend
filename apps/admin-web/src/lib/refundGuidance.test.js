@@ -28,6 +28,7 @@ test("미발송과 반품 검수 단계를 구분하고 부분 도착은 계속 
   const active = { status: "requested", requires_return: true, items: [{ received_at: "2026-09-30" }, { received_at: null }] };
   assert.equal(getReturnGuideStage(active).number, 2);
   assert.equal(getReturnGuideStage({ ...active, requires_return: false }).number, 3);
+  assert.equal(getReturnGuideStage({ ...active, requires_return: false, return_waived: true }).title, "배송된 하자 교재·환불액 확인");
   assert.equal(getReturnGuideStage({ ...active, status: "approved" }).number, 4);
   assert.equal(getReturnGuideStage({ ...active, status: "attention" }).title, "결제 결과 확인");
   assert.equal(hasPreDispatchReason("출고 전 재검수 탈락"), true);

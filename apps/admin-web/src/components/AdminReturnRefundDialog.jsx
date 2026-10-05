@@ -78,8 +78,9 @@ export default function AdminReturnRefundDialog({ order, onClose, onCompleted, o
   const guideRef = useRef(null);
   const orderItemsById = new Map((order.items ?? []).map(item => [String(item.id), item]));
   const active = cases.find(row => !["refunded", "cancelled"].includes(row.status));
-  const noReturnSelected = !active && deliveryRoute === "not_sent";
-  const discardOnly = noReturnSelected && notSentReason === "inspection_failed";
+  const waivedSelected = !active && deliveryRoute === "sent_no_return";
+  const noReturnSelected = !active && (deliveryRoute === "not_sent" || waivedSelected);
+  const discardOnly = waivedSelected || Boolean(active?.return_waived) || (noReturnSelected && notSentReason === "inspection_failed");
   const restock = !discardOnly && inventoryChoice === "restock";
   const inventoryChosen = discardOnly || Boolean(inventoryChoice);
   const currentOrder = { ...order, ...paymentDetails };
@@ -117,6 +118,7 @@ export default function AdminReturnRefundDialog({ order, onClose, onCompleted, o
   useEffect(() => {
     setConfirmed(false); setRetryConfirmed(false); setInspected(false); setReceiptConfirmed(false);
     setInventoryChoice(""); setAmount(""); setDeduction(""); setAmountNote(""); setManual(false); setNote("");
+    setRecoveryNeeded(false); setRecoveryPhrase("");
     guideRef.current?.scrollIntoView({ block: "nearest" });
   }, [caseKey]);
   // 대상이나 입력을 바꾼 뒤에는 이전 확인 체크를 재사용하지 않는다.
@@ -180,18 +182,18 @@ export default function AdminReturnRefundDialog({ order, onClose, onCompleted, o
   };
   const submitNoReturn = async () => {
     await run(async () => {
-      if (!ids.length || !notSentReason || reason.trim().length < 5 || !directConfirmed || !inventoryChosen || !noReturnManualValid || noReturnRefundAmount <= 0) return;
-      const { error: prepareError } = await supabase.rpc("admin_prepare_no_return_refund", {
+      if (!ids.length || (!waivedSelected && !notSentReason) || reason.trim().length < 5 || !directConfirmed || !inventoryChosen || !noReturnManualValid || noReturnRefundAmount <= 0) return;
+      const { error: prepareError } = await supabase.rpc(waivedSelected ? "admin_prepare_delivered_no_return_refund" : "admin_prepare_no_return_refund", {
         p_order_id: order.id,
         p_item_ids: ids,
         p_reason: reason,
-        p_restock: restock,
+        ...(!waivedSelected ? { p_restock: restock } : {}),
         p_manual_amount: preview.automatic ? null : amountNum,
         p_amount_note: preview.automatic ? null : amountNote,
       }).abortSignal(AbortSignal.timeout(20000));
       if (prepareError) throw prepareError;
       setDirectConfirmed(false);
-      // 미발송도 승인 스냅샷을 보여준 뒤 별도 실행. 접수 버튼으로 PG를 호출하지 않는다.
+      // 회수 없는 환불도 승인 스냅샷을 보여준 뒤 별도 실행한다.
       await load();
       await onChanged?.();
     });
@@ -201,7 +203,7 @@ export default function AdminReturnRefundDialog({ order, onClose, onCompleted, o
     setIds(nextIds); setAmount(""); setAmountNote(""); setInventoryChoice("");
   };
   const changeDeliveryRoute = (route) => {
-    setDeliveryRoute(route); setReasonCode(route === "not_sent" ? "not_delivered" : "");
+    setDeliveryRoute(route); setReasonCode(route === "not_sent" ? "not_delivered" : route === "sent_no_return" ? "seller_fault" : "");
     setNotSentReason(""); setReason(""); setInventoryChoice(""); setAmount(""); setAmountNote("");
   };
   return (
@@ -245,6 +247,7 @@ export default function AdminReturnRefundDialog({ order, onClose, onCompleted, o
                 {[
                   ["not_sent", "보내지 않았어요", "출고 전 검수 탈락·재고 없음·포장 누락·발송 전 취소 → 회수 없이 환불"],
                   ["sent", "고객에게 보냈어요", "고객이 받은 교재의 하자·오배송·단순변심 → 반품 도착 후 검수·환불"],
+                  ...(requiresPhysicalReturn(order) ? [["sent_no_return", "보냈지만 반품 없이 환불해요", "이미 풀린 모의고사 등 하자 확인 → 회수·반품 배송비 없이 환불, 재판매 제외"]] : []),
                 ].map(([value, title, description]) => <label key={value} className={`flex items-start gap-3 rounded-lg border p-3 text-sm ${deliveryRoute === value ? "border-indigo-500 bg-indigo-50" : "border-slate-200"}`}>
                   <input className="mt-1" type="radio" name="return-delivery" checked={deliveryRoute === value} onChange={() => changeDeliveryRoute(value)} />
                   <span><strong className="block">{title}</strong><span className="block mt-1 text-slate-600">{description}</span></span>
@@ -253,7 +256,7 @@ export default function AdminReturnRefundDialog({ order, onClose, onCompleted, o
               </fieldset>
               {deliveryRoute ? <>
                 <h4 className="font-bold text-sm pt-2">③ 사유와 처리 내용 확인</h4>
-                {noReturnSelected ? <label className="block text-sm font-semibold">미발송 사유
+                {waivedSelected ? <p className="text-sm text-slate-600">상품 하자 확인 · 회수 면제. 필기·풀이 등 하자 내용과 반품을 받지 않는 사유를 기록해주세요.</p> : noReturnSelected ? <label className="block text-sm font-semibold">미발송 사유
                   <select className="input-base mt-1" value={notSentReason} onChange={event => {
                     const value = event.target.value;
                     setNotSentReason(value); setInventoryChoice(""); setDirectConfirmed(false);
@@ -281,24 +284,27 @@ export default function AdminReturnRefundDialog({ order, onClose, onCompleted, o
                 </label>
               </> : null}
             </> : <p className="text-sm text-slate-600">환불할 교재를 선택하면 다음 항목이 나타납니다.</p>}
-            {ids.length > 0 && noReturnSelected && notSentReason ? (
+            {ids.length > 0 && noReturnSelected && (waivedSelected || notSentReason) ? (
               <div className="space-y-4">
-                <InventoryChoice value={inventoryChoice} onChange={setInventoryChoice} discardOnly={discardOnly} />
+                {waivedSelected ? <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm space-y-1">
+                  <strong>회수 없음 · 환불 후 재판매 제외</strong>
+                  <p>반품 수거·도착 확인 없이 환불합니다. 해당 교재는 환불 완료 시 폐기 상태로 기록되며 판매 재고로 돌아가지 않습니다.</p>
+                </div> : <InventoryChoice value={inventoryChoice} onChange={setInventoryChoice} discardOnly={discardOnly} />}
                 <div className="rounded-lg bg-slate-50 p-3 text-sm space-y-1">
                   <p>현재 결제잔액 <strong>{formatCurrency(preview.remaining)}</strong></p>
                   <p>할인 {formatCurrency(currentOrder.coupon_discount_amount ?? currentOrder.discount_amount ?? 0)} · 사용 포인트 {Number(currentOrder.points_used || 0).toLocaleString()}P</p>
-                  <p>미발송 배송비 차감 <strong>0원</strong></p>
+                  <p>{waivedSelected ? "회수 면제" : "미발송"} 배송비 차감 <strong>0원</strong></p>
                 </div>
                 {!preview.automatic ? <>
                   <p className="text-sm text-slate-700">일부 환불은 할인·포인트·이전 환불을 확인해 실제 환불액을 입력해주세요. 사용 포인트를 현금 환불액에 더하지 않습니다.</p>
                   {suggestedAmount != null ? <button className="btn-secondary" type="button" onClick={() => {
                     setAmount(String(suggestedAmount));
-                    setAmountNote(`선택 교재 상품값 ${formatCurrency(suggestedAmount)}. 할인·사용 포인트·이전 환불 없음. 미발송으로 배송비 차감 0원.`);
+                    setAmountNote(`선택 교재 상품값 ${formatCurrency(suggestedAmount)}. 할인·사용 포인트·이전 환불 없음. ${waivedSelected ? "하자 확인·회수 면제로" : "미발송으로"} 배송비 차감 0원.`);
                   }}>선택 상품값 {formatCurrency(suggestedAmount)} 입력</button> : null}
                   <label className="block text-sm">최종 환불액 (원)<input className="input-base mt-1" type="number" min="1" step="1" value={amount} onChange={e => setAmount(e.target.value)} /></label>
                   <label className="block text-sm">계산·조정 근거<textarea className="input-base mt-1" value={amountNote} onChange={e => setAmountNote(e.target.value)} maxLength={1000} /></label>
                 </> : <p className="text-lg font-bold">예상 환불액 {formatCurrency(preview.amount)}</p>}
-                <label className="flex gap-2 text-sm font-semibold"><input type="checkbox" checked={directConfirmed} onChange={event => setDirectConfirmed(event.target.checked)} />선택 상품이 구매자에게 전달되지 않아 회수가 불필요함을 확인했습니다.</label>
+                <label className="flex gap-2 text-sm font-semibold"><input type="checkbox" checked={directConfirmed} onChange={event => setDirectConfirmed(event.target.checked)} />{waivedSelected ? "배송된 교재의 하자를 확인했고, 반품을 받지 않고 환불하며 재판매에서 제외하겠습니다." : "선택 상품이 구매자에게 전달되지 않아 회수가 불필요함을 확인했습니다."}</label>
                 <p className="text-sm text-slate-500">다음 화면에서 대상·금액을 다시 확인한 뒤 {isBank ? "실제 송금 완료를 기록" : "카드 환불을 실행"}합니다.</p>
                 <button type="button" className="btn-primary" disabled={reason.trim().length < 5 || !directConfirmed || !inventoryChosen || !noReturnManualValid || noReturnRefundAmount <= 0}
                   onClick={submitNoReturn}>
@@ -324,7 +330,7 @@ export default function AdminReturnRefundDialog({ order, onClose, onCompleted, o
               <p>{active.reason}</p>
               <p className="text-slate-500">{active.requires_return
                 ? "접수 → 도착 확인 → 검수 승인 → 환불 실행"
-                : requiresPhysicalReturn(order) ? "미발송·배송 누락 확인 · 실물 회수 불필요" : "발송 전 취소 · 실물 회수 불필요"}</p>
+                : active.return_waived ? "배송된 하자 교재 · 반품 없이 환불" : requiresPhysicalReturn(order) ? "미발송·배송 누락 확인 · 실물 회수 불필요" : "발송 전 취소 · 실물 회수 불필요"}</p>
               {active.requires_return && active.received_at ? <p>첫 반품 도착 {formatDate(active.received_at)} · 반환받은 날부터 3영업일 이내 환급 처리</p> : null}
             </div>
             {active.requires_return && hasPreDispatchReason(active.reason) && draft ? <div role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm space-y-1">
@@ -388,11 +394,12 @@ export default function AdminReturnRefundDialog({ order, onClose, onCompleted, o
               <fieldset disabled={busy || loadFailed} className="space-y-4">
                 <div className="rounded-lg bg-slate-50 p-4 text-sm space-y-2">
                   <p className="font-semibold">환불 대상 {active.items.length}개 품목 · 위 옵션·No.를 다시 확인해주세요.</p>
-                  <p>실물 회수: {active.requires_return ? "고객 반품 도착·검수 완료" : "필요 없음 · 미발송 교재"}</p>
+                  <p>실물 회수: {active.requires_return ? "고객 반품 도착·검수 완료" : active.return_waived ? "면제 · 배송된 하자 교재" : "필요 없음 · 미발송 교재"}</p>
                   <p>환불 기준액 {formatCurrency(active.refund_base)}</p><p>배송비 차감 −{formatCurrency(active.shipping_deduction)}</p>
                   <p className="text-lg font-bold">최종 환불액 {formatCurrency(active.refund_amount)}</p>
                   <p>환불 후 결제 유지액 {formatCurrency(active.remaining_before - active.refund_amount)}</p>
-                  <p>{active.restock ? "재고 처리: 환불 후 즉시 재판매" : "재고 처리: 판매 차단 유지 · 환불 후 주문 상세에서 폐기 또는 상태 확인"}</p>
+                  <p>{active.return_waived ? "재고 처리: 환불 후 폐기 상태로 기록 · 재판매 제외" : active.restock ? "재고 처리: 환불 후 즉시 재판매" : "재고 처리: 판매 차단 유지 · 환불 후 주문 상세에서 폐기 또는 상태 확인"}</p>
+                  {active.return_waived ? <p>정산 처리: 환불 품목은 정산 생성 제외 · 미지급 정산 취소 · 이미 지급한 정산은 손실 확인 후 회수 필요로 기록</p> : null}
                   <p>확인 기록: {active.inspection_note}</p>
                   {active.amount_note ? <p>금액 근거: {active.amount_note}</p> : null}
                 </div>
@@ -431,7 +438,7 @@ export default function AdminReturnRefundDialog({ order, onClose, onCompleted, o
         {cases.filter(row => ["refunded", "cancelled"].includes(row.status)).map(row => (
           <div key={row.id} className="space-y-2 border-t border-slate-200 pt-3 text-xs text-slate-500">
             <p>{formatDate(row.completed_at)} · {RETURN_STATUS_LABELS[row.status]}{row.status === "refunded" ? ` · ${formatCurrency(row.refund_amount)}` : ""}</p>
-            <p>{row.requires_return ? "고객 반품" : "회수 없는 환불"} · {row.reason}</p>
+            <p>{row.requires_return ? "고객 반품" : row.return_waived ? "배송 후 회수 면제 환불" : "회수 없는 환불"} · {row.reason}</p>
             <ul className="space-y-2">
               {row.items.map(item => <li key={item.id} className="flex">
                 <ReturnItemDetails item={item} orderItem={orderItemsById.get(String(item.id))} />

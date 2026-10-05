@@ -27,5 +27,5 @@ export function getReturnGuideStage(active) {
   if (["processing", "attention"].includes(active.status)) return { number: 4, title: "결제 결과 확인", help: "결과가 확인되기 전에는 새 환불을 접수하거나 다시 송금하지 마세요." };
   if (active.status === "approved") return { number: 4, title: "최종 확인 후 환불 실행", help: "아직 환불 전입니다. 아래 대상·금액·재고 처리를 확인해주세요." };
   if (active.requires_return && active.items.some(item => !item.received_at)) return { number: 2, title: "고객이 반송한 교재 도착 확인", help: "실물이 창고에 도착한 교재만 선택합니다. 출고 전 검수 탈락은 반품 도착이 아닙니다." };
-  return { number: 3, title: active.requires_return ? "반품 교재 검수·환불액 확인" : "미발송 교재·환불액 확인", help: active.requires_return ? "돌아온 교재의 상태와 환불액을 확인하면 마지막 실행 단계로 이동합니다." : "미발송 교재는 고객에게서 회수하거나 도착 처리할 필요가 없습니다." };
+  return { number: 3, title: active.requires_return ? "반품 교재 검수·환불액 확인" : active.return_waived ? "배송된 하자 교재·환불액 확인" : "미발송 교재·환불액 확인", help: active.requires_return ? "돌아온 교재의 상태와 환불액을 확인하면 마지막 실행 단계로 이동합니다." : active.return_waived ? "하자 확인으로 회수를 면제한 교재입니다. 반품 도착 확인 없이 환불액을 확인합니다." : "미발송 교재는 고객에게서 회수하거나 도착 처리할 필요가 없습니다." };
 }
