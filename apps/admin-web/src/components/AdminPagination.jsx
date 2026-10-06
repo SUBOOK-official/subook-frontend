@@ -32,6 +32,7 @@ function AdminPagination({ currentPage, totalCount, pageSize, isLoading = false,
     const next = Math.min(totalPages, Math.max(1, page));
     if (next !== currentPage) {
       onPageChange(next);
+      document.querySelector("[data-admin-content]")?.scrollIntoView({ block: "start" });
     }
   };
 

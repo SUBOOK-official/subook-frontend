@@ -1,4 +1,5 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { useFocusTrap } from "@shared-domain/useFocusTrap";
 import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
 import { CloseIcon } from "./icons";
 
@@ -6,6 +7,8 @@ import { CloseIcon } from "./icons";
 // guide 형태는 lib/adminGuides.js 참고: { title, intro, sections: [{heading, body[], image, imageCaption, tips[]}] }
 function AdminGuideModal({ guide, open, onClose }) {
   useBodyScrollLock(open);
+  const dialogRef = useRef(null);
+  useFocusTrap(dialogRef, open);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -20,6 +23,8 @@ function AdminGuideModal({ guide, open, onClose }) {
 
   return (
     <div
+      ref={dialogRef}
+      aria-label={guide.title + " 사용 가이드"}
       aria-modal="true"
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
       onClick={onClose}

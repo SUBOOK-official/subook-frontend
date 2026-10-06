@@ -1,115 +1,68 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 
-// 30초 폴링. Realtime channel 도입은 코드량이 많아 일단 폴링 간격만 단축.
-// TODO: 추후 supabase.channel("admin-badges")로 INSERT/UPDATE 이벤트 구독으로 전환 검토.
-const POLL_INTERVAL_MS = 30_000;
+// 셸과 대시보드가 집계를 공유한다. 실패를 0건으로 변환하지 않는다.
+const initial = { pickups: null, inspection: null, orders: null, ordersPending: null, ordersPreparing: null, settlements: null, failedNotifications: null, loaded: false, error: "", updatedAt: null };
+let snapshot = initial;
+const listeners = new Set();
+let timer;
+let inflight = false;
+let authSubscription;
+let generation = 0;
 
-const EMPTY_COUNTS = {
-  pickups: 0,
-  inspection: 0,
-  orders: 0,
-  // '오늘 할 일' 대시보드용 세분화 — orders = ordersPending + ordersPreparing
-  ordersPending: 0,
-  ordersPreparing: 0,
-  settlements: 0,
-  // 사이드바 nav 배지가 아니라 셸 헤더 경고 칩용 — 최근 24시간 알림톡/SMS 발송 실패 누적
-  failedNotifications: 0,
-  loaded: false,
-};
-
-async function fetchHeadCount(table, applyQuery) {
-  if (!isSupabaseConfigured || !supabase) {
-    return 0;
-  }
-
-  let query = supabase.from(table).select("id", { count: "exact", head: true });
-  if (applyQuery) {
-    query = applyQuery(query);
-  }
-
-  const { count, error } = await query;
-  if (error) {
-    return 0;
-  }
-  return count ?? 0;
+export async function refreshAdminBadgeCounts() {
+  if (inflight || !isSupabaseConfigured || !supabase) return;
+  inflight = true;
+  const currentGeneration = generation;
+  try {
+    const queries = {
+      pickups: supabase.from("pickup_requests").select("id", { count: "exact", head: true }).eq("status", "pending"),
+      inspection: supabase.from("shipments").select("id", { count: "exact", head: true }).in("status", ["scheduled", "inspecting"]),
+      ordersPending: supabase.from("orders").select("id", { count: "exact", head: true }).eq("status", "pending"),
+      ordersPreparing: supabase.from("orders").select("id", { count: "exact", head: true }).eq("status", "preparing"),
+      settlements: supabase.from("settlements").select("id", { count: "exact", head: true }).in("status", ["pending", "approved"]),
+      failedNotifications: supabase.from("notification_logs").select("id", { count: "exact", head: true }).eq("status", "failed").gte("created_at", new Date(Date.now() - 86400000).toISOString()),
+    };
+    const results = await Promise.allSettled(Object.values(queries));
+    if (currentGeneration !== generation) return;
+    const next = { ...snapshot, loaded: true, error: "" };
+    Object.keys(queries).forEach((key, i) => {
+      const result = results[i];
+      if (result.status === "fulfilled" && !result.value.error) next[key] = result.value.count ?? 0;
+      else next.error = "일부 업무 건수를 갱신하지 못했습니다. 이전 조회값이 표시될 수 있습니다.";
+    });
+    next.orders = next.ordersPending == null || next.ordersPreparing == null ? null : next.ordersPending + next.ordersPreparing;
+    if (!next.error) next.updatedAt = new Date().toISOString();
+    snapshot = next;
+    listeners.forEach((listener) => listener());
+  } finally { inflight = false; }
 }
-
-export function useAdminBadgeCounts() {
-  const [counts, setCounts] = useState(EMPTY_COUNTS);
-  const inflightRef = useRef(false);
-
-  const refresh = useCallback(async () => {
-    if (inflightRef.current) return;
-    if (!isSupabaseConfigured || !supabase) return;
-
-    inflightRef.current = true;
-
-    try {
-      const oneDayAgoIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-
-      const [
-        pickups,
-        inspection,
-        ordersPending,
-        ordersPreparing,
-        settlementsUnpaid,
-        failedNotifications,
-      ] = await Promise.all([
-        fetchHeadCount("pickup_requests", (q) => q.eq("status", "pending")),
-        // shipments.status enum은 scheduled/inspecting/inspected. (arrived는 pickup_requests 상태라
-        // 여기서 쓰면 항상 0건 → 검수 대기 배지가 안 뜸) scheduled=입고 후 검수 대기, inspecting=검수중.
-        fetchHeadCount("shipments", (q) => q.in("status", ["scheduled", "inspecting"])),
-        // '결제완료(paid)' 단계 폐지 — 결제 확인 즉시 preparing으로 간다.
-        // '오늘 할 일' 카드가 두 단계를 구분해 안내하도록 분리 집계 (nav 배지는 합산 사용).
-        fetchHeadCount("orders", (q) => q.eq("status", "pending")),
-        fetchHeadCount("orders", (q) => q.eq("status", "preparing")),
-        // 정산 기본 목록과 동일하게 예정일에 관계없이 미지급 전체를 집계한다.
-        fetchHeadCount("settlements", (q) =>
-          q.in("status", ["pending", "approved"]),
-        ),
-        // 발송 실패는 24시간 창으로 셈 (전체 누적이면 과거 실패가 영구히 배지에 남음)
-        fetchHeadCount("notification_logs", (q) =>
-          q.eq("status", "failed").gte("created_at", oneDayAgoIso),
-        ),
-      ]);
-
-      setCounts({
-        pickups,
-        inspection,
-        orders: ordersPending + ordersPreparing,
-        ordersPending,
-        ordersPreparing,
-        settlements: settlementsUnpaid,
-        failedNotifications,
-        loaded: true,
-      });
-    } finally {
-      inflightRef.current = false;
+function onVisible() {
+  if (document.visibilityState === "visible") void refreshAdminBadgeCounts();
+}
+function subscribe(listener) {
+  listeners.add(listener);
+  if (listeners.size === 1) {
+    void refreshAdminBadgeCounts();
+    timer = window.setInterval(onVisible, 30000);
+    document.addEventListener("visibilitychange", onVisible);
+    authSubscription = supabase?.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_OUT") {
+        generation += 1;
+        snapshot = initial;
+        listeners.forEach((notify) => notify());
+      }
+    }).data.subscription;
+  }
+  return () => {
+    listeners.delete(listener);
+    if (!listeners.size) {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+      authSubscription?.unsubscribe();
     }
-  }, []);
-
-  useEffect(() => {
-    refresh();
-
-    const intervalId = window.setInterval(() => {
-      if (document.visibilityState === "visible") {
-        refresh();
-      }
-    }, POLL_INTERVAL_MS);
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        refresh();
-      }
-    };
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    return () => {
-      window.clearInterval(intervalId);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
-  }, [refresh]);
-
-  return counts;
+  };
+}
+export function useAdminBadgeCounts() {
+  return useSyncExternalStore(subscribe, () => snapshot);
 }

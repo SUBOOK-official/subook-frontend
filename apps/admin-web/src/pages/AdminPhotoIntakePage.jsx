@@ -488,7 +488,7 @@ function AdminPhotoIntakePage() {
       fileNames,
     });
     for (const name of fileNames) {
-      // eslint-disable-next-line no-await-in-loop
+
       await moveToProductFolder(name, current.title);
     }
 

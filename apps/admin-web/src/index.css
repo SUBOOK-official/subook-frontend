@@ -47,7 +47,7 @@ button {
   }
 
   .app-shell-admin {
-    @apply mx-auto min-h-screen w-full max-w-[1440px] px-4 pb-12 pt-6 sm:px-6 lg:px-8;
+    @apply mx-auto min-h-screen w-full max-w-[1680px] px-3 pb-12 pt-3 sm:px-5 lg:px-6 lg:pt-4;
   }
 
   .card {
@@ -142,4 +142,32 @@ button {
 .rich-text-content a {
   color: #1d4ed8;
   text-decoration: underline;
+}
+/* 모바일에서는 상품/주문 행을 작업 카드로 배치해 액션까지 한 화면에 노출한다. */
+@media (max-width: 767px) {
+  .admin-product-table, .admin-orders-table { display: block; min-width: 0; width: 100%; }
+  .admin-product-table thead, .admin-orders-table thead { display: block; }
+  .admin-product-table thead tr, .admin-orders-table thead tr { display: flex; align-items: center; }
+  .admin-product-table thead th:not(:first-child), .admin-orders-table thead th:not(:first-child) { display: none; }
+  .admin-product-table thead tr::after, .admin-orders-table thead tr::after { content: "현재 페이지 전체 선택"; font-size: 11px; font-weight: 600; color: #64748b; }
+  .admin-product-table tbody, .admin-orders-table tbody { display: block; }
+  .admin-product-table tbody > tr { display: grid; grid-template-columns: 28px 56px minmax(0,1fr); gap: 6px; padding: 14px 10px; }
+  .admin-product-table tbody > tr > td { min-width: 0; padding: 4px; }
+  .admin-product-table tbody > tr > td:nth-child(4) { grid-column: 2 / 4; text-align: left; }
+  .admin-product-table tbody > tr > td:nth-child(4)::before { content: "판매가 "; font-size: 11px; font-weight: 500; color: #64748b; }
+  .admin-product-table tbody > tr > td:nth-child(5) { grid-column: 2 / 4; text-align: left; }
+  .admin-product-table tbody > tr > td:nth-child(5)::before { content: "재고 "; font-size: 11px; color: #64748b; }
+  .admin-product-table tbody > tr > td:nth-child(6) { grid-column: 2 / 4; text-align: left; }
+  .admin-product-table tbody > tr > td:nth-child(7) { grid-column: 1 / 4; border-top: 1px solid #f1f5f9; padding-top: 10px; }
+  .admin-product-table tbody > tr > td:nth-child(7) > div { flex-wrap: wrap; }
+  .admin-product-table button { min-height: 36px; }
+  .admin-orders-table tbody > tr:not(:has(td[colspan])) { display: grid; grid-template-columns: 28px minmax(0,1fr) auto; padding: 12px 8px; }
+  .admin-orders-table tbody > tr:not(:has(td[colspan])) > td { min-width: 0; max-width: none; padding: 5px; }
+  .admin-orders-table tbody > tr > td:nth-child(2) { grid-column: 2 / 4; }
+  .admin-orders-table tbody > tr > td:nth-child(3), .admin-orders-table tbody > tr > td:nth-child(4) { grid-column: 2 / 4; }
+  .admin-orders-table tbody > tr > td:nth-child(5) { grid-column: 2; text-align: left; }
+  .admin-orders-table tbody > tr > td:nth-child(6) { grid-column: 3; }
+  .admin-orders-table tbody > tr > td:nth-child(7) { grid-column: 2 / 4; }
+  .admin-orders-table tbody > tr:has(td[colspan]), .admin-orders-table td[colspan] { display: block; width: 100%; }
+  .admin-orders-table td[colspan] > div { padding: 12px; }
 }

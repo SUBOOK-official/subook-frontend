@@ -1,181 +1,50 @@
-// 운영자 IA 그룹핑: 운영(수거→검수→주문→정산) / 카탈로그(상품·스튜디오) / 마케팅(쿠폰·공지·FAQ) / 분석·회원.
-// 사이드바 평면 12개 나열은 신입 매니저 학습 비용이 컸음. 그룹 헤더 추가로 의미적 분류 노출.
-// icon은 이모지 문자열이 아니라 icons.jsx의 컴포넌트 "참조"를 담는다 (.js 파일이라 JSX 사용 불가).
-// 렌더는 AdminShell의 NavList가 <item.icon size={16} />으로 수행.
-import {
-  BellIcon,
-  BoxIcon,
-  CameraIcon,
-  CartIcon,
-  ChartBarIcon,
-  CoinIcon,
-  FolderIcon,
-  HelpCircleIcon,
-  InboxIcon,
-  MegaphoneIcon,
-  PlusIcon,
-  StarIcon,
-  TicketIcon,
-  TrendingUpIcon,
-  UserIcon,
-} from "./icons";
+import { BellIcon, BoxIcon, CameraIcon, CartIcon, ChartBarIcon, CoinIcon, FolderIcon, HelpCircleIcon, InboxIcon, MegaphoneIcon, PlusIcon, StarIcon, TicketIcon, TrendingUpIcon, UserIcon } from "./icons";
 
-// 2026-07-16 R1 개편: 기능 축 → "업무 축" 그룹핑.
-// 신입 운영자의 멘탈 모델(셀러 물건이 들어와서 팔리는 흐름 / 구매자 주문이 나가는 흐름)을
-// 사이드바 순서 그대로 반영한다. 저빈도 페이지(탈퇴 사유)는 회원 페이지 내부 탭으로 흡수,
-// 검수는 수거·검수 통합 페이지의 탭으로 흡수 (별도 메뉴 제거).
 export const adminNavigationGroups = [
-  {
-    key: "overview",
-    label: null, // hero — 그룹 헤더 없이 단독 노출
-    items: [
-      { key: "overview", label: "오늘 할 일", to: "/admin", icon: ChartBarIcon },
-    ],
-  },
-  {
-    key: "seller-flow",
-    label: "셀러 흐름",
-    items: [
-      { key: "pickups", label: "수거·검수", to: "/admin/pickups", icon: BoxIcon },
-      { key: "register", label: "상품 등록", to: "/admin/register", icon: PlusIcon },
-      { key: "products", label: "상품 재고", to: "/admin/products", icon: FolderIcon },
-      { key: "photo-intake", label: "상세 사진 촬영", to: "/admin/photo-intake", icon: InboxIcon },
-    ],
-  },
-  {
-    key: "buyer-flow",
-    label: "구매자 흐름",
-    items: [
-      { key: "orders", label: "주문·배송", to: "/admin/orders", icon: CartIcon },
-      { key: "settlements", label: "정산", to: "/admin/settlements", icon: CoinIcon },
-    ],
-  },
-  {
-    key: "customer",
-    label: "고객",
-    items: [
-      { key: "members", label: "회원", to: "/admin/members", icon: UserIcon },
-      { key: "coupons", label: "쿠폰", to: "/admin/coupons", icon: TicketIcon },
-      { key: "event-subscriptions", label: "이벤트 알림 신청", to: "/admin/event-subscriptions", icon: BellIcon },
-    ],
-  },
-  {
-    key: "content",
-    label: "콘텐츠",
-    items: [
-      { key: "themes", label: "테마관", to: "/admin/themes", icon: MegaphoneIcon },
-      { key: "recommendations", label: "추천 교재", to: "/admin/recommendations", icon: StarIcon },
-      { key: "promotions", label: "배너·팝업", to: "/admin/promotions", icon: MegaphoneIcon },
-      { key: "notices", label: "공지사항", to: "/admin/notices", icon: MegaphoneIcon },
-      { key: "faqs", label: "FAQ", to: "/admin/faqs", icon: HelpCircleIcon },
-      { key: "reviews", label: "후기", to: "/admin/reviews", icon: StarIcon },
-    ],
-  },
-  {
-    key: "tools",
-    label: "도구",
-    items: [
-      { key: "studio", label: "사진 스튜디오 (AI)", to: "/admin/studio", icon: CameraIcon },
-      { key: "notification-logs", label: "알림 발송 로그", to: "/admin/notification-logs", icon: BellIcon },
-      { key: "analytics", label: "분석", to: "/admin/analytics", icon: TrendingUpIcon },
-      { key: "performance", label: "성과 대시보드", to: "/admin/performance", icon: TrendingUpIcon },
-      { key: "meta-ads", label: "메타 광고 운영", to: "/admin/meta-ads", icon: MegaphoneIcon },
-    ],
-  },
+  { key: "overview", label: null, items: [{ key: "overview", label: "오늘 할 일", to: "/admin", icon: ChartBarIcon }, { key: "work-history", label: "작업·변경 이력", to: "/admin/work-history", icon: InboxIcon }] },
+  { key: "intake", label: "입고·검수", items: [
+    { key: "pickups", label: "수거·검수", to: "/admin/pickups", icon: BoxIcon },
+    { key: "register", label: "상품 등록", to: "/admin/register", icon: PlusIcon },
+    { key: "photo-intake", label: "상세 사진 촬영", to: "/admin/photo-intake", icon: InboxIcon },
+    { key: "studio", label: "사진 스튜디오", to: "/admin/studio", icon: CameraIcon },
+  ] },
+  { key: "inventory", label: "상품·재고", items: [
+    { key: "products", label: "상품 재고", to: "/admin/products", icon: FolderIcon },
+    { key: "inventory-insights", label: "재고 분석", to: "/admin/inventory-insights", icon: ChartBarIcon },
+  ] },
+  { key: "fulfillment", label: "주문·배송", items: [{ key: "orders", label: "주문·출고·환불", to: "/admin/orders", icon: CartIcon }] },
+  { key: "settlement", label: "정산", items: [
+    { key: "settlements", label: "정산 지급", to: "/admin/settlements", icon: CoinIcon },
+    { key: "settlement-exceptions", label: "확인 필요", to: "/admin/settlement-exceptions", icon: CoinIcon },
+  ] },
+  { key: "customer", label: "고객·CS", items: [
+    { key: "cs", label: "문의 작업함", to: "/admin/cs", icon: HelpCircleIcon },
+    { key: "members", label: "회원", to: "/admin/members", icon: UserIcon },
+    { key: "reviews", label: "후기", to: "/admin/reviews", icon: StarIcon },
+    { key: "notification-logs", label: "알림 이력", to: "/admin/notification-logs", icon: BellIcon },
+  ] },
+  { key: "content", label: "마케팅·콘텐츠", items: [
+    { key: "home-editor", label: "홈 편집", to: "/admin/home-editor", icon: MegaphoneIcon },
+    { key: "coupons", label: "쿠폰", to: "/admin/coupons", icon: TicketIcon },
+    { key: "meta-ads", label: "메타 광고", to: "/admin/meta-ads", icon: MegaphoneIcon },
+    { key: "event-subscriptions", label: "행사 신청", to: "/admin/event-subscriptions", icon: BellIcon },
+    { key: "notices", label: "공지사항", to: "/admin/notices", icon: MegaphoneIcon },
+    { key: "faqs", label: "FAQ", to: "/admin/faqs", icon: HelpCircleIcon },
+  ] },
+  { key: "results", label: "성과", items: [
+    { key: "performance", label: "매출·유입·광고", to: "/admin/performance", icon: TrendingUpIcon },
+    { key: "analytics", label: "운영 분석", to: "/admin/analytics", icon: ChartBarIcon },
+  ] },
 ];
 
 export function resolveActiveAdminModule({ pathname, explicitModule }) {
-  if (explicitModule) {
-    return explicitModule;
-  }
-  if (pathname.startsWith("/admin/meta-ads")) return "meta-ads";
-  if (pathname.startsWith("/admin/integrations")) return "integrations";
-  if (pathname.startsWith("/admin/themes")) return "themes";
-  if (pathname.startsWith("/admin/recommendations")) return "recommendations";
-  if (pathname.startsWith("/admin/promotions")) return "promotions";
-
-  if (pathname.startsWith("/admin/studio")) {
-    return "studio";
-  }
-
-  if (pathname.startsWith("/admin/event-subscriptions")) {
-    return "event-subscriptions";
-  }
-
-  if (pathname.startsWith("/admin/notification-logs")) {
-    return "notification-logs";
-  }
-
-  if (pathname.startsWith("/admin/analytics")) {
-    return "analytics";
-  }
-
-  if (pathname.startsWith("/admin/performance")) {
-    return "performance";
-  }
-
-  if (pathname.startsWith("/admin/faqs")) {
-    return "faqs";
-  }
-
-  if (pathname.startsWith("/admin/reviews")) {
-    return "reviews";
-  }
-
-  if (pathname.startsWith("/admin/notices")) {
-    return "notices";
-  }
-
-  // 검수(shipment 상세·구 inspections 경로)는 수거·검수 통합 메뉴에 속한다
-  if (pathname.startsWith("/admin/shipments/") || pathname.startsWith("/admin/inspections")) {
-    return "pickups";
-  }
-
-  if (pathname.startsWith("/admin/pickups")) {
-    return "pickups";
-  }
-
-  if (pathname.startsWith("/admin/register")) {
-    return "register";
-  }
-
-  if (pathname.startsWith("/admin/photo-intake")) {
-    return "photo-intake";
-  }
-
-  if (pathname.startsWith("/admin/products")) {
-    return "products";
-  }
-
-  if (pathname.startsWith("/admin/catalog")) {
-    return "products";
-  }
-
-  if (pathname.startsWith("/admin/orders")) {
-    return "orders";
-  }
-
-  // 수동(식스샵) 정산은 정산 메뉴의 탭 — 사이드바 하이라이트는 '정산'으로
-  if (pathname.startsWith("/admin/manual-settlements")) {
-    return "settlements";
-  }
-
-  if (pathname.startsWith("/admin/settlements")) {
-    return "settlements";
-  }
-
-  if (pathname.startsWith("/admin/coupons")) {
-    return "coupons";
-  }
-
-  // 탈퇴 사유는 회원 메뉴의 탭 — 사이드바 하이라이트는 '회원'으로
-  if (pathname.startsWith("/admin/withdrawal-reasons")) {
-    return "members";
-  }
-
-  if (pathname.startsWith("/admin/members")) {
-    return "members";
-  }
-
-  return "overview";
+  if (["themes", "recommendations", "promotions"].includes(explicitModule)) return "home-editor";
+  if (explicitModule === "inspection") return "pickups";
+  if (explicitModule) return explicitModule;
+  if (/^\/admin\/(shipments|inspections)/.test(pathname)) return "pickups";
+  if (/^\/admin\/(themes|recommendations|promotions)/.test(pathname)) return "home-editor";
+  if (pathname.startsWith("/admin/manual-settlements")) return "settlements";
+  if (pathname.startsWith("/admin/withdrawal-reasons")) return "members";
+  if (pathname.startsWith("/admin/catalog")) return "products";
+  return adminNavigationGroups.flatMap((group) => group.items).find((item) => item.to !== "/admin" && pathname.startsWith(item.to))?.key || "overview";
 }

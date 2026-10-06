@@ -33,6 +33,9 @@ function AdminDialog({
 
   useFocusTrap(dialogRef, open);
   useBodyScrollLock(open);
+  useEffect(() => {
+    if (open) dialogRef.current?.focus({ preventScroll: true });
+  }, [open]);
 
   const sizeClass =
     size === "sm"
@@ -51,7 +54,6 @@ function AdminDialog({
     if (busy) return;
     if (event) event.stopPropagation();
     if (dirty && confirmDirtyMessage) {
-      // eslint-disable-next-line no-alert
       const ok = typeof window !== "undefined" ? window.confirm(confirmDirtyMessage) : true;
       if (!ok) return;
     }
@@ -61,7 +63,7 @@ function AdminDialog({
   useEffect(() => {
     if (!open) return undefined;
     const handleKey = (event) => {
-      if (event.key === "Escape") {
+      if (event.key === "Escape" && [...document.querySelectorAll('[role="dialog"][aria-modal="true"]')].at(-1) === dialogRef.current) {
         event.stopPropagation();
         requestClose(null);
       }
@@ -85,6 +87,8 @@ function AdminDialog({
       role="presentation"
     >
       <div
+        tabIndex={-1}
+        aria-label={title ? undefined : "상세 정보"}
         aria-labelledby={title ? titleId : undefined}
         aria-modal="true"
         className={`w-full ${sizeClass} rounded-2xl bg-white shadow-2xl ${
