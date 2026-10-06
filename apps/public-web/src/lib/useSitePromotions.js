@@ -5,6 +5,7 @@ import { activePromotions } from "@shared-domain/sitePromotions";
 
 export default function useSitePromotions() {
   const [rows, setRows] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [now, setNow] = useState(Date.now);
 
   useEffect(() => {
@@ -19,7 +20,10 @@ export default function useSitePromotions() {
       } catch {
         // 연결 실패 시 이전 광고나 비노출 광고를 되살리지 않는다. 상품 영역은 계속 사용 가능.
         if (!disposed) setRows([]);
-      } finally { pending = false; }
+      } finally {
+        pending = false;
+        if (!disposed) setIsLoading(false);
+      }
     };
     void refresh();
     const interval = window.setInterval(refresh, 30000);
@@ -42,5 +46,5 @@ export default function useSitePromotions() {
     return () => window.clearTimeout(timer);
   }, [rows, now]);
 
-  return activePromotions(rows, now);
+  return { promotions: activePromotions(rows, now), isLoading };
 }

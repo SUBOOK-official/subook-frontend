@@ -25,8 +25,8 @@ function PublicHomePage() {
   // 홈 브랜드 메타는 index.html·prerender-home.js와 동일하게 유지.
   usePageMeta({ canonicalPath: "/" });
   const navigate = useNavigate();
-  const promotions = useSitePromotions();
-  const automaticSlides = useAutomaticBookBanners();
+  const { promotions, isLoading: promotionsLoading } = useSitePromotions();
+  const { slides: automaticSlides, isLoading: automaticSlidesLoading } = useAutomaticBookBanners();
   const manualSlides = promotions.filter((row) => row.placement === "home_hero").map((row) => ({
     id: row.id, imageDesktop: row.image_url,
     imageMobile: isPromotionUrl(row.mobile_image_url) ? row.mobile_image_url : null,
@@ -90,7 +90,7 @@ function PublicHomePage() {
 
       {/* 화면에 소개 영역을 추가하지 않고 스크린리더용 페이지 제목만 유지한다. */}
       <h1 className="public-visually-hidden">수북 SUBOOK, 수능 교재 구매·위탁판매</h1>
-      <AutomaticHeroBanner onSlideAction={handleHeroAction} slides={heroSlides} />
+      <AutomaticHeroBanner onSlideAction={handleHeroAction} slides={heroSlides} isLoading={promotionsLoading || automaticSlidesLoading} />
       {/* 배너 클릭 스크롤 도착 지점. sticky 헤더에 가리지 않도록 scroll-margin-top 확보. */}
       <div id="products" aria-hidden="true" ref={productsRef} style={{ scrollMarginTop: "80px" }} />
       <ThemeQuickLinks />

@@ -8,6 +8,7 @@ import { bannerCopyMap, fetchBannerCopies } from "./bannerCopies";
 
 export default function useAutomaticBookBanners() {
   const [slides, setSlides] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
   useEffect(() => {
     let disposed = false;
     let pending = false;
@@ -29,7 +30,10 @@ export default function useAutomaticBookBanners() {
         }
       } catch {
         trackException("home_automatic_banners_load_failed");
-      } finally { pending = false; }
+      } finally {
+        pending = false;
+        if (!disposed) setIsLoading(false);
+      }
     };
     void refresh();
     const timer = window.setInterval(refresh, 60000);
@@ -42,5 +46,5 @@ export default function useAutomaticBookBanners() {
       document.removeEventListener("visibilitychange", refresh);
     };
   }, []);
-  return slides;
+  return { slides, isLoading };
 }

@@ -40,7 +40,7 @@ function BannerCard({ slide, index, onSlideAction }) {
   }}>{content}</a> : <div ref={ref} className={className}>{content}</div>;
 }
 
-export default function AutomaticHeroBanner({ slides, onSlideAction }) {
+export default function AutomaticHeroBanner({ slides, onSlideAction, isLoading = false }) {
   const railRef = useRef(null);
   const [paused, setPaused] = useState(false);
   const [interacting, setInteracting] = useState(false);
@@ -67,7 +67,7 @@ export default function AutomaticHeroBanner({ slides, onSlideAction }) {
       rail.removeEventListener("scroll", updatePagination);
       observer.disconnect();
     };
-  }, [slides.length]);
+  }, [isLoading, slides.length]);
   const move = (direction) => {
     const rail = railRef.current;
     if (!rail) return;
@@ -78,7 +78,7 @@ export default function AutomaticHeroBanner({ slides, onSlideAction }) {
     rail.scrollTo({ left: target, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
   };
   useEffect(() => {
-    if (paused || interacting || slides.length < 2 || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return undefined;
+    if (isLoading || paused || interacting || slides.length < 2 || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return undefined;
     const mobileQuery = window.matchMedia("(max-width: 767px)");
     let timer;
     const advance = () => {
@@ -98,7 +98,7 @@ export default function AutomaticHeroBanner({ slides, onSlideAction }) {
       window.clearInterval(timer);
       mobileQuery.removeEventListener("change", startTimer);
     };
-  }, [paused, interacting, slides.length]);
+  }, [isLoading, paused, interacting, slides.length]);
   const toggleAutoRotation = () => {
     if (paused) {
       // 재생은 버튼에 남은 포커스·마우스 일시정지보다 우선한다.
@@ -106,6 +106,11 @@ export default function AutomaticHeroBanner({ slides, onSlideAction }) {
     }
     setPaused((value) => !value);
   };
+  // 두 목록의 첫 조회가 끝나기 전에는 일부 배너·임시 페이지 수를 노출하지 않는다.
+  if (isLoading) return <section className="automatic-hero" aria-label="배너 불러오는 중" aria-busy="true">
+    <div className="automatic-hero__placeholder" aria-hidden="true" />
+    <div className="automatic-hero__loading-controls" aria-hidden="true" />
+  </section>;
   if (!slides.length) return null;
   return <section className="automatic-hero" aria-label="추천 교재와 이벤트 배너" aria-roledescription="캐러셀"
     onPointerEnter={(event) => { if (event.pointerType === "mouse") setInteracting(true); }}
