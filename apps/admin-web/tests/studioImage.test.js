@@ -162,3 +162,55 @@ test("두 저장소의 배포 API와 이미지 헬퍼가 동기화돼 있다", a
     assert.equal(front, back);
   }
 });
+
+const cleanSummary = "장영진 꿀모는 수능 수학을 준비하는 수험생을 위한 **실전 모의고사** 시리즈입니다. 정해진 시간에 문제를 풀며 **시간 관리**를 연습하고, 풀이 후 취약한 개념과 풀이 과정을 점검하는 데 활용할 수 있습니다.";
+
+for (const unsafeSummary of [
+  "우리 데이터베이스상 개념 유형 교재로 분류되어 있습니다.",
+  "우리 DB상 개념 교재로 등록되어 있습니다.",
+  "공식 검색 결과로는 실전 모의고사 시리즈가 확인됩니다.",
+  "운영진의 내부 분류에 따르면 개념을 정리하는 교재입니다.",
+]) {
+  test(`고객 요약에 운영 문구가 있으면 재시도하고 검증된 응답만 저장: ${unsafeSummary}`, async (t) => {
+    setEnv(t, { SUPABASE_URL: "https://fixture.supabase.co", SUPABASE_SERVICE_ROLE_KEY: "service", GEMINI_API_KEY: "gemini" });
+    const realSetTimeout = globalThis.setTimeout;
+    t.mock.method(globalThis, "setTimeout", (callback, delay, ...args) => realSetTimeout(callback, delay === 2000 ? 0 : delay, ...args));
+    let generationCount = 0;
+    const saved = [];
+    t.mock.method(globalThis, "fetch", async (url, options = {}) => {
+      if (String(url).includes("generativelanguage.googleapis.com")) {
+        generationCount += 1;
+        return new Response(JSON.stringify({ candidates: [{ finishReason: "STOP", content: { parts: [{ text: generationCount === 1 ? unsafeSummary + cleanSummary : cleanSummary }] }, groundingMetadata: { groundingChunks: [{ web: { uri: "https://www.megastudy.net/", title: "메가스터디" } }] } }] }));
+      }
+      if (options.method === "PATCH") {
+        saved.push(JSON.parse(options.body));
+        return new Response(null, { status: 204 });
+      }
+      return new Response(JSON.stringify([{ id: 2622, title: "2026 장영진 꿀모", book_type: "모의고사", ai_summary: null }]));
+    });
+    const result = await callHandler({ mode: "summary", token: "service", productId: 2622 });
+    assert.equal(result.status, 200);
+    assert.equal(generationCount, 2);
+    assert.equal(saved.length, 1);
+    assert.equal(saved[0].ai_summary, cleanSummary);
+  });
+}
+
+test("재시도에서도 운영 문구가 나오면 상품 요약을 저장하지 않는다", async (t) => {
+  setEnv(t, { SUPABASE_URL: "https://fixture.supabase.co", SUPABASE_SERVICE_ROLE_KEY: "service", GEMINI_API_KEY: "gemini" });
+  const realSetTimeout = globalThis.setTimeout;
+  t.mock.method(globalThis, "setTimeout", (callback, delay, ...args) => realSetTimeout(callback, delay === 2000 ? 0 : delay, ...args));
+  let generationCount = 0;
+  t.mock.method(globalThis, "fetch", async (url, options = {}) => {
+    assert.notEqual(options.method, "PATCH");
+    if (String(url).includes("generativelanguage.googleapis.com")) {
+      generationCount += 1;
+      return new Response(JSON.stringify({ candidates: [{ finishReason: "STOP", content: { parts: [{ text: "우리 데이터베이스상 개념 유형입니다. " + cleanSummary }] } }] }));
+    }
+    return new Response(JSON.stringify([{ id: 2622, ai_summary: null }]));
+  });
+  const result = await callHandler({ mode: "summary", token: "service", productId: 2622 });
+  assert.equal(result.status, 502);
+  assert.equal(result.body.code, "SUMMARY_GENERATION_FAILED");
+  assert.equal(generationCount, 2);
+});
