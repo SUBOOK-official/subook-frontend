@@ -48,3 +48,11 @@ P1 마이페이지의 구매·판매·정산 내역을 실제 회원 화면과 �
 - [정산 내역](https://subook.kr/mypage?demo=1#settlements)
 
 상단의 샘플 초기화로 예시 상태를 되돌릴 수 있다.
+
+## 배포 및 추가 발견
+
+- 구현 커밋: `01acec6` (frontend/main push 완료).
+- production: `dpl_BzFyQgYCLi6Fgo2fUiZM8yapdNtX`, `READY` / `production` 및 `subook.kr` alias 확인. 최초 CLI 인증 오류 후 동일 계정·팀·프로젝트를 확인하고 재시도하여 성공했다.
+- 배포 후 실제 도메인에서 구매 9건 / 구매확정 버튼 1개, 판매 8건 / 교재 40권·판매중 2권·판매완료 5권, 정산 예정 3,800원 확인. 모바일 정산 페이지 가로 넘침 및 콘솔 오류 없음.
+- 별도 후속 검토: `npm audit`에서 기존 의존성 경고 24건(critical 1 / high 14 / moderate 8 / low 1)을 확인했다. 이번 UI 변경은 패키지 버전을 바꾸지 않았다. 공통 의존성 업데이트는 admin·AI 기능 등 영향 범위를 별도로 검증해야 한다.
+- critical 항목은 `@google/genai@1.44.0 → protobufjs@7.5.4`. [공식 보안 권고](https://github.com/advisories/GHSA-xq3m-2v4x-88gg)는 공격자가 제어하는 protobuf 정의·JSON descriptor 로딩을 전제로 한다. 패키지 경고만으로 수북의 실제 악용 가능성이 확인된 것은 아니며, 호출 경로 조사와 업데이트가 남아 있다.
