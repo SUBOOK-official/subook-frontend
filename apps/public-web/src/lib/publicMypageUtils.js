@@ -1,4 +1,4 @@
-import { bookConditionLabel } from "../../../../packages/shared-domain/src/status.js";
+import { bookConditionLabel, bookStatusLabel } from "../../../../packages/shared-domain/src/status.js";
 
 // raw condition_grade (NEW/S/A_PLUS/A) → 사람이 읽는 한국어 라벨.
 // 매핑 없는 값은 그대로 반환 (option_label 같은 임의 텍스트 fallback).
@@ -9,6 +9,14 @@ function toGradeLabel(rawGrade) {
 
 export const DEFAULT_TAB_KEY = "purchases";
 export const MAX_SAVED_ITEMS = 5;
+
+// 조회 실패·로컬 캐시를 실제 빈 내역처럼 표시하지 않는다.
+export function getPortalHistoryIssue(snapshot, tabKey) {
+  const sourceKey = { purchases: "orders", reviews: "orders", sales: "recentShipments", settlements: "settlements" }[tabKey];
+  if (!sourceKey) return "";
+  const source = snapshot?.sources?.[sourceKey];
+  return ["supabase", "demo"].includes(source) ? "" : "최신 내역을 불러오지 못했어요. 다시 시도해주세요.";
+}
 
 // 은행·증권사 목록 — 토스페이먼츠 공식 기관 코드 기준 전수 반영 (2026-07-12).
 // https://docs.tosspayments.com/codes/org-codes
@@ -118,8 +126,9 @@ export const SALES_STATUS_FILTERS = [
   { value: "all", label: "전체" },
   { value: "in_progress", label: "진행중" },
   { value: "on_sale", label: "판매중" },
-  { value: "settled", label: "정산완료" },
+  { value: "sold", label: "판매완료" },
   { value: "rejected", label: "판매불가" },
+  { value: "cancelled", label: "취소" },
 ];
 
 export const PURCHASE_STATUS_FILTERS = [
@@ -201,8 +210,10 @@ const shipmentStatusMap = {
   received: { label: "입고", tone: "info" },
   inspecting: { label: "검수중", tone: "warning" },
   listed: { label: "판매중", tone: "success" },
+  sold: { label: "판매완료", tone: "neutral" },
   settled: { label: "정산완료", tone: "neutral" },
   rejected: { label: "판매불가", tone: "danger" },
+  cancelled: { label: "수거 취소", tone: "neutral" },
 };
 
 const pickupStatusToShipmentStatus = {
@@ -213,7 +224,7 @@ const pickupStatusToShipmentStatus = {
   inspecting: "inspecting",
   inspected: "listed",
   completed: "settled",
-  cancelled: "rejected",
+  cancelled: "cancelled",
 };
 
 const orderStatusMap = {
@@ -257,14 +268,19 @@ function getShipmentFilterKey(status) {
       return "on_sale";
     case "settled":
       return "settled";
+    case "sold":
+      return "sold";
     case "rejected":
       return "rejected";
+    case "cancelled":
+      return "cancelled";
     default:
       return "in_progress";
   }
 }
 
 function isRejectedShipmentItem(item) {
+  if (item?.isRejected) return true;
   if (item?.rejectionReason) {
     return true;
   }
@@ -273,23 +289,20 @@ function isRejectedShipmentItem(item) {
     return true;
   }
 
-  return /판매불가|폐기|취소/.test(String(item?.statusLabel ?? ""));
+  return /판매불가|폐기/.test(String(item?.statusLabel ?? ""));
 }
 
 function isSettledShipmentItem(item) {
-  if (item?.tone === "neutral") {
-    return /정산완료|판매완료/.test(String(item?.statusLabel ?? ""));
-  }
+  // books.settled는 판매완료다. 입금 여부를 이 상태만으로 추정하지 않는다.
+  return /정산완료/.test(String(item?.statusLabel ?? ""));
+}
 
-  return /정산완료|판매완료/.test(String(item?.statusLabel ?? ""));
+function isSoldShipmentItem(item) {
+  return ["settled", "sold"].includes(item?.status) || /판매완료|정산완료/.test(String(item?.statusLabel ?? ""));
 }
 
 function isOnSaleShipmentItem(item) {
-  if (item?.tone === "success") {
-    return true;
-  }
-
-  return /판매중/.test(String(item?.statusLabel ?? ""));
+  return ["on_sale", "reserved"].includes(item?.status) || /판매중/.test(String(item?.statusLabel ?? ""));
 }
 
 function countRecentEntries(entries, key) {
@@ -307,7 +320,15 @@ export function filterShipmentsByStatus(shipments, filterValue = "all") {
     return shipments;
   }
 
-  return shipments.filter((shipment) => getShipmentFilterKey(shipment.status) === filterValue);
+  return shipments.filter((shipment) => {
+    if (shipment.status === "cancelled") return filterValue === "cancelled";
+    const items = shipment.items ?? [];
+    if (filterValue === "rejected") return shipment.status === "rejected" || items.some(isRejectedShipmentItem);
+    if (filterValue === "settled" && items.length) return items.some(isSettledShipmentItem);
+    if (filterValue === "sold") return items.length ? items.some(isSoldShipmentItem) : ["sold", "settled"].includes(shipment.status);
+    if (filterValue === "on_sale" && items.length) return items.some(isOnSaleShipmentItem);
+    return getShipmentFilterKey(shipment.status) === filterValue;
+  });
 }
 
 export function deriveShipmentMetrics(shipments = []) {
@@ -317,6 +338,7 @@ export function deriveShipmentMetrics(shipments = []) {
     totalBookCount: 0,
     onSaleBookCount: 0,
     settledBookCount: 0,
+    soldBookCount: 0,
     rejectedBookCount: 0,
     onSaleValue: 0,
     recentRequestCount: countRecentEntries(shipments, "createdAt"),
@@ -333,6 +355,7 @@ export function deriveShipmentMetrics(shipments = []) {
       metrics.inProgressRequestCount += 1;
     }
 
+    if (shipment.status === "cancelled") return metrics;
     metrics.totalBookCount += fallbackItemCount;
 
     const shipmentTimestamp = getTimestamp(shipment.createdAt);
@@ -347,8 +370,11 @@ export function deriveShipmentMetrics(shipments = []) {
         metrics.onSaleBookCount += fallbackItemCount;
       } else if (shipmentFilterKey === "settled") {
         metrics.settledBookCount += fallbackItemCount;
+        metrics.soldBookCount += fallbackItemCount;
       } else if (shipmentFilterKey === "rejected") {
         metrics.rejectedBookCount += fallbackItemCount;
+      } else if (shipmentFilterKey === "sold") {
+        metrics.soldBookCount += fallbackItemCount;
       }
 
       return metrics;
@@ -362,12 +388,16 @@ export function deriveShipmentMetrics(shipments = []) {
         return;
       }
 
-      if (isSettledShipmentItem(item) || shipmentFilterKey === "settled") {
+      if (isSettledShipmentItem(item)) {
         metrics.settledBookCount += 1;
+      }
+
+      if (isSoldShipmentItem(item)) {
+        metrics.soldBookCount += 1;
         return;
       }
 
-      if (isOnSaleShipmentItem(item) || shipmentFilterKey === "on_sale") {
+      if (isOnSaleShipmentItem(item)) {
         metrics.onSaleBookCount += 1;
         metrics.onSaleValue += price;
       }
@@ -540,20 +570,28 @@ export function getTabKeyFromHash(hash) {
   return DEFAULT_TAB_KEY;
 }
 
-// 구매 내역 상단 통계 카드. 도메인 status와 1:1 매핑.
-// - 상품 준비 중(preparing): 결제 확인(무통장 입금확인 / PG 승인) 즉시 진입하는 상태.
-//   '결제 완료(paid)' 카드는 2026-07 paid 단계 폐지로 제거 — 레거시 paid 주문은 '전체'에서 확인.
-// - 배송중(shipping): 운송장이 등록된 상태
-// - 배송 완료(delivered): 배송이 도착 완료된 상태 (구매확정 전)
-// - 구매 확정(confirmed): 배송 도착 후 7일 자동 또는 사용자 임의 확정
-// (pending/cancelled/refunded/returned 등은 별도 카드로 노출하지 않음)
+// 주문 단위 필터. 부분환불·반품 접수도 취소/환불에서 다시 찾을 수 있다.
 export const PURCHASE_SUMMARY_CARDS = [
-  { key: "all",       label: "전체",       statuses: null },
-  { key: "preparing", label: "결제 완료",   statuses: ["preparing"] },
-  { key: "shipping",  label: "배송중",     statuses: ["shipping"] },
-  { key: "delivered", label: "배송 완료",   statuses: ["delivered"] },
-  { key: "confirmed", label: "구매 확정",   statuses: ["confirmed"] },
+  { key: "all", label: "전체", statuses: null },
+  { key: "pending", label: "입금대기", statuses: ["pending"] },
+  { key: "preparing", label: "배송준비", statuses: ["paid", "preparing"] },
+  { key: "shipping", label: "배송중", statuses: ["shipping"] },
+  { key: "delivered", label: "배송완료", statuses: ["delivered"] },
+  { key: "confirmed", label: "구매확정", statuses: ["confirmed"] },
+  { key: "cancelled", label: "취소·환불", statuses: ["cancelled", "refunded", "returned"] },
 ];
+
+export function filterPurchaseOrders(orders = [], filter = "all", query = "") {
+  const statuses = PURCHASE_SUMMARY_CARDS.find((item) => item.key === filter)?.statuses;
+  const keyword = query.trim().toLowerCase();
+  return orders.filter((order) => {
+    const matchesStatus = !statuses || statuses.includes(order.status) ||
+      (filter === "cancelled" && (order.refundRequestedAt || Number(order.refundedAmount) > 0 || order.items?.some((item) => item.refundedAt)));
+    const matchesSearch = !keyword || [order.reference, ...(order.items ?? []).map((item) => item.title)]
+      .some((value) => String(value ?? "").toLowerCase().includes(keyword));
+    return matchesStatus && matchesSearch;
+  });
+}
 
 export function countOrdersByStatuses(orders, statuses) {
   if (!Array.isArray(orders)) return 0;
@@ -570,7 +608,11 @@ export function groupOrdersByDate(orders = []) {
   const buckets = new Map();
   for (const order of orders) {
     const created = order?.createdAt ? new Date(order.createdAt) : null;
-    if (!created || Number.isNaN(created.getTime())) continue;
+    if (!created || Number.isNaN(created.getTime())) {
+      if (!buckets.has("unknown")) buckets.set("unknown", { dateKey: "unknown", dateLabel: "날짜 확인 중", orders: [] });
+      buckets.get("unknown").orders.push(order);
+      continue;
+    }
 
     const year = created.getFullYear();
     const month = String(created.getMonth() + 1).padStart(2, "0");
@@ -584,7 +626,11 @@ export function groupOrdersByDate(orders = []) {
     buckets.get(dateKey).orders.push(order);
   }
 
-  return Array.from(buckets.values()).sort((a, b) => (a.dateKey < b.dateKey ? 1 : -1));
+  return Array.from(buckets.values()).sort((a, b) => {
+    if (a.dateKey === "unknown") return 1;
+    if (b.dateKey === "unknown") return -1;
+    return b.dateKey.localeCompare(a.dateKey);
+  });
 }
 
 export function formatCompactDate(dateString) {
@@ -692,6 +738,7 @@ export function getShipmentProgressIndex(status) {
     received: 3,
     inspecting: 4,
     listed: 5,
+    sold: 5,
     settled: 5,
   };
 
@@ -758,19 +805,20 @@ export function mapPickupRequestToShipment(pr) {
     inspecting: { label: "검수중", tone: "warning" },
     inspected: { label: "검수완료", tone: "success" },
     completed: { label: "정산완료", tone: "neutral" },
-    cancelled: { label: "취소", tone: "danger" },
+    cancelled: { label: "수거 취소", tone: "neutral" },
   };
   // 2026-07-16: get_my_pickup_requests가 브리지된 shipment의 실제 검수 books를
   // items로 반환한다(등급·확정 판매가·상태·폐기사유·검수사진·검수메모).
   // 레거시 신청은 기존 pickup_items 형태가 그대로 내려오므로 두 형태를 모두 수용한다.
   const bookStatusChipMap = {
     on_sale: { label: "판매중", tone: "success" },
-    reserved: { label: "판매중", tone: "success" },
-    settled: { label: "정산완료", tone: "neutral" },
+    reserved: { label: bookStatusLabel.reserved, tone: "success" },
+    settled: { label: bookStatusLabel.settled, tone: "neutral" },
+    sold: { label: "판매완료", tone: "neutral" },
+    inspecting: { label: "검수중", tone: "warning" },
   };
   const items = (pr.items ?? []).map((item) => {
-    const fallbackReason = pr.status === "cancelled" ? "수거 취소" : null;
-    const rejectionReason = item.rejection_reason ?? item.rejectionReason ?? fallbackReason;
+    const rejectionReason = item.rejection_reason ?? item.rejectionReason ?? null;
     const rejectionDetail = item.rejection_detail ?? item.rejectionDetail ?? null;
     const rejectionPhotoUrls = Array.isArray(item.rejection_photo_urls)
       ? item.rejection_photo_urls
@@ -789,6 +837,7 @@ export function mapPickupRequestToShipment(pr) {
 
     return {
       id: item.id,
+      status: item.status ?? null,
       title,
       gradeLabel: toGradeLabel(item.grade),
       // 확정 판매가(검수 후 책정) 우선, 없으면 정가 fallback
@@ -807,6 +856,11 @@ export function mapPickupRequestToShipment(pr) {
   });
   // 검수된 실제 books가 있으면 그 권수가 진실 (item_count는 신청 시 '예상' 권수)
   const itemCount = items.length > 0 ? items.length : (pr.item_count ?? 0);
+  // 검수완료 수거도 남은 재고가 없으면 판매중으로 표시하지 않는다.
+  const displayStatus = pr.status === "inspected" && items.length > 0
+    ? items.every(isRejectedShipmentItem) ? "rejected"
+      : items.every((item) => isSoldShipmentItem(item) || isRejectedShipmentItem(item)) ? "sold" : mappedStatus
+    : mappedStatus;
   const summaryByStatus = {
     completed: `교재 ${itemCount}권 · 정산완료`,
     inspected: `교재 ${itemCount}권 · 검수완료`,
@@ -823,7 +877,7 @@ export function mapPickupRequestToShipment(pr) {
       ? `#${pr.legacy_shipment_id ?? String(pr.id).replace("legacy-", "")}`
       : null,
     createdAt: pr.created_at,
-    status: mappedStatus,
+    status: displayStatus,
     summaryLabel: summaryByStatus[pr.status] ?? `교재 ${itemCount}권`,
     bookCount: itemCount,
     compact: false,
@@ -946,7 +1000,7 @@ export function mapOrderToDisplayOrder(order) {
     trackingNumber: order.tracking_number ?? null,
     trackingCompany: order.tracking_carrier ?? "CJ대한통운",
     autoConfirmDaysRemaining,
-    canConfirm: canConfirm && (!order.return_progress || ["refunded", "cancelled"].includes(order.return_progress.status)),
+    canConfirm: canConfirm && !refundRequestedAt && items.some((item) => !item.refundedAt) && (!order.return_progress || ["refunded", "cancelled"].includes(order.return_progress.status)),
     canCancel,
     canRequestRefund,
     canReturn,

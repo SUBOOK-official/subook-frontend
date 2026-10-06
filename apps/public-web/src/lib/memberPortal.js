@@ -1,5 +1,6 @@
 import { isSupabaseConfigured, supabase } from "@shared-supabase/publicSupabaseClient";
 import { attachRefundRequestItems } from "@shared-supabase/refundRequestItems";
+import { fetchMemberHistoryPages } from "./memberHistoryPagination";
 import {
   trackEvent,
   trackMemberWithdraw,
@@ -401,10 +402,7 @@ async function fetchPickupRequests() {
     return { pickupRequests: [], source: "local", error: null };
   }
 
-  const { data, error } = await supabase.rpc("get_my_pickup_requests_v2", {
-    p_limit: 20,
-    p_offset: 0,
-  });
+  const { rows: data, error } = await fetchMemberHistoryPages(supabase, "get_my_pickup_requests_v2");
 
   if (error) {
     if (shouldUseLocalSchemaFallback(error)) {
@@ -425,10 +423,7 @@ async function fetchOrders() {
     return { orders: [], source: "local", error: null };
   }
 
-  const { data, error } = await supabase.rpc("get_my_orders", {
-    p_limit: 20,
-    p_offset: 0,
-  });
+  const { rows: data, error } = await fetchMemberHistoryPages(supabase, "get_my_orders");
 
   if (error) {
     if (shouldUseLocalSchemaFallback(error)) {
@@ -457,9 +452,8 @@ async function fetchSettlements() {
     return { rows: [], summary: null, source: "local", error: null };
   }
 
-  const { data, error } = await supabase.rpc("get_my_settlements", {
-    p_limit: 50,
-    p_offset: 0,
+  const { rows, data, error } = await fetchMemberHistoryPages(supabase, "get_my_settlements", {
+    selectRows: (page) => page?.rows,
   });
 
   if (error) {
@@ -470,7 +464,7 @@ async function fetchSettlements() {
   }
 
   return {
-    rows: Array.isArray(data?.rows) ? data.rows : [],
+    rows,
     summary: data?.summary ?? null,
     source: "supabase",
     error: null,
@@ -1063,7 +1057,7 @@ async function loadMemberPortalSnapshot({ user, profile, demoMode = false }) {
       ? pickupRequestsResult.pickupRequests.map(mapPickupRequestToShipment)
       : [];
   // 비상 fallback(RPC 미반영·스키마 캐시 지연 시)만 집계 행을 표시용으로 변환해 사용
-  const shipments = pickupShipments.length > 0
+  const shipments = pickupRequestsResult.source === "supabase"
     ? pickupShipments
     : recentShipmentsResult.recentShipments.map(mapRecentShipmentRowToDisplay);
 
@@ -1128,7 +1122,7 @@ async function loadMemberPortalSnapshot({ user, profile, demoMode = false }) {
     sources: {
       profile: dashboardResult.source === "supabase" ? "supabase" : "fallback",
       summary: dashboardResult.source,
-      recentShipments: pickupRequestsResult.source !== "local" ? pickupRequestsResult.source : recentShipmentsResult.source,
+      recentShipments: pickupRequestsResult.source,
       orders: ordersResult.source !== "local" ? ordersResult.source : (storedState.orders.length ? "local" : "empty"),
       settlements: hasRemoteSettlements
         ? "supabase"
@@ -1332,7 +1326,7 @@ async function cancelMemberPickupRequest({ user, requestId, demoMode = false, an
     const stored = mergePortalDemoState(readStoredPortalState(user.id));
     const shipments = stored.shipments.map((shipment) =>
       shipment.pickupRequestId === requestId && shipment.canCancel
-        ? { ...shipment, status: "rejected", canCancel: false, summaryLabel: "수거 신청 취소", compact: true } : shipment);
+        ? { ...shipment, status: "cancelled", canCancel: false, summaryLabel: "수거 신청 취소", compact: true } : shipment);
     writeStoredPortalState(user.id, { shipments });
     return { error: null, source: "local" };
   }

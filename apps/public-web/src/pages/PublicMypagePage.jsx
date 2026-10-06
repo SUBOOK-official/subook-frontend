@@ -1,5 +1,3 @@
-import { getBuyerReturnLabel } from "@shared-domain/returns";
-import { pickupBoxLabel } from "@shared-domain/pickupBoxes";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { formatCurrency } from "@shared-domain/format";
@@ -20,32 +18,26 @@ import { WITHDRAWAL_REASON_CATEGORIES } from "@shared-domain/withdrawalReasons";
 import PublicPageFrame from "../components/PublicPageFrame";
 import PublicToastMessage from "../components/PublicToastMessage";
 import {
-  AlertTriangleIcon,
   ArrowRightIcon,
   BellIcon,
-  BoxIcon,
   ChevronRightIcon,
-  ChevronUpIcon,
   CoinIcon,
   HeartIcon,
   LockIcon,
   MapPinIcon,
-  StarIcon,
   UserIcon,
 } from "../components/icons";
 import { supabase as publicSupabase } from "@shared-supabase/publicSupabaseClient";
 import ReviewComposerSheet from "../components/ReviewComposerSheet";
-import MypageReviews, { OrderReviewAction, ReviewInviteBanner } from "../components/MypageReviews";
-import { canWriteOrderReview } from "../lib/publicReviewsUtils";
+import MypageReviews from "../components/MypageReviews";
 import MypageRestockKeywords from "../components/MypageRestockKeywords";
-import { MypagePointsCard, PointsHistorySheet } from "../components/MypagePoints";
+import { PointsHistorySheet } from "../components/MypagePoints";
 import { fetchMyReviews } from "../lib/publicReviews";
 import { fetchMyPoints } from "../lib/publicPoints";
 import { formatPoints, normalizeMyPoints } from "../lib/publicPointsUtils";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { usePublicWishlist } from "../contexts/PublicWishlistContext";
 import usePublicMemberGate from "../lib/publicMemberGate";
-import { KAKAO_CHANNEL_URL } from "../lib/supportChannels";
 import { usePageMeta } from "../lib/usePageMeta";
 import { createDemoCoupons, resolvePortalIdentity } from "../lib/publicMypageDemo";
 import {
@@ -69,31 +61,16 @@ import {
 import {
   BANK_OPTIONS,
   MAX_SAVED_ITEMS,
-  PURCHASE_SUMMARY_CARDS,
-  SALES_STATUS_FILTERS,
-  SHIPMENT_PROGRESS_STEPS,
   SIDEBAR_GROUPS,
   buildAccountForm,
   buildAddressForm,
   buildCjTrackingUrl,
   buildProfileForm,
-  countOrdersByStatuses,
-  deriveSettlementMetrics,
-  deriveShipmentMetrics,
-  filterShipmentsByStatus,
   findSidebarItem,
+  getPortalHistoryIssue,
   formatCompactDate,
-  formatDateTime,
-  formatShipmentReference,
   getDefaultTabForMember,
-  getOrderStatusLabel,
-  getOrderStatusTone,
-  getPaymentMethodLabel,
-  getShipmentProgressIndex,
-  getShipmentStatusLabel,
-  getShipmentStatusTone,
   getTabKeyFromHash,
-  groupOrdersByDate,
   initialAccountErrors,
   initialAccountForm,
   initialAddressErrors,
@@ -106,17 +83,13 @@ import {
 } from "../lib/publicMypageUtils";
 import {
   makeOnceGuard,
-  trackContactClick,
-  trackCopyClick,
   trackDeliveryTrackClick,
   trackDialogClose,
   trackEmptyState,
   trackEvent,
   trackException,
   trackFormAbandon,
-  trackImageZoom,
   trackListFilterChange,
-  trackListPagination,
   trackPickupCtaClick,
   trackSelectContent,
   trackTabChange,
@@ -130,39 +103,28 @@ import {
   subscribeRestock,
   unsubscribeRestock,
 } from "../lib/publicRestock";
-import { getThumbnailImageUrl } from "../lib/storageImage";
-import {
-  BANK_ACCOUNT,
-  BANK_HOLDER,
-  BANK_NAME,
-  PAYMENT_DEADLINE_HOURS,
-  buildDepositorName,
-} from "../lib/paymentBankInfo";
+import { PurchasesView, SalesTab, SettlementsTab } from "../components/MypageHistory";
 import "./PublicMypagePage.css";
-import sellIcon from "../assets/icons/sell.png";
+import "../components/MypageHistory.css";
 import heartPlusIcon from "../assets/icons/heart-plus.png";
 import couponIcon from "../assets/icons/coupon.png";
-import buyIcon from "../assets/icons/buy.png";
-import receiptIcon from "../assets/icons/receipt.png";
 import accountIcon from "../assets/icons/account.png";
-import emptyBoxIcon from "../assets/icons/empty-box.png";
 
 // 마이페이지 빈 상태(empty state)용 png 아이콘 렌더 헬퍼
 function MypageEmptyIcon({ src }) {
   return <img src={src} alt="" aria-hidden="true" style={{ width: 48, height: 48, objectFit: "contain" }} />;
 }
 
-// 마이페이지 상단 3x2 네브 그리드 (왼쪽 위부터 순서 고정 + 아이콘)
+// 모바일 메뉴: 주요 거래 내역을 앞에 배치한 가로 탐색.
 const MYPAGE_GRID_ITEMS = [
-  { key: "purchases", label: "구매 내역", icon: buyIcon },
-  { key: "wishlist", label: "찜한 교재", icon: heartPlusIcon },
-  { key: "coupons", label: "쿠폰", icon: couponIcon },
-  { key: "sales", label: "판매 내역", icon: sellIcon },
-  { key: "settlements", label: "정산 내역", icon: receiptIcon },
-  { key: "reviews", label: "내 리뷰", icon: null },
+  { key: "purchases", label: "구매 내역" },
+  { key: "sales", label: "판매 내역" },
+  { key: "settlements", label: "정산 내역" },
+  { key: "wishlist", label: "찜한 교재" },
+  { key: "coupons", label: "쿠폰" },
+  { key: "reviews", label: "내 리뷰" },
 ];
 
-// GA4 item_list_name — 찜 목록(마이페이지 탭·설정 탭 공용)
 const WISHLIST_LIST_NAME = "마이페이지 찜한 교재";
 
 const initialLoadedTabs = {
@@ -255,6 +217,7 @@ function PublicMypagePage() {
   const [activeTabKey, setActiveTabKey] = useState(() => getTabKeyFromHash(location.hash));
   const [loadedTabs, setLoadedTabs] = useState(initialLoadedTabs);
   const [tabPhases, setTabPhases] = useState(initialTabPhases);
+  const [portalLoadErrors, setPortalLoadErrors] = useState({});
   const [portalState, setPortalState] = useState(initialPortalState);
   const [toastState, setToastState] = useState(initialToastState);
   const [profileForm, setProfileForm] = useState(initialProfileForm);
@@ -315,6 +278,7 @@ function PublicMypagePage() {
   const displayName = createDisplayName(profileSnapshot);
   const joinDateText = formatCompactDate(effectiveUser?.created_at ?? profileSnapshot?.created_at);
   const dataKey = resolveDataKey(activeTabKey);
+  const portalLoadError = portalLoadErrors[dataKey] ?? "";
   const isPortalPending = tabPhases[dataKey] === "loading" && !portalState.profile;
   const currentNickname = (profileSnapshot?.nickname ?? profileSnapshot?.name ?? "").trim();
   const activeSidebarItem = findSidebarItem(activeTabKey);
@@ -384,55 +348,62 @@ function PublicMypagePage() {
       [dataKey]: "loading",
     }));
 
+    setPortalLoadErrors((current) => ({ ...current, [dataKey]: "" }));
     const timerId = window.setTimeout(async () => {
-      const snapshot = await loadMemberPortalSnapshot({
-        user: effectiveUser,
-        profile: effectiveProfile,
-        demoMode: isDemoPreview,
-      });
-
-      if (isCancelled) {
-        return;
-      }
-
-      setPortalState(snapshot);
-      setProfileForm(buildProfileForm(snapshot.profile, effectiveUser));
-
-      // GA4 데이터 로드 — 어느 소스에서 왔는지(local/empty면 조용한 폴백 상태)
-      if (mypageLoadGuardRef.current(dataKey)) {
-        const sources = snapshot.sources ?? {};
-        trackEvent("mypage_load", {
-          dataKey,
-          profileSource: sources.profile,
-          ordersSource: sources.orders,
-          settlementsSource: sources.settlements,
-          shipmentsSource: sources.recentShipments,
+      try {
+        const snapshot = await loadMemberPortalSnapshot({
+          user: effectiveUser,
+          profile: effectiveProfile,
+          demoMode: isDemoPreview,
         });
-        // supabase가 설정돼 있는데도 로컬 폴백/빈 소스로 떨어졌으면 조용한 장애다.
-        const isDegraded = ["orders", "settlements", "recentShipments"].some(
-          (key) => sources[key] === "local" || sources[key] === "fallback",
-        );
-        if (isDegraded && isConfigured && !isDemoPreview) {
-          trackException("mypage_data_degraded", {
+
+        if (isCancelled) {
+          return;
+        }
+
+        setPortalState(snapshot);
+        setProfileForm(buildProfileForm(snapshot.profile, effectiveUser));
+
+        // GA4 데이터 로드 — 어느 소스에서 왔는지(local/empty면 조용한 폴백 상태)
+        if (mypageLoadGuardRef.current(dataKey)) {
+          const sources = snapshot.sources ?? {};
+          trackEvent("mypage_load", {
             dataKey,
+            profileSource: sources.profile,
             ordersSource: sources.orders,
             settlementsSource: sources.settlements,
             shipmentsSource: sources.recentShipments,
           });
+          // supabase가 설정돼 있는데도 로컬 폴백/빈 소스로 떨어졌으면 조용한 장애다.
+          const isDegraded = ["orders", "settlements", "recentShipments"].some(
+            (key) => sources[key] === "local" || sources[key] === "fallback",
+          );
+          if (isDegraded && isConfigured && !isDemoPreview) {
+            trackException("mypage_data_degraded", {
+              dataKey,
+              ordersSource: sources.orders,
+              settlementsSource: sources.settlements,
+              shipmentsSource: sources.recentShipments,
+            });
+          }
         }
-      }
 
-      setLoadedTabs((currentValue) => ({
-        ...currentValue,
-        [dataKey]: true,
-      }));
-      setTabPhases((currentValue) => ({
-        ...currentValue,
-        [dataKey]: "ready",
-      }));
-      setExpandedShipmentId(
-        snapshot.shipments.find((shipment) => !shipment.compact)?.id ?? snapshot.shipments[0]?.id ?? null,
-      );
+        setLoadedTabs((currentValue) => ({
+          ...currentValue,
+          [dataKey]: true,
+        }));
+        setTabPhases((currentValue) => ({
+          ...currentValue,
+          [dataKey]: "ready",
+        }));
+        setExpandedShipmentId(null);
+      } catch (error) {
+        if (isCancelled) return;
+        setPortalLoadErrors((current) => ({ ...current, [dataKey]: "내역을 불러오지 못했어요. 다시 시도해주세요." }));
+        setLoadedTabs((current) => ({ ...current, [dataKey]: true }));
+        setTabPhases((current) => ({ ...current, [dataKey]: "error" }));
+        trackException("mypage_load_failed", { dataKey, errorMessage: error?.message ?? "" });
+      }
     }, portalState.profile ? 120 : 0);
 
     return () => {
@@ -692,11 +663,7 @@ function PublicMypagePage() {
     setPortalState(snapshot);
     setProfileForm(buildProfileForm(snapshot.profile, effectiveUser));
 
-    if (!expandedShipmentId) {
-      setExpandedShipmentId(
-        snapshot.shipments.find((shipment) => !shipment.compact)?.id ?? snapshot.shipments[0]?.id ?? null,
-      );
-    }
+    setExpandedShipmentId((current) => snapshot.shipments.some((shipment) => shipment.id === current) ? current : null);
 
     if (nextToast) {
       setToastState(nextToast);
@@ -1930,6 +1897,7 @@ function PublicMypagePage() {
           onRequestReturn={handleReturnRequest}
           onTrackParcel={handleTrackParcel}
           onOpenPoints={() => setIsPointsSheetOpen(true)}
+          onOpenReviews={() => moveToTab("reviews", { uiSurface: "review_invite" })}
           onWriteReview={(order) =>
             setReviewComposer({ order, review: myReviewsByOrderId[order.id] ?? null })
           }
@@ -1991,17 +1959,13 @@ function PublicMypagePage() {
         return <div className="public-mypage-skeleton public-mypage-skeleton--panel" />;
       }
       return (
-        <div>
-          <div className="public-mypage-account-link">
-            <button className="public-auth-button public-auth-button--secondary" type="button" onClick={() => moveToTab("settlement-account")}>정산 계좌 관리 <ChevronRightIcon size={16} /></button>
-          </div>
-          <SettlementsTab
-            completedSettlements={portalState.completedSettlements}
-            onRequestPickup={handlePickupRequest}
-            scheduledSettlements={portalState.scheduledSettlements}
-            settlementSummary={portalState.settlementSummary}
-          />
-        </div>
+        <SettlementsTab
+          completedSettlements={portalState.completedSettlements}
+          onRequestPickup={handlePickupRequest}
+          scheduledSettlements={portalState.scheduledSettlements}
+          settlementSummary={portalState.settlementSummary}
+          onManageAccount={() => moveToTab("settlement-account")}
+        />
       );
     }
 
@@ -2033,7 +1997,7 @@ function PublicMypagePage() {
               <ContentContainer className="public-mypage-shell">
                 {isDemoPreview ? (
                   <div className="public-mypage-demo-banner">
-                    <span>운영진 체험용 · 모든 내역은 예시이며 변경은 이 브라우저에만 반영됩니다.</span>
+                    <span><strong>체험 모드</strong> 예시 데이터로 둘러보는 마이페이지</span>
                     <button className="public-auth-button public-auth-button--secondary" type="button" onClick={() => { resetDemoPortalState(); window.location.reload(); }}>샘플 초기화</button>
                   </div>
                 ) : null}
@@ -2047,13 +2011,12 @@ function PublicMypagePage() {
                 {/* 데스크톱: 기존 breadcrumb (모바일 숨김) */}
                 <header className="public-mypage-breadcrumb public-mypage-desktop-only">
                   <h1 className="public-mypage-breadcrumb__title">
-                    <span className="public-mypage-breadcrumb__name">‘{displayName}’</span>
-                    님 마이페이지
+                    마이페이지
                   </h1>
                   {activeSidebarItem ? (
                     <>
                       <span className="public-mypage-breadcrumb__sep" aria-hidden="true"><ChevronRightIcon size={12} /></span>
-                      <span className="public-mypage-breadcrumb__leaf">{activeSidebarItem.label}</span>
+                      <span className="public-mypage-breadcrumb__leaf">{displayName}님</span>
                     </>
                   ) : null}
                 </header>
@@ -2105,7 +2068,7 @@ function PublicMypagePage() {
                       onClick={() => moveToTab(item.key, { smoothScroll: false, uiSurface: "grid_mobile" })}
                       type="button"
                     >
-                      {item.icon ? <img className="public-mypage-navgrid__icon" src={item.icon} alt="" aria-hidden="true" /> : <StarIcon className="public-mypage-navgrid__icon" aria-hidden="true" size={26} />}
+
                       <span>{item.label}</span>
                     </button>
                   ))}
@@ -2146,16 +2109,12 @@ function PublicMypagePage() {
                     key={activeTabKey}
                     ref={tabPanelRef}
                   >
-                    {reviewsReady && activeTabKey !== "reviews" ? <ReviewInviteBanner
-                      orders={portalState.orders}
-                      reviewsByOrderId={myReviewsByOrderId}
-                      isFirstReview={isFirstReview}
-                      onOpen={() => moveToTab("reviews", { uiSurface: "review_invite" })}
-                    /> : null}
-                    {reviewsLoadState.error && activeTabKey !== "reviews" ? <div className="public-mypage-reviews-error" role="alert">
-                      리뷰 정보를 불러오지 못했어요. <button type="button" onClick={reloadMyReviews}>다시 불러오기</button>
-                    </div> : null}
-                    {activeTabContent}
+                    {(portalLoadError || (isConfigured && !isDemoPreview && loadedTabs[dataKey] && getPortalHistoryIssue(portalState, activeTabKey))) ? (
+                      <div className="mypage-load-error" role="alert">
+                        <p>{portalLoadError || getPortalHistoryIssue(portalState, activeTabKey)}</p>
+                        <button className="public-auth-button public-auth-button--secondary" type="button" onClick={() => { setPortalLoadErrors((current) => ({ ...current, [dataKey]: "" })); setLoadedTabs((current) => ({ ...current, [dataKey]: false })); }}>다시 불러오기</button>
+                      </div>
+                    ) : activeTabContent}
                   </section>
                 </div>
               </ContentContainer>
@@ -2279,751 +2238,6 @@ function PublicMypagePage() {
         points={myPoints}
       />
     </>
-  );
-}
-
-function MypageOverviewGrid({ items }) {
-  return (
-    <div className="public-mypage-overview-grid">
-      {items.map((item) => (
-        <div className="public-mypage-overview-card" key={item.label}>
-          <span className="public-mypage-overview-card__label">{item.label}</span>
-          <strong className="public-mypage-overview-card__value">{item.value}</strong>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// P0-5: 폐기/판매불가 책의 사유·사진·검수메모를 노출하고 이의제기 mailto를 제공.
-// rejection_detail/rejection_photo_urls/inspector_note는 백엔드 RPC에 아직 반영 안 됨 → 있으면 표시.
-function RejectableBookRow({ item, requestNumber }) {
-  const isRejected = Boolean(item.isRejected || item.rejectionReason);
-  const photos = Array.isArray(item.rejectionPhotoUrls) ? item.rejectionPhotoUrls : [];
-  const inspectedDate = item.inspectedAt ? formatCompactDate(item.inspectedAt) : null;
-  const resultViewedRef = useRef(false);
-
-  // GA4 검수 결과 노출 — 책 1건당 1회. 판매불가 사유 분포(정책 개선 근거) 수집.
-  useEffect(() => {
-    if (resultViewedRef.current) return;
-    resultViewedRef.current = true;
-    trackEvent("inspection_result_view", {
-      result: isRejected ? "rejected" : "graded",
-      ...(isRejected ? { rejectionReason: item.rejectionReason || "unspecified" } : {}),
-      photoCount: photos.length,
-    });
-  }, [isRejected, item.rejectionReason, photos.length]);
-
-  const buildDisputeMailto = () => {
-    const subject = `[검수 이의 신청] 요청번호 ${requestNumber} / 책 #${item.id}`;
-    const lines = [
-      "안녕하세요, 수북 운영팀에게 검수 결과에 대해 이의를 신청합니다.",
-      "",
-      `요청번호: ${requestNumber}`,
-      `책 ID: ${item.id}`,
-      `책 제목: ${item.title}`,
-      `검수 결과: ${item.statusLabel ?? "-"}`,
-      `검수 사유: ${item.rejectionReason ?? "-"}`,
-      `검수일: ${inspectedDate ?? "-"}`,
-      "",
-      "이의 사유:",
-      "(여기에 상세 내용을 적어주세요)",
-    ];
-    return `mailto:subook2025@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(lines.join("\n"))}`;
-  };
-
-  return (
-    <div className="public-mypage-book-row" id={`public-mypage-book-${item.id}`} key={item.id}>
-      <div className="public-mypage-book-row__copy">
-        <strong>{item.title}</strong>
-        {isRejected ? (
-          <>
-            <p>판매불가 · 사유: {item.rejectionReason || "사유 미입력"}</p>
-            {item.rejectionDetail ? (
-              <p className="public-mypage-book-row__detail">{item.rejectionDetail}</p>
-            ) : null}
-            {item.inspectorNote ? (
-              <p className="public-mypage-book-row__detail">검수자 메모: {item.inspectorNote}</p>
-            ) : null}
-            {inspectedDate ? (
-              <p className="public-mypage-book-row__detail">검수일: {inspectedDate}</p>
-            ) : null}
-            {photos.length > 0 ? (
-              <div className="public-mypage-book-row__photos">
-                {photos.map((url, idx) => (
-                  <a
-                    className="public-mypage-book-row__photo"
-                    href={url}
-                    key={url}
-                    onClick={() =>
-                      // GA4 검수 사진 확대 — 상품 id가 아니라 검수 맥락이라 null
-                      trackImageZoom(null, {
-                        zoomSource: "inspection_photo",
-                        photoCount: photos.length,
-                      })
-                    }
-                    rel="noopener noreferrer"
-                    target="_blank"
-                  >
-                    <img alt={`검수 사진 ${idx + 1}`} src={getThumbnailImageUrl(url)} />
-                  </a>
-                ))}
-              </div>
-            ) : null}
-            {/* P0-S2: mailto 단독은 모바일에서 메일앱 미설정 시 죽음. 카톡 채널을 1순위로 병기. */}
-            <div className="public-mypage-book-row__dispute-actions">
-              <a
-                className="public-mypage-book-row__dispute public-mypage-book-row__dispute--primary"
-                href={KAKAO_CHANNEL_URL}
-                onClick={() =>
-                  // GA4 검수 이의 신청 문의 (카카오)
-                  trackContactClick("kakao", "inspection_dispute", {
-                    rejectionReason: item.rejectionReason || "unspecified",
-                  })
-                }
-                rel="noopener noreferrer"
-                target="_blank"
-              >
-                카카오톡으로 이의 신청하기 <ArrowRightIcon size={13} />
-              </a>
-              <a
-                className="public-mypage-book-row__dispute public-mypage-book-row__dispute--secondary"
-                href={buildDisputeMailto()}
-                onClick={() =>
-                  trackContactClick("email", "inspection_dispute", {
-                    rejectionReason: item.rejectionReason || "unspecified",
-                  })
-                }
-                rel="noopener noreferrer"
-              >
-                메일로 문의
-              </a>
-            </div>
-          </>
-        ) : (
-          <p>
-            등급: {item.gradeLabel ?? "-"} | 판매가:{" "}
-            {item.price ? formatCurrency(item.price) : "-"}
-          </p>
-        )}
-      </div>
-      <span className={`public-mypage-chip public-mypage-chip--${item.tone ?? "neutral"}`}>
-        {item.statusLabel}
-      </span>
-    </div>
-  );
-}
-
-// P2-7: 운송장 번호 + 복사 버튼.
-function TrackingNumberRow({ company, trackingNumber }) {
-  const [copied, setCopied] = useState(false);
-  const handleCopy = async () => {
-    if (typeof navigator === "undefined" || !navigator.clipboard) return;
-    try {
-      await navigator.clipboard.writeText(trackingNumber);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-      // GA4 복사 — 값(운송장 번호)은 보내지 않고 대상만
-      trackCopyClick("tracking_number", "purchase_card", "ok");
-    } catch {
-      /* ignore */
-      trackCopyClick("tracking_number", "purchase_card", "fail");
-    }
-  };
-  return (
-    <div className="public-mypage-purchase-card__tracking">
-      <span className="public-mypage-purchase-card__tracking-label">
-        {company ?? "CJ대한통운"}
-      </span>
-      <code className="public-mypage-purchase-card__tracking-number">{trackingNumber}</code>
-      <button
-        aria-label="운송장 번호 복사"
-        className="public-mypage-purchase-card__tracking-copy"
-        onClick={handleCopy}
-        type="button"
-      >
-        {copied ? "복사됨" : "복사"}
-      </button>
-    </div>
-  );
-}
-
-// 입금 대기(pending) 주문의 계좌·입금자명·금액 재확인 안내.
-// 결제 직후 주문완료 화면을 놓쳐도(탭 닫힘/세션 만료) 여기서 다시 입금할 수 있게 한다.
-// 입금자명·계좌·마감 정의는 주문완료 페이지(PublicOrderCompletePage)와 동일 소스를 공유.
-// copyTarget: bank_account / deposit_amount / depositor_name — 복사한 "값"은 절대 보내지 않는다.
-function OrderDepositRow({ label, value, copyLabel, copyTarget = "unknown", highlight = false, hint = null }) {
-  const [copied, setCopied] = useState(false);
-  const handleCopy = async () => {
-    if (!value || typeof navigator === "undefined" || !navigator.clipboard) return;
-    try {
-      await navigator.clipboard.writeText(value);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-      trackCopyClick(copyTarget, "mypage_order", "ok");
-    } catch {
-      /* ignore */
-      trackCopyClick(copyTarget, "mypage_order", "fail");
-    }
-  };
-  return (
-    <div
-      className={`public-mypage-deposit__row${
-        highlight ? " public-mypage-deposit__row--highlight" : ""
-      }`}
-    >
-      <div className="public-mypage-deposit__cell">
-        <span className="public-mypage-deposit__label">{label}</span>
-        <span className="public-mypage-deposit__value">{value}</span>
-        {hint ? <span className="public-mypage-deposit__hint">{hint}</span> : null}
-      </div>
-      <button
-        aria-label={copyLabel}
-        className="public-mypage-deposit__copy"
-        onClick={handleCopy}
-        type="button"
-      >
-        {copied ? "복사됨" : "복사"}
-      </button>
-    </div>
-  );
-}
-
-function OrderDepositInfo({ order, isDemoPreview = false }) {
-  const depositorName = buildDepositorName(order.recipientName, order.reference);
-  const bankAccount = isDemoPreview ? "000-000-000000" : BANK_ACCOUNT;
-  const bankAccountPlain = bankAccount.replace(/-/g, "");
-  const shownRef = useRef(false);
-
-  // GA4 입금 안내 노출 — 주문당 1회. 미입금 이탈 분석의 분모.
-  useEffect(() => {
-    if (shownRef.current) return;
-    shownRef.current = true;
-    trackEvent("bank_info_shown", {
-      uiSurface: "mypage_order",
-      orderId: String(order.id),
-      value: Number(order.totalAmount) || 0,
-    });
-  }, [order.id, order.totalAmount]);
-
-  return (
-    <div className="public-mypage-deposit" role="group" aria-label="입금 안내">
-      <p className="public-mypage-deposit__title">입금 계좌 안내</p>
-      <OrderDepositRow
-        copyLabel="계좌번호 복사"
-        copyTarget="bank_account"
-        label={isDemoPreview ? "예시 은행 · 입금하지 마세요" : `${BANK_NAME} · 예금주 ${BANK_HOLDER}`}
-        value={bankAccount}
-        hint={`복사 시 ${bankAccountPlain}`}
-      />
-      {order.totalAmount != null ? (
-        <OrderDepositRow
-          copyLabel="입금 금액 복사"
-          copyTarget="deposit_amount"
-          label="입금 금액"
-          value={formatCurrency(order.totalAmount)}
-        />
-      ) : null}
-      {depositorName ? (
-        <OrderDepositRow
-          copyLabel="입금자명 복사"
-          copyTarget="depositor_name"
-          highlight
-          hint="본인 성함 + 주문번호 마지막 4자리. 다르게 입력하면 입금 확인이 늦어질 수 있어요."
-          label="입금자명 (필수)"
-          value={depositorName}
-        />
-      ) : null}
-      <p className="public-mypage-deposit__notice">
-        주문 후 <strong>{PAYMENT_DEADLINE_HOURS}시간 이내</strong>에 입금해주세요. 미입금 시 주문이
-        자동 취소됩니다.
-      </p>
-    </div>
-  );
-}
-
-// P1-5: 정산 카드 — 클릭 시 주문번호·판매일·구매확정일·입금일 타임라인 노출.
-function SettlementCard({ settlement, status }) {
-  const [expanded, setExpanded] = useState(false);
-  const isCompleted = status === "completed";
-  const timeline = [
-    { label: "판매일", value: settlement.soldAt },
-    { label: "구매확정일", value: settlement.confirmedAt },
-    { label: "입금예정일", value: settlement.scheduledAt },
-    isCompleted ? { label: "정산완료일", value: settlement.completedAt ?? settlement.date } : null,
-  ].filter(Boolean);
-  const hasTimelineData = timeline.some((entry) => entry.value);
-
-  return (
-    <article className="public-mypage-settlement-card">
-      <div className="public-mypage-settlement-card__row">
-        <strong>
-          {formatCompactDate(settlement.date)} {isCompleted ? "정산완료" : "예정"}
-        </strong>
-        <span className="public-mypage-settlement-card__amount">+{formatCurrency(settlement.amount)}</span>
-      </div>
-      <p>
-        {settlement.orderReference ? `주문 #${settlement.orderReference} · ` : ""}
-        {/* 브리지된 신청은 셀러가 아는 PU-xxxx 요청번호, 레거시는 내부 번호(#) */}
-        수거 {String(settlement.pickupReference).startsWith("PU") ? settlement.pickupReference : `#${settlement.pickupReference}`} · 교재 {settlement.bookCount}권
-      </p>
-      {/* 정산 명세 breakdown — 예정 건에도 노출 (RPC가 예정 건에도 수수료·실수령을 반환) */}
-      <p>
-        판매 {formatCurrency(settlement.grossSales)} − 수수료 {formatCurrency(settlement.feeAmount)}
-        {settlement.grossSales > 0
-          ? ` (${Math.round((settlement.feeAmount / settlement.grossSales) * 100)}%)`
-          : ""}
-        {settlement.boxCostDeducted > 0
-          ? ` − 박스비 ${formatCurrency(settlement.boxCostDeducted)}`
-          : ""}
-        {` = ${isCompleted ? "실수령" : "예상 실수령"} ${formatCurrency(settlement.amount)}`}
-      </p>
-      {isCompleted ? (
-        settlement.hasAccountInfo ? (
-          <p>
-            입금: {settlement.bankLabel} {settlement.maskedAccount}
-          </p>
-        ) : null
-      ) : (
-        <span className={`public-mypage-chip public-mypage-chip--${settlement.tone ?? "warning"}`}>
-          {settlement.statusLabel}
-        </span>
-      )}
-
-      <button
-        className="public-mypage-inline-link public-mypage-settlement-card__toggle"
-        onClick={() => {
-          // GA4 정산 타임라인 펼침 — 데이터가 비어 있으면 예외로도 남긴다.
-          trackEvent("settlement_detail_toggle", {
-            settlementStatus: status,
-            hasTimelineData: hasTimelineData,
-            uiAction: expanded ? "collapse" : "expand",
-          });
-          if (!expanded && !hasTimelineData) {
-            trackException("settlement_timeline_missing", { settlementStatus: status });
-          }
-          setExpanded((v) => !v);
-        }}
-        type="button"
-      >
-        {expanded ? "타임라인 접기 ▲" : "타임라인 보기 ▼"}
-      </button>
-
-      {expanded ? (
-        <ol className="public-mypage-settlement-timeline">
-          {timeline.map((entry) => (
-            <li className="public-mypage-settlement-timeline__item" key={entry.label}>
-              <span className="public-mypage-settlement-timeline__label">{entry.label}</span>
-              <span className="public-mypage-settlement-timeline__value">
-                {entry.value ? formatCompactDate(entry.value) : "미확정"}
-              </span>
-            </li>
-          ))}
-          {!hasTimelineData && (
-            <li className="public-mypage-settlement-timeline__empty">
-              상세 일자 정보를 불러올 수 없어요. 입금이 늦어진다면 운영팀(subook2025@gmail.com)에 문의해주세요.
-            </li>
-          )}
-        </ol>
-      ) : null}
-    </article>
-  );
-}
-
-const SALES_ITEMS_PER_PAGE = 30;
-
-function SalesTab({
-  expandedShipmentId,
-  onCancelPickup,
-  onRequestPickup,
-  onToggleShipment,
-  onTrackParcel,
-  settlementSummary,
-  shipments,
-}) {
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [searchKeyword, setSearchKeyword] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
-  const salesMetrics = useMemo(() => deriveShipmentMetrics(shipments), [shipments]);
-  const totalSettledAmount = Number(
-    settlementSummary?.totalAmount ?? settlementSummary?.total_amount ?? 0,
-  );
-  const totalBookCount = salesMetrics.totalBookCount || shipments.reduce((sum, s) => sum + (s.bookCount ?? s.items?.length ?? 0), 0);
-
-  // P0-S2: 모든 shipments에서 판매불가 책을 모아 상단 알림 띠를 노출.
-  // 클릭하면 첫 판매불가 책이 있는 shipment를 펼치고 해당 책 row로 스크롤.
-  const rejectedBooks = useMemo(() => {
-    const acc = [];
-    for (const shipment of shipments) {
-      for (const item of shipment.items ?? []) {
-        if (item.isRejected || item.rejectionReason) {
-          acc.push({ shipmentId: shipment.id, itemId: item.id });
-        }
-      }
-    }
-    return acc;
-  }, [shipments]);
-
-  const handleJumpToFirstRejected = () => {
-    if (rejectedBooks.length === 0) return;
-    // GA4 판매불가 배너 클릭 — 검수 결과 확인 동선 진입
-    trackEvent("inspection_rejected_banner_click", { rejectedCount: rejectedBooks.length });
-    const first = rejectedBooks[0];
-    if (expandedShipmentId !== first.shipmentId) {
-      onToggleShipment(first.shipmentId);
-    }
-    // 펼침이 적용된 다음 페인트에서 스크롤
-    window.setTimeout(() => {
-      const el = document.getElementById(`public-mypage-book-${first.itemId}`);
-      if (el) {
-        el.scrollIntoView({ behavior: "smooth", block: "center" });
-      }
-    }, 80);
-  };
-  const filteredByStatus = useMemo(
-    () => filterShipmentsByStatus(shipments, statusFilter),
-    [shipments, statusFilter],
-  );
-  const filteredShipments = useMemo(() => {
-    const normalized = searchKeyword.trim().toLowerCase();
-    if (!normalized) {
-      return filteredByStatus;
-    }
-    return filteredByStatus.filter((shipment) => {
-      const headline = (shipment.summaryLabel ?? "").toLowerCase();
-      if (headline.includes(normalized)) {
-        return true;
-      }
-      return (shipment.items ?? []).some((item) =>
-        (item.title ?? "").toLowerCase().includes(normalized),
-      );
-    });
-  }, [filteredByStatus, searchKeyword]);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [statusFilter, searchKeyword]);
-
-  // GA4 판매 탭 검색 — 검색어(교재명)는 보내지 않고 결과 수만, 입력이 멈춘 뒤 1회.
-  useEffect(() => {
-    const keyword = searchKeyword.trim();
-    if (!keyword) return undefined;
-    const timerId = window.setTimeout(() => {
-      trackEvent("sales_search", {
-        resultCount: filteredShipments.length,
-        keywordLength: keyword.length,
-      });
-    }, 800);
-    return () => window.clearTimeout(timerId);
-    // 결과 수는 검색어 확정 시점 값만 필요하므로 filteredShipments는 의존성에서 제외.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchKeyword]);
-
-  // GA4 빈 상태 — 전체 0건 / 필터·검색 결과 0건을 각각 1회.
-  const salesEmptyGuardRef = useRef(makeOnceGuard());
-  useEffect(() => {
-    if (shipments.length === 0) {
-      if (salesEmptyGuardRef.current("all")) {
-        trackEmptyState("mypage_sales");
-      }
-      return;
-    }
-    if (
-      filteredShipments.length === 0 &&
-      salesEmptyGuardRef.current(`filter:${statusFilter}:${searchKeyword.trim() ? "search" : "none"}`)
-    ) {
-      trackEmptyState("mypage_sales", {
-        filterValue: statusFilter,
-        hasSearch: Boolean(searchKeyword.trim()),
-      });
-    }
-  }, [filteredShipments.length, searchKeyword, shipments.length, statusFilter]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredShipments.length / SALES_ITEMS_PER_PAGE));
-  const safePage = Math.min(currentPage, totalPages);
-  const paginatedShipments = filteredShipments.slice(
-    (safePage - 1) * SALES_ITEMS_PER_PAGE,
-    safePage * SALES_ITEMS_PER_PAGE,
-  );
-
-  if (!shipments.length) {
-    return (
-      <MypageEmptyState
-        actionLabel="수거 요청하기"
-        actionOnClick={() => onRequestPickup("mypage_sales_empty")}
-        icon={<MypageEmptyIcon src={emptyBoxIcon} />}
-        title="아직 판매 내역이 없어요"
-      />
-    );
-  }
-
-  return (
-    <div className="public-mypage-stack">
-      <section className="public-mypage-section">
-        <MypageSectionHeader
-          description="등록한 판매 교재의 상태와 정산 현황을 한 번에 확인하세요."
-          icon={<BoxIcon size={18} />}
-          title="판매 내역"
-        />
-
-        <MypageOverviewGrid
-          items={[
-            { label: "전체", value: `${totalBookCount}권` },
-            { label: "판매중", value: `${salesMetrics.onSaleBookCount}권` },
-            { label: "정산완료", value: `${salesMetrics.settledBookCount}권` },
-            { label: "누적 정산금액", value: formatCurrency(totalSettledAmount) },
-          ]}
-        />
-
-        {rejectedBooks.length > 0 ? (
-          <button
-            className="public-mypage-rejected-banner"
-            onClick={handleJumpToFirstRejected}
-            type="button"
-          >
-            <span aria-hidden="true" className="public-mypage-rejected-banner__icon"><AlertTriangleIcon size={18} /></span>
-            <span className="public-mypage-rejected-banner__copy">
-              <strong>판매불가 {rejectedBooks.length}권</strong> 발생했어요. 사유와 검수 사진을 확인하고 필요하면 이의 신청해주세요.
-            </span>
-            <span aria-hidden="true" className="public-mypage-rejected-banner__chevron"><ChevronRightIcon size={16} /></span>
-          </button>
-        ) : null}
-
-        <div className="public-mypage-sales-search">
-          <input
-            aria-label="판매 교재 검색"
-            className="public-mypage-sales-search__input"
-            onChange={(event) => setSearchKeyword(event.target.value)}
-            placeholder="판매 교재명으로 검색"
-            type="search"
-            value={searchKeyword}
-          />
-        </div>
-
-        <div className="public-mypage-order-filters">
-          {SALES_STATUS_FILTERS.map((filterItem) => (
-            <button
-              className={`public-mypage-filter-chip ${statusFilter === filterItem.value ? "public-mypage-filter-chip--active" : ""}`}
-              key={filterItem.value}
-              onClick={() => {
-                setStatusFilter(filterItem.value);
-                // GA4 판매 상태 필터 — 어떤 상태를 자주 확인하는지
-                trackListFilterChange("sales", filterItem.value, {
-                  resultCount: filterShipmentsByStatus(shipments, filterItem.value).length,
-                  fromFilter: statusFilter,
-                });
-              }}
-              type="button"
-            >
-              {filterItem.label}
-            </button>
-          ))}
-        </div>
-
-        {filteredShipments.length === 0 ? (
-          <p className="public-mypage-order-empty-filter">해당 상태의 판매 내역이 없습니다.</p>
-        ) : (
-        <div className="public-mypage-flow-list">
-          {paginatedShipments.map((shipment) => {
-            const isExpanded = !shipment.compact || expandedShipmentId === shipment.id;
-            const progressIndex = getShipmentProgressIndex(shipment.status);
-
-            return (
-              <article className={`public-mypage-flow-card ${shipment.compact ? "is-compact" : ""}`} key={shipment.id}>
-                <div className="public-mypage-flow-card__header">
-                  <div>
-                    <p className="public-mypage-flow-card__meta">
-                      {/* 구 수북 수거건은 PU 요청번호가 없어 shipment 번호(#N)로 표기 */}
-                      수거 {shipment.referenceLabel ?? `#${formatShipmentReference(shipment.reference)}`}{" "}
-                      <span>{formatCompactDate(shipment.createdAt)} 신청</span>
-                    </p>
-                    <h3 className="public-mypage-flow-card__title">
-                      {shipment.summaryLabel ?? `교재 ${shipment.bookCount ?? shipment.items?.length ?? 0}권`}
-                    </h3>
-                  </div>
-
-                  <div className="public-mypage-flow-card__header-actions">
-                    {/* CJ 접수 전(pending)에만 노출 — 접수 후 취소는 운영 문의 경유.
-                        접힌 카드에서도 보이도록 헤더에 둔다(시험 신청 셀프 정리 경로). */}
-                    {shipment.canCancel && onCancelPickup ? (
-                      <button
-                        className="public-mypage-inline-link"
-                        onClick={() => onCancelPickup(shipment)}
-                        type="button"
-                      >
-                        신청 취소
-                      </button>
-                    ) : null}
-                    {/* dialog_open("confirm_cancel_pickup")은 ConfirmDialog가 발화한다 */}
-                    {!shipment.compact ? (
-                      <span className={`public-mypage-chip public-mypage-chip--${getShipmentStatusTone(shipment.status)}`}>
-                        {getShipmentStatusLabel(shipment.status)}
-                      </span>
-                    ) : (
-                      <button
-                        className="public-mypage-inline-link"
-                        onClick={() => {
-                          // GA4 수거 카드 상세 펼침/접기
-                          trackEvent("pickup_detail_toggle", {
-                            pickupStatus: shipment.status,
-                            bookCount: Number(shipment.bookCount ?? shipment.items?.length ?? 0),
-                            uiAction: isExpanded ? "collapse" : "expand",
-                          });
-                          onToggleShipment(isExpanded ? null : shipment.id);
-                        }}
-                        type="button"
-                      >
-                        {isExpanded ? (
-                          <>접기 <ChevronUpIcon size={13} /></>
-                        ) : (
-                          <>상세 <ArrowRightIcon size={13} /></>
-                        )}
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {isExpanded ? (
-                  <>
-                    <div className="public-mypage-flow-card__status-row">
-                      <div>
-                        <span className="public-mypage-flow-card__status-label">현재</span>
-                        <strong>{getShipmentStatusLabel(shipment.status)}</strong>
-                      </div>
-
-                      {shipment.trackingNumber ? (
-                        <button
-                          className="public-mypage-inline-link"
-                          onClick={() =>
-                            onTrackParcel(shipment.trackingNumber, "sales_card", {
-                              pickupStatus: shipment.status,
-                            })
-                          }
-                          type="button"
-                        >
-                          배송추적 <ArrowRightIcon size={13} />
-                        </button>
-                      ) : null}
-
-                    </div>
-
-                    {/* P1: 현재 단계를 1.4x 노드 + bold 라벨로 강조해 "지금 어디 있지?" 인지속도 향상 */}
-                    <div className="public-mypage-progress-rail" role="presentation">
-                      {SHIPMENT_PROGRESS_STEPS.map((step, index) => {
-                        const isPast = index < progressIndex;
-                        const isCurrent = index === progressIndex;
-                        return (
-                          <div
-                            className={`public-mypage-progress-rail__step ${
-                              isCurrent ? "is-current" : ""
-                            }`}
-                            key={step.key}
-                          >
-                            {index < SHIPMENT_PROGRESS_STEPS.length - 1 ? (
-                              <span
-                                className={`public-mypage-progress-rail__line ${
-                                  isPast ? "is-active" : ""
-                                }`}
-                              />
-                            ) : null}
-                            <span
-                              className={`public-mypage-progress-rail__node ${
-                                isPast || isCurrent ? "is-active" : ""
-                              } ${isCurrent ? "is-current" : ""}`}
-                            />
-                            <span className="public-mypage-progress-rail__label">{step.label}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    {shipment.boxTypeCodes?.length > 0 && <p className="text-xs text-slate-500">
-                      {shipment.boxTypeCodes.map((code, index) => `박스 ${index + 1}: ${pickupBoxLabel(code)}`).join(" · ")}
-                    </p>}
-                    {shipment.trackingNumber ? (
-                      <p className="public-mypage-flow-card__tracking">
-                        운송장: {shipment.trackingCompany} {shipment.trackingNumber}
-                      </p>
-                    ) : null}
-
-                    <div className="public-mypage-book-list">
-                      {(shipment.items ?? []).map((item) => (
-                        <RejectableBookRow
-                          item={item}
-                          key={item.id}
-                          requestNumber={shipment.reference ?? shipment.referenceLabel}
-                        />
-                      ))}
-                    </div>
-                  </>
-                ) : null}
-              </article>
-            );
-          })}
-        </div>
-        )}
-
-        {totalPages > 1 ? (
-          <nav className="public-mypage-pagination" aria-label="판매 내역 페이지">
-            <button
-              aria-label="이전 페이지"
-              className="public-mypage-pagination__arrow"
-              disabled={safePage === 1}
-              onClick={() => {
-                const nextPage = Math.max(1, safePage - 1);
-                trackListPagination("sales", {
-                  pageNumber: nextPage,
-                  previousPage: safePage,
-                  totalPages,
-                  navMethod: "prev",
-                });
-                setCurrentPage(nextPage);
-              }}
-              type="button"
-            >
-              ‹
-            </button>
-            {Array.from({ length: totalPages }, (_, index) => index + 1).map((pageNumber) => (
-              <button
-                aria-current={pageNumber === safePage ? "page" : undefined}
-                className={`public-mypage-pagination__page ${pageNumber === safePage ? "is-active" : ""}`}
-                key={pageNumber}
-                onClick={() => {
-                  trackListPagination("sales", {
-                    pageNumber,
-                    previousPage: safePage,
-                    totalPages,
-                    navMethod: "page",
-                  });
-                  setCurrentPage(pageNumber);
-                }}
-                type="button"
-              >
-                {pageNumber}
-              </button>
-            ))}
-            <button
-              aria-label="다음 페이지"
-              className="public-mypage-pagination__arrow"
-              disabled={safePage === totalPages}
-              onClick={() => {
-                const nextPage = Math.min(totalPages, safePage + 1);
-                trackListPagination("sales", {
-                  pageNumber: nextPage,
-                  previousPage: safePage,
-                  totalPages,
-                  navMethod: "next",
-                });
-                setCurrentPage(nextPage);
-              }}
-              type="button"
-            >
-              <ChevronRightIcon size={16} />
-            </button>
-          </nav>
-        ) : null}
-      </section>
-    </div>
   );
 }
 
@@ -3305,422 +2519,6 @@ function describeCouponDiscount(coupon) {
 // 한 주문(order) 안의 각 item을 별개의 카드로 보여주고, 액션은 배송 조회 / 재구매로 단순화.
 // 배송 전(canCancel) 상태에서는 "주문 취소"가 추가로 노출되고, 반품은 주문 상세 흐름으로 위임.
 // 주문내역 상세보기 팝업 — 결제일시/결제방법/금액 내역(상품·쿠폰·배송비·합산)을 노출.
-function OrderDetailSheet({ order, onClose }) {
-  if (!order) {
-    return null;
-  }
-
-  const couponDiscount = Number(order.couponDiscountAmount) || 0;
-  const pointsUsed = Number(order.pointsUsed) || 0;
-  const shippingFee = Number(order.shippingFee) || 0;
-  const totalAmount = Number(order.totalAmount) || 0;
-  // 환불 누계 (품목별 부분환불 포함) — 0이면 환불 행 자체를 숨긴다
-  const refundedAmount = Number(order.refundedAmount) || 0;
-  // 총 상품금액: subtotal 컬럼 우선, 없으면 합산금액에서 역산(결제금액 + 쿠폰할인 − 배송비).
-  const productTotal =
-    Number(order.subtotal) || Math.max(0, totalAmount + couponDiscount + pointsUsed - shippingFee);
-  // paid_at은 2026-07-13부터 입금확인·PG 승인 시 트리거로 기록된다. 그 이전의
-  // 무통장 주문은 결제 시각이 어디에도 없으므로 '주문일시'로 라벨링해 허위 시각을 피한다.
-  const paidAt = order.paidAt || null;
-
-  return (
-    <ResponsiveSheet
-      analyticsExtra={{
-        orderId: String(order.id),
-        orderStatus: order.status,
-        paymentType: order.paymentMethod,
-        value: totalAmount,
-      }}
-      analyticsName="order_detail"
-      eyebrow="주문 상세"
-      onClose={onClose}
-      open={Boolean(order)}
-      title="결제 정보"
-    >
-      <dl className="public-mypage-order-detail">
-        {order.reference ? (
-          <div className="public-mypage-order-detail__row">
-            <dt>주문번호</dt>
-            <dd>{order.reference}</dd>
-          </div>
-        ) : null}
-        <div className="public-mypage-order-detail__row">
-          <dt>{paidAt ? "결제일시" : "주문일시"}</dt>
-          <dd>{formatDateTime(paidAt || order.createdAt)}</dd>
-        </div>
-        <div className="public-mypage-order-detail__row">
-          <dt>결제방법</dt>
-          <dd>{getPaymentMethodLabel(order.paymentMethod)}</dd>
-        </div>
-
-        <div className="public-mypage-order-detail__divider" aria-hidden="true" />
-
-        <div className="public-mypage-order-detail__row">
-          <dt>총 상품금액</dt>
-          <dd>{formatCurrency(productTotal)}</dd>
-        </div>
-        <div className="public-mypage-order-detail__row">
-          <dt>쿠폰할인</dt>
-          <dd>{couponDiscount > 0 ? `−${formatCurrency(couponDiscount)}` : formatCurrency(0)}</dd>
-        </div>
-        {pointsUsed > 0 ? (
-          <div className="public-mypage-order-detail__row">
-            <dt>포인트 사용</dt>
-            <dd>−{formatCurrency(pointsUsed)}</dd>
-          </div>
-        ) : null}
-        <div className="public-mypage-order-detail__row">
-          <dt>배송비</dt>
-          <dd>{shippingFee > 0 ? formatCurrency(shippingFee) : "무료"}</dd>
-        </div>
-
-        <div className="public-mypage-order-detail__divider" aria-hidden="true" />
-
-        <div className="public-mypage-order-detail__row public-mypage-order-detail__row--total">
-          <dt>결제금액</dt>
-          <dd>{formatCurrency(totalAmount)}</dd>
-        </div>
-
-        {/* 환불 내역 (2026-08-01 품목별 부분환불) — 부분환불이면 환불 후 금액도 함께 */}
-        {refundedAmount > 0 ? (
-          <>
-            <div className="public-mypage-order-detail__row">
-              <dt>환불 금액</dt>
-              <dd>−{formatCurrency(refundedAmount)}</dd>
-            </div>
-            {order.status !== "refunded" ? (
-              <div className="public-mypage-order-detail__row public-mypage-order-detail__row--total">
-                <dt>환불 후 결제금액</dt>
-                <dd>{formatCurrency(Math.max(0, totalAmount - refundedAmount))}</dd>
-              </div>
-            ) : null}
-          </>
-        ) : null}
-      </dl>
-    </ResponsiveSheet>
-  );
-}
-
-function PurchasesView({
-  isDemoPreview = false,
-  busyOrderId,
-  onCancelOrder,
-  onConfirmOrder,
-  onRequestReturn,
-  onTrackParcel,
-  onOpenPoints,
-  onWriteReview,
-  orders,
-  points,
-  reviewsByOrderId,
-  reviewsReady,
-  isFirstReview,
-}) {
-  const [detailOrder, setDetailOrder] = useState(null);
-  const [activeFilter, setActiveFilter] = useState("all");
-
-  const filteredOrders = useMemo(() => {
-    if (activeFilter === "all") return orders;
-    const card = PURCHASE_SUMMARY_CARDS.find((c) => c.key === activeFilter);
-    if (!card?.statuses) return orders;
-    return orders.filter((order) => card.statuses.includes(order.status));
-  }, [orders, activeFilter]);
-
-  const groupedOrders = useMemo(() => groupOrdersByDate(filteredOrders), [filteredOrders]);
-
-  // GA4 빈 상태 — 주문 0건 / 필터 결과 0건을 각각 1회
-  const purchasesEmptyGuardRef = useRef(makeOnceGuard());
-  useEffect(() => {
-    if (orders.length === 0) {
-      if (purchasesEmptyGuardRef.current("all")) {
-        trackEmptyState("mypage_purchases");
-      }
-      return;
-    }
-    if (filteredOrders.length === 0 && purchasesEmptyGuardRef.current(`filter:${activeFilter}`)) {
-      trackEmptyState("mypage_purchases", { filterValue: activeFilter });
-    }
-  }, [activeFilter, filteredOrders.length, orders.length]);
-
-  if (!orders.length) {
-    return (
-      <MypageEmptyState
-        actionLabel="교재 둘러보기"
-        actionTo="/"
-        icon={<MypageEmptyIcon src={emptyBoxIcon} />}
-        title="아직 구매 내역이 없어요"
-      />
-    );
-  }
-
-  return (
-    <div className="public-mypage-stack">
-      {points ? <MypagePointsCard onOpenHistory={onOpenPoints} points={points} /> : null}
-      <div className="public-mypage-stat-row" role="tablist" aria-label="구매 상태 필터">
-        {PURCHASE_SUMMARY_CARDS.map((card) => {
-          const count = countOrdersByStatuses(orders, card.statuses);
-          const isActive = activeFilter === card.key;
-          return (
-            <button
-              aria-selected={isActive}
-              className={`public-mypage-stat-card ${isActive ? "is-active" : ""}`}
-              key={card.key}
-              onClick={() => {
-                // GA4 구매 상태 필터
-                trackListFilterChange("purchases", card.key, {
-                  resultCount: count,
-                  fromFilter: activeFilter,
-                });
-                setActiveFilter(card.key);
-              }}
-              role="tab"
-              type="button"
-            >
-              <span className="public-mypage-stat-card__label">{card.label}</span>
-              <span className="public-mypage-stat-card__value">{count}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {groupedOrders.length === 0 ? (
-        <p className="public-mypage-order-empty-filter">해당 상태의 주문이 없습니다.</p>
-      ) : (
-        groupedOrders.map((group) => (
-          <section className="public-mypage-order-group" key={group.dateKey}>
-            <header className="public-mypage-order-group__head">
-              <h2 className="public-mypage-order-group__date">{group.dateLabel}</h2>
-            </header>
-
-            <div className="public-mypage-order-cards">
-              {group.orders.flatMap((order) =>
-                order.items.map((item) => (
-                  <article className="public-mypage-purchase-card" key={`${order.id}-${item.id}`}>
-                    <div className="public-mypage-purchase-card__status-row">
-                      {/* 품목별 부분환불: 이 품목만 환불됐으면 주문 상태 대신 '환불' 칩 (2026-08-01) */}
-                      <span
-                        className={`public-mypage-chip public-mypage-chip--${getOrderStatusTone(
-                          item.refundedAt ? "refunded" : order.status,
-                        )}`}
-                      >
-                        {getOrderStatusLabel(item.refundedAt ? "refunded" : order.status)}
-                      </span>
-                      <button
-                        aria-label="주문 상세보기"
-                        className="public-mypage-purchase-card__detail-btn"
-                        onClick={() => setDetailOrder(order)}
-                        type="button"
-                      >
-                        <span>상세보기</span>
-                        <ChevronRightIcon size={16} />
-                      </button>
-                    </div>
-
-                    {/* 입금 대기 주문: 계좌·입금자명·금액 재확인 (주문완료 화면 놓쳐도 입금 가능)
-                        — 무통장 전용 방어 가드. 미결제 카드 주문은 isHiddenUnpaidCardOrder가
-                        목록에서 아예 제외하므로 여기 도달하지 않는 게 정상. */}
-                    {order.status === "pending" &&
-                    order.paymentStatus !== "paid" &&
-                    order.paymentMethod !== "card" ? (
-                      <OrderDepositInfo order={order} isDemoPreview={isDemoPreview} />
-                    ) : null}
-
-                    <div className="public-mypage-purchase-card__body">
-                      <div className="public-mypage-purchase-card__thumb" aria-hidden="true">
-                        {item.coverImageUrl ? (
-                          <img alt="" src={getThumbnailImageUrl(item.coverImageUrl)} />
-                        ) : null}
-                      </div>
-
-                      <div className="public-mypage-purchase-card__info">
-                        <h3 className="public-mypage-purchase-card__title">{item.title}</h3>
-                        <p className="public-mypage-purchase-card__meta">
-                          {[
-                            item.optionLabel ? `옵션: ${item.optionLabel}` : null,
-                            item.gradeLabel ? `등급: ${item.gradeLabel}` : null,
-                          ].filter(Boolean).join(" · ") || "옵션 정보 없음"}
-                          <span className="public-mypage-purchase-card__divider">/</span>
-                          {item.quantity}
-                        </p>
-                        <p className="public-mypage-purchase-card__price">{formatCurrency(item.price)}</p>
-                      </div>
-                    </div>
-
-                    {order.trackingNumber ? (
-                      <TrackingNumberRow
-                        company={order.trackingCompany}
-                        trackingNumber={order.trackingNumber}
-                      />
-                    ) : null}
-
-                    <div className="public-mypage-purchase-card__actions">
-                      <button
-                        className="public-mypage-purchase-card__btn"
-                        onClick={() => {
-                          if (!order.trackingNumber) {
-                            // 기존 동작(아무 일도 안 일어남)은 유지하고 GA로만 남긴다 —
-                            // 운송장 없이 노출되는 죽은 버튼의 클릭량.
-                            trackEvent("delivery_track_unavailable", {
-                              uiSurface: "purchase_card",
-                              orderStatus: order.status,
-                            });
-                            return;
-                          }
-                          onTrackParcel(order.trackingNumber, "purchase_card", {
-                            orderStatus: order.status,
-                          });
-                        }}
-                        type="button"
-                      >
-                        배송 조회
-                      </button>
-                      {/* 이미 환불된 품목 카드에는 주문 단위 액션(취소·구매확정·환불신청)을 숨긴다 */}
-                      {item.refundedAt ? null : order.canCancel ? (
-                        <button
-                          className="public-mypage-purchase-card__btn public-mypage-purchase-card__btn--danger"
-                          disabled={busyOrderId === order.id}
-                          onClick={() => onCancelOrder(order)}
-                          type="button"
-                        >
-                          {busyOrderId === order.id ? "처리 중..." : "취소"}
-                        </button>
-                      ) : order.status === "preparing" ? (
-                        /* 입금 확인 후에는 실입금 환불이 필요해 직접 취소 불가 — 채널 문의로 접수 */
-                        <a
-                          className="public-mypage-purchase-card__btn"
-                          href={KAKAO_CHANNEL_URL}
-                          onClick={() =>
-                            // GA4 입금 후 취소 문의 — 셀프 취소가 막힌 구간의 실제 수요
-                            trackContactClick("kakao", "purchase_card_cancel", {
-                              orderStatus: order.status,
-                            })
-                          }
-                          rel="noopener noreferrer"
-                          target="_blank"
-                        >
-                          취소 문의
-                        </a>
-                      ) : null}
-                      {!item.refundedAt && order.canConfirm ? (
-                        <button
-                          className="public-mypage-purchase-card__btn public-mypage-purchase-card__btn--primary"
-                          disabled={busyOrderId === order.id}
-                          onClick={() => onConfirmOrder(order)}
-                          type="button"
-                        >
-                          {busyOrderId === order.id ? "처리 중..." : "구매확정"}
-                        </button>
-                      ) : null}
-                      {/* 주문당 한 번만 노출. 첫 미환불 품목에서 배송완료부터 작성 가능. */}
-                      {reviewsReady && canWriteOrderReview(order) && item.id === order.items.find((entry) => !entry.refundedAt)?.id && onWriteReview ? (
-                        <OrderReviewAction order={order} review={reviewsByOrderId?.[order.id]} isFirstReview={isFirstReview} onClick={onWriteReview} />
-                      ) : null}
-                      {!item.refundedAt && order.canRequestRefund ? (
-                        <button
-                          className="public-mypage-purchase-card__btn"
-                          disabled={busyOrderId === order.id}
-                          onClick={() => onRequestReturn?.(order)}
-                          type="button"
-                        >
-                          환불 신청
-                        </button>
-                      ) : null}
-                      {/* 환불 처리 전 대기 상태만 표시 — refunded면 상단 status 배지가 이미 알려주므로 중복 제거 */}
-                      {order.refundRequestedAt && order.status !== "refunded" && (order.refundRequestItemsError || !order.refundRequestedItemIds?.length || order.refundRequestedItemIds.some(id => String(id) === String(item.id))) ? (
-                        <span className="public-mypage-purchase-card__refund-status">
-                          {order.refundRequestItemsError ? "환불 신청 교재 조회 실패 · 새로고침해주세요" : !order.refundRequestedItemIds?.length ? "환불 신청 접수됨 · 대상 교재 확인 중" : getBuyerReturnLabel(order.returnProgress?.status) || "이 교재 환불 신청 접수됨"}
-                        </span>
-                      ) : null}
-                    </div>
-                    {order.canConfirm && order.autoConfirmDaysRemaining != null ? (
-                      <p className="public-mypage-purchase-card__auto-confirm">
-                        {order.autoConfirmDaysRemaining <= 0
-                          ? "곧 자동으로 구매 확정돼요."
-                          : `${order.autoConfirmDaysRemaining}일 뒤 자동으로 구매 확정돼요.`}
-                        <br />
-                        상품에 문제가 있다면 먼저 환불을 신청해주세요. 확정 후에도 하자·오배송은
-                        고객센터로 문의할 수 있어요.
-                      </p>
-                    ) : null}
-                  </article>
-                )),
-              )}
-            </div>
-          </section>
-        ))
-      )}
-
-      <OrderDetailSheet order={detailOrder} onClose={() => setDetailOrder(null)} />
-    </div>
-  );
-}
-
-function SettlementsTab({ completedSettlements, onRequestPickup, scheduledSettlements, settlementSummary }) {
-  const settlementMetrics = deriveSettlementMetrics({
-    settlementSummary,
-    completedSettlements,
-    scheduledSettlements,
-  });
-  const isEmpty = !completedSettlements.length && !scheduledSettlements.length;
-
-  // GA4 정산 빈 상태 — 마운트당 1회
-  const settlementEmptyRef = useRef(false);
-  useEffect(() => {
-    if (!isEmpty || settlementEmptyRef.current) return;
-    settlementEmptyRef.current = true;
-    trackEmptyState("mypage_settlements");
-  }, [isEmpty]);
-
-  if (isEmpty) {
-    return (
-      <MypageEmptyState
-        actionLabel="수거 요청하기"
-        actionOnClick={() => onRequestPickup("mypage_settlements_empty")}
-        icon={<MypageEmptyIcon src={receiptIcon} />}
-        title="아직 정산 내역이 없어요"
-      />
-    );
-  }
-
-  return (
-    <div className="public-mypage-stack">
-      <section className="public-mypage-section">
-        <MypageSectionHeader
-          description="이번 달 정산 흐름과 누적 정산 금액을 함께 보여드려요."
-          icon={<CoinIcon size={18} />}
-          title="정산 내역"
-        />
-
-        <MypageOverviewGrid
-          items={[
-            { label: "정산 예정", value: formatCurrency(settlementMetrics.expectedAmount) },
-            { label: "이번 달 정산", value: formatCurrency(settlementMetrics.currentMonthAmount) },
-            { label: "누적 정산", value: formatCurrency(settlementMetrics.totalAmount) },
-            { label: "완료 건수", value: `${settlementMetrics.completedCount}건` },
-          ]}
-        />
-
-        <div className="public-mypage-settlement-list">
-          {completedSettlements.map((settlement) => (
-            <SettlementCard key={settlement.id} settlement={settlement} status="completed" />
-          ))}
-        </div>
-
-        {scheduledSettlements.length ? (
-          <div className="public-mypage-pending-settlements">
-            <h3 className="public-mypage-pending-settlements__title">정산 예정</h3>
-            <div className="public-mypage-settlement-list">
-              {scheduledSettlements.map((settlement) => (
-                <SettlementCard key={settlement.id} settlement={settlement} status="scheduled" />
-              ))}
-            </div>
-          </div>
-        ) : null}
-      </section>
-    </div>
-  );
-}
-
 // 찜 목록 품절 카드 전용 — 상세 페이지까지 가지 않고 카드에서 바로 재입고 알림 신청/해제.
 // 노출 조건(품절 + 핸들러 존재)은 호출부에서 판단한다.
 function WishlistRestockButton({ busyProductId, onToggle, product, subscribedIds }) {

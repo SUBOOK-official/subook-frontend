@@ -22,7 +22,7 @@ test("환불 신청 품목과 옵션을 유지하고 기환불 품목을 구분�
 });
 
 test("진행 중 반품은 구매확정 차단, 일부 환불·접수 종결 뒤 잔여 주문 확정 허용", () => {
-  const order = { id: 1, status: "delivered", items: [] };
+  const order = { id: 1, status: "delivered", items: [{ id: 1, title: "교재", total_price: 10000 }] };
   assert.equal(mapOrderToDisplayOrder(order).canConfirm, true);
   for (const status of ["requested", "received", "review_hold", "approved", "processing", "attention"]) {
     assert.equal(mapOrderToDisplayOrder({ ...order, return_progress: { status } }).canConfirm, false);
@@ -416,8 +416,8 @@ test("mapPickupRequestToShipment maps inspected books with grade, price, and sta
   assert.equal(onSale.statusLabel, "판매중");
   assert.equal(onSale.tone, "success");
 
-  // 정산완료 책
-  assert.equal(settled.statusLabel, "정산완료");
+  // books.settled는 판매완료이며 입금 여부는 별도 정산 내역에서 확인한다.
+  assert.equal(settled.statusLabel, "판매완료");
   assert.equal(settled.isRejected, false);
 
   // 폐기 책: 사유·사진·메모 노출 + 판매불가 칩
@@ -509,7 +509,7 @@ test("mapPickupRequestToShipment renders legacy shipments with shipment-number l
   assert.equal(shipment.status, "listed");
   assert.equal(shipment.summaryLabel, "교재 2권 · 검수완료");
   assert.equal(shipment.items.length, 2);
-  assert.equal(shipment.items[0].statusLabel, "정산완료");
+  assert.equal(shipment.items[0].statusLabel, "판매완료");
   assert.equal(shipment.items[1].statusLabel, "판매중");
 });
 
