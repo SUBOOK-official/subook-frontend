@@ -2,9 +2,9 @@ import { useEffect, useState } from "react";
 import { loadEntityNotifications } from "@shared-supabase/adminOperationsClient";
 import { useAdminOperations } from "../lib/useAdminOperations";
 import { toKstInput } from "../lib/adminDateTime";
+import { historyActionLabel, historyDetailLabel, notificationHistoryLabel } from "../lib/adminHistoryLabels";
 import AdminQueryState from "./AdminQueryState";
 
-const LABELS = { insert: "등록", update: "변경", status: "상태 변경", delete: "삭제" };
 export default function AdminEntityTimeline({ entity, id, milestones = [] }) {
   const result = useAdminOperations("history", { entity, id: String(id || "") });
   const [notifications, setNotifications] = useState([]);
@@ -18,8 +18,8 @@ export default function AdminEntityTimeline({ entity, id, milestones = [] }) {
   }, [entity, id]);
   const entries = [
     ...milestones.filter((m) => m.at).map((m) => ({ id: `milestone-${m.label}`, at: m.at, label: m.label })),
-    ...(result.data?.items || []).map((e) => ({ id: e.id, at: e.created_at, label: LABELS[e.action] || e.action, detail: e.detail })),
-    ...notifications.map((n) => ({ id: `notification-${n.id}`, at: n.created_at, label: `${n.notification_type} · ${n.status}`, detail: n.error_message })),
+    ...(result.data?.items || []).map((e) => ({ id: e.id, at: e.created_at, label: historyActionLabel(e.action), detail: historyDetailLabel(e.detail) })),
+    ...notifications.map((n) => ({ id: `notification-${n.id}`, at: n.created_at, label: notificationHistoryLabel(n), detail: n.error_message })),
   ].sort((a, b) => new Date(b.at) - new Date(a.at));
   return <section className="mt-5 border-t border-slate-200 pt-4"><h3 className="mb-3 text-sm font-bold">처리 이력</h3>
     {notificationError ? <p className="mb-2 text-xs text-amber-700">{notificationError}</p> : null}

@@ -57,3 +57,7 @@
 DB 변경은 신규 운영 테이블·관리자 전용 RPC·기록 트리거 추가다. 기존 주문/수거 목록 RPC와 금융 처리 RPC는 보존했다. 문제 시 이전 어드민 버전으로 복귀할 수 있으며 신규 기록 테이블은 보존한다. 스키마 삭제를 복구 절차로 사용하지 않는다.
 
 디자인 참고: [Linear의 작업 보기](https://linear.app/docs/custom-views), [Shopify의 목록·저장 보기](https://help.shopify.com/en/manual/shopify-admin/productivity-tools/searching-filtering-views). DB 보안과 시간 처리 참고: [Supabase RLS](https://supabase.com/docs/guides/database/postgres/row-level-security), [PostgreSQL 날짜·시간](https://www.postgresql.org/docs/current/datatype-datetime.html).
+
+## 별도 후속 점검
+
+배포 설치 로그에 기존 의존성 보안 경고가 있어 `npm --prefix frontend audit --omit=dev --json`으로 확인했다. 2026-10-06 기준 실행 의존성 경고 9건(중간 5, 높음 3, 치명 1)이며 이번 작업에서는 의존성 버전을 변경하지 않았다. 치명 경고는 `@google/genai → protobufjs@7.5.4` 경로다. [공식 보안 공지](https://github.com/advisories/GHSA-xq3m-2v4x-88gg)는 외부에서 조작한 스키마를 로드하는 경우를 조건으로 설명한다. 실제 서비스의 악용 가능성까지 확인한 것은 아니며, 의존성 업데이트와 관련 API 회귀 검증은 별도 작업으로 남긴다.
