@@ -76,7 +76,7 @@ function BestBooksSection({ favoriteIds, onToggleFavorite }) {
 
   return (
     <ProductCarouselSection
-      backgroundTone="background"
+      backgroundTone="surface"
       badgeType="rank"
       favoriteIds={favoriteIds}
       hasFatalError={hasFatalError}

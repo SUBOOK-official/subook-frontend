@@ -29,6 +29,7 @@ export default function MemberRecommendations({ favoriteIds = [], onToggleFavori
   if (!isAuthenticated || result?.userId !== user?.id) return <BestBooksSection favoriteIds={favoriteIds} onToggleFavorite={onToggleFavorite} />;
   const isBest = result.source === "best";
   return <ProductCarouselSection title={isBest ? "BEST 교재" : "나를 위한 맞춤 교재"} titleId="member-recommendations"
+    backgroundTone="surface"
     subtitle={isBest ? "최근 30일, 가장 많은 주문에서 선택한 교재" : `${result.source === "recent" ? "최근 구매한 교재" : "찜한 교재"}의 과목·유형을 바탕으로 골랐어요`}
     products={result.products} favoriteIds={favoriteIds} onToggleFavorite={onToggleFavorite} />;
 }

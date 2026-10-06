@@ -8041,11 +8041,7 @@ img {
 }
 
 .public-home-best-books--surface {
-  background: #ffffff;
-}
-
-.public-home-best-books[aria-labelledby="public-home-best-books-title"] {
-  background: #ffffff;
+  background: var(--public-ds-card);
   border-bottom: 1px solid var(--public-ds-border);
 }
 
