@@ -11,6 +11,7 @@ export default function useAutomaticBookBanners() {
   useEffect(() => {
     let disposed = false;
     let pending = false;
+    const knownCopies = new Map();
     const refresh = async () => {
       if (disposed || pending || document.hidden) return;
       pending = true;
@@ -19,9 +20,14 @@ export default function useAutomaticBookBanners() {
       try {
         const rows = await listPublicHeroProducts(supabase);
         const products = rows.map((row) => ({ ...normalizeStorefrontProductRow(row.product), bannerHeadline: row.headline }));
-        if (!disposed) setSlides(buildAutomaticBookBanners(products));
+        // 창 복귀·주기 갱신 중에도 이미 읽은 AI 문구를 유지한다.
+        if (!disposed) setSlides(buildAutomaticBookBanners(products, products.length, knownCopies));
         const copies = await copiesRequest;
-        if (!disposed) setSlides(buildAutomaticBookBanners(products, products.length, bannerCopyMap(copies)));
+        if (!disposed) {
+          // 조회 실패·부분 응답으로 기존 문구를 기본 문구로 되돌리지 않는다.
+          for (const [productId, copy] of bannerCopyMap(copies)) knownCopies.set(productId, copy);
+          setSlides(buildAutomaticBookBanners(products, products.length, knownCopies));
+        }
       } catch {
         trackException("home_automatic_banners_load_failed");
       } finally { pending = false; }
