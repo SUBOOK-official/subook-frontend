@@ -1,6 +1,7 @@
 import { getMetaContentId } from "../../../../packages/shared-domain/src/metaCatalog.js";
 import { isMetaTrackingAllowed } from "./metaPixel.js";
 import { experimentParams } from "./growthExperiments.js";
+import { isMypageDemoLocation } from "./publicMypageDemo.js";
 
 // GA4 + Meta Pixel 이벤트 헬퍼 — 태그 미로드 환경(애드블록, 미설정 로컬/데모)에서는
 // 조용히 no-op. GA4는 index.html, Meta는 main.jsx의 운영 도메인 가드로 설치된다.
@@ -78,6 +79,7 @@ function sanitizeParams(params) {
 
 function gtagEvent(eventName, params) {
   if (typeof window === "undefined" || typeof window.gtag !== "function") return;
+  if (isMypageDemoLocation(window.location)) return;
   try {
     window.gtag("event", eventName, sanitizeParams({ ...experimentParams(), ...params }));
   } catch {
@@ -86,6 +88,7 @@ function gtagEvent(eventName, params) {
 }
 
 function fbqEvent(eventName, params) {
+  if (typeof window !== "undefined" && isMypageDemoLocation(window.location)) return;
   if (!isMetaTrackingAllowed() || typeof window.fbq !== "function") return;
   try {
     window.fbq("track", eventName, params);

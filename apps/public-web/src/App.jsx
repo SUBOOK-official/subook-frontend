@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation, useNavigate, useNavigationType } 
 import { usePublicAuth } from "./contexts/PublicAuthContext";
 import JeonilMiniPopup from "./components/JeonilMiniPopup";
 import { trackEvent } from "./lib/analytics";
+import { isMypageDemoLocation } from "./lib/publicMypageDemo.js";
 // PG 심사 모드 파라미터(?pg=toss)는 부트 시점에 캡처해야 한다 — 페이지 모듈이 lazy라
 // 주문서 도착 시점엔 진입 파라미터가 이미 사라져 있기 때문 (side-effect import).
 import "./lib/pgReviewMode";
@@ -79,6 +80,7 @@ function SignupCompletionGate() {
 
   useEffect(() => {
     if (isLoading || !needsSignupCompletion || needsPhoneVerification) return;
+    if (isMypageDemoLocation({ pathname: location.pathname, search: location.search })) return;
     if (
       location.pathname === "/auth/oauth-consent"
       || location.pathname === "/auth/callback"
@@ -128,6 +130,8 @@ function SignupRoute() {
 function MemberPhoneGate({ children }) {
   const location = useLocation();
   const { isLoading, needsPhoneVerification, needsEmailRegistration } = usePublicAuth();
+  // 이 경로는 실계정 대신 별도의 데모 데이터만 사용한다.
+  if (isMypageDemoLocation(location)) return children;
   const exempt = ["/signup", "/auth/required-email", "/auth/verify-phone", "/auth/merge", "/auth/phone", "/auth/callback", "/auth/reset-password", "/login", "/forgot-password"];
   if (!isLoading && needsEmailRegistration && !["/auth/required-email", "/auth/phone", "/auth/callback", "/login"].includes(location.pathname)) {
     return <Navigate replace to="/auth/required-email" />;

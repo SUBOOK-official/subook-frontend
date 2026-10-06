@@ -734,7 +734,7 @@ function getSubjectPalette(subject) {
   return subjectPalette[subject] ?? subjectPalette.기타;
 }
 
-function buildMockProductCover(product) {
+export function buildMockProductCover(product) {
   const [accentStart, accentEnd] = getSubjectPalette(product.subject);
   return createMockArtwork({
     title: `${product.publishedYear} ${product.subject}`,

@@ -1,4 +1,9 @@
 .public-mypage-demo-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   padding: 14px 16px;
   border: 1px solid rgba(8, 15, 71, 0.22);
   border-radius: var(--public-ds-radius);

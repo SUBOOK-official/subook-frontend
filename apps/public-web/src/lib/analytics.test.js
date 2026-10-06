@@ -147,3 +147,12 @@ test("window 없는 환경에서는 조용히 no-op", () => {
   delete globalThis.window;
   assert.doesNotThrow(() => trackEvent("cart_open", { uiSurface: "x" }));
 });
+
+test("마이페이지 데모 조작은 GA 이벤트로 전송하지 않는다", () => {
+  window.location = { origin: "https://subook.kr", pathname: "/mypage", search: "?demo=1" };
+  trackEvent("purchase_confirm", { orderId: "demo-order-004" });
+  assert.equal(calls.length, 0);
+  window.location.search = "";
+  trackEvent("tab_change", { tabName: "purchases" });
+  assert.equal(calls.length, 1);
+});

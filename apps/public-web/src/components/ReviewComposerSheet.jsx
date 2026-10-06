@@ -134,7 +134,7 @@ function ReviewReadOnly({ order, review, onClose, open }) {
   );
 }
 
-function ReviewComposerSheet({ open, order, review, user, isFirstReview = false, onClose, onSaved }) {
+function ReviewComposerSheet({ open, order, review, user, isFirstReview = false, demoMode = false, onClose, onSaved }) {
   const [draft, setDraft] = useState(EMPTY_DRAFT);
   const [hoverRating, setHoverRating] = useState(0);
   const [errorMessage, setErrorMessage] = useState("");
@@ -281,6 +281,16 @@ function ReviewComposerSheet({ open, order, review, user, isFirstReview = false,
             ? "too_short"
             : "too_long";
       trackFormError("review", fieldName, errorReason, { contentLength });
+      return;
+    }
+
+    if (demoMode) {
+      onSaved?.({
+        id: `demo-review-${order.id}`, orderId: order.id, orderNumber: order.reference,
+        rating: draft.rating, content: draft.content.trim(),
+        photoUrls: draft.photos.map((photo) => photo.previewUrl),
+        createdAt: new Date().toISOString(), earnedPoints: rewardPoints,
+      });
       return;
     }
 

@@ -9,6 +9,10 @@ import {
 } from "./analytics";
 import {
   DEMO_MEMBER_PROFILE,
+  DEMO_MEMBER_USER,
+  DEMO_VERSION,
+  isDemoMember,
+  resolvePortalIdentity,
   confirmPortalOrder,
   mergePortalDemoState,
 } from "./publicMypageDemo";
@@ -152,6 +156,7 @@ function readStoredPortalState(userId) {
     const parsedValue = JSON.parse(rawValue);
 
     return {
+      demoVersion: parsedValue.demoVersion,
       profile: parsedValue.profile ?? null,
       shippingAddresses: Array.isArray(parsedValue.shippingAddresses)
         ? parsedValue.shippingAddresses
@@ -622,7 +627,7 @@ async function setDefaultCollectionItem({ userId, itemId, storageKey, rpcName, t
     };
   }
 
-  if (!isSupabaseConfigured || !supabase || !hasPersistedId(itemId)) {
+  if (isDemoMember(userId) || !isSupabaseConfigured || !supabase || !hasPersistedId(itemId)) {
     setLocalDefaultCollectionItem(userId, storageKey, itemId);
     return {
       error: null,
@@ -719,7 +724,7 @@ async function saveMemberProfile({ user, values }) {
 
   writeStoredPortalState(user.id, { profile: nextProfile });
 
-  if (!isSupabaseConfigured || !supabase) {
+  if (isDemoMember(user.id) || !isSupabaseConfigured || !supabase) {
     return {
       error: null,
       source: "local",
@@ -779,7 +784,7 @@ async function checkMemberNicknameAvailability({ user, nickname }) {
     };
   }
 
-  if (!isSupabaseConfigured || !supabase) {
+  if (isDemoMember(user.id) || !isSupabaseConfigured || !supabase) {
     return {
       isAvailable: true,
       error: null,
@@ -860,7 +865,7 @@ async function saveCollectionItem({
     is_default: shouldMakeDefault,
   });
 
-  if (!isSupabaseConfigured || !supabase) {
+  if (isDemoMember(user.id) || !isSupabaseConfigured || !supabase) {
     upsertLocalCollectionItem(user.id, storageKey, storedItem, shouldMakeDefault);
     return {
       error: null,
@@ -924,7 +929,7 @@ async function deleteCollectionItem({ user, storageKey, tableName, itemId }) {
     };
   }
 
-  if (!isSupabaseConfigured || !supabase || !hasPersistedId(itemId)) {
+  if (isDemoMember(user.id) || !isSupabaseConfigured || !supabase || !hasPersistedId(itemId)) {
     deleteLocalCollectionItem(user.id, storageKey, itemId);
     return {
       error: null,
@@ -955,6 +960,7 @@ async function deleteCollectionItem({ user, storageKey, tableName, itemId }) {
 }
 
 async function loadMemberPortalSnapshot({ user, profile, demoMode = false }) {
+  ({ user, profile } = resolvePortalIdentity({ user, profile, demoMode }));
   const storedState = readStoredPortalState(user?.id);
   const fallbackProfile = profile ?? storedState.profile ?? createFallbackProfile(user);
 
@@ -987,6 +993,7 @@ async function loadMemberPortalSnapshot({ user, profile, demoMode = false }) {
     const demoOrders = demoState.orders;
 
     writeStoredPortalState(user.id, {
+      demoVersion: DEMO_VERSION,
       profile: demoState.profile,
       shipments: demoState.shipments,
       orders: demoOrders,
@@ -1135,6 +1142,10 @@ async function loadMemberPortalSnapshot({ user, profile, demoMode = false }) {
 // analytics(선택): GA 이벤트에 얹을 추가 파라미터(order_status·value·남은 자동확정일 등).
 // 호출부가 이미 들고 있는 값만 넘긴다 — 시그니처는 하위호환(미전달 시 기존 동작).
 async function confirmMemberPurchase({ user, orderId, demoMode = false, analytics }) {
+  if (demoMode || isDemoMember(user?.id)) {
+    demoMode = true;
+    user = DEMO_MEMBER_USER;
+  }
   if (!user) {
     return {
       error: new Error("로그인된 회원 정보를 찾지 못했습니다."),
@@ -1187,6 +1198,10 @@ async function confirmMemberPurchase({ user, orderId, demoMode = false, analytic
 }
 
 async function requestMemberRefund({ user, orderId, itemIds = [], reason, demoMode = false, analytics }) {
+  if (demoMode || isDemoMember(user?.id)) {
+    demoMode = true;
+    user = DEMO_MEMBER_USER;
+  }
   if (!user) {
     return {
       error: new Error("로그인된 회원 정보를 찾지 못했습니다."),
@@ -1207,6 +1222,13 @@ async function requestMemberRefund({ user, orderId, itemIds = [], reason, demoMo
   }
 
   if (demoMode) {
+    const stored = mergePortalDemoState(readStoredPortalState(user.id));
+    const orders = stored.orders.map((order) => order.id === orderId ? {
+      ...order, refundRequestedAt: new Date().toISOString(), refundRequestedItemIds: itemIds,
+      refundRequestReason: trimmedReason, canConfirm: false, canRequestRefund: false,
+      autoConfirmDaysRemaining: null,
+    } : order);
+    writeStoredPortalState(user.id, { orders });
     return { error: null, source: "local" };
   }
 
@@ -1235,6 +1257,10 @@ async function requestMemberRefund({ user, orderId, itemIds = [], reason, demoMo
 }
 
 async function cancelMemberOrder({ user, orderId, reason = "", demoMode = false, analytics }) {
+  if (demoMode || isDemoMember(user?.id)) {
+    demoMode = true;
+    user = DEMO_MEMBER_USER;
+  }
   if (!user) {
     return {
       error: new Error("로그인된 회원 정보를 찾지 못했습니다."),
@@ -1280,7 +1306,7 @@ async function cancelMemberOrder({ user, orderId, reason = "", demoMode = false,
     // 백엔드 cancel_member_order와 동일 범위 (2026-07-24부터 pending 전용 —
     // 입금 확인 후 취소는 고객센터 경유, admin 환불 흐름으로 처리)
     (order.id === orderId && order.status === "pending")
-      ? { ...order, status: "cancelled", cancelReason: trimmedReason || order.cancelReason }
+      ? { ...order, status: "cancelled", canCancel: false, cancelReason: trimmedReason || order.cancelReason }
       : order,
   );
 
@@ -1291,6 +1317,10 @@ async function cancelMemberOrder({ user, orderId, reason = "", demoMode = false,
 
 // 수거 신청 취소 — CJ 접수 전(pending)만 서버에서 허용. 접수 후에는 RPC가 안내 문구로 거부.
 async function cancelMemberPickupRequest({ user, requestId, demoMode = false, analytics }) {
+  if (demoMode || isDemoMember(user?.id)) {
+    demoMode = true;
+    user = DEMO_MEMBER_USER;
+  }
   if (!user) {
     return {
       error: new Error("로그인된 회원 정보를 찾지 못했습니다."),
@@ -1298,7 +1328,15 @@ async function cancelMemberPickupRequest({ user, requestId, demoMode = false, an
     };
   }
 
-  if (!isSupabaseConfigured || !supabase || demoMode || typeof requestId !== "number") {
+  if (demoMode) {
+    const stored = mergePortalDemoState(readStoredPortalState(user.id));
+    const shipments = stored.shipments.map((shipment) =>
+      shipment.pickupRequestId === requestId && shipment.canCancel
+        ? { ...shipment, status: "rejected", canCancel: false, summaryLabel: "수거 신청 취소", compact: true } : shipment);
+    writeStoredPortalState(user.id, { shipments });
+    return { error: null, source: "local" };
+  }
+  if (!isSupabaseConfigured || !supabase || typeof requestId !== "number") {
     return {
       error: new Error("미리보기 모드에서는 수거 신청을 취소할 수 없습니다."),
       source: "local",
@@ -1332,6 +1370,10 @@ async function requestMemberWithdrawal({
   reasonDetail = null,
   analytics,
 }) {
+  if (demoMode || isDemoMember(user?.id)) {
+    demoMode = true;
+    user = DEMO_MEMBER_USER;
+  }
   if (!user) {
     return {
       error: new Error("로그인된 회원 정보를 찾지 못했습니다."),
@@ -1461,7 +1503,7 @@ async function saveMemberSettlementAccount({ user, values, shouldMakeDefault }) 
     }
   }
 
-  if (!isSupabaseConfigured || !supabase) {
+  if (isDemoMember(user.id) || !isSupabaseConfigured || !supabase) {
     upsertLocalCollectionItem(user.id, "settlementAccounts", storedItem, shouldMakeDefault);
     return {
       error: null,
@@ -1517,7 +1559,12 @@ async function setDefaultMemberSettlementAccount({ user, accountId }) {
   });
 }
 
+function resetDemoPortalState() {
+  clearStoredPortalState(DEMO_MEMBER_USER.id);
+}
+
 export {
+  resetDemoPortalState,
   checkMemberNicknameAvailability,
   confirmMemberPurchase,
   createDisplayName,

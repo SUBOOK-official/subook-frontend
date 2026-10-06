@@ -47,8 +47,9 @@ import { usePublicWishlist } from "../contexts/PublicWishlistContext";
 import usePublicMemberGate from "../lib/publicMemberGate";
 import { KAKAO_CHANNEL_URL } from "../lib/supportChannels";
 import { usePageMeta } from "../lib/usePageMeta";
-import { DEMO_MEMBER_PROFILE, DEMO_MEMBER_USER } from "../lib/publicMypageDemo";
+import { createDemoCoupons, resolvePortalIdentity } from "../lib/publicMypageDemo";
 import {
+  resetDemoPortalState,
   cancelMemberOrder,
   cancelMemberPickupRequest,
   checkMemberNicknameAvailability,
@@ -249,8 +250,7 @@ function PublicMypagePage() {
   const { favoriteIds, isWishlistLoading, toggleFavorite } = usePublicWishlist();
   const { requireMember, memberGateDialog } = usePublicMemberGate();
 
-  const effectiveUser = user ?? (isDemoPreview ? DEMO_MEMBER_USER : null);
-  const effectiveProfile = profile ?? (isDemoPreview ? DEMO_MEMBER_PROFILE : null);
+  const { user: effectiveUser, profile: effectiveProfile } = resolvePortalIdentity({ user, profile, demoMode: isDemoPreview });
 
   const [activeTabKey, setActiveTabKey] = useState(() => getTabKeyFromHash(location.hash));
   const [loadedTabs, setLoadedTabs] = useState(initialLoadedTabs);
@@ -279,6 +279,7 @@ function PublicMypagePage() {
   const [myReviewsByOrderId, setMyReviewsByOrderId] = useState({});
   const [reviewsLoadState, setReviewsLoadState] = useState({ userId: null, phase: "loading", error: "" });
   const reviewsRequestRef = useRef(0);
+  const demoReviewsRef = useRef({});
   const reviewsReady = reviewsLoadState.userId === effectiveUser?.id && reviewsLoadState.phase === "ready";
   const isFirstReview = reviewsReady && Object.keys(myReviewsByOrderId).length === 0;
   const [reviewComposer, setReviewComposer] = useState(null); // { order, review }
@@ -469,7 +470,7 @@ function PublicMypagePage() {
       return undefined;
     }
 
-    if (favoriteIds.length === 0) {
+    if (isDemoPreview || favoriteIds.length === 0) {
       setWishlistProducts([]);
       setWishlistError("");
       setIsWishlistProductsLoading(false);
@@ -525,8 +526,16 @@ function PublicMypagePage() {
     const requestId = ++reviewsRequestRef.current;
     setReviewsLoadState({ userId: effectiveUser?.id, phase: "loading", error: "" });
     if (!effectiveUser || isDemoPreview) {
-      setMyReviewsByOrderId({});
-      setMyPoints(normalizeMyPoints(null));
+      const demoReviews = isDemoPreview ? demoReviewsRef.current : {};
+      setMyReviewsByOrderId({ ...demoReviews });
+      const reviewRows = Object.values(demoReviews);
+      setMyPoints(normalizeMyPoints({
+        balance: reviewRows.reduce((sum, review) => sum + (review.earnedPoints || 0), 0),
+        transactions: reviewRows.filter((review) => review.earnedPoints > 0).map((review, index) => ({
+          id: index + 1, amount: review.earnedPoints, kind: "review_earn",
+          order_number: review.orderNumber, created_at: review.createdAt,
+        })),
+      }));
       setReviewsLoadState({ userId: effectiveUser?.id, phase: "ready", error: "" });
       return;
     }
@@ -1551,6 +1560,10 @@ function PublicMypagePage() {
 
   // uiSurface: purchase_card / sales_card — 어디서 배송 조회를 눌렀는지 구분
   const handleTrackParcel = (trackingNumber, uiSurface = "purchase_card", extra = {}) => {
+    if (isDemoPreview) {
+      setToastState({ message: "예시 운송장입니다. 실제 배송 조회는 실행하지 않아요.", tone: "info" });
+      return;
+    }
     const trackingUrl = buildCjTrackingUrl(trackingNumber);
 
     if (!trackingUrl) {
@@ -1570,6 +1583,10 @@ function PublicMypagePage() {
 
   // source: mypage_sales_empty / mypage_settlements_empty …
   const handlePickupRequest = (source = "mypage") => {
+    if (isDemoPreview) {
+      setToastState({ message: "데모에서는 새 수거를 접수하지 않아요. 판매 내역에서 상태별 예시를 확인해 주세요.", tone: "info" });
+      return;
+    }
     // GA4 수거 신청 CTA — 로그인 관문 앞에서 센다(관문 이탈도 분모에 포함)
     trackPickupCtaClick(typeof source === "string" ? source : "mypage");
 
@@ -1748,6 +1765,7 @@ function PublicMypagePage() {
   };
 
   const handleToggleWishlistProduct = async (productId) => {
+    if (isDemoPreview) return;
     const result = await toggleFavorite(productId);
 
     if (result.error) {
@@ -1905,6 +1923,7 @@ function PublicMypagePage() {
       }
       return (
         <PurchasesView
+          isDemoPreview={isDemoPreview}
           busyOrderId={busyOrderId}
           onCancelOrder={requestCancelOrder}
           onConfirmOrder={requestConfirmPurchase}
@@ -1964,7 +1983,7 @@ function PublicMypagePage() {
     }
 
     if (activeTabKey === "coupons") {
-      return <CouponsView />;
+      return <CouponsView key={isDemoPreview ? "demo" : effectiveUser?.id} isDemoPreview={isDemoPreview} />;
     }
 
     if (activeTabKey === "settlements") {
@@ -2014,7 +2033,8 @@ function PublicMypagePage() {
               <ContentContainer className="public-mypage-shell">
                 {isDemoPreview ? (
                   <div className="public-mypage-demo-banner">
-                    데모 데이터 미리보기입니다. 실제 로그인 흐름은 유지되고, 이 화면은 <strong>/mypage?demo=1</strong>에서만 열립니다.
+                    <span>운영진 체험용 · 모든 내역은 예시이며 변경은 이 브라우저에만 반영됩니다.</span>
+                    <button className="public-auth-button public-auth-button--secondary" type="button" onClick={() => { resetDemoPortalState(); window.location.reload(); }}>샘플 초기화</button>
                   </div>
                 ) : null}
 
@@ -2233,9 +2253,11 @@ function PublicMypagePage() {
       {memberGateDialog}
 
       <ReviewComposerSheet
+        demoMode={isDemoPreview}
         isFirstReview={isFirstReview}
         onClose={() => setReviewComposer(null)}
         onSaved={(review) => {
+          if (isDemoPreview && review) demoReviewsRef.current[review.orderId] = review;
           setReviewComposer(null);
           void reloadMyReviews();
           setToastState({
@@ -2467,9 +2489,10 @@ function OrderDepositRow({ label, value, copyLabel, copyTarget = "unknown", high
   );
 }
 
-function OrderDepositInfo({ order }) {
+function OrderDepositInfo({ order, isDemoPreview = false }) {
   const depositorName = buildDepositorName(order.recipientName, order.reference);
-  const bankAccountPlain = BANK_ACCOUNT.replace(/-/g, "");
+  const bankAccount = isDemoPreview ? "000-000-000000" : BANK_ACCOUNT;
+  const bankAccountPlain = bankAccount.replace(/-/g, "");
   const shownRef = useRef(false);
 
   // GA4 입금 안내 노출 — 주문당 1회. 미입금 이탈 분석의 분모.
@@ -2489,8 +2512,8 @@ function OrderDepositInfo({ order }) {
       <OrderDepositRow
         copyLabel="계좌번호 복사"
         copyTarget="bank_account"
-        label={`${BANK_NAME} · 예금주 ${BANK_HOLDER}`}
-        value={BANK_ACCOUNT}
+        label={isDemoPreview ? "예시 은행 · 입금하지 마세요" : `${BANK_NAME} · 예금주 ${BANK_HOLDER}`}
+        value={bankAccount}
         hint={`복사 시 ${bankAccountPlain}`}
       />
       {order.totalAmount != null ? (
@@ -3006,7 +3029,7 @@ function SalesTab({
 
 // 쿠폰함: 보유/사용/만료 탭 + 코드 입력 + 다운로드 가능 쿠폰 목록.
 // PR 3에서 주문 페이지의 쿠폰 적용 UI가 추가됨.
-function CouponsView() {
+function CouponsView({ isDemoPreview = false }) {
   const [coupons, setCoupons] = useState([]);
   const [downloadable, setDownloadable] = useState([]);
   const [statusFilter, setStatusFilter] = useState("available");
@@ -3025,6 +3048,12 @@ function CouponsView() {
   const couponWalletViewedRef = useRef(false);
 
   const loadAll = useCallback(async () => {
+    if (isDemoPreview) {
+      setCoupons(createDemoCoupons());
+      setDownloadable([]);
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
     const [walletRes, downloadRes] = await Promise.all([
       publicSupabase.rpc("get_member_coupons", { p_status_filter: "all" }),
@@ -3052,7 +3081,7 @@ function CouponsView() {
       });
     }
     setIsLoading(false);
-  }, []);
+  }, [isDemoPreview]);
 
   useEffect(() => {
     void loadAll();
@@ -3074,6 +3103,7 @@ function CouponsView() {
 
   const handleClaimCode = async (e) => {
     e.preventDefault();
+    if (isDemoPreview) { showToast("데모에서는 쿠폰을 실제로 발급하지 않아요."); return; }
     if (!codeInput.trim()) return;
     setIsClaiming(true);
     const { error } = await publicSupabase.rpc("claim_coupon_by_code", {
@@ -3097,6 +3127,7 @@ function CouponsView() {
   };
 
   const handleDownload = async (coupon) => {
+    if (isDemoPreview) { showToast("데모에서는 쿠폰을 실제로 발급하지 않아요."); return; }
     setBusyId(coupon.id);
     const { error } = await publicSupabase.rpc("claim_coupon_for_download", {
       p_coupon_id: coupon.id,
@@ -3371,6 +3402,7 @@ function OrderDetailSheet({ order, onClose }) {
 }
 
 function PurchasesView({
+  isDemoPreview = false,
   busyOrderId,
   onCancelOrder,
   onConfirmOrder,
@@ -3490,7 +3522,7 @@ function PurchasesView({
                     {order.status === "pending" &&
                     order.paymentStatus !== "paid" &&
                     order.paymentMethod !== "card" ? (
-                      <OrderDepositInfo order={order} />
+                      <OrderDepositInfo order={order} isDemoPreview={isDemoPreview} />
                     ) : null}
 
                     <div className="public-mypage-purchase-card__body">

@@ -1,358 +1,159 @@
-import { buildMemberDashboardSummarySnapshot } from "./publicMypageUtils.js";
+import { bookConditionLabel } from "../../../../packages/shared-domain/src/status.js";
+import { getSettlementInfo } from "../../../../packages/shared-domain/src/settlement.js";
+import { buildMemberDashboardSummarySnapshot, mapOrderToDisplayOrder } from "./publicMypageUtils.js";
+import { buildMockProductCover } from "./publicStoreMockData.js";
 
-const DEMO_CREATED_AT = "2024-03-01T09:00:00+09:00";
-
+export const DEMO_VERSION = 3;
 export const DEMO_MEMBER_USER = {
-  id: "demo-member",
-  email: "example@email.com",
-  created_at: DEMO_CREATED_AT,
-  user_metadata: {
-    name: "홍길동",
-    nickname: "수능킹",
-    phone: "010-1234-5678",
-    marketing_opt_in: true,
-  },
+  id: "demo-member-v3",
+  email: "demo@example.com",
+  created_at: "2026-01-01T09:00:00+09:00",
+  user_metadata: { name: "김수북", nickname: "수북체험", phone: "010-0000-0000", marketing_opt_in: false },
 };
-
 export const DEMO_MEMBER_PROFILE = {
   user_id: DEMO_MEMBER_USER.id,
   email: DEMO_MEMBER_USER.email,
-  name: "홍길동",
-  nickname: "수능킹",
-  phone: "010-1234-5678",
-  marketing_opt_in: true,
-  created_at: DEMO_CREATED_AT,
+  created_at: DEMO_MEMBER_USER.created_at,
+  ...DEMO_MEMBER_USER.user_metadata,
 };
 
-function clone(value) {
-  return JSON.parse(JSON.stringify(value));
+// 로그인한 운영진도 실계정과 분리된 동일한 데모를 본다.
+export function resolvePortalIdentity({ user, profile, demoMode }) {
+  return demoMode
+    ? { user: DEMO_MEMBER_USER, profile: DEMO_MEMBER_PROFILE }
+    : { user, profile };
 }
 
-function normalizeProfile(profile = {}) {
-  return {
-    ...DEMO_MEMBER_PROFILE,
-    ...profile,
-    user_id: profile.user_id ?? DEMO_MEMBER_PROFILE.user_id,
-    email: profile.email ?? DEMO_MEMBER_PROFILE.email,
-    created_at: profile.created_at ?? DEMO_MEMBER_PROFILE.created_at,
-  };
+export function isDemoMember(userId) {
+  return userId === DEMO_MEMBER_USER.id;
 }
 
-export function createDemoPortalSeed(profileOverride = {}) {
-  const profile = normalizeProfile(profileOverride);
+export function isMypageDemoLocation(location) {
+  return location?.pathname === "/mypage" && new URLSearchParams(location.search).get("demo") === "1";
+}
 
-  const seed = {
-    profile,
-    shipments: [
-      {
-        id: "pickup-demo-0312",
-        reference: "PU-2024-0312",
-        createdAt: "2024-03-12T10:30:00+09:00",
-        bookCount: 3,
-        status: "collecting",
-        compact: false,
-        trackingCompany: "CJ대한통운",
-        trackingNumber: "123-456-789",
-        items: [
-          {
-            id: "pickup-demo-0312-book-1",
-            title: "시대인재 수학 N제",
-            gradeLabel: "A+",
-            price: 8000,
-            statusLabel: "판매중",
-            tone: "success",
-          },
-          {
-            id: "pickup-demo-0312-book-2",
-            title: "강남대성 국어 모의고사",
-            gradeLabel: "-",
-            price: null,
-            statusLabel: "검수중",
-            tone: "warning",
-          },
-          {
-            id: "pickup-demo-0312-book-3",
-            title: "EBS 수능완성 영어",
-            rejectionReason: "필기 과다",
-            statusLabel: "폐기",
-            tone: "danger",
-          },
-        ],
-      },
-      {
-        id: "pickup-demo-0305",
-        reference: "PU-2024-0305",
-        createdAt: "2024-03-05T14:00:00+09:00",
-        bookCount: 5,
-        status: "settled",
-        compact: true,
-        summaryLabel: "교재 5권 · 정산완료",
-        items: [
-          {
-            id: "pickup-demo-0305-book-1",
-            title: "강남대성 미적분 모의고사",
-            gradeLabel: "S",
-            price: 12000,
-            statusLabel: "정산완료",
-            tone: "neutral",
-          },
-          {
-            id: "pickup-demo-0305-book-2",
-            title: "이투스 과학 기출",
-            gradeLabel: "A",
-            price: 8000,
-            statusLabel: "정산완료",
-            tone: "neutral",
-          },
-        ],
-      },
-    ],
-    orders: [
-      {
-        id: "order-demo-0315",
-        reference: "ORD-2024-0315",
-        createdAt: "2024-03-15T11:20:00+09:00",
-        status: "delivered",
-        trackingCompany: "CJ대한통운",
-        trackingNumber: "789-012-345",
-        items: [
-          {
-            id: "order-demo-0315-book-1",
-            productId: "product-demo-math-nje",
-            title: "시대인재 수학 N제",
-            gradeLabel: "A+",
-            quantity: 1,
-            price: 8000,
-          },
-          {
-            id: "order-demo-0315-book-2",
-            productId: "product-demo-korean-mock",
-            title: "강남대성 국어 모의고사",
-            gradeLabel: "S",
-            quantity: 1,
-            price: 12000,
-          },
-        ],
-        shippingFee: 3000,
-        totalAmount: 23000,
-        // 상세보기(결제 정보) 시트 데모용 결제 필드
-        paymentMethod: "kakao_pay",
-        paidAt: "2024-03-15T11:22:10+09:00",
-        subtotal: 22000,
-        couponDiscountAmount: 2000,
-        canConfirm: true,
-        canReturn: true,
-        autoConfirmDaysRemaining: 3,
-      },
-      {
-        id: "order-demo-0310",
-        reference: "ORD-2024-0310",
-        createdAt: "2024-03-10T09:00:00+09:00",
-        status: "confirmed",
-        trackingCompany: "CJ대한통운",
-        trackingNumber: "555-101-222",
-        items: [
-          {
-            id: "order-demo-0310-book-1",
-            productId: "product-demo-science-past",
-            title: "이투스 과학 기출",
-            gradeLabel: "A",
-            quantity: 1,
-            price: 4000,
-          },
-        ],
-        shippingFee: 0,
-        totalAmount: 4000,
-        // 무통장입금 주문 — 입금확인 시각이 없어 시트에서 '주문일시' 라벨 폴백을 확인하는 케이스
-        paymentMethod: "bank_transfer",
-        subtotal: 4000,
-        couponDiscountAmount: 0,
-        canConfirm: false,
-        canReturn: false,
-        autoConfirmDaysRemaining: null,
-      },
-    ],
-    settlementSummary: {
-      currentMonthAmount: 45000,
-      totalAmount: 230000,
-      expectedAmount: 45000,
-    },
-    completedSettlements: [
-      {
-        id: "settlement-completed-0318",
-        date: "2024-03-18T10:00:00+09:00",
-        amount: 13800,
-        pickupReference: "PU-0312",
-        bookCount: 2,
-        grossSales: 24000,
-        feeAmount: 10200,
-        bankLabel: "신한",
-        maskedAccount: "****1234",
-      },
-      {
-        id: "settlement-completed-0312",
-        date: "2024-03-12T10:00:00+09:00",
-        amount: 4800,
-        pickupReference: "PU-0305",
-        bookCount: 1,
-        grossSales: 8000,
-        feeAmount: 3200,
-        bankLabel: "신한",
-        maskedAccount: "****1234",
-      },
-    ],
-    scheduledSettlements: [
-      {
-        id: "settlement-scheduled-0322",
-        date: "2024-03-22T10:00:00+09:00",
-        amount: 6600,
-        statusLabel: "정산대기",
-        tone: "warning",
-      },
-    ],
-    shippingAddresses: [
-      {
-        id: "demo-address-home",
-        user_id: profile.user_id,
-        label: "집",
-        recipient_name: profile.name,
-        recipient_phone: profile.phone,
-        postal_code: "06292",
-        address_line1: "서울 강남구 대치동 123-45",
-        address_line2: "101동 1201호",
-        is_default: true,
-        created_at: "2024-03-01T09:10:00+09:00",
-        updated_at: "2024-03-01T09:10:00+09:00",
-      },
-      {
-        id: "demo-address-academy",
-        user_id: profile.user_id,
-        label: "학원",
-        recipient_name: profile.name,
-        recipient_phone: profile.phone,
-        postal_code: "06236",
-        address_line1: "서울 강남구 역삼동 67-8",
-        address_line2: "2층",
-        is_default: false,
-        created_at: "2024-03-02T09:10:00+09:00",
-        updated_at: "2024-03-02T09:10:00+09:00",
-      },
-    ],
-    settlementAccounts: [
-      {
-        id: "demo-account-default",
-        user_id: profile.user_id,
-        bank_name: "신한은행",
-        account_number: "110-123-456789",
-        account_holder: profile.name,
-        is_default: true,
-        created_at: "2024-03-01T09:20:00+09:00",
-        updated_at: "2024-03-01T09:20:00+09:00",
-      },
-      {
-        id: "demo-account-sub",
-        user_id: profile.user_id,
-        bank_name: "카카오뱅크",
-        account_number: "3333-12-1234567",
-        account_holder: profile.name,
-        is_default: false,
-        created_at: "2024-03-05T09:20:00+09:00",
-        updated_at: "2024-03-05T09:20:00+09:00",
-      },
-    ],
-  };
-
-  return {
-    ...seed,
-    dashboardSummary: buildMemberDashboardSummarySnapshot({
-      baseSummary: {
-        total_book_count: 8,
-        on_sale_book_count: 3,
-        settled_book_count: 2,
-        estimated_on_sale_value: 45000,
-      },
-      completedSettlements: seed.completedSettlements,
-      orders: seed.orders,
-      profile: seed.profile,
-      scheduledSettlements: seed.scheduledSettlements,
-      settlementAccounts: seed.settlementAccounts,
-      settlementSummary: seed.settlementSummary,
-      shipments: seed.shipments,
-      shippingAddresses: seed.shippingAddresses,
+export function createDemoPortalSeed(profileOverride = {}, now = new Date()) {
+  const profile = { ...DEMO_MEMBER_PROFILE, ...profileOverride, user_id: DEMO_MEMBER_USER.id };
+  const ago = (days) => new Date(now.getTime() - days * 86400000).toISOString();
+  const kst = new Date(now.getTime() + 9 * 3600000);
+  const monthStart = (offset) => new Date(Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth() + offset, 1, 1)).toISOString();
+  const monthCode = kst.getUTCFullYear().toString().slice(-2) + String(kst.getUTCMonth() + 1).padStart(2, "0");
+  const orderItem = (key, title, price, option = "1회", extra = {}) => ({
+    id: "demo-item-" + key, product_id: null, title, unit_price: price, total_price: price,
+    quantity: 1, condition_grade: "S", option_label: option,
+    cover_image_url: buildMockProductCover({
+      publishedYear: kst.getUTCFullYear() + 1,
+      subject: title.includes("수학") ? "수학" : title.includes("국어") ? "국어" : title.includes("영어") ? "영어" : "과학",
+      brand: title.split(" ")[0], bookType: "예시 표지", instructorName: "운영진 체험용",
     }),
+    ...extra,
+  });
+  const order = (key, status, days, items, extra = {}) => {
+    const subtotal = items.reduce((sum, item) => sum + item.total_price, 0);
+    return mapOrderToDisplayOrder({
+      id: "demo-order-" + key, order_number: "DEMO-" + monthCode + "-" + key, status,
+      created_at: ago(days), paid_at: status === "pending" || status === "cancelled" ? null : ago(days - 0.01),
+      payment_method: "card", payment_status: "paid", shipping_recipient_name: profile.name,
+      shipping_fee: 3000, subtotal, total_amount: subtotal + 3000, items,
+      tracking_number: ["shipping", "delivered", "confirmed"].includes(status) ? "000000000000" : null,
+      confirmed_at: status === "confirmed" ? ago(days - 5) : null,
+      auto_confirm_at: status === "delivered" ? ago(-3) : null,
+      ...extra,
+    });
   };
+  const orders = [
+    order("001", "pending", 0, [orderItem("001", "강남대성 수학 모의고사", 12000, "5회")], { payment_method: "bank_transfer", payment_status: "pending" }),
+    order("002", "preparing", 1, [orderItem("002", "시대인재 브릿지 수학", 16000, "11~15회")]),
+    order("003", "shipping", 2, [orderItem("003", "상상 국어 모의고사", 12000, "3회")], { payment_method: "bank_transfer" }),
+    order("004", "delivered", 4, [orderItem("004a", "시대인재 수학 N제", 18000, "미적분"), orderItem("004b", "강남대성 국어 모의고사", 12000, "7회")], { coupon_discount_amount: 2000, points_used: 1000, total_amount: 30000 }),
+    order("005", "confirmed", 10, [orderItem("005", "EBS 수능완성 영어", 14000, "영어")]),
+    order("006", "cancelled", 12, [orderItem("006", "이감 국어 모의고사", 10000, "2회")], { payment_method: "bank_transfer", payment_status: "cancelled" }),
+    order("007", "refunded", 14, [orderItem("007", "강남대성 수학 모의고사", 12000, "2회", { refunded_at: ago(7), refund_amount: 12000 })], { refunded_amount: 15000, payment_status: "refunded" }),
+    order("008", "delivered", 6, [orderItem("008", "시대인재 물리학 모의고사", 10000, "4회")], { refund_requested_at: ago(1), refund_requested_item_ids: ["demo-item-008"], refund_request_reason: "인쇄 누락으로 문제 일부를 읽을 수 없어 환불을 신청합니다.", auto_confirm_at: null, return_progress: { status: "requested" } }),
+    order("009", "confirmed", 18, [orderItem("009a", "강남대성 영어 모의고사", 12000, "6회"), orderItem("009b", "강남대성 영어 모의고사", 12000, "7회", { refunded_at: ago(10), refund_amount: 12000 })], { refunded_amount: 12000 }),
+  ];
+
+  const book = (key, title, price, statusLabel, extra = {}) => ({
+    id: "demo-book-" + key, title, price, gradeLabel: bookConditionLabel.S, statusLabel,
+    tone: statusLabel === "판매중" ? "success" : "neutral", ...extra,
+  });
+  const shipment = (key, status, days, bookCount, items = [], extra = {}) => ({
+    id: "demo-pickup-" + key, pickupRequestId: "demo-pickup-" + key, reference: "PU-DEMO-" + key,
+    createdAt: ago(days), bookCount, status, items, compact: false, boxCount: 1,
+    canCancel: status === "requested", trackingCompany: "CJ대한통운",
+    trackingNumber: status === "collecting" ? "000000000000" : null, ...extra,
+  });
+  const shipments = [
+    shipment("001", "requested", 0, 5),
+    shipment("002", "scheduled", 1, 8),
+    shipment("003", "collecting", 3, 12),
+    shipment("004", "received", 5, 4),
+    shipment("005", "inspecting", 7, 3, [
+      book("005a", "시대인재 수학 N제", 18000, "검수중", { tone: "warning" }),
+      book("005b", "EBS 수능완성 영어", null, "검수중", { gradeLabel: "-", tone: "warning" }),
+      book("005c", "강남대성 국어 모의고사", null, "검수중", { gradeLabel: "-", tone: "warning" }),
+    ]),
+    shipment("006", "listed", 15, 4, [
+      book("006a", "시대인재 브릿지 수학", 24000, "판매중"),
+      book("006b", "강남대성 국어 모의고사", 8000, "판매중"),
+      book("006c", "이감 국어 모의고사", 16000, "판매완료"),
+      book("006d", "EBS 수능완성 영어", null, "폐기", { gradeLabel: "-", rejectionReason: "본문 필기 및 정답 표시", tone: "danger" }),
+    ]),
+    shipment("007", "settled", 40, 2, [book("007a", "시대인재 수학 N제 세트", 60000, "정산완료"), book("007b", "강남대성 국어 모의고사 세트", 40000, "정산완료")]),
+    shipment("008", "settled", 70, 2, [book("008a", "시대인재 수학 N제", 24000, "정산완료"), book("008b", "강남대성 국어 모의고사", 16000, "정산완료")]),
+  ];
+  // 완료 2건은 정책 전환 전 접수한 이력: 이후 정산 시점에도 기존 요율을 유지한다.
+  const completedSettlements = [100000, 40000].map((grossSales, index) => {
+    const pickupDate = index === 0 ? "2026-08-01" : "2026-07-01";
+    const { netAmount } = getSettlementInfo(grossSales, pickupDate);
+    const date = monthStart(-index);
+    shipments[6 + index].createdAt = pickupDate + "T10:00:00+09:00";
+    return {
+      id: "demo-settlement-" + index, date, amount: netAmount - 5000,
+      pickupReference: "PU-DEMO-00" + (7 + index), bookCount: 2, grossSales,
+      feeAmount: grossSales - netAmount, boxCostDeducted: 5000,
+      bankLabel: "신한은행", maskedAccount: "****0000", hasAccountInfo: true,
+      soldAt: new Date(new Date(date).getTime() - 10 * 86400000).toISOString(),
+      confirmedAt: new Date(new Date(date).getTime() - 8 * 86400000).toISOString(),
+      scheduledAt: date, completedAt: date,
+    };
+  });
+  const seed = {
+    demoVersion: DEMO_VERSION,
+    profile, shipments, orders, completedSettlements,
+    settlementSummary: { currentMonthAmount: completedSettlements[0].amount, totalAmount: completedSettlements.reduce((sum, row) => sum + row.amount, 0), expectedAmount: 3800 },
+    // 1만6천원 판매분 수수료 45%와 박스비 5천원 차감.
+    scheduledSettlements: [{ id: "demo-settlement-next", date: monthStart(1), scheduledAt: monthStart(1), soldAt: ago(8), confirmedAt: ago(1), pickupReference: "PU-DEMO-006", bookCount: 1, grossSales: 16000, feeAmount: 7200, boxCostDeducted: 5000, amount: 3800, status: "pending", statusLabel: "정산대기", tone: "warning" }],
+    shippingAddresses: [{ id: "demo-address-home", user_id: profile.user_id, label: "집 (예시)", recipient_name: profile.name, recipient_phone: profile.phone, postal_code: "00000", address_line1: "데모시 데모구 예시로 123", address_line2: "101동 101호", is_default: true, created_at: ago(30), updated_at: ago(30) }],
+    settlementAccounts: [{ id: "demo-account-default", user_id: profile.user_id, bank_name: "신한은행", account_number: "000-000-000000", account_holder: profile.name, is_default: true, created_at: ago(30), updated_at: ago(30) }],
+  };
+  seed.dashboardSummary = buildMemberDashboardSummarySnapshot(seed);
+  return seed;
 }
 
-function getMergedCollection(storedValue, seedValue) {
-  return Array.isArray(storedValue) && storedValue.length ? clone(storedValue) : clone(seedValue);
+export function createDemoCoupons() {
+  return ["available", "used", "expired"].map((status, index) => ({
+    id: "demo-coupon-" + status, title: ["가입 환영 쿠폰 (예시)", "교재 구매 쿠폰 (예시)", "기간 한정 쿠폰 (예시)"][index],
+    discount_type: "fixed", discount_value: 2000, min_order_amount: 20000, effective_status: status,
+    expires_at: new Date(Date.now() + (status === "expired" ? -7 : 30) * 86400000).toISOString(),
+  }));
 }
 
 export function mergePortalDemoState(storedState = {}, profileOverride = {}) {
   const seed = createDemoPortalSeed(profileOverride);
-
-  const mergedState = {
-    profile: normalizeProfile(storedState.profile ?? seed.profile),
-    shipments: getMergedCollection(storedState.shipments, seed.shipments),
-    orders: getMergedCollection(storedState.orders, seed.orders),
-    settlementSummary: {
-      ...seed.settlementSummary,
-      ...(storedState.settlementSummary ?? {}),
-    },
-    completedSettlements: getMergedCollection(
-      storedState.completedSettlements,
-      seed.completedSettlements,
-    ),
-    scheduledSettlements: getMergedCollection(
-      storedState.scheduledSettlements,
-      seed.scheduledSettlements,
-    ),
-    shippingAddresses: getMergedCollection(storedState.shippingAddresses, seed.shippingAddresses),
-    settlementAccounts: getMergedCollection(storedState.settlementAccounts, seed.settlementAccounts),
-    dashboardSummary: {
-      ...seed.dashboardSummary,
-      ...(storedState.dashboardSummary ?? {}),
-    },
-  };
-
-  mergedState.dashboardSummary = {
-    ...buildMemberDashboardSummarySnapshot({
-      baseSummary: mergedState.dashboardSummary,
-      completedSettlements: mergedState.completedSettlements,
-      orders: mergedState.orders,
-      profile: mergedState.profile,
-      scheduledSettlements: mergedState.scheduledSettlements,
-      settlementAccounts: mergedState.settlementAccounts,
-      settlementSummary: mergedState.settlementSummary,
-      shipments: mergedState.shipments,
-      shippingAddresses: mergedState.shippingAddresses,
-    }),
-  };
-
-  return mergedState;
+  // 초기 로딩의 빈 배열과 사용자가 모두 삭제한 빈 배열을 구분한다.
+  const saved = storedState.demoVersion === DEMO_VERSION ? storedState : {};
+  const state = { ...seed, ...saved, profile: { ...seed.profile, ...saved.profile } };
+  state.dashboardSummary = buildMemberDashboardSummarySnapshot(state);
+  return state;
 }
 
 export function confirmPortalOrder(orders = [], orderId) {
   let changed = false;
-
   const nextOrders = orders.map((order) => {
-    if (order.id !== orderId || order.status === "confirmed") {
-      return order;
-    }
-
+    if (order.id !== orderId || order.status !== "delivered" || !order.canConfirm || order.refundRequestedAt) return order;
     changed = true;
-
-    return {
-      ...order,
-      status: "confirmed",
-      canConfirm: false,
-      canReturn: false,
-      autoConfirmDaysRemaining: null,
-      confirmedAt: new Date().toISOString(),
-    };
+    return { ...order, status: "confirmed", canConfirm: false, canReturn: false, autoConfirmDaysRemaining: null, confirmedAt: new Date().toISOString() };
   });
-
-  return {
-    changed,
-    orders: nextOrders,
-  };
+  return { changed, orders: nextOrders };
 }
