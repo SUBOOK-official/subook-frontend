@@ -10,7 +10,6 @@ import FeaturedProductDetail, {
 } from "../components/FeaturedProductDetail";
 import PublicFooter from "../components/PublicFooter";
 import ProductOptionPicker from "../components/ProductOptionPicker";
-import ProductOptionSheet from "../components/ProductOptionSheet";
 import PublicPageFrame from "../components/PublicPageFrame";
 import PublicSiteHeader from "../components/PublicSiteHeader";
 import AiSummaryNoticeDialog from "../components/AiSummaryNoticeDialog";
@@ -1028,9 +1027,6 @@ function PublicProductDetailPage() {
   // 다중 옵션 선택: [{ key: 회차, quantity }]. 단일재고 모델이라 회차별 수량은 그 회차의
   // 남은 책 수로 캡되고, 담기/구매 시 회차별로 distinct한 book_id가 할당된다.
   const [selections, setSelections] = useState([]);
-  const [optionSheetOpen, setOptionSheetOpen] = useState(false);
-  const optionSheetTriggerRef = useRef(null);
-  useEffect(() => { setOptionSheetOpen(false); }, [productId]);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -1830,26 +1826,6 @@ function PublicProductDetailPage() {
     );
   };
 
-  const openOptionSheet = () => {
-    trackEvent("product_option_open", {
-      itemId: String(product.id), uiAction: "open",
-      optionCount: variantGroups.length,
-      soldoutCount: variantGroups.filter(group => group.soldOut).length,
-    });
-    setOptionSheetOpen(true);
-  };
-
-  const closeOptionSheet = () => {
-    trackEvent("product_option_open", {
-      itemId: String(product.id), uiAction: "close",
-      optionCount: variantGroups.length,
-      soldoutCount: variantGroups.filter(group => group.soldOut).length,
-    });
-    setOptionSheetOpen(false);
-    // 선택 후 트리거가 '옵션 변경'으로 교체되므로 새 버튼으로 포커스를 돌린다.
-    requestAnimationFrame(() => optionSheetTriggerRef.current?.focus({ preventScroll: true }));
-  };
-
   const pageContent = (
     <div className="public-product-detail-page">
       <PublicSiteHeader />
@@ -2058,8 +2034,9 @@ function PublicProductDetailPage() {
                   <>
                     {variantGroups.length > 1 ? (
                       <ProductOptionPicker
+                        key={product.id}
+                        productId={product.id}
                         selections={selections}
-                        onRemove={handleRemoveVariant}
                         groups={variantGroups}
                         onAdd={handleAddVariant}
                         showLowStock={featuredEntry?.hideStockCount === true}
@@ -2299,23 +2276,7 @@ function PublicProductDetailPage() {
         />
       ) : null}
 
-      {optionSheetOpen && canPurchase && <ProductOptionSheet
-        title={product.title}
-        subtotal={selectionSubtotal}
-        count={selectionCount}
-        onClose={closeOptionSheet}
-      >
-        {variantGroups.length > 1 && <ProductOptionPicker
-          groups={variantGroups}
-          selections={selections}
-          onAdd={handleAddVariant}
-          onRemove={handleRemoveVariant}
-          showLowStock={featuredEntry?.hideStockCount === true}
-        />}
-        {renderSelectedOptions()}
-      </ProductOptionSheet>}
-
-      {/* 모바일에서는 필요할 때 옵션 시트를 열어 상세 사진을 넓게 볼 수 있다. */}
+      {/* 모바일 고정 구매바 위에서 드롭다운으로 옵션을 선택한다. */}
       {product && !isLoading && !error && !notFound && !isPreRelease && (
       <div
         className="public-detail-sticky-bar"
@@ -2341,9 +2302,8 @@ function PublicProductDetailPage() {
           <span className="public-detail-sticky-bar__price-value">
             {hasSelection ? formatCurrency(selectionSubtotal) : formatCurrency(priceValue)}
           </span>
-          {canPurchase && hasSelection && <button type="button" ref={optionSheetTriggerRef} className="public-detail-sticky-bar__edit" onClick={openOptionSheet}>옵션 변경</button>}
         </div>
-        {canPurchase && !hasSelection ? <button type="button" ref={optionSheetTriggerRef} className="public-detail-sticky-bar__btn public-detail-sticky-bar__btn--buy public-detail-sticky-bar__btn--choose" onClick={openOptionSheet}>옵션 선택</button> : canPurchase ? (
+        {canPurchase ? (
           <>
             <button
               className="public-detail-sticky-bar__btn public-detail-sticky-bar__btn--cart"

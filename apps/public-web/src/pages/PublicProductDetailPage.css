@@ -1509,7 +1509,6 @@
 .public-detail-tab-content__heading { font-size: 22px; letter-spacing: -.04em; color: var(--public-ds-primary); }
 .public-detail-ai-summary { border: 0; background: var(--public-ds-secondary); padding: 32px; border-radius: var(--public-radius-xl); margin-bottom: 40px; }
 .public-detail-ai-summary__text { font-size: 15px; line-height: 1.95; }
-.public-detail-sticky-bar__edit { padding: 3px 0; width: fit-content; border: 0; background: none; font: inherit; font-size: 10px; color: var(--public-ds-text-secondary); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 @media(max-width: 1000px) and (min-width: 901px) {
   .public-detail-hero { gap: 32px; }
   .public-detail-hero__title { font-size: 25px; }
@@ -1537,12 +1536,11 @@
   .public-detail-tab-content__heading { font-size: 19px; }
   .public-detail-ai-summary { padding: 24px; }
   .public-detail-ai-summary__text { font-size: 14px; }
-  .public-detail-sticky-bar { padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); gap: 10px; }
+  .public-detail-sticky-bar { height: calc(73px + env(safe-area-inset-bottom, 0px)); padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); gap: 10px; }
   .public-detail-sticky-bar__favorite { width: 36px; border: 0; background: none; }
   .public-detail-sticky-bar__price { margin: 0; }
   .public-detail-sticky-bar__price-value { font-size: 16px; color: var(--public-ds-primary); }
   .public-detail-sticky-bar__btn { border-radius: var(--public-radius-md); padding: 0 14px; font-size: 12px; height: 48px; }
-  .public-detail-sticky-bar__btn--choose { min-width: 150px; }
   .public-detail-sticky-bar__btn:active:not(:disabled) { transform: none; }
 }
 @media(max-width: 359px) {
