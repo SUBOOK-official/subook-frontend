@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import AdminShell from "../components/AdminShell";
+import { createAdminDraftStore, REGISTER_DRAFT_PREFIX } from "../lib/adminDraftStore";
 import AdminDialog from "../components/AdminDialog";
 import RegisterSalesHistory from "../components/RegisterSalesHistory";
 import RegisterBookTypeField from "../components/RegisterBookTypeField";
@@ -118,7 +119,6 @@ function isNewRowBlank(row) {
 // 초안을 남기고, 다시 들어오면 복구한다. 업로드가 끝난 사진은 이미 스토리지
 // URL이라 그대로 되살아난다.
 const DRAFT_KEY = "subook.admin.register.draft.v1";
-const DRAFT_SAVE_DELAY = 700;
 
 function hydrateDraftRow(row) {
   return {
@@ -145,7 +145,7 @@ function hydrateDraftAddition(addition) {
 
 function loadDraft(shipmentIdParam) {
   try {
-    const raw = window.localStorage.getItem(DRAFT_KEY);
+    const raw = window.localStorage.getItem(`${REGISTER_DRAFT_PREFIX}${shipmentIdParam || "unassigned"}`) || window.localStorage.getItem(DRAFT_KEY);
     if (!raw) return null;
     const draft = JSON.parse(raw);
     if (!draft || typeof draft !== "object") return null;
@@ -159,23 +159,6 @@ function loadDraft(shipmentIdParam) {
     return { ...draft, newRows, existingAdditions };
   } catch {
     return null;
-  }
-}
-
-function saveDraft(payload) {
-  try {
-    window.localStorage.setItem(DRAFT_KEY, JSON.stringify(payload));
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function clearDraft() {
-  try {
-    window.localStorage.removeItem(DRAFT_KEY);
-  } catch {
-    // 저장소를 못 써도 등록 흐름은 계속돼야 한다
   }
 }
 
@@ -333,7 +316,7 @@ function StepBadge({ index, label, active, done }) {
   );
 }
 
-function AdminProductRegisterPage() {
+function AdminProductRegisterForm() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const shipmentIdParam = params.get("shipmentId");
@@ -344,6 +327,9 @@ function AdminProductRegisterPage() {
   const [draftRestoredAt, setDraftRestoredAt] = useState(initialDraft?.savedAt ?? null);
   // 이번 세션에서 저장할 내용이 있었는지 — 다 지웠을 때만 초안을 회수한다
   const hadDraftContentRef = useRef(Boolean(initialDraft));
+  const draftStoreRef = useRef(null);
+  const draftWriteRef = useRef(null);
+  const [draftError, setDraftError] = useState("");
 
   const [shipment, setShipment] = useState(initialDraft?.shipment ?? null);
   const [step, setStep] = useState(initialDraft?.step ?? "customer"); // customer | list | photos
@@ -454,47 +440,77 @@ function AdminProductRegisterPage() {
     };
   }, [shipmentIdParam, showToast]);
 
-  // 작성 내용 자동 저장 (디바운스) — 등록이 끝난 뒤에는 다시 만들지 않는다
+  // 수거 건별로 초안을 저장하고 이탈 직전 마지막 입력도 반영한다.
+  const clearDraft = () => {
+    draftWriteRef.current = null;
+    try { draftStoreRef.current?.clear(); }
+    catch (error) { setDraftError(error.message); }
+    hadDraftContentRef.current = false;
+  };
+
+  const chooseShipment = useCallback((next) => {
+    draftWriteRef.current?.();
+    const restored = loadDraft(next?.id);
+    setShipment(next);
+    setNewRows(restored?.newRows?.length ? restored.newRows : [blankNewRow()]);
+    setExistingAdditions(restored?.existingAdditions || []);
+    setBatchLocation(restored?.batchLocation || "");
+    setSerialStart(restored?.serialStart || "");
+    setPublishOnComplete(restored?.publishOnComplete ?? true);
+    setStep(restored?.step || (next ? "list" : "customer"));
+    setDraftRestoredAt(restored?.savedAt || null);
+    setDraftSavedAt(restored?.savedAt || null);
+    setDraftError("");
+    draftStoreRef.current = null;
+    draftWriteRef.current = null;
+    hadDraftContentRef.current = Boolean(restored);
+  }, []);
+
   useEffect(() => {
-    if (completeInfo) return undefined;
-    const hasContent = newRows.some((r) => !isNewRowBlank(r)) || existingAdditions.length > 0;
-    if (!hasContent) {
-      // 직접 다 지운 경우엔 초안도 지운다 (안 그러면 새로고침에 되살아난다).
-      // 이번 세션에서 내용을 가진 적 있을 때만 — 다른 고객의 초안을 건드리면 안 된다.
-      if (hadDraftContentRef.current) {
-        clearDraft();
-        setDraftSavedAt(null);
-        hadDraftContentRef.current = false;
+    if (completeInfo) { draftWriteRef.current = null; return undefined; }
+    try {
+      const key = `${REGISTER_DRAFT_PREFIX}${shipment?.id || shipmentIdParam || "unassigned"}`;
+      if (draftStoreRef.current?.key !== key) draftStoreRef.current = createAdminDraftStore(window.localStorage, shipment?.id || shipmentIdParam);
+      const store = draftStoreRef.current;
+      const hasContent = newRows.some((row) => !isNewRowBlank(row)) || existingAdditions.length > 0;
+      const write = () => {
+        try {
+          if (!hasContent) {
+            if (hadDraftContentRef.current) store.clear();
+            hadDraftContentRef.current = false;
+            return;
+          }
+          const savedAt = new Date().toISOString();
+          store.write({ version: 2, savedAt, shipment, step,
+            newRows: newRows.map((row) => ({ ...row, coverBusy: false, detailBusy: false })),
+            existingAdditions: existingAdditions.map((row) => ({ ...row, coverBusy: false, detailBusy: false })),
+            batchLocation, serialStart, publishOnComplete });
+          hadDraftContentRef.current = true;
+          setDraftSavedAt(savedAt);
+          setDraftError("");
+          // 기존 단일 초안은 동일 수거 건이 새 키에 저장된 뒤에만 정리한다.
+          const legacy = JSON.parse(window.localStorage.getItem(DRAFT_KEY) || "null");
+          if (legacy && String(legacy.shipment?.id || "") === String(shipment?.id || "")) window.localStorage.removeItem(DRAFT_KEY);
+        } catch (error) { setDraftError(error.message || "자동 저장에 실패했습니다. 저장 공간을 확인해 주세요."); }
+      };
+      draftWriteRef.current = write;
+      write();
+    } catch (error) { setDraftError(error.message || "초안 저장소를 열지 못했습니다."); }
+    return undefined;
+  }, [shipment, shipmentIdParam, step, newRows, existingAdditions, batchLocation, serialStart, publishOnComplete, completeInfo]);
+
+  useEffect(() => {
+    const flush = () => draftWriteRef.current?.();
+    const changed = (event) => {
+      if (event.key === draftStoreRef.current?.key) {
+        draftWriteRef.current = null;
+        setDraftError("다른 탭에서 이 수거 건의 초안을 변경했습니다. 현재 내용을 복사한 뒤 새로고침해 주세요.");
       }
-      return undefined;
-    }
-    hadDraftContentRef.current = true;
-    const timer = window.setTimeout(() => {
-      const savedAt = new Date().toISOString();
-      const ok = saveDraft({
-        version: 1,
-        savedAt,
-        shipment,
-        step,
-        newRows: newRows.map((r) => ({ ...r, coverBusy: false, detailBusy: false })),
-        existingAdditions: existingAdditions.map((a) => ({ ...a, coverBusy: false, detailBusy: false })),
-        batchLocation,
-        serialStart,
-        publishOnComplete,
-      });
-      if (ok) setDraftSavedAt(savedAt);
-    }, DRAFT_SAVE_DELAY);
-    return () => window.clearTimeout(timer);
-  }, [
-    shipment,
-    step,
-    newRows,
-    existingAdditions,
-    batchLocation,
-    serialStart,
-    publishOnComplete,
-    completeInfo,
-  ]);
+    };
+    window.addEventListener("pagehide", flush);
+    window.addEventListener("storage", changed);
+    return () => { flush(); window.removeEventListener("pagehide", flush); window.removeEventListener("storage", changed); };
+  }, []);
 
   // 고객 검색 (디바운스)
   // 검수 건뿐 아니라 '진행 중인 회원 수거신청'도 같은 목록에 섞어 보여준다.
@@ -857,7 +873,7 @@ function AdminProductRegisterPage() {
       showToast(error?.message || "고객 등록에 실패했습니다.", "error");
       return;
     }
-    setShipment(data.shipment);
+    chooseShipment(data.shipment);
     setSellerContext(null);
     setStep("list");
     showToast(
@@ -871,7 +887,7 @@ function AdminProductRegisterPage() {
   // 검색 결과 선택. 수거신청 행이면 브리지된 검수 건을 만들어(있으면 재사용) 넘어간다.
   const selectCustomer = async (row) => {
     if (row.kind !== "pickup_request") {
-      setShipment({
+      chooseShipment({
         id: row.ref_id,
         seller_name: row.seller_name,
         seller_phone: row.seller_phone,
@@ -901,7 +917,7 @@ function AdminProductRegisterPage() {
       showToast("검수 건을 불러오지 못했습니다.", "error");
       return;
     }
-    setShipment(created);
+    chooseShipment(created);
     setStep("list");
     showToast(`${row.request_number} 수거신청에 연결해 등록을 시작합니다.`, "success");
   };
@@ -1559,7 +1575,7 @@ function AdminProductRegisterPage() {
                 type="button"
                 className="text-xs font-semibold text-slate-500 underline hover:text-slate-800"
                 onClick={() => {
-                  setShipment(null);
+                  chooseShipment(null);
                   setStep("customer");
                 }}
               >
@@ -1570,6 +1586,7 @@ function AdminProductRegisterPage() {
         ) : null}
       </div>
 
+      {draftError ? <p role="alert" className="notice-error">{draftError}</p> : null}
       {/* 임시 저장 — 새로고침·실수 이탈로 작성 내용이 날아가지 않게 (2026-08-11) */}
       {hasItems || draftRestoredAt ? (
         <div className="mt-2 flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-2">
@@ -2916,4 +2933,8 @@ function AdminProductRegisterPage() {
   );
 }
 
-export default AdminProductRegisterPage;
+export default function AdminProductRegisterPage() {
+  const [params] = useSearchParams();
+  // 같은 경로에서 수거 ID가 바뀌어도 이전 고객의 입력이 새 초안에 섞이지 않는다.
+  return <AdminProductRegisterForm key={params.get("shipmentId") || "unassigned"} />;
+}

@@ -202,18 +202,20 @@ function getSalesFileName() {
 }
 
 // 현재 필터 조건의 전체 주문을 페이지 순회로 수집해 품목별 1행 XLSX를 만든다.
-export async function downloadSalesSheetXlsx({ search, statuses, fromDate, toDate } = {}) {
+export async function downloadSalesSheetXlsx({ search, statuses, fromDate, toDate, view = "all", userId, orderId } = {}) {
   const orders = [];
   let offset = 0;
 
   while (true) {
-    const params = { p_limit: EXPORT_PAGE_SIZE, p_offset: offset };
+    const params = { p_limit: EXPORT_PAGE_SIZE, p_offset: offset, p_view: view };
+    if (userId) params.p_user_id = userId;
+    if (orderId) params.p_order_id = Number(orderId);
     if (search) params.p_search = search;
     if (statuses && statuses.length > 0) params.p_statuses = statuses;
     if (fromDate) params.p_from_date = fromDate;
     if (toDate) params.p_to_date = toDate;
 
-    const { data, error } = await supabase.rpc("list_admin_orders", params);
+    const { data, error } = await supabase.rpc("list_admin_work_orders", params);
     if (error) {
       throw new Error(error.message || "주문 목록을 불러오지 못했습니다.");
     }
@@ -221,7 +223,8 @@ export async function downloadSalesSheetXlsx({ search, statuses, fromDate, toDat
     const pageItems = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : [];
     orders.push(...pageItems);
 
-    if (pageItems.length < EXPORT_PAGE_SIZE || orders.length >= EXPORT_MAX_ORDERS) {
+    if (Number(data?.total_count) > EXPORT_MAX_ORDERS) throw new Error("주문이 10,000건을 넘습니다. 기간을 나눠 추출해 주세요.");
+    if (pageItems.length < EXPORT_PAGE_SIZE || orders.length >= Number(data?.total_count ?? Infinity)) {
       break;
     }
     offset += EXPORT_PAGE_SIZE;

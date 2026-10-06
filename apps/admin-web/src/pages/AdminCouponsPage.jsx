@@ -1,14 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AdminShell from "../components/AdminShell";
+import AdminDialog from "../components/AdminDialog";
+import { toKstInput, fromKstInput, couponAvailability } from "../lib/adminDateTime";
 import AdminPagination from "../components/AdminPagination";
+import { useAdminListState } from "../lib/useAdminListState";
+import { saveCouponTags } from "@shared-supabase/adminOperationsClient";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
-import StatusBadge from "@shared-domain/StatusBadge";
+
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { formatCurrency } from "@shared-domain/format";
 import { CloseIcon } from "../components/icons";
 import { BusyText, InlineLoading } from "../components/Loading";
 import { BRAND_OPTIONS } from "../lib/productCategories";
 
+const CATEGORIES = { general: "일반·미분류", campaign: "캠페인", cs: "CS 보상", test: "테스트" };
 const ISSUANCE_TYPE_LABEL = {
   admin_assigned: "어드민 발급",
   code: "코드 입력",
@@ -51,8 +56,8 @@ function buildPayload(form) {
       form.discount_type === "free_shipping" ? 0 : Number(form.discount_value || 0),
     max_discount_amount: form.max_discount_amount ? Number(form.max_discount_amount) : null,
     min_order_amount: Number(form.min_order_amount || 0),
-    valid_from: form.valid_from || null,
-    valid_until: form.validity_mode === "range" ? form.valid_until || null : null,
+    valid_from: fromKstInput(form.valid_from),
+    valid_until: form.validity_mode === "range" ? fromKstInput(form.valid_until) : null,
     valid_days:
       form.validity_mode === "relative" && form.valid_days ? Number(form.valid_days) : null,
     usage_limit_per_user: form.usage_limit_per_user
@@ -80,8 +85,8 @@ function rowToForm(row) {
     max_discount_amount: row.max_discount_amount != null ? String(row.max_discount_amount) : "",
     min_order_amount: row.min_order_amount != null ? String(row.min_order_amount) : "0",
     validity_mode: row.valid_days != null ? "relative" : row.valid_until ? "range" : "unlimited",
-    valid_from: row.valid_from ? row.valid_from.slice(0, 16) : "",
-    valid_until: row.valid_until ? row.valid_until.slice(0, 16) : "",
+    valid_from: toKstInput(row.valid_from),
+    valid_until: toKstInput(row.valid_until),
     valid_days: row.valid_days != null ? String(row.valid_days) : "",
     usage_limit_per_user: row.usage_limit_per_user != null ? String(row.usage_limit_per_user) : "",
     total_quantity: row.total_quantity != null ? String(row.total_quantity) : "",
@@ -108,12 +113,12 @@ function describeDiscount(coupon) {
 function describeValidity(coupon) {
   if (coupon.valid_days != null) {
     const prefix = coupon.valid_from
-      ? `${coupon.valid_from.replace("T", " ").slice(0, 16)}부터 · `
+      ? `${toKstInput(coupon.valid_from).replace("T", " ")}부터 · `
       : "";
     return `${prefix}지급일부터 ${coupon.valid_days}일`;
   }
   if (!coupon.valid_from && !coupon.valid_until) return "무기한";
-  const fmt = (v) => (v ? v.replace("T", " ").slice(0, 16) : "");
+  const fmt = (v) => (v ? toKstInput(v).replace("T", " ") : "");
   const from = fmt(coupon.valid_from) || "즉시";
   const until = fmt(coupon.valid_until) || "무기한";
   return `${from} ~ ${until}`;
@@ -121,10 +126,16 @@ function describeValidity(coupon) {
 
 function AdminCouponsPage() {
   const [coupons, setCoupons] = useState([]);
-  const [search, setSearch] = useState("");
-  const [onlyActive, setOnlyActive] = useState(false);
+  const [list, updateList] = useAdminListState({ q: "", active: "", category: "", availability: "", page: 1 });
+  const search = list.q, onlyActive = list.active === "1";
+  const setSearch = (q) => updateList({ q });
+  const setOnlyActive = (active) => updateList({ active: active ? "1" : "" });
+  const [tagEditor, setTagEditor] = useState(null);
+  const [tagBusy, setTagBusy] = useState(false);
+  const [tagError, setTagError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
-  const [currentPage, setCurrentPage] = useState(1);
+  const currentPage = list.page;
+  const setCurrentPage = (page) => updateList({ page }, { replace: false });
   const [totalCount, setTotalCount] = useState(0);
   const [destructiveModal, setDestructiveModal] = useState(null);
   const COUPONS_PAGE_SIZE = 50;
@@ -159,12 +170,14 @@ function AdminCouponsPage() {
 
     const params = {
       p_only_active: onlyActive,
+      p_category: list.category,
+      p_availability: list.availability,
       p_limit: COUPONS_PAGE_SIZE,
       p_offset: (currentPage - 1) * COUPONS_PAGE_SIZE,
     };
     if (search.trim()) params.p_search = search.trim();
 
-    const { data, error } = await supabase.rpc("admin_list_coupons", params);
+    const { data, error } = await supabase.rpc("admin_list_work_coupons", params);
     if (currentRequestId !== requestIdRef.current) return;
 
     if (error) {
@@ -188,7 +201,7 @@ function AdminCouponsPage() {
       setTotalCount(0);
     }
     setIsLoading(false);
-  }, [search, onlyActive, showToast, currentPage]);
+  }, [search, onlyActive, showToast, currentPage, list.category, list.availability]);
 
   useEffect(() => {
     const timerId = window.setTimeout(() => {
@@ -208,6 +221,7 @@ function AdminCouponsPage() {
   };
 
   const closeForm = () => {
+    if (isSaving) return;
     setIsFormOpen(false);
     setForm(initialForm);
   };
@@ -241,8 +255,15 @@ function AdminCouponsPage() {
       }
     }
 
+    let payload;
+    try {
+      payload = buildPayload(form);
+      if (payload.valid_from && payload.valid_until && payload.valid_until <= payload.valid_from) throw new Error("종료일은 시작일 이후로 입력해 주세요.");
+    } catch (error) {
+      showToast(error.message, "error");
+      return;
+    }
     setIsSaving(true);
-    const payload = buildPayload(form);
     const isUpdate = Boolean(form.id);
     const { error } = await supabase.rpc(
       isUpdate ? "admin_update_coupon" : "admin_create_coupon",
@@ -461,11 +482,10 @@ function AdminCouponsPage() {
         <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-white p-4 text-sm">
           <input
             type="search"
-            placeholder="쿠폰 이름 또는 코드로 검색"
+            placeholder="쿠폰 이름·코드·캠페인 검색"
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);
-              setCurrentPage(1);
             }}
             className="w-64 rounded-md border border-slate-300 px-3 py-2"
           />
@@ -475,13 +495,14 @@ function AdminCouponsPage() {
               checked={onlyActive}
               onChange={(e) => {
                 setOnlyActive(e.target.checked);
-                setCurrentPage(1);
-              }}
+                }}
             />
-            활성만 보기
+            운영 켜짐만 보기
           </label>
+          <select aria-label="쿠폰 분류" className="input-base !mt-0 !w-auto" value={list.category} onChange={(e) => updateList({ category: e.target.value })}><option value="">모든 분류</option>{Object.entries(CATEGORIES).map(([key,label]) => <option key={key} value={key}>{label}</option>)}</select>
+          <select aria-label="쿠폰 발급 상태" className="input-base !mt-0 !w-auto" value={list.availability} onChange={(e) => updateList({ availability: e.target.value })}><option value="">모든 발급 상태</option>{Object.entries({ available: "발급 가능", scheduled: "예정", expired: "만료", exhausted: "발급 소진", inactive: "비활성" }).map(([key,label]) => <option key={key} value={key}>{label}</option>)}</select>
           <span className="ml-auto text-xs text-slate-500">
-            전체 {filteredSummary.total} · 활성 {filteredSummary.active} · 비활성 {filteredSummary.inactive}
+            현재 페이지 {filteredSummary.total} · 운영 켜짐 {filteredSummary.active} · 비활성 {filteredSummary.inactive}
           </span>
         </div>
 
@@ -513,6 +534,7 @@ function AdminCouponsPage() {
                   <tr key={coupon.id} className="hover:bg-slate-50">
                     <td className="px-4 py-3">
                       <div className="font-bold text-slate-900">{coupon.title}</div>
+                      <button type="button" className="mt-1 block text-xs text-brand underline" onClick={() => { setTagEditor({ coupon_id: coupon.id, category: coupon.category || "general", campaign: coupon.campaign || "" }); setTagError(""); }}>{CATEGORIES[coupon.category] || "일반·미분류"}{coupon.campaign ? ` · ${coupon.campaign}` : ""} · 분류</button>
                       {coupon.description ? (
                         <div className="mt-1 text-xs text-slate-500 line-clamp-1">
                           {coupon.description}
@@ -540,7 +562,7 @@ function AdminCouponsPage() {
                       {coupon.total_quantity ? ` / ${coupon.total_quantity}` : ""}
                     </td>
                     <td className="px-4 py-3">
-                      <StatusBadge status={coupon.is_active ? "active" : "inactive"} type="coupon" />
+                      <span className={`rounded-full px-2 py-1 text-xs font-bold ${couponAvailability(coupon) === "발급 가능" ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>{couponAvailability(coupon)}</span>
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-right">
                       <button
@@ -599,25 +621,17 @@ function AdminCouponsPage() {
         />
       </div>
 
+      <AdminDialog open={Boolean(tagEditor)} onClose={() => setTagEditor(null)} title="쿠폰 운영 분류" busy={tagBusy} size="md">{tagEditor ? <form className="space-y-4 p-5" onSubmit={async (event) => { event.preventDefault(); setTagBusy(true); setTagError(""); try { await saveCouponTags(tagEditor); setTagEditor(null); await loadCoupons(); } catch (error) { setTagError(error.message); } finally { setTagBusy(false); } }}>{tagError ? <p role="alert" className="notice-error">{tagError}</p> : null}<label className="label">분류<select className="input-base" value={tagEditor.category} onChange={(e) => setTagEditor({ ...tagEditor, category: e.target.value })}>{Object.entries(CATEGORIES).map(([key,label]) => <option key={key} value={key}>{label}</option>)}</select></label><label className="label">캠페인 이름<input className="input-base" maxLength={120} value={tagEditor.campaign} onChange={(e) => setTagEditor({ ...tagEditor, campaign: e.target.value })} /></label><button type="submit" className="btn-primary" disabled={tagBusy}>{tagBusy ? "저장 중…" : "분류 저장"}</button></form> : null}</AdminDialog>
       {isFormOpen ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/50 p-4">
+        <AdminDialog open={isFormOpen} onClose={closeForm} busy={isSaving} title={form.id ? "쿠폰 수정" : "새 쿠폰 만들기"}>
           <form
             onSubmit={handleSubmit}
-            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-6 shadow-xl"
+            className="w-full p-6"
           >
-            <header className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-black text-slate-900">
-                {form.id ? "쿠폰 수정" : "새 쿠폰 만들기"}
-              </h2>
-              <button
-                type="button"
-                className="text-slate-400 hover:text-slate-700"
-                onClick={closeForm}
-              >
-                <CloseIcon size={16} />
-              </button>
-            </header>
 
+
+            {toast?.tone === "error" ? <p role="alert" className="notice-error mb-4">{toast.message}</p> : null}
+            <p className="mb-4 text-xs text-slate-500">기간은 한국시간(KST) 기준입니다.</p>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <label className="md:col-span-2">
                 <span className="text-xs font-bold text-slate-700">쿠폰 이름 *</span>
@@ -893,12 +907,12 @@ function AdminCouponsPage() {
               </button>
             </footer>
           </form>
-        </div>
+        </AdminDialog>
       ) : null}
 
       {issueTarget ? (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/50 p-4">
-          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-6 shadow-xl">
+          <div className="w-full p-6">
             <header className="mb-4 flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-black text-slate-900">쿠폰 발급</h2>

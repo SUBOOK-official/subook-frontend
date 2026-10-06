@@ -5,6 +5,11 @@ import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-
 import AdminRoute from "./components/AdminRoute";
 import { InlineLoading } from "./components/Loading";
 
+const AdminCsPage = lazy(() => import("./pages/AdminCsPage"));
+const AdminInventoryInsightsPage = lazy(() => import("./pages/AdminInventoryInsightsPage"));
+const AdminSettlementExceptionsPage = lazy(() => import("./pages/AdminSettlementExceptionsPage"));
+const AdminWorkHistoryPage = lazy(() => import("./pages/AdminWorkHistoryPage"));
+const AdminHomeEditorPage = lazy(() => import("./pages/AdminHomeEditorPage"));
 const AdminAnalyticsPage = lazy(() => import("./pages/AdminAnalyticsPage"));
 const AdminPerformancePage = lazy(() => import("./pages/AdminPerformancePage"));
 const AdminMetaAdsPage = lazy(() => import("./pages/AdminMetaAdsPage"));
@@ -80,6 +85,11 @@ function App() {
       <AuthEmailRedirector />
       <Suspense fallback={<PageLoadingFallback />}>
         <Routes>
+          <Route path="/admin/cs" element={<AdminRoute><AdminCsPage /></AdminRoute>} />
+          <Route path="/admin/inventory-insights" element={<AdminRoute><AdminInventoryInsightsPage /></AdminRoute>} />
+          <Route path="/admin/settlement-exceptions" element={<AdminRoute><AdminSettlementExceptionsPage /></AdminRoute>} />
+          <Route path="/admin/work-history" element={<AdminRoute><AdminWorkHistoryPage /></AdminRoute>} />
+          <Route path="/admin/home-editor" element={<AdminRoute><AdminHomeEditorPage /></AdminRoute>} />
           <Route path="/admin/meta-ads" element={<AdminRoute><AdminMetaAdsPage /></AdminRoute>} />
           <Route path="/admin/integrations" element={<AdminRoute><AdminIntegrationsPage /></AdminRoute>} />
           <Route element={<Navigate replace to="/admin/login" />} path="/" />

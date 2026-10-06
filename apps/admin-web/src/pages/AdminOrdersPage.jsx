@@ -1,9 +1,14 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link } from "react-router-dom";
+import { useAdminListState } from "../lib/useAdminListState";
+import AdminSavedViews from "../components/AdminSavedViews";
+import AdminEntityTimeline from "../components/AdminEntityTimeline";
 import AdminDialog from "../components/AdminDialog";
 import AdminReturnRefundDialog from "../components/AdminReturnRefundDialog";
 import RefundRequestItems from "../components/RefundRequestItems";
 import AdminShell from "../components/AdminShell";
+import AdminFulfillmentWorkbench from "../components/AdminFulfillmentWorkbench";
+import { createAdminJobRecorder } from "../lib/adminJobRecorder";
 import AdminPagination from "../components/AdminPagination";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import StatusBadge from "@shared-domain/StatusBadge";
@@ -255,20 +260,25 @@ function parseCsvText(text) {
 function AdminOrdersPage() {
   // '오늘 할 일' 카드·크로스 링크가 필터를 걸어 진입할 수 있게 URL 파라미터로 초기화
   // (?status=pending → 입금확인 대기만, ?q=이름 → 해당 회원 주문 검색)
-  const [searchParams] = useSearchParams();
-  const initialStatusParam = searchParams.get("status");
-  const initialSearchParam = searchParams.get("q") ?? "";
+  const [list, updateList] = useAdminListState({ q: "", status: "", from: "", to: "", page: 1, view: "", user: "", order: "", detail: "" });
+  const search = list.q;
+  const statusFilters = useMemo(() => list.status ? list.status.split(",") : [], [list.status]);
+  const fromDate = list.from;
+  const toDate = list.to;
+  const currentPage = list.page;
+  const selectedOrderId = list.detail ? Number(list.detail) : null;
+  const setSearch = (q) => updateList({ q });
+  const setStatusFilters = (value) => updateList({ status: (typeof value === "function" ? value(statusFilters) : value).join(",") });
+  const setFromDate = (from) => updateList({ from });
+  const setToDate = (to) => updateList({ to });
+  const setCurrentPage = (page) => updateList({ page }, { replace: false });
+  const setSelectedOrderId = (detail) => updateList({ detail }, { resetPage: false });
+  const [loadError, setLoadError] = useState("");
 
   const [orders, setOrders] = useState([]);
   const [summary, setSummary] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [search, setSearch] = useState(initialSearchParam);
-  const [statusFilters, setStatusFilters] = useState(
-    initialStatusParam ? [initialStatusParam] : [],
-  );
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
-  const [selectedOrderId, setSelectedOrderId] = useState(null);
+
   const [busyOrderId, setBusyOrderId] = useState(null);
   const [toast, setToast] = useState(null);
   const requestIdRef = useRef(0);
@@ -307,7 +317,7 @@ function AdminOrdersPage() {
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
 
   // 페이지네이션
-  const [currentPage, setCurrentPage] = useState(1);
+
   const [totalCount, setTotalCount] = useState(0);
 
   // 비가역 작업 확인 모달 (손실 감수 등)
@@ -454,6 +464,7 @@ function AdminOrdersPage() {
 
     const currentRequestId = ++requestIdRef.current;
     setIsLoading(true);
+    setLoadError("");
 
     const params = {
       p_limit: PAGE_SIZE,
@@ -464,7 +475,10 @@ function AdminOrdersPage() {
     if (fromDate) params.p_from_date = fromDate;
     if (toDate) params.p_to_date = toDate;
 
-    const ordersResult = await supabase.rpc("list_admin_orders", params);
+    params.p_view = list.view || "all";
+    if (list.user) params.p_user_id = list.user;
+    if (list.order) params.p_order_id = Number(list.order);
+    const ordersResult = await supabase.rpc("list_admin_work_orders", params);
 
     if (currentRequestId !== requestIdRef.current) return;
 
@@ -497,10 +511,15 @@ function AdminOrdersPage() {
 
       setOrders(nextOrders);
       setTotalCount(nextTotalCount);
+    } else {
+      setOrders([]);
+      setTotalCount(0);
+      setSelectedIds(new Set());
+      setLoadError(ordersResult.error.message || "주문을 불러오지 못했습니다.");
     }
 
     setIsLoading(false);
-  }, [search, statusFilters, fromDate, toDate, currentPage, showToast]);
+  }, [search, statusFilters, fromDate, toDate, currentPage, showToast, list.view, list.user, list.order]);
 
   // summary는 filter/page와 무관하게 별도 fetch — 검색 키 입력마다 호출되지 않도록 분리.
   // 일괄 처리/상태 변경 후 명시적으로 호출하지 않고, orders 로드 직후에만 동기화.
@@ -516,15 +535,20 @@ function AdminOrdersPage() {
   const handleSalesExport = async () => {
     if (isSalesExporting) return;
     setIsSalesExporting(true);
+    let recorder;
     try {
+      recorder = await createAdminJobRecorder({ kind: "sales-export", label: "판매내역 엑셀 생성", total: 1, href: window.location.pathname + window.location.search }, showToast);
       const { rowCount } = await downloadSalesSheetXlsx({
         search: search.trim() || undefined,
         statuses: statusFilters.length > 0 ? statusFilters : undefined,
         fromDate: fromDate || undefined,
         toDate: toDate || undefined,
+        view: list.view, userId: list.user, orderId: list.order,
       });
+      await recorder.finish(1);
       showToast(`판매내역 ${rowCount.toLocaleString("ko-KR")}행 엑셀을 다운로드했습니다.`, "success");
     } catch (exportError) {
+      await recorder?.finish(1, [{ message: exportError.message || "엑셀 생성 실패" }]);
       showToast(
         exportError instanceof Error ? exportError.message : "판매내역 엑셀 생성에 실패했습니다.",
         "error",
@@ -556,7 +580,7 @@ function AdminOrdersPage() {
     setStatusFilters((prev) =>
       prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value],
     );
-    setCurrentPage(1);
+
   };
 
   const handleUpdateStatus = async (orderId, newStatus, trackingNumber = null, carrier = "CJ대한통운") => {
@@ -713,6 +737,7 @@ function AdminOrdersPage() {
             Authorization: `Bearer ${accessToken}`,
           },
           body: JSON.stringify(reprint ? { orderIds: ids, reprint: true } : { orderIds: ids, group, expectedRevision }),
+          signal: AbortSignal.timeout(45_000),
         });
         const result = await resp.json().catch(() => ({}));
         if (resp.ok && Array.isArray(result.results)) {
@@ -737,7 +762,7 @@ function AdminOrdersPage() {
     for (let i = 0; i < ids.length; i += CJ_BULK_CHUNK) {
       const chunk = ids.slice(i, i + CJ_BULK_CHUNK);
       collected.push(...(await requestCjDeliveryChunk(accessToken, chunk, reprint)));
-      onProgress?.(Math.min(i + CJ_BULK_CHUNK, ids.length));
+      await onProgress?.(Math.min(i + CJ_BULK_CHUNK, ids.length));
     }
     return collected;
   };
@@ -754,15 +779,19 @@ function AdminOrdersPage() {
       return;
     }
 
+    let recorder;
+    try { recorder = await createAdminJobRecorder({ kind: reprint ? "waybill-reprint" : "waybill", label: reprint ? "CJ 송장 재출력 준비" : "CJ 송장 발급", total: targets.length, href: "/admin/orders", targets: targets.map((o) => o.id) }, showToast); }
+    catch (error) { showToast(error.message, "error"); return; }
     setBulkCjConfirmOpen(false);
     setBulkProcessing(true);
     setBulkCjProgress({ done: 0, total: targets.length });
 
     const ids = targets.map((o) => o.id);
     const results = [];
+    try {
     if (reprint) {
       results.push(...await runCjDeliveryInChunks(session.access_token, ids, {
-        reprint, onProgress: (done) => setBulkCjProgress({ done, total: ids.length }),
+        reprint, onProgress: async (done) => { setBulkCjProgress({ done, total: ids.length }); await recorder.advance(done); },
       }));
     } else {
       let done = 0;
@@ -771,6 +800,7 @@ function AdminOrdersPage() {
         results.push(...await requestCjDeliveryChunk(session.access_token, group.orderIds, false, true, group.revision));
         done += group.orderIds.length;
         setBulkCjProgress({ done, total: ids.length });
+        await recorder.advance(done);
       }
     }
 
@@ -830,6 +860,7 @@ function AdminOrdersPage() {
 
     setBulkProcessing(false);
     setBulkCjProgress(null);
+    await recorder.finish(ids.length, failures.map((f) => ({ id: f.orderId, title: f.orderNumber, message: f.error })));
     // 재출력은 주문에 아무 변화도 없다 → 선택·목록 그대로 두어 다시 뽑기 쉽게 한다.
     if (!reprint) {
       setSelectedIds(new Set());
@@ -849,6 +880,13 @@ function AdminOrdersPage() {
     }
     // 실패가 섞였으면 결과 요약을 먼저 보여주고, 거기서 인쇄로 넘어간다.
     setBulkCjResult({ labels, failures, total: targets.length, reprint });
+    } catch (error) {
+      await recorder.finish(results.length, [{ message: error.message || "처리가 중단되었습니다. 주문 상태를 확인해 주세요." }]);
+      showToast("송장 작업이 중단되었습니다. 작업 이력과 주문별 발급 상태를 먼저 확인해 주세요.", "error");
+    } finally {
+      setBulkProcessing(false);
+      setBulkCjProgress(null);
+    }
   };
 
   // 자동 정산 생성(주문 확정 트리거)이 누락된 경우 운영자가 수동으로 재실행.
@@ -1000,7 +1038,7 @@ function AdminOrdersPage() {
     setSelectedOrderId(held > 0 ? order.id : null);
     if (held > 0) {
       // 전액 환불로 기존 상태 필터에서 사라져도 재고 처리 대상 주문을 계속 보여준다.
-      setStatusFilters([]); setSearch(order.order_number); setFromDate(""); setToDate(""); setCurrentPage(1);
+      setStatusFilters([]); setSearch(order.order_number); setFromDate(""); setToDate("");
     }
     await loadOrders();
   };
@@ -1304,6 +1342,9 @@ function AdminOrdersPage() {
   };
 
   const performCsvBulkProcess = async (validRows) => {
+    let recorder;
+    try { recorder = await createAdminJobRecorder({ kind: "tracking-csv", label: "CSV 송장 일괄 입력", total: csvRows.length, href: "/admin/orders", targets: csvRows.map((r) => r.orderNumber) }, showToast); }
+    catch (error) { showToast(error.message, "error"); return; }
     setCsvProcessing(true);
 
     const results = [];
@@ -1315,6 +1356,7 @@ function AdminOrdersPage() {
     }
 
     for (const row of validRows) {
+      try {
       // 현재 페이지 메모리에 없는 주문도 처리 가능하도록 supabase에서 직접 조회
       let order = orders.find((o) => o.order_number === row.orderNumber);
       if (!order) {
@@ -1351,8 +1393,14 @@ function AdminOrdersPage() {
           await notifyShippingStarted({ order, trackingNumber: row.trackingNumber });
         } catch { /* 무시 */ }
       }
+      } catch (error) {
+        results.push({ ...row, success: false, message: error.message || "처리 결과를 확인하지 못했습니다. 주문 상태를 확인해 주세요." });
+      } finally {
+        await recorder.advance(results.length, results.filter((r) => !r.success).map((r) => ({ title: r.orderNumber, message: r.message })));
+      }
     }
 
+    await recorder.finish(results.length, results.filter((r) => !r.success).map((r) => ({ title: r.orderNumber, message: r.message })));
     setCsvResults(results);
     setCsvProcessing(false);
     await loadOrders();
@@ -1826,12 +1874,14 @@ function AdminOrdersPage() {
             </button>
           ) : null}
 
+          <Link className="btn-secondary !w-auto !px-4 !py-2 text-sm" to={`/admin/cs?order=${selectedOrder.id}`}>문의 기록</Link>
           {getOrderActions(selectedOrder).length === 0 &&
             selectedOrder.status !== "confirmed" && (
               <p className="text-xs text-slate-400">현재 상태에서 가능한 작업이 없습니다.</p>
             )}
         </div>
       </div>
+      <AdminEntityTimeline entity="orders" id={selectedOrder.id} milestones={[{ label: "주문 접수", at: selectedOrder.created_at }, { label: "결제 확인", at: selectedOrder.paid_at || selectedOrder.pg_approved_at }, { label: "환불 신청", at: selectedOrder.refund_requested_at }, { label: "반품 회수", at: selectedOrder.return_recovered_at }, { label: "구매 확정", at: selectedOrder.confirmed_at }]} />
     </div>
   );
 
@@ -1844,7 +1894,7 @@ function AdminOrdersPage() {
         { label: "구매확정", value: summary.confirmed_count ?? 0 },
         // 구매자가 환불 신청한 주문 — refunded 처리 전까지 큐에 남음. 0이면 표시 생략.
         ...((summary.refund_pending_count ?? 0) > 0
-          ? [{ label: "환불 신청", value: summary.refund_pending_count, hint: "처리 필요", tone: "danger" }]
+          ? [{ label: "환불 신청", value: summary.refund_pending_count, hint: "처리 필요", tone: "warning", to: "/admin/orders?view=refunds" }]
           : []),
       ]
     : [];
@@ -1856,6 +1906,9 @@ function AdminOrdersPage() {
       summaryCards={summaryCards}
       title="주문 관리"
     >
+      <AdminSavedViews presets={[{ name: "출고 대기", search: "view=fulfillment" }, { name: "환불·반품", search: "view=refunds" }, { name: "회수 진행", search: "view=returns" }, { name: "재고 보류", search: "view=restock" }]} />
+      {list.view === "fulfillment" && !isLoading && !loadError ? <AdminFulfillmentWorkbench orders={orders} selectedIds={selectedIds} /> : null}
+      {loadError ? <div role="alert" className="notice-error">{loadError} <button type="button" className="underline" onClick={() => void loadOrders()}>다시 조회</button></div> : null}
       {/* 필터 영역 — 운영툴이라 label·preset 명시 */}
       <div className="card p-4 space-y-3">
         <div className="flex flex-wrap gap-3 items-end">
@@ -1865,7 +1918,7 @@ function AdminOrdersPage() {
               className="input-base !w-full"
               onChange={(e) => {
                 setSearch(e.target.value);
-                setCurrentPage(1);
+
               }}
               placeholder="주문번호, 구매자, 수령인"
               type="search"
@@ -1878,7 +1931,7 @@ function AdminOrdersPage() {
               className="input-base !w-auto"
               onChange={(e) => {
                 setFromDate(e.target.value);
-                setCurrentPage(1);
+
               }}
               type="date"
               value={fromDate}
@@ -1891,7 +1944,7 @@ function AdminOrdersPage() {
               className="input-base !w-auto"
               onChange={(e) => {
                 setToDate(e.target.value);
-                setCurrentPage(1);
+
               }}
               type="date"
               value={toDate}
@@ -1918,7 +1971,7 @@ function AdminOrdersPage() {
                     setFromDate(from.toISOString().slice(0, 10));
                     setToDate(today.toISOString().slice(0, 10));
                   }
-                  setCurrentPage(1);
+
                 }}
                 type="button"
               >
@@ -1960,7 +2013,7 @@ function AdminOrdersPage() {
               className="text-xs text-slate-400 underline ml-1"
               onClick={() => {
                 setStatusFilters([]);
-                setCurrentPage(1);
+
               }}
               type="button"
             >
@@ -2053,12 +2106,12 @@ function AdminOrdersPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[64rem] text-sm">
+            <table className="admin-orders-table w-full min-w-[64rem] text-sm">
               <thead>
                 <tr className="border-b border-slate-100 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">
                   <th className="px-2 py-3 w-10">
                     <input
-                      aria-label="현재 페이지 전체 선택"
+                      aria-label={`현재 페이지 ${orders.length}주문 전체 선택`}
                       checked={orders.length > 0 && selectedIds.size === orders.length}
                       onChange={toggleSelectAll}
                       type="checkbox"

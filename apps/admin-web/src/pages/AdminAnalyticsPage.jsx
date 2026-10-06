@@ -3,12 +3,6 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
-  Legend,
-  Line,
-  LineChart,
-  Pie,
-  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -26,7 +20,7 @@ const PRESETS = [
 ];
 
 /* 차트 카테고리 팔레트 — 브랜드 파생(네이비·틸·그린·웜·레드·페리윙클·뉴트럴)만 사용 */
-const SUBJECT_COLORS = ["#080F47", "#077E84", "#2E7D4F", "#C9861B", "#D0342C", "#565E9E", "#6E6E73"];
+
 
 function toIsoDate(date) {
   const yyyy = date.getFullYear();
@@ -53,7 +47,7 @@ function StatCard({ label, value, hint, tone = "default" }) {
   return (
     <div className={`rounded-2xl shadow-sm border border-slate-100 p-5 ${toneClass}`}>
       <p className="text-xs font-semibold text-slate-500">{label}</p>
-      <p className="mt-2 text-2xl font-black text-slate-900 tabular-nums">{value}</p>
+      <p className="mt-2 whitespace-nowrap text-2xl font-black text-slate-900 tabular-nums">{value}</p>
       {hint ? <p className="mt-1 text-xs text-slate-400">{hint}</p> : null}
     </div>
   );
@@ -77,7 +71,7 @@ function AdminAnalyticsPage() {
   const [series, setSeries] = useState([]);
   const [topSellers, setTopSellers] = useState([]);
   const [topProducts, setTopProducts] = useState([]);
-  const [subjectBreakdown, setSubjectBreakdown] = useState([]);
+
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -90,15 +84,14 @@ function AdminAnalyticsPage() {
     setIsLoading(true);
     setErrorMessage("");
 
-    const [kpiResult, seriesResult, sellersResult, productsResult, subjectsResult] = await Promise.all([
+    const [kpiResult, seriesResult, sellersResult, productsResult] = await Promise.all([
       supabase.rpc("admin_dashboard_kpi", { p_from: range.from, p_to: range.to }),
       supabase.rpc("admin_dashboard_revenue_series", { p_days: range.days }),
       supabase.rpc("admin_dashboard_top_sellers", { p_limit: 10, p_from: range.from, p_to: range.to }),
       supabase.rpc("admin_dashboard_top_products", { p_limit: 10, p_from: range.from, p_to: range.to }),
-      supabase.rpc("admin_dashboard_subject_breakdown", { p_from: range.from, p_to: range.to }),
     ]);
 
-    const firstError = [kpiResult, seriesResult, sellersResult, productsResult, subjectsResult]
+    const firstError = [kpiResult, seriesResult, sellersResult, productsResult]
       .map((r) => r.error)
       .find(Boolean);
     if (firstError) {
@@ -111,7 +104,6 @@ function AdminAnalyticsPage() {
     setSeries(Array.isArray(seriesResult.data) ? seriesResult.data : []);
     setTopSellers(Array.isArray(sellersResult.data) ? sellersResult.data : []);
     setTopProducts(Array.isArray(productsResult.data) ? productsResult.data : []);
-    setSubjectBreakdown(Array.isArray(subjectsResult.data) ? subjectsResult.data : []);
     setIsLoading(false);
   }, [range.days, range.from, range.to]);
 
@@ -131,18 +123,8 @@ function AdminAnalyticsPage() {
     [series],
   );
 
-  const subjectData = useMemo(
-    () =>
-      subjectBreakdown.map((row) => ({
-        name: row.subject || "기타",
-        value: Number(row.total_sales) || 0,
-        orderCount: Number(row.order_count) || 0,
-      })),
-    [subjectBreakdown],
-  );
-
   return (
-    <AdminShell activeModule="analytics" description="매출/주문/검수 KPI와 트렌드 한눈에 확인" title="대시보드">
+    <AdminShell activeModule="analytics" description="검수 처리와 주문·셀러·상품의 운영 지표" title="운영 분석">
       {/* 기간 선택 */}
       <div className="flex items-center gap-2 mb-5">
         {PRESETS.map((preset) => (
@@ -179,25 +161,7 @@ function AdminAnalyticsPage() {
       ) : null}
 
       {/* KPI 카드 */}
-      <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
-        <StatCard
-          label="결제완료 매출"
-          tone="primary"
-          value={formatCurrency(Number(kpi?.revenue_total) || 0)}
-          hint={`${kpi?.paid_order_count ?? 0}건`}
-        />
-        <StatCard
-          label="구매확정 매출"
-          tone="success"
-          value={formatCurrency(Number(kpi?.confirmed_revenue) || 0)}
-          hint={`${kpi?.confirmed_order_count ?? 0}건`}
-        />
-        <StatCard
-          label="정산 대기"
-          tone="warning"
-          value={formatCurrency(Number(kpi?.pending_settlement_amount) || 0)}
-          hint="pending+approved"
-        />
+      <section className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
         <StatCard
           label="총 주문"
           value={`${kpi?.order_count ?? 0}건`}
@@ -206,65 +170,17 @@ function AdminAnalyticsPage() {
         <StatCard
           label="검수 처리"
           value={`${kpi?.inspection_processed_count ?? 0}건`}
-          hint="기간 내 inspected_at"
+          hint="선택 기간에 검수를 완료한 건"
         />
         <StatCard
           label="누적 판매완료"
           value={`${kpi?.settled_book_count ?? 0}권`}
-          hint="status=settled"
+          hint="전체 기간 판매완료 상태의 재고"
         />
       </section>
 
-      {/* 매출 시계열 */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
-        <div className="lg:col-span-2">
-          <ChartCard title="매출 추이" hint={`${range.days}일`}>
-            <div style={{ width: "100%", height: 280 }}>
-              <ResponsiveContainer>
-                <LineChart data={seriesData} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e4e4e6" />
-                  <XAxis dataKey="label" stroke="#9d9da3" fontSize={12} />
-                  <YAxis stroke="#9d9da3" fontSize={12} tickFormatter={(v) => `${Math.round(v / 1000)}K`} />
-                  <Tooltip
-                    formatter={(value) => formatCurrency(value)}
-                    labelStyle={{ color: "#2a2b2f" }}
-                  />
-                  <Legend />
-                  <Line type="monotone" dataKey="결제완료" stroke="#24507C" strokeWidth={2.5} dot={false} />
-                  <Line type="monotone" dataKey="구매확정" stroke="#2E7D4F" strokeWidth={2.5} dot={false} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </ChartCard>
-        </div>
-
-        {/* 과목별 매출 비율 */}
-        <ChartCard title="과목별 매출 비율" hint={`${subjectData.length}개`}>
-          <div style={{ width: "100%", height: 280 }}>
-            <ResponsiveContainer>
-              <PieChart>
-                <Pie
-                  cx="50%"
-                  cy="50%"
-                  data={subjectData}
-                  dataKey="value"
-                  innerRadius={50}
-                  label={(entry) => entry.name}
-                  outerRadius={90}
-                >
-                  {subjectData.map((entry, index) => (
-                    <Cell key={entry.name} fill={SUBJECT_COLORS[index % SUBJECT_COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(value) => formatCurrency(value)} />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </ChartCard>
-      </div>
-
       {/* 일별 주문수 */}
-      <ChartCard title="일별 주문수" hint={`${range.days}일`}>
+      <ChartCard title="일별 주문수" hint={`주문 생성일 기준 · 최근 ${range.days}일`}>
         <div style={{ width: "100%", height: 220 }}>
           <ResponsiveContainer>
             <BarChart data={seriesData} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
@@ -280,7 +196,7 @@ function AdminAnalyticsPage() {
 
       <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* 상위 셀러 */}
-        <ChartCard title="상위 셀러 (정산 금액 기준)" hint="기간 내 approved/completed">
+        <ChartCard title="상위 셀러 (정산 원장)" hint="선택 기간의 지급 대상·지급 완료 원장">
           {topSellers.length === 0 ? (
             <p className="text-sm text-slate-400 py-8 text-center">데이터 없음</p>
           ) : (
@@ -314,7 +230,7 @@ function AdminAnalyticsPage() {
         </ChartCard>
 
         {/* 인기 상품 */}
-        <ChartCard title="인기 상품 (매출 기준)" hint="기간 내 결제완료 이상">
+        <ChartCard title="인기 상품 (주문 생성일 기준)" hint="현재 결제완료 이후 상태인 주문의 상품액">
           {topProducts.length === 0 ? (
             <p className="text-sm text-slate-400 py-8 text-center">데이터 없음</p>
           ) : (

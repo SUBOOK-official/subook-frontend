@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { useAdminListState } from "../lib/useAdminListState";
+import AdminSavedViews from "../components/AdminSavedViews";
 import AdminDialog from "../components/AdminDialog";
 import AdminShell from "../components/AdminShell";
+import { createAdminJobRecorder } from "../lib/adminJobRecorder";
 import AdminPagination from "../components/AdminPagination";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import ProductMasterEditModal from "../components/ProductMasterEditModal";
@@ -106,19 +109,28 @@ function daysAgoStr(days) {
 }
 
 function AdminProductMastersPage() {
+  const [list, updateList] = useAdminListState({ q: "", page: 1, brand: "", subject: "", book_type: "", status: "", issue: "", sort: "updated", product: "" });
+  const currentPage = list.page;
+  const setCurrentPage = (page) => updateList({ page }, { replace: false });
+  const search = list.q;
+  const setSearch = (q) => updateList({ q });
+  const filters = useMemo(() => ({ brand: list.brand, subject: list.subject, book_type: list.book_type, status: list.status, issue: list.issue }), [list.brand, list.subject, list.book_type, list.status, list.issue]);
+  const setFilters = (value) => updateList(typeof value === "function" ? value(filters) : value);
+  const sortKey = list.sort;
+  const setSortKey = (sort) => updateList({ sort });
+  const detailRequestRef = useRef(0);
   const [products, setProducts] = useState([]);
-  const [currentPage, setCurrentPage] = useState(1);
+
   const [totalCount, setTotalCount] = useState(0);
   const [destructiveModal, setDestructiveModal] = useState(null);
   const PRODUCTS_PAGE_SIZE = 50;
   const [summary, setSummary] = useState({ total: 0, selling: 0, sold_out: 0, hidden: 0 });
-  const [search, setSearch] = useState("");
-  const [filters, setFilters] = useState({ brand: "", subject: "", book_type: "", status: "", issue: "" });
+
   // 재고 점검 요약 (항목별 권수·상품수)
   const [issueSummary, setIssueSummary] = useState(null);
   // 정렬 — 기본 '최근 수정순' (2026-07-22 운영자 피드백: 기존 상품에 재고를 추가하면
   // 등록순 정렬에선 과거 위치에 묻혀 못 찾음. updated_at은 books 변경 트리거가 유지)
-  const [sortKey, setSortKey] = useState("updated");
+
   const [isLoading, setIsLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
   const [toast, setToast] = useState(null);
@@ -229,7 +241,10 @@ function AdminProductMastersPage() {
     setBulkStudioProgress({ done: 0, total: ids.length, current: null, log: [], finished: false });
     const failures = [];
     let converted = 0;
+    let recorder;
+    let completed = 0;
     try {
+      recorder = await createAdminJobRecorder({ kind: "cover", label: "상품 표지 AI 변환", total: ids.length, href: "/admin/products", targets: ids }, showToast);
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData?.session?.access_token || "";
       if (!accessToken) throw new Error("로그인 세션이 만료되었습니다. 다시 로그인해 주세요.");
@@ -267,13 +282,17 @@ function AdminProductMastersPage() {
             p ? { ...p, done: i + 1, current: null, log: [...p.log, { id, title, ok: false, message }] } : p,
           );
         }
+        completed = i + 1;
+        await recorder.advance(completed, failures);
       }
+      await recorder.finish(completed, failures);
       if (failures.length > 0) console.warn("[표지 AI 변환] 실패 목록:", failures);
       showToast(
         `표지 AI 변환 ${converted}건 완료` + (failures.length > 0 ? ` / 실패 ${failures.length}건 — 아래 패널에서 확인` : ""),
         failures.length > 0 ? "info" : "success",
       );
     } catch (err) {
+      await recorder?.finish(completed, [...failures, { message: err?.message || "작업 중단" }]);
       showToast(err?.message || "표지 AI 변환을 시작하지 못했습니다.", "error");
     } finally {
       // 패널은 닫기 버튼으로 직접 닫을 때까지 유지 — 실패 목록 확인용
@@ -488,20 +507,34 @@ function AdminProductMastersPage() {
   };
 
   // 상세 모달 열기 — 권별 현황 로드
-  const openDetail = async (product) => {
+  const openDetail = useCallback(async (product) => {
+    const request = ++detailRequestRef.current;
     setDetailTarget(product);
     setDetailData(null);
     setInvEdit(null);
     setIsDetailLoading(true);
     const invRes = await supabase.rpc("admin_get_product_inventory", { p_product_id: product.id });
+    if (request !== detailRequestRef.current) return;
     setIsDetailLoading(false);
     if (invRes.error) {
       showToast(invRes.error.message || "상세 정보를 불러오지 못했습니다.", "error");
       return;
     }
     setDetailData(invRes.data);
-  };
+  }, [showToast]);
+  useEffect(() => {
+    if (!list.product) { detailRequestRef.current += 1; setDetailTarget(null); setDetailData(null); return undefined; }
+    let active = true;
+    supabase.from("products").select("*").eq("id", list.product).maybeSingle().then(({ data, error }) => {
+      if (!active) return;
+      if (error || !data) { showToast(error?.message || "상품을 찾을 수 없습니다.", "error"); return; }
+      void openDetail(data);
+    });
+    return () => { active = false; detailRequestRef.current += 1; };
+  }, [list.product, openDetail, showToast]);
   const closeDetail = () => {
+    updateList({ product: "" }, { resetPage: false });
+    detailRequestRef.current += 1;
     setDetailTarget(null);
     setDetailData(null);
     setInvEdit(null);
@@ -680,7 +713,7 @@ function AdminProductMastersPage() {
                 aria-pressed={isActive}
                 onClick={() => {
                   setFilters((f) => ({ ...f, status: card.key }));
-                  setCurrentPage(1);
+
                 }}
                 className={`rounded-md border px-4 py-3 text-left transition ${
                   isActive
@@ -710,7 +743,7 @@ function AdminProductMastersPage() {
                 }`}
                 onClick={() => {
                   setFilters((f) => ({ ...f, issue: f.issue === "any" ? "" : "any" }));
-                  setCurrentPage(1);
+
                 }}
                 title="아래 항목 중 하나라도 해당하는 상품"
                 type="button"
@@ -736,7 +769,7 @@ function AdminProductMastersPage() {
                     key={issue.key}
                     onClick={() => {
                       setFilters((f) => ({ ...f, issue: f.issue === issue.key ? "" : issue.key }));
-                      setCurrentPage(1);
+
                     }}
                     title={issue.hint}
                     type="button"
@@ -775,7 +808,7 @@ function AdminProductMastersPage() {
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);
-              setCurrentPage(1);
+
             }}
             placeholder="상품명, 강사명, 옵션, 일련번호로 검색"
             className="w-72 rounded-md border border-slate-300 px-3 py-2"
@@ -785,7 +818,7 @@ function AdminProductMastersPage() {
             value={filters.status}
             onChange={(e) => {
               setFilters((f) => ({ ...f, status: e.target.value }));
-              setCurrentPage(1);
+
             }}
             className="rounded-md border border-slate-300 px-3 py-2"
           >
@@ -798,7 +831,7 @@ function AdminProductMastersPage() {
             value={filters.brand}
             onChange={(e) => {
               setFilters((f) => ({ ...f, brand: e.target.value }));
-              setCurrentPage(1);
+
             }}
             className="rounded-md border border-slate-300 px-3 py-2"
           >
@@ -811,7 +844,7 @@ function AdminProductMastersPage() {
             value={filters.subject}
             onChange={(e) => {
               setFilters((f) => ({ ...f, subject: e.target.value }));
-              setCurrentPage(1);
+
             }}
             className="rounded-md border border-slate-300 px-3 py-2"
           >
@@ -824,7 +857,7 @@ function AdminProductMastersPage() {
             value={filters.book_type}
             onChange={(e) => {
               setFilters((f) => ({ ...f, book_type: e.target.value }));
-              setCurrentPage(1);
+
             }}
             className="rounded-md border border-slate-300 px-3 py-2"
           >
@@ -837,7 +870,7 @@ function AdminProductMastersPage() {
             value={sortKey}
             onChange={(e) => {
               setSortKey(e.target.value);
-              setCurrentPage(1);
+
             }}
             className="rounded-md border border-slate-300 px-3 py-2"
           >
@@ -943,8 +976,9 @@ function AdminProductMastersPage() {
           </div>
         ) : null}
 
+        <AdminSavedViews presets={[{ name: "판매중", search: "status=selling" }, { name: "위치 미지정", search: "issue=missing_location" }, { name: "사진 없음", search: "issue=missing_detail_photo" }]} />
         {/* 상품 그리드 (테이블) */}
-        <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
           {isLoading ? (
             <div className="p-8 text-center text-sm text-slate-400"><InlineLoading /></div>
           ) : products.length === 0 ? (
@@ -954,12 +988,12 @@ function AdminProductMastersPage() {
                 : "검색 결과가 없습니다."}
             </div>
           ) : (
-            <table className="w-full text-sm">
+            <table className="admin-product-table w-full text-sm">
               <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="w-10 px-2 py-3 text-left">
                     <input
-                      aria-label="전체 선택"
+                      aria-label={`현재 페이지 ${products.length}개 상품 선택`}
                       checked={products.length > 0 && selectedIds.size === products.length}
                       onChange={toggleSelectAll}
                       type="checkbox"
@@ -979,10 +1013,12 @@ function AdminProductMastersPage() {
                 {products.map((product) => (
                   <tr
                     key={product.id}
+                    tabIndex={0}
+                    onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); updateList({ product: product.id }, { resetPage: false }); } }}
                     className={`cursor-pointer hover:bg-slate-50 ${
                       selectedIds.has(product.id) ? "bg-amber-50" : ""
                     }`}
-                    onClick={() => openDetail(product)}
+                    onClick={() => updateList({ product: product.id }, { resetPage: false })}
                   >
                     <td className="px-2 py-3" onClick={(e) => e.stopPropagation()}>
                       <input
@@ -995,7 +1031,6 @@ function AdminProductMastersPage() {
                     <td className="px-3 py-3">
                       <div className="h-12 w-12 overflow-hidden rounded-md border border-slate-200 bg-slate-100">
                         {product.cover_image_url ? (
-                          // eslint-disable-next-line jsx-a11y/img-redundant-alt
                           <img
                             src={product.cover_image_url}
                             alt=""
@@ -1144,11 +1179,10 @@ function AdminProductMastersPage() {
       >
         {detailTarget ? (
           <>
-            <header className="sticky top-0 flex items-start justify-between gap-4 border-b border-slate-200 bg-white p-6">
-              <div className="flex items-start gap-4 min-w-0">
-                <div className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-md border border-slate-200 bg-slate-100">
+            <header className="sticky top-0 flex flex-col items-start gap-3 border-b border-slate-200 bg-white p-4 sm:flex-row sm:justify-between sm:p-6">
+              <div className="flex w-full min-w-0 flex-1 items-start gap-3">
+                <div className="h-16 w-12 flex-shrink-0 overflow-hidden rounded-md border border-slate-200 bg-slate-100">
                   {detailTarget.cover_image_url ? (
-                    // eslint-disable-next-line jsx-a11y/img-redundant-alt
                     <img src={detailTarget.cover_image_url} alt="" className="h-full w-full object-cover" />
                   ) : null}
                 </div>
@@ -1201,7 +1235,8 @@ function AdminProductMastersPage() {
                 <button
                   type="button"
                   onClick={closeDetail}
-                  className="text-slate-400 hover:text-slate-700"
+                  aria-label="상품 상세 닫기"
+                  className="ml-auto rounded-lg p-2 text-slate-400 hover:text-slate-700"
                 >
                   <CloseIcon size={16} />
                 </button>

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link } from "react-router-dom";
+import { useAdminListState } from "../lib/useAdminListState";
 import AdminDialog from "../components/AdminDialog";
 import AdminShell from "../components/AdminShell";
 import MemberPointsPanel from "../components/MemberPointsPanel";
@@ -129,19 +130,25 @@ function DetailSection({ title, children, right = null }) {
 
 function AdminMembersPage() {
   // 주문·수거 화면의 '회원 조회' 크로스 링크가 검색을 걸어 진입할 수 있게 (?q=)
-  const [searchParams] = useSearchParams();
+  const [list, updateList] = useAdminListState({ q: "", status: "all", page: 1, member: "" });
+  const search = list.q;
+  const statusFilter = list.status;
+  const currentPage = list.page;
+  const setSearch = (q) => updateList({ q });
+  const setStatusFilter = (status) => updateList({ status });
+  const setCurrentPage = (page) => updateList({ page }, { replace: false });
+  const detailRequestRef = useRef(0);
 
   const [members, setMembers] = useState([]);
   const [summary, setSummary] = useState({});
   const [totalCount, setTotalCount] = useState(0);
-  const [search, setSearch] = useState(searchParams.get("q") ?? "");
-  const [statusFilter, setStatusFilter] = useState("all");
+
   const [isLoading, setIsLoading] = useState(true);
   const [selectedMember, setSelectedMember] = useState(null);
   const [memberDetail, setMemberDetail] = useState(null);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [toast, setToast] = useState(null);
-  const [currentPage, setCurrentPage] = useState(1);
+
   const [destructiveModal, setDestructiveModal] = useState(null);
   const [destructiveBusy, setDestructiveBusy] = useState(false);
   // 회원 차단 시 통지 토글 (디폴트 OFF — 사용자에게는 차단 사실을 알리지 않음)
@@ -182,7 +189,7 @@ function AdminMembersPage() {
     return () => {
       cancelled = true;
     };
-  }, [selectedMember?.user_id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedMember?.user_id]);
 
   const handleAddMemberNote = async () => {
     const trimmedNote = noteInput.trim();
@@ -275,11 +282,12 @@ function AdminMembersPage() {
     return () => window.clearTimeout(timerId);
   }, [loadMembers]);
 
-  const openMemberDetail = async (member) => {
+  const openMemberDetail = useCallback(async (member) => {
     if (!supabase) {
       return;
     }
 
+    const request = ++detailRequestRef.current;
     setSelectedMember(member);
     setMemberDetail(null);
     setBlockHistory([]);
@@ -288,6 +296,7 @@ function AdminMembersPage() {
     const { data, error } = await supabase.rpc("get_admin_member_detail", {
       p_user_id: member.user_id,
     });
+    if (request !== detailRequestRef.current) return;
 
     if (error) {
       showToast(error.message || "회원 상세를 불러오지 못했습니다.", "error");
@@ -301,9 +310,9 @@ function AdminMembersPage() {
           ...data,
           member: {
             ...(data.member ?? {}),
-            is_blocked: Boolean(member?.is_blocked),
-            blocked_at: member?.blocked_at ?? null,
-            block_reason: member?.block_reason ?? null,
+            is_blocked: Boolean(member?.is_blocked ?? data.member?.is_blocked),
+            blocked_at: member?.blocked_at ?? data.member?.blocked_at ?? null,
+            block_reason: member?.block_reason ?? data.member?.block_reason ?? null,
             is_staff: Boolean(member?.is_staff ?? data.member?.is_staff),
           },
         }
@@ -315,10 +324,17 @@ function AdminMembersPage() {
     const { data: historyData } = await supabase.rpc("admin_get_member_block_history", {
       p_user_id: member.user_id,
     });
-    setBlockHistory(Array.isArray(historyData) ? historyData : []);
-  };
+    if (request === detailRequestRef.current) setBlockHistory(Array.isArray(historyData) ? historyData : []);
+  }, [showToast]);
+  useEffect(() => {
+    if (list.member) void openMemberDetail({ user_id: list.member });
+    else { detailRequestRef.current += 1; setSelectedMember(null); setMemberDetail(null); }
+    return () => { detailRequestRef.current += 1; };
+  }, [list.member, openMemberDetail]);
 
   const closeMemberDetail = () => {
+    updateList({ member: "" }, { resetPage: false });
+    detailRequestRef.current += 1;
     setSelectedMember(null);
     setMemberDetail(null);
     setBlockHistory([]);
@@ -443,7 +459,7 @@ function AdminMembersPage() {
               className="input-base"
               onChange={(event) => {
                 setSearch(event.target.value);
-                setCurrentPage(1);
+
               }}
               placeholder="이름, 이메일, 연락처로 검색"
               type="search"
@@ -455,7 +471,7 @@ function AdminMembersPage() {
             onClick={() => {
               setSearch("");
               setStatusFilter("all");
-              setCurrentPage(1);
+
             }}
             type="button"
           >
@@ -479,7 +495,7 @@ function AdminMembersPage() {
                 key={option.key}
                 onClick={() => {
                   setStatusFilter(option.key);
-                  setCurrentPage(1);
+
                 }}
                 type="button"
               >
@@ -524,10 +540,10 @@ function AdminMembersPage() {
                   <tr
                     className="cursor-pointer border-b border-slate-50 align-top transition hover:bg-slate-50"
                     key={member.user_id}
-                    onClick={() => openMemberDetail(member)}
+                    onClick={() => updateList({ member: member.user_id }, { resetPage: false })}
                     onKeyDown={(event) => {
                       if (event.key === "Enter") {
-                        void openMemberDetail(member);
+                        updateList({ member: member.user_id }, { resetPage: false });
                       }
                     }}
                     role="button"
@@ -587,7 +603,7 @@ function AdminMembersPage() {
                         className="btn-secondary !w-auto !px-3 !py-1.5 text-xs"
                         onClick={(event) => {
                           event.stopPropagation();
-                          void openMemberDetail(member);
+                          updateList({ member: member.user_id }, { resetPage: false });
                         }}
                         type="button"
                       >
@@ -641,17 +657,13 @@ function AdminMembersPage() {
                 <div className="mt-2 flex flex-wrap gap-2">
                   <Link
                     className="btn-secondary !w-auto !px-3 !py-1.5 text-xs"
-                    to={`/admin/orders?q=${encodeURIComponent(
-                      detailMember?.display_name || detailMember?.name || detailMember?.email || "",
-                    )}`}
+                    to={`/admin/orders?user=${encodeURIComponent(detailMember?.user_id || selectedMember.user_id)}`}
                   >
                     이 회원 주문 보기
                   </Link>
                   <Link
                     className="btn-secondary !w-auto !px-3 !py-1.5 text-xs"
-                    to={`/admin/pickups?q=${encodeURIComponent(
-                      detailMember?.display_name || detailMember?.name || detailMember?.phone || "",
-                    )}`}
+                    to={`/admin/pickups?user=${encodeURIComponent(detailMember?.user_id || selectedMember.user_id)}`}
                   >
                     수거·검수 보기
                   </Link>

@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import AdminShell from "../components/AdminShell";
+import { useAdminListState } from "../lib/useAdminListState";
+import AdminSavedViews from "../components/AdminSavedViews";
 import AdminPageTabs from "../components/AdminPageTabs";
 import AdminDialog from "../components/AdminDialog";
+import AdminEntityTimeline from "../components/AdminEntityTimeline";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import NotificationResultModal from "../components/NotificationResultModal";
 import { notifyPickupAccepted } from "../lib/adminNotification";
@@ -231,6 +234,8 @@ function PickupDetailModal({ request, onClose }) {
             </dl>
           </section>
         ) : null}
+        <Link to={`/admin/cs?pickup=${request.id}`} className="text-sm font-semibold text-brand">이 수거 건 문의 기록 ↗</Link>
+        <AdminEntityTimeline entity="pickup_requests" id={request.id} milestones={[{ label: "수거 신청", at: request.created_at }, { label: "CJ 접수", at: request.cj_pickup_registered_at }]} />
       </div>
     </AdminDialog>
   );
@@ -375,13 +380,18 @@ const INSPECTION_STATUS_OPTIONS = [
 ];
 
 function InspectionWorkbenchSection() {
-  const [searchInput, setSearchInput] = useState("");
-  const [appliedSearch, setAppliedSearch] = useState("");
-  // 기본 필터 = 아직 작업이 남은 건 (수거예정 + 검수중)
-  const [statusFilters, setStatusFilters] = useState(["scheduled", "inspecting"]);
+  const [list, update] = useAdminListState({ iq: "", istatus: "scheduled,inspecting", ipage: 1 });
+  const [searchInput, setSearchInput] = useState(list.iq);
+  const appliedSearch = list.iq;
+  const setAppliedSearch = (iq) => update({ iq, ipage: 1 });
+  const statusFilters = useMemo(() => list.istatus && list.istatus !== "all" ? list.istatus.split(",") : [], [list.istatus]);
+  const setStatusFilters = (value) => update({ istatus: (typeof value === "function" ? value(statusFilters) : value).join(",") || "all", ipage: 1 });
+  const page = list.ipage;
+  const setPage = (ipage) => update({ ipage }, { replace: false, resetPage: false });
+  useEffect(() => { setSearchInput(list.iq); }, [list.iq]);
   const [rows, setRows] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
-  const [page, setPage] = useState(1);
+
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState("");
   const requestSeqRef = useRef(0);
@@ -560,7 +570,7 @@ function InspectionWorkbenchSection() {
                     <td className="px-4 py-3 text-right">
                       <Link
                         className="btn-primary !inline-flex !w-auto !px-3 !py-2 text-xs"
-                        to={`/admin/shipments/${shipment.id}`}
+                        to={`/admin/shipments/${shipment.id}?returnTo=${encodeURIComponent(window.location.pathname + window.location.search)}`}
                       >
                         검수 열기
                       </Link>
@@ -621,15 +631,21 @@ function AdminPickupRequestsPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   // 회원 상세의 '수거·검수 보기' 크로스 링크가 검색을 걸어 진입할 수 있게 (?q=)
-  const initialSearchParam = searchParams.get("q") ?? "";
-  const [searchInput, setSearchInput] = useState(initialSearchParam);
-  const [appliedSearch, setAppliedSearch] = useState(initialSearchParam);
-  const [statusFilters, setStatusFilters] = useState([]);
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
-  const [appliedFromDate, setAppliedFromDate] = useState("");
-  const [appliedToDate, setAppliedToDate] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
+  const [list, updateList] = useAdminListState({ q: "", status: "", from: "", to: "", page: 1, user: "", request: "" });
+  const appliedSearch = list.q;
+  const appliedFromDate = list.from;
+  const appliedToDate = list.to;
+  const currentPage = list.page;
+  const statusFilters = useMemo(() => list.status ? list.status.split(",") : [], [list.status]);
+  const setStatusFilters = (value) => updateList({ status: (typeof value === "function" ? value(statusFilters) : value).join(",") });
+  const setCurrentPage = (page) => updateList({ page }, { replace: false });
+  const setAppliedSearch = (q) => updateList({ q });
+  const setAppliedFromDate = (from) => updateList({ from });
+  const setAppliedToDate = (to) => updateList({ to });
+  const [searchInput, setSearchInput] = useState(list.q);
+  const [fromDate, setFromDate] = useState(list.from);
+  const [toDate, setToDate] = useState(list.to);
+  useEffect(() => { setSearchInput(list.q); setFromDate(list.from); setToDate(list.to); }, [list.q, list.from, list.to]);
   const [totalCount, setTotalCount] = useState(0);
   const [selectedIds, setSelectedIds] = useState([]);
   const [registeringIds, setRegisteringIds] = useState([]);
@@ -762,7 +778,9 @@ function AdminPickupRequestsPage() {
     setIsLoading(true);
     setError("");
 
-    const { data, error: rpcError } = await supabase.rpc("list_admin_pickup_requests_v2", {
+    const { data, error: rpcError } = await supabase.rpc("list_admin_work_pickups", {
+      p_user_id: list.user || null,
+      p_request_id: list.request ? Number(list.request) : null,
       p_search: appliedSearch || null,
       p_statuses: statusFilters.length > 0 ? statusFilters : null,
       p_from_date: appliedFromDate || null,
@@ -785,9 +803,10 @@ function AdminPickupRequestsPage() {
 
     const rows = Array.isArray(data) ? data : [];
     setPickupRequests(rows);
+    if (list.request && rows[0]) setDetailModal(rows[0]);
     setTotalCount(rows[0]?.total_count ?? 0);
     setIsLoading(false);
-  }, [appliedFromDate, appliedSearch, appliedToDate, currentPage, statusFilters]);
+  }, [appliedFromDate, appliedSearch, appliedToDate, currentPage, statusFilters, list.user, list.request]);
 
   useEffect(() => {
     void loadPickupRequests();
@@ -864,10 +883,8 @@ function AdminPickupRequestsPage() {
 
   const handleSearchSubmit = (event) => {
     event.preventDefault();
-    setAppliedSearch(searchInput.trim());
-    setAppliedFromDate(fromDate);
-    setAppliedToDate(toDate);
-    setCurrentPage(1);
+    updateList({ q: searchInput.trim(), from: fromDate, to: toDate, request: "" });
+
     setSelectedIds([]);
   };
 
@@ -879,7 +896,7 @@ function AdminPickupRequestsPage() {
     setToDate("");
     setAppliedFromDate("");
     setAppliedToDate("");
-    setCurrentPage(1);
+
     setSelectedIds([]);
   };
 
@@ -889,7 +906,7 @@ function AdminPickupRequestsPage() {
         ? currentStatuses.filter((item) => item !== status)
         : [...currentStatuses, status],
     );
-    setCurrentPage(1);
+
     setSelectedIds([]);
   };
 
@@ -1353,6 +1370,7 @@ function AdminPickupRequestsPage() {
       {error ? <p className="notice-error whitespace-pre-line">{error}</p> : null}
       {notice ? <p className="notice-success whitespace-pre-line">{notice}</p> : null}
 
+      <AdminSavedViews presets={[{ name: "접수 대기", search: "status=pending" }, { name: "검수 작업", search: "tab=inspection" }]} />
       <AdminPageTabs
         activeKey={activeTab}
         onSelect={handleSelectTab}

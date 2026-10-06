@@ -263,6 +263,7 @@ function AdminNoticesPage() {
       >
         {editor ? (
           <div className="space-y-4 p-6">
+            {errorMessage ? <p role="alert" className="notice-error">{errorMessage}</p> : null}
             <div>
               <label className="text-xs font-semibold text-slate-600 block mb-1.5">제목 *</label>
               <input

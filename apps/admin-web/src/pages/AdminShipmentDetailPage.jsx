@@ -2,6 +2,7 @@
 import { useCallback } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import AdminShell from "../components/AdminShell";
+import AdminEntityTimeline from "../components/AdminEntityTimeline";
 import BulkPriceDeltaModal from "../components/BulkPriceDeltaModal";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import ProductMasterEditModal from "../components/ProductMasterEditModal";
@@ -1308,7 +1309,7 @@ function AdminShipmentDetailPage() {
   if (isLoading) {
     return (
       <AdminShell
-        activeModule="inspection"
+        activeModule="pickups"
         description="수거 건과 연결된 책 목록, 검수 상태, 가격 정보를 불러오고 있습니다."
         title="검수 · 가격 책정"
       >
@@ -1321,11 +1322,11 @@ function AdminShipmentDetailPage() {
     return (
       <AdminShell
         actions={
-          <Link className="btn-secondary !w-auto !px-4 !py-2.5 text-xs" to="/admin#pickup-operations">
+          <Link className="btn-secondary !w-auto !px-4 !py-2.5 text-xs" to={searchParams.get("returnTo")?.startsWith("/admin/pickups?") ? searchParams.get("returnTo") : "/admin/pickups?tab=inspection"}>
             수거 목록으로
           </Link>
         }
-        activeModule="inspection"
+        activeModule="pickups"
         description="검수 대상 수거 건을 찾을 수 없습니다. 삭제되었거나 잘못된 경로일 수 있습니다."
         title="검수 · 가격 책정"
       >
@@ -1337,11 +1338,11 @@ function AdminShipmentDetailPage() {
   return (
     <AdminShell
       actions={
-        <Link className="btn-secondary !w-auto !px-4 !py-2.5 text-xs" to="/admin#pickup-operations">
+        <Link className="btn-secondary !w-auto !px-4 !py-2.5 text-xs" to={searchParams.get("returnTo")?.startsWith("/admin/pickups?") ? searchParams.get("returnTo") : "/admin/pickups?tab=inspection"}>
           수거 목록으로
         </Link>
       }
-      activeModule="inspection"
+      activeModule="pickups"
       description=""
       summaryCards={[
         {
@@ -1831,6 +1832,7 @@ function AdminShipmentDetailPage() {
         </section>
       </div>
 
+      <AdminEntityTimeline entity="shipments" id={shipment.id} milestones={[{ label: "수거 건 등록", at: shipment.created_at }, { label: "검수 완료", at: shipment.inspected_at }]} />
       {/* 상품 정보 수정 — 상품 재고 탭과 동일한 모달 (공개 정보 편집 대체) */}
       <ProductMasterEditModal
         onClose={() => setEditProductTarget(null)}

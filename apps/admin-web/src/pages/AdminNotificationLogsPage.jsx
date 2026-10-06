@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link } from "react-router-dom";
+import { useAdminListState } from "../lib/useAdminListState";
 import AdminShell from "../components/AdminShell";
+import { kstDateBounds } from "../lib/adminDateTime";
 import AdminPagination from "../components/AdminPagination";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
@@ -56,15 +58,17 @@ function formatDateTime(value) {
 
 function AdminNotificationLogsPage() {
   // AdminShell의 '알림 발송 실패' 칩이 실패 필터를 걸어 진입 (?status=failed)
-  const [searchParams] = useSearchParams();
+  const [list, updateList] = useAdminListState({ status: "", type: "", from: "", to: "", q: "", ref: "", page: 1 });
+  const [loadError, setLoadError] = useState("");
 
   const [rows, setRows] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
-  const [statusFilter, setStatusFilter] = useState(searchParams.get("status") ?? "");
-  const [typeFilter, setTypeFilter] = useState("");
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
+  const statusFilter = list.status, typeFilter = list.type, fromDate = list.from, toDate = list.to, currentPage = list.page;
+  const setStatusFilter = (status) => updateList({ status });
+  const setTypeFilter = (type) => updateList({ type });
+  const setFromDate = (from) => updateList({ from });
+  const setToDate = (to) => updateList({ to });
+  const setCurrentPage = (page) => updateList({ page }, { replace: false });
   const [isLoading, setIsLoading] = useState(true);
   const [toast, setToast] = useState(null);
   const [resendTarget, setResendTarget] = useState(null);
@@ -100,6 +104,7 @@ function AdminNotificationLogsPage() {
 
     const requestId = ++requestIdRef.current;
     setIsLoading(true);
+    setLoadError("");
 
     let query = supabase
       .from("notification_logs")
@@ -116,14 +121,12 @@ function AdminNotificationLogsPage() {
     if (typeFilter) {
       query = query.eq("notification_type", typeFilter);
     }
-    if (fromDate) {
-      query = query.gte("created_at", fromDate);
-    }
-    if (toDate) {
-      const exclusiveEnd = new Date(`${toDate}T00:00:00`);
-      exclusiveEnd.setDate(exclusiveEnd.getDate() + 1);
-      query = query.lt("created_at", exclusiveEnd.toISOString());
-    }
+    const term = list.q.replace(/[,()%*]/g, " ").trim();
+    if (term) query = query.or(`recipient_name.ilike.%${term}%,recipient_phone.ilike.%${term}%`);
+    if (list.ref && /^\\d+$/.test(list.ref)) query = query.eq("ref_id", list.ref).eq("ref_type", "order");
+    const bounds = kstDateBounds(fromDate, toDate);
+    if (bounds.from) query = query.gte("created_at", bounds.from);
+    if (bounds.to) query = query.lt("created_at", bounds.to);
 
     const { data, count, error } = await query;
 
@@ -131,7 +134,7 @@ function AdminNotificationLogsPage() {
     setIsLoading(false);
 
     if (error) {
-      showToast(error.message || "알림 로그를 불러오지 못했습니다.", "error");
+      setLoadError(error.message || "알림 로그를 불러오지 못했습니다.");
       setRows([]);
       setTotalCount(0);
       return;
@@ -139,7 +142,7 @@ function AdminNotificationLogsPage() {
 
     setRows(Array.isArray(data) ? data : []);
     setTotalCount(count ?? 0);
-  }, [currentPage, statusFilter, typeFilter, fromDate, toDate, showToast]);
+  }, [currentPage, statusFilter, typeFilter, fromDate, toDate, list.q, list.ref]);
 
   useEffect(() => {
     void loadLogs();
@@ -174,7 +177,9 @@ function AdminNotificationLogsPage() {
         <p className="notice-error">Supabase 환경 변수가 설정되지 않아 로그를 불러올 수 없습니다.</p>
       ) : null}
 
+      {loadError ? <div role="alert" className="notice-error">{loadError} <button onClick={loadLogs} className="underline">다시 조회</button></div> : null}
       <section className="card space-y-4">
+        <div className="flex flex-wrap gap-3"><label className="flex-1"><span className="label">수신자</span><input className="input-base" placeholder="이름·전화번호" value={list.q} onChange={(e) => updateList({ q: e.target.value })} /></label><label><span className="label">주문 ID</span><input className="input-base" type="number" min="1" placeholder="주문 상세의 ID" value={list.ref} onChange={(e) => updateList({ ref: e.target.value })} /></label><button className="btn-ghost !w-auto self-end" onClick={() => updateList({ status: "", type: "", from: "", to: "", q: "", ref: "" })}>초기화</button></div>
         <div className="flex flex-wrap items-end gap-3">
           <div>
             <span className="label">상태</span>
@@ -189,7 +194,6 @@ function AdminNotificationLogsPage() {
                   }`}
                   key={option.value || "all"}
                   onClick={() => {
-                    setCurrentPage(1);
                     setStatusFilter(option.value);
                   }}
                   type="button"
@@ -204,7 +208,6 @@ function AdminNotificationLogsPage() {
             <select
               className="input-base !mt-1 !block !w-44 !py-2 text-sm"
               onChange={(event) => {
-                setCurrentPage(1);
                 setTypeFilter(event.target.value);
               }}
               value={typeFilter}
@@ -222,7 +225,6 @@ function AdminNotificationLogsPage() {
             <input
               className="input-base !mt-1 !py-2 text-sm"
               onChange={(event) => {
-                setCurrentPage(1);
                 setFromDate(event.target.value);
               }}
               type="date"
@@ -234,7 +236,6 @@ function AdminNotificationLogsPage() {
             <input
               className="input-base !mt-1 !py-2 text-sm"
               onChange={(event) => {
-                setCurrentPage(1);
                 setToDate(event.target.value);
               }}
               type="date"
@@ -295,7 +296,7 @@ function AdminNotificationLogsPage() {
                         {TYPE_LABELS[row.notification_type] ?? row.notification_type}
                         {row.ref_id ? (
                           <span className="ml-1 text-xs font-medium text-slate-400">
-                            #{row.ref_id}
+                            {row.ref_type === "order" ? <Link className="text-brand underline" to={`/admin/orders?order=${row.ref_id}&detail=${row.ref_id}`}>#{row.ref_id}</Link> : `#${row.ref_id}`}
                           </span>
                         ) : null}
                       </td>
