@@ -15,14 +15,13 @@ export default function useAutomaticBookBanners() {
     const refresh = async () => {
       if (disposed || pending || document.hidden) return;
       pending = true;
-      // 느린 문구 조회가 교재 배너의 첫 표시를 막지 않도록 병렬로 시작한다.
-      const copiesRequest = fetchBannerCopies();
       try {
-        const rows = await listPublicHeroProducts(supabase);
+        // 첫 표시부터 최종 문구를 사용하도록 교재와 AI 문구를 함께 준비한다.
+        const [rows, copies] = await Promise.all([
+          listPublicHeroProducts(supabase),
+          fetchBannerCopies(),
+        ]);
         const products = rows.map((row) => ({ ...normalizeStorefrontProductRow(row.product), bannerHeadline: row.headline }));
-        // 창 복귀·주기 갱신 중에도 이미 읽은 AI 문구를 유지한다.
-        if (!disposed) setSlides(buildAutomaticBookBanners(products, products.length, knownCopies));
-        const copies = await copiesRequest;
         if (!disposed) {
           // 조회 실패·부분 응답으로 기존 문구를 기본 문구로 되돌리지 않는다.
           for (const [productId, copy] of bannerCopyMap(copies)) knownCopies.set(productId, copy);
