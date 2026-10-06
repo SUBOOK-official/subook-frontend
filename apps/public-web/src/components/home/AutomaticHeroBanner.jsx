@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { getDetailImageUrl } from "../../lib/storageImage";
 import { trackSelectPromotion, trackViewPromotion } from "../../lib/analytics";
 import { useInViewOnce } from "../../lib/useInViewOnce";
@@ -45,9 +45,11 @@ export default function AutomaticHeroBanner({ slides, onSlideAction }) {
   const [paused, setPaused] = useState(false);
   const [interacting, setInteracting] = useState(false);
   const [pagination, setPagination] = useState({ current: 1, total: 1 });
-  useEffect(() => {
+  useLayoutEffect(() => {
     const rail = railRef.current;
     if (!rail) return undefined;
+    // 교재 배너가 비동기로 앞에 추가되어도 기존 이벤트 배너에 스냅되지 않도록 한다.
+    rail.scrollTo({ left: 0, behavior: "instant" });
     const updatePagination = () => {
       const cardWidth = rail.firstElementChild?.getBoundingClientRect().width;
       if (!cardWidth || !rail.clientWidth) return;
