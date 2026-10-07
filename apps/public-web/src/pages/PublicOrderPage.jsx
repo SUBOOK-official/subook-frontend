@@ -3,6 +3,7 @@ import { isCheckoutBookAvailable, mergeVerifiedCheckoutItems, persistCheckoutIte
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { formatCurrency } from "@shared-domain/format";
+import { couponScopeLabel, estimateCouponDiscountAmount } from "@shared-domain/coupons";
 import { formatPhoneNumber, isValidKoreanMobile } from "../lib/publicAuthFormUtils";
 import { focusOrderValidationError, getOrderInputField, getOrderValidationErrors } from "../lib/orderValidation";
 import ContentContainer from "../components/ContentContainer";
@@ -103,21 +104,6 @@ function toFriendlyOrderError(error) {
 // 결제 시점에 사용자가 가장 큰 이득을 가져갈 수 있는 쿠폰을 상단에 노출.
 const COUPON_EXPIRY_SOON_MS = 24 * 60 * 60 * 1000;
 
-function estimateCouponDiscountAmount(coupon, subtotal) {
-  if (!coupon) return 0;
-  if (coupon.discount_type === "fixed") {
-    return Math.min(coupon.discount_value || 0, subtotal);
-  }
-  if (coupon.discount_type === "percentage") {
-    let d = Math.floor((subtotal * (coupon.discount_value || 0)) / 100);
-    if (coupon.max_discount_amount != null) d = Math.min(d, coupon.max_discount_amount);
-    return d;
-  }
-  // free_shipping은 SHIPPING_FEE 만큼 가치를 가지지만 비교 단순화를 위해 0으로 둔다.
-  // (배송비 정확 비교는 결제 요약에서 별도)
-  return 0;
-}
-
 function getCouponExpiryMs(coupon) {
   if (!coupon?.expires_at) return Number.POSITIVE_INFINITY;
   const ms = new Date(coupon.expires_at).getTime();
@@ -137,13 +123,8 @@ function previewCouponDiscount(coupon, subtotal, shippingFee) {
   if (coupon.discount_type === "free_shipping") {
     return { subtotalDiscount: 0, shippingFeeAfter: 0, label: "무료배송" };
   }
-  if (coupon.discount_type === "fixed") {
-    const d = Math.min(coupon.discount_value || 0, subtotal);
-    return { subtotalDiscount: d, shippingFeeAfter: shippingFee, label: `${formatCurrency(d)} 할인` };
-  }
-  if (coupon.discount_type === "percentage") {
-    let d = Math.floor((subtotal * (coupon.discount_value || 0)) / 100);
-    if (coupon.max_discount_amount != null) d = Math.min(d, coupon.max_discount_amount);
+  if (coupon.discount_type === "fixed" || coupon.discount_type === "percentage") {
+    const d = estimateCouponDiscountAmount(coupon, subtotal);
     return { subtotalDiscount: d, shippingFeeAfter: shippingFee, label: `${formatCurrency(d)} 할인` };
   }
   return { subtotalDiscount: 0, shippingFeeAfter: shippingFee, label: "" };
@@ -1080,9 +1061,11 @@ function PublicOrderPage() {
     void loadData();
   }, [user, profile]);
 
-  // 적용 가능한 쿠폰 fetch (subtotal 기반)
+  // 적용 가능한 쿠폰 fetch (실제 교재의 브랜드·과목 및 대상 금액 기준)
   useEffect(() => {
-    if (!user || !orderItems || orderItems.length === 0) return;
+    setApplicableCoupons([]);
+    if (!user || !orderItems || orderItems.length === 0) return undefined;
+    let cancelled = false;
     const subtotalForFetch = orderItems.reduce(
       (sum, i) => sum + (i.price ?? 0) * i.quantity,
       0,
@@ -1090,11 +1073,12 @@ function PublicOrderPage() {
     const loadCoupons = async () => {
       const { data, error } = await publicSupabase.rpc("get_applicable_coupons", {
         p_subtotal: subtotalForFetch,
-        // 브랜드 한정 쿠폰(scope_brand) 적용 판정용 — 서버가 품목 브랜드 소계로 필터
+        // 서버가 브랜드·과목 조건에 모두 맞는 교재 소계를 반환한다.
         p_book_ids: orderItems.map((i) => i.bookId).filter(Boolean),
       });
-      if (!error && Array.isArray(data)) {
+      if (!cancelled && !error && Array.isArray(data)) {
         setApplicableCoupons(data);
+        setSelectedCouponId((previous) => data.some((coupon) => coupon.id === previous) ? previous : null);
         // GA4 coupon_availability — 이 장바구니 구성에서 쓸 수 있는 쿠폰이 몇 장인지 1회.
         // (0장이면 UI에서 쿠폰 row 자체가 숨겨져 "왜 안 썼나"를 화면만으로는 알 수 없다)
         if (impressionGuardRef.current(`coupon_availability:${subtotalForFetch}:${orderItems.length}`)) {
@@ -1107,6 +1091,7 @@ function PublicOrderPage() {
       }
     };
     void loadCoupons();
+    return () => { cancelled = true; };
   }, [user, orderItems, checkoutContext]);
 
   // 포인트 잔액 — 회원만 (게스트 주문은 사용 불가)
@@ -2624,9 +2609,9 @@ function PublicOrderPage() {
                               ) : null}
                             </div>
                             <strong>{c.title}</strong>
-                            {c.scope_brand || c.min_order_amount > 0 ? (
+                            {couponScopeLabel(c) || c.min_order_amount > 0 ? (
                               <span>
-                                {c.scope_brand ? `${c.scope_brand} 교재 ` : ""}
+                                {couponScopeLabel(c) ? `${couponScopeLabel(c)} 교재 ` : ""}
                                 {c.min_order_amount > 0
                                   ? `${formatCurrency(c.min_order_amount)} 이상 주문 시`
                                   : "전용"}

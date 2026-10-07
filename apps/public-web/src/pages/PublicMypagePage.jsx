@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { formatCurrency } from "@shared-domain/format";
+import { couponScopeLabel } from "@shared-domain/coupons";
 import PublicSiteHeader from "../components/PublicSiteHeader";
 import ContentContainer from "../components/ContentContainer";
 import ProductCard, { ProductCardSkeleton } from "../components/ProductCard";
@@ -2433,6 +2434,7 @@ function CouponsView({ isDemoPreview = false }) {
                     <strong>{coupon.title}</strong>
                     <p>
                       {describeCouponDiscount(coupon)}
+                      {couponScopeLabel(coupon) ? ` · ${couponScopeLabel(coupon)} 교재 전용` : ""}
                       {coupon.min_order_amount > 0 ? ` · 최소 ${formatCurrency(coupon.min_order_amount)}` : ""}
                       {coupon.valid_days != null ? ` · 받은 날부터 ${coupon.valid_days}일` : ""}
                     </p>
@@ -2479,9 +2481,10 @@ function CouponsView({ isDemoPreview = false }) {
                 </div>
                 <div className="public-mypage-coupon-card__body">
                   <strong className="public-mypage-coupon-card__title">{mc.title}</strong>
-                  {mc.min_order_amount > 0 ? (
+                  {couponScopeLabel(mc) || mc.min_order_amount > 0 ? (
                     <p className="public-mypage-coupon-card__hint">
-                      {formatCurrency(mc.min_order_amount)} 이상 주문 시
+                      {couponScopeLabel(mc) ? `${couponScopeLabel(mc)} 교재 ` : ""}
+                      {mc.min_order_amount > 0 ? `${formatCurrency(mc.min_order_amount)} 이상 주문 시` : "전용"}
                     </p>
                   ) : null}
                   <p className="public-mypage-coupon-card__expiry">

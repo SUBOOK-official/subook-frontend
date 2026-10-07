@@ -9,6 +9,8 @@ import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { formatCurrency } from "@shared-domain/format";
+import { SUBJECT_OPTIONS } from "@shared-domain/bookSubjects";
+import { couponScopeLabel } from "@shared-domain/coupons";
 import { CloseIcon } from "../components/icons";
 import { BusyText, InlineLoading } from "../components/Loading";
 import { BRAND_OPTIONS } from "../lib/productCategories";
@@ -42,6 +44,7 @@ const initialForm = {
   issue_on_signup: false,
   is_active: true,
   scope_brand: "",
+  scope_subject: "",
 };
 
 // 폼 → API payload (빈 문자열은 null로 전달)
@@ -71,6 +74,7 @@ function buildPayload(form) {
     is_active: Boolean(form.is_active),
     // 항상 키를 포함 — update RPC는 키가 있어야 null로 지운다 (스코프 해제)
     scope_brand: form.scope_brand || null,
+    scope_subject: form.scope_subject || null,
   };
   return payload;
 }
@@ -96,6 +100,7 @@ function rowToForm(row) {
     issue_on_signup: Boolean(row.issue_on_signup),
     is_active: Boolean(row.is_active),
     scope_brand: row.scope_brand || "",
+    scope_subject: row.scope_subject || "",
   };
 }
 
@@ -546,9 +551,9 @@ function AdminCouponsPage() {
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-slate-700">{describeDiscount(coupon)}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-slate-700">
-                      {coupon.scope_brand ? (
+                      {couponScopeLabel(coupon) ? (
                         <span className="mr-1 rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-bold text-indigo-700">
-                          {coupon.scope_brand} 전용
+                          {couponScopeLabel(coupon)} 교재 전용
                         </span>
                       ) : null}
                       {coupon.min_order_amount > 0 ? formatCurrency(coupon.min_order_amount) : "조건 없음"}
@@ -727,7 +732,7 @@ function AdminCouponsPage() {
                 </p>
               </label>
 
-              <label>
+              <label className="md:col-span-2">
                 <span className="text-xs font-bold text-slate-700">최소 주문 금액 (원)</span>
                 <input
                   type="number"
@@ -745,18 +750,33 @@ function AdminCouponsPage() {
                   onChange={handleField("scope_brand")}
                   className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
                 >
-                  <option value="">전체 주문 (제한 없음)</option>
+                  <option value="">전체 브랜드 (제한 없음)</option>
                   {BRAND_OPTIONS.map((brand) => (
                     <option key={brand} value={brand}>
                       {brand} 교재 한정
                     </option>
                   ))}
                 </select>
-                <p className="mt-1 text-xs text-slate-500">
-                  지정하면 해당 브랜드 교재가 담긴 주문에서만 쓸 수 있고, 최소 주문
-                  금액·할인액도 그 브랜드 품목 합계 기준으로 계산돼요.
-                </p>
               </label>
+
+              <label>
+                <span className="text-xs font-bold text-slate-700">사용 가능 과목 (선택)</span>
+                <select
+                  value={form.scope_subject}
+                  onChange={handleField("scope_subject")}
+                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                >
+                  <option value="">전체 과목 (제한 없음)</option>
+                  {SUBJECT_OPTIONS.map((subject) => (
+                    <option key={subject} value={subject}>{subject} 교재 한정</option>
+                  ))}
+                </select>
+              </label>
+              <p className="text-xs text-slate-500 md:col-span-2">
+                브랜드와 과목을 함께 지정하면 두 조건에 모두 맞는 교재에만 적용됩니다.
+                최소 주문 금액과 할인액은 해당 교재 합계 기준으로 계산됩니다.
+                과학·사회는 각각 모든 세부 과목을 포함합니다.
+              </p>
 
               <label>
                 <span className="text-xs font-bold text-slate-700">발급 방식</span>

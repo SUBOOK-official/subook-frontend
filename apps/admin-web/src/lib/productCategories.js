@@ -3,7 +3,7 @@
 // 유형은 shared-domain과 등록 서버의 허용값을 공유한다.
 export { BOOK_TYPE_OPTIONS } from "@shared-domain/bookTypes";
 
-export const SUBJECT_OPTIONS = ["국어", "수학", "영어", "과학", "사회", "한국사", "기타"];
+export { SUBJECT_OPTIONS } from "@shared-domain/bookSubjects";
 
 export const BRAND_OPTIONS = [
   "시대인재",
