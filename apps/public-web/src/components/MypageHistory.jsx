@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { formatCurrency } from "@shared-domain/format";
 import { getBuyerReturnLabel } from "@shared-domain/returns";
 import { pickupBoxLabel } from "@shared-domain/pickupBoxes";
@@ -11,18 +12,26 @@ import { KAKAO_CHANNEL_URL } from "../lib/supportChannels";
 import { getThumbnailImageUrl } from "../lib/storageImage";
 import { BANK_ACCOUNT, BANK_HOLDER, BANK_NAME, PAYMENT_DEADLINE_HOURS, buildDepositorName } from "../lib/paymentBankInfo";
 import { trackContactClick, trackCopyClick, trackEvent, trackListFilterChange } from "../lib/analytics";
-import { PURCHASE_SUMMARY_CARDS, SALES_STATUS_FILTERS, SHIPMENT_PROGRESS_STEPS, deriveSettlementMetrics, deriveShipmentMetrics, filterPurchaseOrders, filterShipmentsByStatus, formatCompactDate, formatDateTime, formatShipmentReference, getOrderStatusLabel, getOrderStatusTone, getPaymentMethodLabel, getShipmentProgressIndex, getShipmentStatusLabel, getShipmentStatusTone, groupOrdersByDate } from "../lib/publicMypageUtils";
+import { PURCHASE_SUMMARY_CARDS, SALES_STATUS_FILTERS, SHIPMENT_PROGRESS_STEPS, deriveSettlementMetrics, deriveShipmentMetrics, filterPurchaseOrders, filterShipmentsByStatus, formatCompactDate, formatDateTime, formatShipmentReference, getOrderStatusLabel, getOrderStatusTone, getPaymentMethodLabel, getShipmentProgressIndex, getShipmentStatusLabel, getShipmentStatusTone, getVisibleSalesShipments, groupOrdersByDate } from "../lib/publicMypageUtils";
 
 function ShipmentBookRow({ item }) {
-  const discarded = Boolean(item.isRejected || item.rejectionReason);
+  const [failedCover, setFailedCover] = useState(null);
+  const detailPath = item.productId ? `/store/${encodeURIComponent(item.productId)}` : null;
+  const content = <>
+    <span className="mypage-sales-book-cover" aria-hidden="true">
+      {item.coverImageUrl && failedCover !== item.coverImageUrl ? <img alt="" src={getThumbnailImageUrl(item.coverImageUrl)} loading="lazy" onError={() => setFailedCover(item.coverImageUrl)} /> : <BookIcon size={24} />}
+    </span>
+    <span className="public-mypage-book-row__copy">
+      <strong>{item.title}</strong>
+      <span className="mypage-sales-book-option">옵션 · {item.optionLabel || "기본 구성"}</span>
+      <span className="mypage-sales-book-price">{item.price ? formatCurrency(item.price) : "판매가 확인 중"}</span>
+    </span>
+  </>;
   return (
     <div className="public-mypage-book-row" id={`public-mypage-book-${item.id}`}>
-      <div className="public-mypage-book-row__copy">
-        <strong>{item.title}</strong>
-        {!discarded ? <p>등급: {item.gradeLabel ?? "-"} | 판매가: {item.price ? formatCurrency(item.price) : "-"}</p> : null}
-      </div>
-      <span className={`public-mypage-chip public-mypage-chip--${discarded ? "neutral" : item.tone ?? "neutral"}`}>
-        {discarded ? "폐기" : item.statusLabel}
+      {detailPath ? <Link className="mypage-sales-book-main" to={detailPath} aria-label={`${item.title}${item.optionLabel ? ` ${item.optionLabel}` : ""} 상품 보기`}>{content}</Link> : <div className="mypage-sales-book-main">{content}</div>}
+      <span className={`public-mypage-chip public-mypage-chip--${item.tone ?? "neutral"}`}>
+        {item.statusLabel}
       </span>
     </div>
   );
@@ -342,15 +351,16 @@ export function PurchasesView({
   );
 }
 
-export function SalesTab({ expandedShipmentId, onCancelPickup, onRequestPickup, onToggleShipment, onTrackParcel, shipments }) {
+export function SalesTab({ expandedShipmentId, onCancelPickup, onRequestPickup, onToggleShipment, onTrackParcel, shipments: allShipments }) {
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchKeyword, setSearchKeyword] = useState("");
   const [visibleCount, setVisibleCount] = useState(12);
+  const shipments = useMemo(() => getVisibleSalesShipments(allShipments), [allShipments]);
   const metrics = useMemo(() => deriveShipmentMetrics(shipments), [shipments]);
   const filteredShipments = useMemo(() => {
     const keyword = searchKeyword.trim().toLowerCase();
     return filterShipmentsByStatus(shipments, statusFilter).filter((shipment) => !keyword ||
-      [shipment.reference, shipment.referenceLabel, shipment.summaryLabel, ...(shipment.items ?? []).map((item) => item.title)]
+      [shipment.reference, shipment.referenceLabel, ...(shipment.items ?? []).flatMap((item) => [item.title, item.optionLabel])]
         .some((value) => String(value ?? "").toLowerCase().includes(keyword)));
   }, [shipments, statusFilter, searchKeyword]);
   const changeFilter = (value) => {

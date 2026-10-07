@@ -279,6 +279,7 @@ function getShipmentFilterKey(status) {
 }
 
 function isRejectedShipmentItem(item) {
+  if (["discarded", "rejected"].includes(item?.status)) return true;
   if (item?.isRejected) return true;
   if (item?.rejectionReason) {
     return true;
@@ -289,6 +290,16 @@ function isRejectedShipmentItem(item) {
   }
 
   return /판매불가|폐기/.test(String(item?.statusLabel ?? ""));
+}
+
+// 판매자에게 보여줄 목록·검색·권수에 같은 기준을 적용한다. 원본 이력은 수정하지 않는다.
+export function getVisibleSalesShipments(shipments = []) {
+  return shipments.flatMap((shipment) => {
+    const originalItems = shipment.items ?? [];
+    const items = originalItems.filter((item) => !isRejectedShipmentItem(item));
+    if ((originalItems.length > 0 && items.length === 0) || shipment.status === "rejected") return [];
+    return [{ ...shipment, items, bookCount: originalItems.length ? items.length : shipment.bookCount }];
+  });
 }
 
 function isSettledShipmentItem(item) {
@@ -830,14 +841,14 @@ export function mapPickupRequestToShipment(pr) {
     const isRejected =
       Boolean(rejectionReason) || item.status === "rejected" || item.status === "discarded";
     const bookChip = bookStatusChipMap[item.status] ?? null;
-    const title = item.option
-      ? `${item.title ?? "교재"} (${item.option})`
-      : (item.title ?? "교재");
 
     return {
       id: item.id,
       status: item.status ?? null,
-      title,
+      title: item.title ?? "교재",
+      optionLabel: item.option ?? null,
+      productId: item.product_id ?? null,
+      coverImageUrl: item.cover_image_url ?? item.cover_photo_url ?? null,
       gradeLabel: toGradeLabel(item.grade),
       // 확정 판매가(검수 후 책정) 우선, 없으면 정가 fallback
       price: item.price ?? item.original_price ?? null,

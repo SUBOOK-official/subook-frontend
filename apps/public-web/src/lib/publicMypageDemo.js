@@ -3,7 +3,7 @@ import { getSettlementInfo } from "../../../../packages/shared-domain/src/settle
 import { buildMemberDashboardSummarySnapshot, mapOrderToDisplayOrder } from "./publicMypageUtils.js";
 import { buildMockProductCover } from "./publicStoreMockData.js";
 
-export const DEMO_VERSION = 3;
+export const DEMO_VERSION = 4;
 export const DEMO_MEMBER_USER = {
   id: "demo-member-v3",
   email: "demo@example.com",
@@ -75,6 +75,8 @@ export function createDemoPortalSeed(profileOverride = {}, now = new Date()) {
 
   const book = (key, title, price, statusLabel, extra = {}) => ({
     id: "demo-book-" + key, title, price, gradeLabel: bookConditionLabel.S, statusLabel,
+    optionLabel: "기본 구성",
+    coverImageUrl: orderItem(key, title, price).cover_image_url,
     tone: statusLabel === "판매중" ? "success" : "neutral", ...extra,
   });
   const shipment = (key, status, days, bookCount, items = [], extra = {}) => ({
@@ -94,9 +96,19 @@ export function createDemoPortalSeed(profileOverride = {}, now = new Date()) {
       book("005c", "강남대성 국어 모의고사", null, "검수중", { gradeLabel: "-", tone: "warning" }),
     ]),
     shipment("006", "listed", 15, 4, [
-      book("006a", "시대인재 브릿지 수학", 24000, "판매중"),
-      book("006b", "강남대성 국어 모의고사", 8000, "판매중"),
-      book("006c", "이감 국어 모의고사", 16000, "판매완료"),
+      // 실제 공개 교재를 예시 이력에 연결한다. 거래·가격은 데모이며 클릭 후 일반 상품 화면으로 이동한다.
+      book("006a", "2026 시대인재 파이널 브릿지 모의고사 수학", 24000, "판매중", {
+        productId: 376, optionLabel: "10",
+        coverImageUrl: "https://affeayqergefwudytfop.supabase.co/storage/v1/object/public/product-covers/sixshop/HVRELYAMS5E4.png",
+      }),
+      book("006b", "[수능직전 일일점검] 2027 J1 원트 미니모의고사 국어(30일분)", 8000, "판매중", {
+        productId: 2371, optionLabel: "1-30회분 SET",
+        coverImageUrl: "https://affeayqergefwudytfop.supabase.co/storage/v1/object/public/product-covers/edit-cover/1788761038446-vzw8vl21-KakaoTalk_Photo_2026-09-07-15-03-17.png",
+      }),
+      book("006c", "2026 이감 간쓸개 6모대비실전연습 국어", 16000, "판매완료", {
+        productId: 2589, optionLabel: "시즌3-1",
+        coverImageUrl: "https://affeayqergefwudytfop.supabase.co/storage/v1/object/public/product-covers/register/1790572632897-pussgsth-KakaoTalk_Photo_2026-09-28-14-16-16_003_studio.jpg",
+      }),
       book("006d", "EBS 수능완성 영어", null, "폐기", { gradeLabel: "-", rejectionReason: "본문 필기 및 정답 표시", tone: "danger" }),
     ]),
     shipment("007", "settled", 40, 2, [book("007a", "시대인재 수학 N제 세트", 60000, "정산완료"), book("007b", "강남대성 국어 모의고사 세트", 40000, "정산완료")]),

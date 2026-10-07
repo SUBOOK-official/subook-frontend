@@ -134,6 +134,13 @@
 .mypage-inspection-list .public-mypage-book-row__copy strong { font-size: 14px; }
 .mypage-inspection-list .public-mypage-book-row__copy p { font-size: 12px; }
 .mypage-inspection-list .public-mypage-chip { flex-shrink: 0; border-radius: var(--public-radius-sm); font-size: 10px; white-space: nowrap; }
+.mypage-sales-book-main { display: flex; flex: 1; min-width: 0; align-items: center; gap: 16px; color: inherit; text-decoration: none; }
+a.mypage-sales-book-main:hover strong { text-decoration: underline; text-underline-offset: 3px; }
+a.mypage-sales-book-main:focus-visible { outline: 2px solid var(--public-ds-primary); outline-offset: 5px; border-radius: var(--public-radius-sm); }
+.mypage-sales-book-cover { display: flex; flex: 0 0 60px; width: 60px; height: 80px; align-items: center; justify-content: center; background: #fff; border: 1px solid var(--public-ds-border); border-radius: 4px; color: var(--public-ds-text-muted); overflow: hidden; }
+.mypage-sales-book-cover img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.mypage-sales-book-option { display: block; margin-top: 5px; color: var(--public-ds-text-secondary); font-size: 12px; line-height: 1.5; }
+.mypage-sales-book-price { display: block; margin-top: 6px; color: var(--public-ds-text); font-size: 13px; font-weight: 600; }
 .mypage-settlement-summary { display: grid; grid-template-columns: 1.2fr 1fr; border-top: 2px solid var(--public-ds-primary); border-bottom: 1px solid var(--public-ds-border); padding: 32px 0; margin-bottom: 28px; }
 .mypage-settlement-expected > span { color: var(--public-ds-text-secondary); font-size: 14px; }
 .mypage-settlement-expected > strong { display: block; color: var(--public-ds-primary); font-size: 40px; letter-spacing: -1.5px; line-height: 1.4; margin: 8px 0 10px; font-variant-numeric: tabular-nums; }
@@ -229,6 +236,10 @@
   .mypage-shipment-progress { padding: 22px 0 14px; }
   .mypage-shipment-progress li { font-size: 9px; }
   .mypage-inspection-list .public-mypage-book-row { gap: 8px; }
+  .mypage-sales-book-main { gap: 12px; }
+  .mypage-sales-book-cover { flex-basis: 44px; width: 44px; height: 60px; }
+  .mypage-sales-book-option { font-size: 11px; }
+  .mypage-sales-book-price { font-size: 12px; }
   .mypage-inspection-list .public-mypage-book-row__copy strong { font-size: 12px; }
   .mypage-inspection-list .public-mypage-book-row__copy p { font-size: 10px; }
   .mypage-settlement-summary { grid-template-columns: 1fr; padding: 24px 0; gap: 24px; }

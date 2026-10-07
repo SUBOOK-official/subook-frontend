@@ -1,7 +1,39 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createDemoPortalSeed } from "./publicMypageDemo.js";
-import { deriveShipmentMetrics, filterPurchaseOrders, filterShipmentsByStatus, getPortalHistoryIssue, groupOrdersByDate, mapOrderToDisplayOrder, mapPickupRequestToShipment } from "./publicMypageUtils.js";
+import { deriveShipmentMetrics, filterPurchaseOrders, filterShipmentsByStatus, getPortalHistoryIssue, getVisibleSalesShipments, groupOrdersByDate, mapOrderToDisplayOrder, mapPickupRequestToShipment } from "./publicMypageUtils.js";
+
+test("판매자 표시 목록에서 폐기 교재·제목·권수를 제외하고 원본은 보존한다", () => {
+  const seed = createDemoPortalSeed();
+  const visible = getVisibleSalesShipments(seed.shipments);
+  const mixed = visible.find(row => row.id === "demo-pickup-006");
+  assert.equal(mixed.items.length, 3);
+  assert.equal(mixed.bookCount, 3);
+  assert.equal(mixed.items.some(item => item.rejectionReason), false);
+  assert.equal(seed.shipments.find(row => row.id === mixed.id).items.length, 4);
+  assert.equal(deriveShipmentMetrics(visible).totalBookCount, 39);
+  assert.equal(deriveShipmentMetrics(visible).onSaleBookCount, 2);
+  assert.equal(deriveShipmentMetrics(visible).soldBookCount, 5);
+  assert.equal(visible[0].bookCount, 5); // 아직 입고되지 않은 수거의 예상 권수 보존
+  assert.deepEqual(getVisibleSalesShipments([
+    {id:1,status:"listed",items:[{status:"discarded"}]},
+    {id:2,status:"rejected",items:[]},
+    {id:3,status:"listed",items:[{statusLabel:"폐기"}]},
+  ]), []);
+});
+
+test("판매 교재의 옵션·썸네일·상품 ID를 보존하고 신청 사진도 지원한다", () => {
+  const row = mapPickupRequestToShipment({id:1,status:"inspected",items:[
+    {id:20,title:"교재",option:"시즌3-1",product_id:10,cover_image_url:"https://example.com/book.jpg",status:"on_sale"},
+    {id:21,title:"신청 교재",cover_photo_url:"https://example.com/pickup.jpg"},
+  ]});
+  assert.equal(row.items[0].title,"교재");
+  assert.equal(row.items[0].optionLabel,"시즌3-1");
+  assert.equal(row.items[0].productId,10);
+  assert.equal(row.items[0].coverImageUrl,"https://example.com/book.jpg");
+  assert.equal(row.items[1].productId,null);
+  assert.equal(row.items[1].coverImageUrl,"https://example.com/pickup.jpg");
+});
 
 test("판매완료는 정산완료와 다르고 검수중·폐기 교재는 판매중에 합산하지 않는다", () => {
   const seed = createDemoPortalSeed();

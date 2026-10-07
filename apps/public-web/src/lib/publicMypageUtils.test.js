@@ -409,8 +409,9 @@ test("mapPickupRequestToShipment maps inspected books with grade, price, and sta
 
   const [onSale, settled, discarded] = shipment.items;
 
-  // 판매중 책: 옵션 병기 제목 + 확정 판매가 + 판매중 칩
-  assert.equal(onSale.title, "시대인재 서바이벌 수학 (시즌1)");
+  // 판매중 책: 제목과 옵션 분리 + 확정 판매가 + 판매중 칩
+  assert.equal(onSale.title, "시대인재 서바이벌 수학");
+  assert.equal(onSale.optionLabel, "시즌1");
   assert.equal(onSale.price, 12000);
   assert.equal(onSale.isRejected, false);
   assert.equal(onSale.statusLabel, "판매중");
