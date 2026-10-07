@@ -932,10 +932,15 @@ function AdminCouponsPage() {
 
       {issueTarget ? (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/50 p-4">
-          <div className="w-full p-6">
+          <div
+            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-6 shadow-xl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="coupon-issue-title"
+          >
             <header className="mb-4 flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-black text-slate-900">쿠폰 발급</h2>
+                <h2 id="coupon-issue-title" className="text-xl font-black text-slate-900">쿠폰 발급</h2>
                 <p className="mt-1 text-sm text-slate-500">
                   <span className="font-bold">{issueTarget.title}</span>
                   {issueTarget.issuance_type === "code" || issueTarget.issuance_type === "download"
