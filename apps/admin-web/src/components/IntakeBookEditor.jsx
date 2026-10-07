@@ -190,10 +190,10 @@ export default function IntakeBookEditor({ item, onChange, disabled = false, onC
       <div>
         <p className="mb-2 text-sm font-semibold">{isBatch ? '공통 등급' : '등급'}</p>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {Object.entries(bookConditionLabel).filter(([grade]) => !isBatch || grade !== 'DISCARD').map(([grade, label]) => <button type="button" key={grade} disabled={disabled} aria-pressed={item.condition_grade === grade} onClick={() => change({ condition_grade: grade })} className={`rounded-lg border px-2 py-3 text-sm font-semibold disabled:opacity-40 ${item.condition_grade === grade ? 'border-blue-700 bg-blue-50 text-blue-700' : 'border-slate-300'}`}>{grade === 'DISCARD' ? '판매불가' : label}</button>)}
+          {Object.entries(bookConditionLabel).filter(([grade]) => !isBatch || grade !== 'DISCARD').map(([grade, label]) => <button type="button" key={grade} disabled={disabled} aria-pressed={item.condition_grade === grade} onClick={() => change({ condition_grade: grade })} className={`rounded-lg border px-2 py-3 text-sm font-semibold disabled:opacity-40 ${item.condition_grade === grade ? 'border-blue-700 bg-blue-50 text-blue-700' : 'border-slate-300'}`}>{grade === 'DISCARD' ? '폐기' : label}</button>)}
         </div>
       </div>
-      {discarded ? <Field label="판매불가 사유"><textarea aria-label="판매불가 사유" className={inputClass} value={item.discard_reason || ''} disabled={disabled} onChange={(event) => change({ discard_reason: event.target.value })} placeholder="필기 과다, 페이지 누락 등" /></Field> : <>
+      {!discarded ? <>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <p className="text-sm font-semibold">필기 비율 (%)</p>
@@ -205,7 +205,7 @@ export default function IntakeBookEditor({ item, onChange, disabled = false, onC
           </div>
         </div>
         <label className="flex items-start gap-2 text-sm font-semibold"><input type="checkbox" className="mt-1" disabled={disabled} checked={Boolean(item.components_confirmed)} onChange={(event) => change({ components_confirmed: event.target.checked })} />{isBatch ? '모든 옵션의 답지·회차·구성품을 확인했습니다' : '답지·회차·세트 구성품을 확인했습니다'}</label>
-      </>}
+      </> : null}
       <Field label="검수 메모 (선택)"><textarea aria-label="검수 메모 (선택)" className={inputClass} value={item.inspection_notes || ''} disabled={disabled} rows={2} onChange={(event) => change({ inspection_notes: event.target.value })} /></Field>
       {isBatch && !discarded ? <details className="rounded-lg border border-slate-200 p-3">
         <summary className="cursor-pointer text-sm font-semibold">상태가 다른 옵션 수정</summary>

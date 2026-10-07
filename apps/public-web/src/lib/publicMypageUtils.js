@@ -127,7 +127,6 @@ export const SALES_STATUS_FILTERS = [
   { value: "in_progress", label: "진행중" },
   { value: "on_sale", label: "판매중" },
   { value: "sold", label: "판매완료" },
-  { value: "rejected", label: "판매불가" },
   { value: "cancelled", label: "취소" },
 ];
 
@@ -212,7 +211,7 @@ const shipmentStatusMap = {
   listed: { label: "판매중", tone: "success" },
   sold: { label: "판매완료", tone: "neutral" },
   settled: { label: "정산완료", tone: "neutral" },
-  rejected: { label: "판매불가", tone: "danger" },
+  rejected: { label: "폐기", tone: "neutral" },
   cancelled: { label: "수거 취소", tone: "neutral" },
 };
 

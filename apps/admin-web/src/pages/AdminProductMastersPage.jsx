@@ -58,10 +58,6 @@ const CONDITION_LABEL = {
   A: "A (사용감 있음)",
 };
 
-// 권별 폐기 사유 프리셋 (2026-08-11) — 셀러 마이페이지 '판매불가 사유'로 그대로 노출되므로
-// 내부 은어 대신 셀러가 이해할 문구만 둔다.
-const DISCARD_REASON_PRESETS = ["답지 없음", "파손·오염", "필기 과다", "분실"];
-
 // 재고 점검 항목 (2026-09-15) — 주문이 들어온 뒤에야 위치 미지정이 발견되던 문제 대응.
 // key는 admin_get_inventory_issue_summary 응답·admin_list_products_with_inventory p_issue와 같다.
 // 점검 대상 권: 판매중 + 출고 전(입금대기·결제완료·준비중) 주문에 잡힌 권.
@@ -561,7 +557,6 @@ function AdminProductMastersPage() {
   // 그 권 하나만 재고에서 내린다. 검수 상세 페이지의 일괄 폐기와 같은 RPC를 쓰며
   // 재고 화면 진입점만 추가한 것 (하드 삭제가 아니라 status='discarded'):
   //   · 위탁 이력·정산 근거는 books 행에 그대로 남는다
-  //   · 사유는 books.discard_reason → 셀러 마이페이지 '판매불가 사유'로 노출
   //   · is_public=false·상품 상태 재계산은 books 트리거가 처리
   //   · 활성 주문이 있는 권은 books_discard_active_order_guard가 차단(환불이 먼저)
   const handleBookDiscard = (book) => {
@@ -578,20 +573,15 @@ function AdminProductMastersPage() {
       description:
         `${bookLabel} 1권을 폐기 처리합니다.\n\n` +
         `· 스토어에서 즉시 내려가고 정산 대상에서 빠집니다.\n` +
-        `· 같은 상품의 다른 권은 그대로 판매됩니다.\n` +
-        `· 입력한 사유는 셀러 마이페이지에 '판매불가 사유'로 표시됩니다.\n\n` +
-        `이 작업은 되돌릴 수 없습니다.`,
-      reasonRequired: true,
-      reasonMinLength: 2,
-      reasonPresets: DISCARD_REASON_PRESETS,
-      reasonPlaceholder: "예) 답지 없음",
+        `· 같은 상품의 다른 권은 그대로 판매됩니다.`,
+      reasonRequired: false,
       confirmLabel: "폐기 처리",
-      run: async (reason) => {
+      run: async () => {
         setBookBusyId(book.id);
         const { data, error } = await supabase.rpc("admin_bulk_update_books_status", {
           p_ids: [book.id],
           p_status: "discarded",
-          p_reason: typeof reason === "string" && reason.trim() ? reason.trim() : null,
+          p_reason: null,
         });
         setBookBusyId(null);
         if (error) {

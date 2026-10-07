@@ -7,7 +7,7 @@ import { BusyText } from "./Loading";
 // 예/아니오 재확인 모달 (+ 필요 시 사유 입력).
 // 과거에는 "확인 문구를 정확히 입력" 타이핑을 요구했으나, 매 작업마다 단어를 치게 해
 // 운영이 불편하다는 피드백이 많아 제거함. 이제 확인/취소(예/아니오)만으로 진행한다.
-// reasonRequired인 경우(환불·차단·폐기 등)는 기록·분쟁 대응용 사유 입력만 유지.
+// reasonRequired인 경우(환불·차단 등)는 기록·분쟁 대응용 사유 입력만 유지.
 // confirmPhrase prop은 호출부 하위호환을 위해 받기만 하고 무시한다.
 function DestructiveConfirmModal({
   open,

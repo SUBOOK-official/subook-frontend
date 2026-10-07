@@ -28,7 +28,7 @@ function singleIntakeError(item, step) {
   if (step >= 2) {
     if (!['S', 'A_PLUS', 'A', 'DISCARD'].includes(item.condition_grade)) return '등급을 선택하세요.';
     if (item.condition_grade === 'DISCARD') {
-      return item.discard_reason.trim() ? '' : '판매불가 사유를 입력하세요.';
+      return '';
     }
     if (item.writing_percentage === '' || !Number.isInteger(Number(item.writing_percentage)) || Number(item.writing_percentage) < 0 || Number(item.writing_percentage) > 100) return '필기 비율을 0~100 사이의 정수로 입력하세요.';
     if (item.has_damage === null || !item.components_confirmed) return '손상 여부와 답지·구성품 확인을 완료하세요.';
@@ -148,7 +148,7 @@ function batchIntakeError(item, step) {
 export function intakePayload(item) {
   const resolved = !isIntakeBatch(item) && item.variants?.[0] ? resolveIntakeVariant(item, item.variants[0]) : item;
   const keys = ['product_id','title','option','subject','brand','book_type','published_year','instructor_name',
-    'condition_grade','writing_percentage','has_damage','components_confirmed','inspection_notes','discard_reason',
+    'condition_grade','writing_percentage','has_damage','components_confirmed','inspection_notes',
     'price','original_price','discount_type','discount_value','location','serial_number','cover_image_url','inspection_image_urls','is_public'];
   return Object.fromEntries(keys.map((key) => [key, resolved[key]]));
 }

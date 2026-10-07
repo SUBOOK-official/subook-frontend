@@ -14,9 +14,11 @@ test('새 책마다 다른 요청 키, 동일 초안 재시도 시 같은 키',(
   const first=valid(); assert.notEqual(first.requestKey,valid().requestKey);
   assert.equal(JSON.parse(JSON.stringify(first)).requestKey,first.requestKey);
 });
-test('판매불가는 가격 대신 사유가 필요하다',()=>{
+test('폐기는 사유·가격 없이 등록하고 이전 초안의 사유도 전송하지 않는다',()=>{
   const item={...valid(),condition_grade:'DISCARD',price:''};
-  assert.ok(intakeError(item,4)); assert.equal(intakeError({...item,discard_reason:'페이지 누락'},4),'');
+  assert.equal(intakeError(item,4),'');
+  assert.equal(intakeError({...item,discard_reason:undefined},4),'');
+  assert.equal('discard_reason' in intakePayload({...item,discard_reason:'페이지 누락'}),false);
 });
 
 test('30개 회차 생성, 재추가해도 기존 수량·가격 유지',()=>{

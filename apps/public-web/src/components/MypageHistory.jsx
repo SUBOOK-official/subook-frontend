@@ -3,128 +3,26 @@ import { formatCurrency } from "@shared-domain/format";
 import { getBuyerReturnLabel } from "@shared-domain/returns";
 import { pickupBoxLabel } from "@shared-domain/pickupBoxes";
 import { MypageEmptyState, ResponsiveSheet } from "./PublicMypageUi.jsx";
-import { AlertTriangleIcon, ArrowRightIcon, BookIcon, BoxIcon, ChevronRightIcon, CoinIcon, SearchIcon } from "./icons";
+import { ArrowRightIcon, BookIcon, BoxIcon, ChevronRightIcon, CoinIcon, SearchIcon } from "./icons";
 import { OrderReviewAction, ReviewInviteBanner } from "./MypageReviews";
 import { formatPoints } from "../lib/publicPointsUtils";
 import { canWriteOrderReview } from "../lib/publicReviewsUtils";
 import { KAKAO_CHANNEL_URL } from "../lib/supportChannels";
 import { getThumbnailImageUrl } from "../lib/storageImage";
 import { BANK_ACCOUNT, BANK_HOLDER, BANK_NAME, PAYMENT_DEADLINE_HOURS, buildDepositorName } from "../lib/paymentBankInfo";
-import { trackContactClick, trackCopyClick, trackEvent, trackImageZoom, trackListFilterChange } from "../lib/analytics";
+import { trackContactClick, trackCopyClick, trackEvent, trackListFilterChange } from "../lib/analytics";
 import { PURCHASE_SUMMARY_CARDS, SALES_STATUS_FILTERS, SHIPMENT_PROGRESS_STEPS, deriveSettlementMetrics, deriveShipmentMetrics, filterPurchaseOrders, filterShipmentsByStatus, formatCompactDate, formatDateTime, formatShipmentReference, getOrderStatusLabel, getOrderStatusTone, getPaymentMethodLabel, getShipmentProgressIndex, getShipmentStatusLabel, getShipmentStatusTone, groupOrdersByDate } from "../lib/publicMypageUtils";
 
-function RejectableBookRow({ item, requestNumber }) {
-  const isRejected = Boolean(item.isRejected || item.rejectionReason);
-  const photos = Array.isArray(item.rejectionPhotoUrls) ? item.rejectionPhotoUrls : [];
-  const inspectedDate = item.inspectedAt ? formatCompactDate(item.inspectedAt) : null;
-  const resultViewedRef = useRef(false);
-
-  // GA4 검수 결과 노출 — 책 1건당 1회. 판매불가 사유 분포(정책 개선 근거) 수집.
-  useEffect(() => {
-    if (resultViewedRef.current) return;
-    resultViewedRef.current = true;
-    trackEvent("inspection_result_view", {
-      result: isRejected ? "rejected" : "graded",
-      ...(isRejected ? { rejectionReason: item.rejectionReason || "unspecified" } : {}),
-      photoCount: photos.length,
-    });
-  }, [isRejected, item.rejectionReason, photos.length]);
-
-  const buildDisputeMailto = () => {
-    const subject = `[검수 이의 신청] 요청번호 ${requestNumber} / 책 #${item.id}`;
-    const lines = [
-      "안녕하세요, 수북 운영팀에게 검수 결과에 대해 이의를 신청합니다.",
-      "",
-      `요청번호: ${requestNumber}`,
-      `책 ID: ${item.id}`,
-      `책 제목: ${item.title}`,
-      `검수 결과: ${item.statusLabel ?? "-"}`,
-      `검수 사유: ${item.rejectionReason ?? "-"}`,
-      `검수일: ${inspectedDate ?? "-"}`,
-      "",
-      "이의 사유:",
-      "(여기에 상세 내용을 적어주세요)",
-    ];
-    return `mailto:subook2025@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(lines.join("\n"))}`;
-  };
-
+function ShipmentBookRow({ item }) {
+  const discarded = Boolean(item.isRejected || item.rejectionReason);
   return (
-    <div className="public-mypage-book-row" id={`public-mypage-book-${item.id}`} key={item.id}>
+    <div className="public-mypage-book-row" id={`public-mypage-book-${item.id}`}>
       <div className="public-mypage-book-row__copy">
         <strong>{item.title}</strong>
-        {isRejected ? (
-          <>
-            <p>판매불가 · 사유: {item.rejectionReason || "사유 미입력"}</p>
-            {item.rejectionDetail ? (
-              <p className="public-mypage-book-row__detail">{item.rejectionDetail}</p>
-            ) : null}
-            {item.inspectorNote ? (
-              <p className="public-mypage-book-row__detail">검수자 메모: {item.inspectorNote}</p>
-            ) : null}
-            {inspectedDate ? (
-              <p className="public-mypage-book-row__detail">검수일: {inspectedDate}</p>
-            ) : null}
-            {photos.length > 0 ? (
-              <div className="public-mypage-book-row__photos">
-                {photos.map((url, idx) => (
-                  <a
-                    className="public-mypage-book-row__photo"
-                    href={url}
-                    key={url}
-                    onClick={() =>
-                      // GA4 검수 사진 확대 — 상품 id가 아니라 검수 맥락이라 null
-                      trackImageZoom(null, {
-                        zoomSource: "inspection_photo",
-                        photoCount: photos.length,
-                      })
-                    }
-                    rel="noopener noreferrer"
-                    target="_blank"
-                  >
-                    <img alt={`검수 사진 ${idx + 1}`} src={getThumbnailImageUrl(url)} />
-                  </a>
-                ))}
-              </div>
-            ) : null}
-            {/* P0-S2: mailto 단독은 모바일에서 메일앱 미설정 시 죽음. 카톡 채널을 1순위로 병기. */}
-            <div className="public-mypage-book-row__dispute-actions">
-              <a
-                className="public-mypage-book-row__dispute public-mypage-book-row__dispute--primary"
-                href={KAKAO_CHANNEL_URL}
-                onClick={() =>
-                  // GA4 검수 이의 신청 문의 (카카오)
-                  trackContactClick("kakao", "inspection_dispute", {
-                    rejectionReason: item.rejectionReason || "unspecified",
-                  })
-                }
-                rel="noopener noreferrer"
-                target="_blank"
-              >
-                카카오톡으로 이의 신청하기 <ArrowRightIcon size={13} />
-              </a>
-              <a
-                className="public-mypage-book-row__dispute public-mypage-book-row__dispute--secondary"
-                href={buildDisputeMailto()}
-                onClick={() =>
-                  trackContactClick("email", "inspection_dispute", {
-                    rejectionReason: item.rejectionReason || "unspecified",
-                  })
-                }
-                rel="noopener noreferrer"
-              >
-                메일로 문의
-              </a>
-            </div>
-          </>
-        ) : (
-          <p>
-            등급: {item.gradeLabel ?? "-"} | 판매가:{" "}
-            {item.price ? formatCurrency(item.price) : "-"}
-          </p>
-        )}
+        {!discarded ? <p>등급: {item.gradeLabel ?? "-"} | 판매가: {item.price ? formatCurrency(item.price) : "-"}</p> : null}
       </div>
-      <span className={`public-mypage-chip public-mypage-chip--${item.tone ?? "neutral"}`}>
-        {item.statusLabel}
+      <span className={`public-mypage-chip public-mypage-chip--${discarded ? "neutral" : item.tone ?? "neutral"}`}>
+        {discarded ? "폐기" : item.statusLabel}
       </span>
     </div>
   );
@@ -467,11 +365,6 @@ export function SalesTab({ expandedShipmentId, onCancelPickup, onRequestPickup, 
     <div className="mypage-sales-summary">
       {[["맡긴 교재", metrics.totalBookCount], ["판매중", metrics.onSaleBookCount], ["판매완료", metrics.soldBookCount]].map(([label, count]) => <div key={label}><span>{label}</span><strong>{count}<small>권</small></strong></div>)}
     </div>
-    {metrics.rejectedBookCount > 0 ? <button className="mypage-inspection-notice" type="button" onClick={() => {
-      setSearchKeyword(""); changeFilter("rejected");
-      const first = filterShipmentsByStatus(shipments, "rejected")[0];
-      if (first) onToggleShipment(first.id);
-    }}><AlertTriangleIcon size={17} /><span>판매불가 <b>{metrics.rejectedBookCount}권</b> · 검수 결과 확인</span><ChevronRightIcon size={16} /></button> : null}
     <div className="mypage-history-toolbar"><label className="mypage-history-search"><SearchIcon size={18} /><input aria-label="판매 교재 검색" type="search" placeholder="교재명 또는 수거번호" value={searchKeyword} onChange={(event) => { setSearchKeyword(event.target.value); setVisibleCount(12); }} /></label></div>
     <div className="mypage-history-filters" role="group" aria-label="판매 상태 필터">{SALES_STATUS_FILTERS.map((filter) => <button key={filter.value} type="button" aria-pressed={statusFilter === filter.value} onClick={() => changeFilter(filter.value)}>{filter.label}<span>{filterShipmentsByStatus(shipments, filter.value).length}</span></button>)}</div>
     {!shipments.length ? <MypageEmptyState icon={<BoxIcon size={32} />} title="아직 맡긴 교재가 없어요" actionLabel="수거 신청하기" actionOnClick={() => onRequestPickup("mypage_sales_empty")} /> :
@@ -502,7 +395,7 @@ export function SalesTab({ expandedShipmentId, onCancelPickup, onRequestPickup, 
               {shipment.trackingNumber ? <button className="mypage-text-button" type="button" onClick={() => onTrackParcel(shipment.trackingNumber, "sales_card", { pickupStatus: shipment.status })}>수거 배송 조회<ChevronRightIcon size={15} /></button> : null}
               {shipment.canCancel ? <button className="mypage-text-button" type="button" onClick={() => onCancelPickup(shipment)}>신청 취소</button> : null}
             </div>
-            {items.length ? <div className="mypage-inspection-list">{items.map((item) => <RejectableBookRow item={item} key={item.id} requestNumber={reference} />)}</div> :
+            {items.length ? <div className="mypage-inspection-list">{items.map((item) => <ShipmentBookRow item={item} key={item.id} />)}</div> :
               <p className="mypage-shipment-awaiting">{cancelled ? "취소된 수거 신청입니다." : shipment.compact ? "교재 상세 정보를 불러오지 못했습니다. 다시 불러와주세요." : "교재가 입고되면 검수 내역이 표시됩니다."}</p>}
           </div> : null}
         </article>;

@@ -483,17 +483,13 @@ function AdminShipmentDetailPage() {
       };
 
       // 등급 적용 + 즉시 저장. <details>가 닫혀 있어도 draft + supabase update.
-      const applyGradeAndSave = async (grade, discardReason = null) => {
+      const applyGradeAndSave = async (grade) => {
         if (!focusedBook) return;
         handleBookPublicDraftChange(focusedBook, "condition_grade", grade);
         // immediate save — 직접 supabase update (draft 우회)
         if (!isSupabaseConfigured) return;
         const currentDraft = getBookPublicDraftValue(focusedBook);
         const nextPayload = buildPublicStorePayload({ ...currentDraft, condition_grade: grade });
-        // 폐기 사유 저장 — 셀러 마이페이지 '판매불가 사유'로 노출
-        if (grade === "DISCARD" && typeof discardReason === "string" && discardReason.trim()) {
-          nextPayload.discard_reason = discardReason.trim();
-        }
         setUpdatingBookPublicId(focusedBook.id);
         const { data, error: updateError } = await supabase
           .from("books")
@@ -638,12 +634,10 @@ function AdminShipmentDetailPage() {
           setDestructiveModal({
             title: "이 책을 폐기할까요?",
             description:
-              "'폐기'로 변경하면 더 이상 판매 노출되지 않습니다. 되돌리려면 다시 등급(S / A+)을 지정해야 해요.\n사유는 셀러 마이페이지 '판매불가 사유'로 노출됩니다.",
+              "'폐기'로 변경하면 더 이상 판매 노출되지 않습니다. 되돌리려면 다시 등급(S / A+)을 지정해야 해요.",
             confirmLabel: "폐기",
-            reasonRequired: true,
-            reasonMinLength: 3,
-            reasonPlaceholder: "예) 파손 / 오염 / 검수 불합격 / 분실",
-            run: (reason) => applyGradeAndSave("DISCARD", reason),
+            reasonRequired: false,
+            run: () => applyGradeAndSave("DISCARD"),
           });
           break;
         case "p":
@@ -768,20 +762,16 @@ function AdminShipmentDetailPage() {
         title: `책 일괄 폐기 — ${ids.length}권`,
         description:
           `선택 ${ids.length}권을 일괄 '폐기'로 변경합니다.\n\n` +
-          `· active 주문이 있는 책은 자동 reject됩니다.\n` +
-          `· 폐기 상태의 책은 더 이상 노출되지 않습니다.\n\n` +
-          `이 작업은 되돌릴 수 없습니다.`,
+          `· 진행 중인 주문이 있는 책은 폐기할 수 없습니다.\n` +
+          `· 폐기 상태의 책은 더 이상 노출되지 않습니다.`,
         confirmPhrase: "폐기",
-        reasonRequired: true,
-        reasonMinLength: 3,
-        reasonPlaceholder: "예) 파손 / 오염 / 검수 불합격 / 분실",
+        reasonRequired: false,
         confirmLabel: `${ids.length}권 폐기`,
-        run: async (reason) => {
-          // 사유는 books.discard_reason에 저장돼 셀러 마이페이지 '판매불가 사유'로 노출된다
+        run: async () => {
           await runBulkBookRpc("admin_bulk_update_books_status", {
             p_ids: ids,
             p_status: "discarded",
-            p_reason: typeof reason === "string" && reason.trim() ? reason.trim() : null,
+            p_reason: null,
           });
         },
       });
