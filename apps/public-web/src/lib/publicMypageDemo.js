@@ -3,7 +3,7 @@ import { getSettlementInfo } from "../../../../packages/shared-domain/src/settle
 import { buildMemberDashboardSummarySnapshot, mapOrderToDisplayOrder } from "./publicMypageUtils.js";
 import { buildMockProductCover } from "./publicStoreMockData.js";
 
-export const DEMO_VERSION = 4;
+export const DEMO_VERSION = 5;
 export const DEMO_MEMBER_USER = {
   id: "demo-member-v3",
   email: "demo@example.com",
@@ -90,11 +90,7 @@ export function createDemoPortalSeed(profileOverride = {}, now = new Date()) {
     shipment("002", "scheduled", 1, 8),
     shipment("003", "collecting", 3, 12),
     shipment("004", "received", 5, 4),
-    shipment("005", "inspecting", 7, 3, [
-      book("005a", "시대인재 수학 N제", 18000, "검수중", { tone: "warning" }),
-      book("005b", "EBS 수능완성 영어", null, "검수중", { gradeLabel: "-", tone: "warning" }),
-      book("005c", "강남대성 국어 모의고사", null, "검수중", { gradeLabel: "-", tone: "warning" }),
-    ]),
+    shipment("005", "inspecting", 7, 3),
     shipment("006", "listed", 15, 4, [
       // 실제 공개 교재를 예시 이력에 연결한다. 거래·가격은 데모이며 클릭 후 일반 상품 화면으로 이동한다.
       book("006a", "2026 시대인재 파이널 브릿지 모의고사 수학", 24000, "판매중", {

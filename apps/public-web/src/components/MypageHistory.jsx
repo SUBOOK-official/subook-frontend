@@ -351,6 +351,14 @@ export function PurchasesView({
   );
 }
 
+const SHIPMENT_STAGE_MESSAGES = {
+  requested: { title: "수거 신청을 확인하고 있어요", description: "수거 접수가 완료되면 진행 상태를 안내해 드려요." },
+  scheduled: { title: "교재를 수거할 예정이에요", description: "보내실 교재를 포장해 수거를 준비해 주세요." },
+  collecting: { title: "교재가 수북으로 오고 있어요", description: "입고 후 순서대로 검수를 진행해요." },
+  received: { title: "교재가 도착했어요", description: "순서대로 검수를 준비하고 있어요. 검수가 완료되면 교재별 판매 내역을 확인할 수 있어요." },
+  inspecting: { title: "맡겨주신 교재를 검수하고 있어요", description: "교재 상태와 구성을 확인하고 있어요. 검수가 완료되면 교재별 판매가와 등록 내역을 확인할 수 있어요." },
+};
+
 export function SalesTab({ expandedShipmentId, onCancelPickup, onRequestPickup, onToggleShipment, onTrackParcel, shipments: allShipments }) {
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchKeyword, setSearchKeyword] = useState("");
@@ -384,6 +392,7 @@ export function SalesTab({ expandedShipmentId, onCancelPickup, onRequestPickup, 
         const items = shipment.items ?? [];
         const reference = shipment.referenceLabel ?? (shipment.reference ? formatShipmentReference(shipment.reference) : "수거번호 확인 중");
         const cancelled = shipment.status === "cancelled";
+        const stageMessage = SHIPMENT_STAGE_MESSAGES[shipment.status];
         const progressIndex = getShipmentProgressIndex(shipment.status);
         const detailsId = `mypage-shipment-${shipment.id}`;
         return <article className={`mypage-shipment ${isExpanded ? "is-expanded" : ""}`} key={shipment.id}>
@@ -392,7 +401,7 @@ export function SalesTab({ expandedShipmentId, onCancelPickup, onRequestPickup, 
             onToggleShipment(isExpanded ? null : shipment.id);
           }}>
             <div className="mypage-shipment-date"><strong>{formatCompactDate(shipment.createdAt)}</strong><span>{reference}</span></div>
-            <div className="mypage-shipment-copy"><strong>교재 {shipment.bookCount ?? items.length}권</strong><span>{items.length ? items.slice(0, 2).map((item) => item.title).join(" · ") + (items.length > 2 ? ` 외 ${items.length - 2}권` : "") : "수거 신청"}</span></div>
+            <div className="mypage-shipment-copy"><strong>교재 {shipment.bookCount ?? items.length}권</strong><span>{items.length ? items.slice(0, 2).map((item) => item.title).join(" · ") + (items.length > 2 ? ` 외 ${items.length - 2}권` : "") : stageMessage?.title ?? (cancelled ? "취소된 수거 신청" : "교재 내역")}</span></div>
             <strong className={`mypage-status mypage-status--${getShipmentStatusTone(shipment.status)}`}>{getShipmentStatusLabel(shipment.status)}</strong>
             <ChevronRightIcon className="mypage-shipment-chevron" size={18} />
           </button>
@@ -405,8 +414,9 @@ export function SalesTab({ expandedShipmentId, onCancelPickup, onRequestPickup, 
               {shipment.trackingNumber ? <button className="mypage-text-button" type="button" onClick={() => onTrackParcel(shipment.trackingNumber, "sales_card", { pickupStatus: shipment.status })}>수거 배송 조회<ChevronRightIcon size={15} /></button> : null}
               {shipment.canCancel ? <button className="mypage-text-button" type="button" onClick={() => onCancelPickup(shipment)}>신청 취소</button> : null}
             </div>
-            {items.length ? <div className="mypage-inspection-list">{items.map((item) => <ShipmentBookRow item={item} key={item.id} />)}</div> :
-              <p className="mypage-shipment-awaiting">{cancelled ? "취소된 수거 신청입니다." : shipment.compact ? "교재 상세 정보를 불러오지 못했습니다. 다시 불러와주세요." : "교재가 입고되면 검수 내역이 표시됩니다."}</p>}
+            {stageMessage ? <div className="mypage-shipment-stage"><strong>{stageMessage.title}</strong><p>{stageMessage.description}</p></div> :
+              items.length ? <div className="mypage-inspection-list">{items.map((item) => <ShipmentBookRow item={item} key={item.id} />)}</div> :
+                <p className="mypage-shipment-awaiting">{cancelled ? "취소된 수거 신청입니다." : shipment.compact ? "교재 상세 정보를 불러오지 못했습니다. 다시 불러와주세요." : "등록된 교재 내역이 없습니다."}</p>}
           </div> : null}
         </article>;
       })}</div>}

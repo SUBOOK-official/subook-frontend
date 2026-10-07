@@ -22,6 +22,32 @@ test("판매자 표시 목록에서 폐기 교재·제목·권수를 제외하�
   ]), []);
 });
 
+test("검수 완료 전 일부 등록된 교재는 목록·검색 데이터·판매 집계에서 숨긴다", () => {
+  const items = [
+    { id: 1, title: "등록 중인 교재", optionLabel: "1회", status: "on_sale", price: 18000 },
+    { id: 2, title: "폐기 교재", status: "discarded" },
+  ];
+  for (const status of ["requested", "scheduled", "collecting", "received", "inspecting"]) {
+    const [visible] = getVisibleSalesShipments([{ id: 1, status, items }]);
+    assert.deepEqual(visible.items, []);
+    assert.equal(visible.bookCount, 1);
+    assert.equal(filterShipmentsByStatus([visible], "in_progress").length, 1);
+    assert.equal(filterShipmentsByStatus([visible], "on_sale").length, 0);
+    assert.equal(deriveShipmentMetrics([visible]).onSaleBookCount, 0);
+  }
+  const [completed] = getVisibleSalesShipments([{ id: 1, status: "listed", items }]);
+  assert.deepEqual(completed.items, [items[0]]);
+  assert.equal(deriveShipmentMetrics([completed]).onSaleBookCount, 1);
+  assert.equal(items.length, 2);
+});
+
+test("검수 도중 먼저 등록한 책이 모두 폐기여도 진행 안내할 수거는 유지한다", () => {
+  const [visible] = getVisibleSalesShipments([{ id: 1, status: "inspecting", items: [{ status: "discarded" }] }]);
+  assert.equal(visible.status, "inspecting");
+  assert.deepEqual(visible.items, []);
+  assert.equal(visible.bookCount, 0);
+});
+
 test("판매 교재의 옵션·썸네일·상품 ID를 보존하고 신청 사진도 지원한다", () => {
   const row = mapPickupRequestToShipment({id:1,status:"inspected",items:[
     {id:20,title:"교재",option:"시즌3-1",product_id:10,cover_image_url:"https://example.com/book.jpg",status:"on_sale"},

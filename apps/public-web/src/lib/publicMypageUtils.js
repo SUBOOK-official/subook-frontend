@@ -297,8 +297,11 @@ export function getVisibleSalesShipments(shipments = []) {
   return shipments.flatMap((shipment) => {
     const originalItems = shipment.items ?? [];
     const items = originalItems.filter((item) => !isRejectedShipmentItem(item));
-    if ((originalItems.length > 0 && items.length === 0) || shipment.status === "rejected") return [];
-    return [{ ...shipment, items, bookCount: originalItems.length ? items.length : shipment.bookCount }];
+    const awaitingInspection = ["requested", "scheduled", "collecting", "received", "inspecting"].includes(shipment.status);
+    if ((!awaitingInspection && originalItems.length > 0 && items.length === 0) || shipment.status === "rejected") return [];
+    // 등록 도중에도 books가 생기지만, 검수 완료 전에는 상품 목록·검색·판매 집계에 노출하지 않는다.
+    // 먼저 등록한 교재가 모두 폐기여도 아직 진행 중인 수거 자체는 유지한다.
+    return [{ ...shipment, items: awaitingInspection ? [] : items, bookCount: originalItems.length ? items.length : shipment.bookCount }];
   });
 }
 
