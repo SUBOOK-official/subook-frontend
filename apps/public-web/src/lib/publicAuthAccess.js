@@ -71,14 +71,15 @@ function isMissingRpcError(error, functionName) {
   return error?.code === "PGRST202" || rawMessage.includes(functionName.toLowerCase());
 }
 
-async function getLegacyAccessState(user) {
+async function getLegacyAccessState(user, signal) {
   const [profileResult, adminResult] = await Promise.all([
     supabase
       .from("member_profiles")
       .select("user_id, email, name, nickname, phone, marketing_opt_in, email_verified_at, terms_agreed_at, privacy_agreed_at")
       .eq("user_id", user.id)
+      .abortSignal(signal)
       .maybeSingle(),
-    supabase.rpc("is_admin_user"),
+    supabase.rpc("is_admin_user").abortSignal(signal),
   ]);
 
   const memberProfile = profileResult.data ?? null;
@@ -117,7 +118,7 @@ async function getLegacyAccessState(user) {
   };
 }
 
-export async function getPublicAccountAccessState(user) {
+export async function getPublicAccountAccessState(user, { signal } = {}) {
   if (!isSupabaseConfigured || !supabase || !user) {
     return {
       accountRole: "guest",
@@ -127,7 +128,8 @@ export async function getPublicAccountAccessState(user) {
   }
 
   const [{ data, error }, identityResult] = await Promise.all([
-    supabase.rpc("get_current_auth_account_role"), supabase.rpc("get_my_member_identity"),
+    supabase.rpc("get_current_auth_account_role").abortSignal(signal),
+    supabase.rpc("get_my_member_identity").abortSignal(signal),
   ]);
   // 이전 DB 버전만 호환. 네트워크 오류는 인증 완료로 간주하지 않는다.
   const identity = identityResult.error?.code === "PGRST202" ? { enabled: false, status: "legacy" }
@@ -136,19 +138,23 @@ export async function getPublicAccountAccessState(user) {
   if (error) {
     if (!isMissingRpcError(error, "get_current_auth_account_role")) {
       return {
-        ...(await getLegacyAccessState(user)),
+        ...(await getLegacyAccessState(user, signal)),
         identity,
         error,
       };
     }
 
-    return { ...(await getLegacyAccessState(user)), identity };
+    return { ...(await getLegacyAccessState(user, signal)), identity };
   }
 
   const row = Array.isArray(data) ? data[0] : data;
   const role = normalizeAccountRole(row?.account_role);
   // 소셜 인증 콜백의 임시 Auth 레코드는 번호 인증 전까지 회원 프로필이 없다.
-  const accountRole = identity?.status === "merged" || (role === "guest" && identity?.enabled && user.id) ? "member" : role;
+  // 현행 RPC는 Auth만 있고 프로필이 없는 사용자에게 unknown을 반환한다.
+  // 회원 이용 권한은 별도의 번호/약관 인증 조건으로 계속 제한한다.
+  const isPendingMember = ["guest", "unknown"].includes(role) && identity?.enabled
+    && ["unverified", "existing_account", "verified", "merged"].includes(identity.status) && user.id;
+  const accountRole = isPendingMember ? "member" : role;
 
   return {
     accountRole,

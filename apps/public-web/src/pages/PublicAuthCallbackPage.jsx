@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { makeOnceGuard, trackEvent } from "../lib/analytics";
+import { AUTH_LOADING_ERROR_NOTICE } from "../lib/publicAuthLoading";
 import {
   buildOAuthCallbackErrorNotice,
   classifyOAuthCallbackError,
@@ -32,6 +33,7 @@ function PublicAuthCallbackPage() {
   const navigate = useNavigate();
   const {
     isLoading,
+    authError,
     hasSession,
     isAuthenticated,
     isAdminAccount,
@@ -86,6 +88,14 @@ function PublicAuthCallbackPage() {
   useEffect(() => {
     if (oauthErrorNotice) return;
     if (isLoading) return;
+
+    if (authError) {
+      if (trackOnceRef.current("fail")) {
+        trackEvent("oauth_callback_fail", { errorReason: "auth_state_unavailable" });
+      }
+      navigate("/login", { replace: true, state: { notice: authError, from: next } });
+      return;
+    }
 
     // 세션 자체가 없음 → 로그인으로
     if (!hasSession) {
@@ -152,10 +162,19 @@ function PublicAuthCallbackPage() {
         trackEvent("oauth_callback_route", { destination: "next" });
       }
       navigate(next, { replace: true });
+      return;
     }
+
+    // 조회는 끝났지만 정상/인증필요/제한 계정 어느 분기에도 해당하지 않는 상태.
+    // 계속 스피너를 보여주는 대신 로그인 재시도 경로를 제공한다.
+    if (trackOnceRef.current("fail")) {
+      trackEvent("oauth_callback_fail", { errorReason: "unresolved_account" });
+    }
+    navigate("/login", { replace: true, state: { notice: AUTH_LOADING_ERROR_NOTICE, from: next } });
   }, [
     oauthErrorNotice,
     isLoading,
+    authError,
     hasSession,
     isAuthenticated,
     isAdminAccount,
@@ -170,19 +189,16 @@ function PublicAuthCallbackPage() {
 
   // SPA에서 처음 진입 시 URL fragment(#access_token=...)는 Supabase가 처리 후 제거.
   // 그동안 빈 화면 보이지 않도록 로딩 안내.
-  if (!oauthErrorNotice && !isLoading && !hasSession) {
-    return <Navigate replace to="/login" />;
-  }
-
   return (
     <main className="public-auth-callback-loading">
       <div role="status" aria-live="polite" className="public-auth-callback-loading__inner">
         <span className="public-auth-spinner" aria-hidden="true" />
         <p>로그인 처리 중입니다. 잠시만 기다려 주세요...</p>
         {showStuckHint ? (
-          <p className="public-auth-callback-loading__hint">
-            5초 이상 이 화면이 멈춰 있다면 새로고침해 주세요.
-          </p>
+          <>
+            <p className="public-auth-callback-loading__hint">로그인 확인이 지연되고 있어요.</p>
+            <a className="public-auth-callback-loading__hint" href="/login">로그인 화면으로 돌아가기</a>
+          </>
         ) : null}
       </div>
     </main>

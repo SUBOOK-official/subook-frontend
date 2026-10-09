@@ -7,6 +7,7 @@ import {
   trackLogout,
 } from "../lib/analytics";
 import { getPublicAccountAccessState } from "../lib/publicAuthAccess";
+import { AUTH_LOADING_ERROR_NOTICE, runAuthTask } from "../lib/publicAuthLoading";
 import { getMemberIdentityPolicy, verifyKakaoMemberPhone } from "@shared-supabase/memberIdentityClient";
 
 const PublicAuthContext = createContext(null);
@@ -28,18 +29,31 @@ function PublicAuthProvider({ children }) {
     accountRole: "guest",
     hasSession: false,
     isLoading: true,
+    authError: null,
     isConfigured: isSupabaseConfigured && Boolean(supabase),
   });
 
   useEffect(() => {
     let isMounted = true;
     let sessionRevision = 0;
+    let sessionTaskId;
 
-    const applySession = async (nextSession) => {
-      const revision = ++sessionRevision;
-      // 로그인/복원 어느 경로든 최종 사용자 id를 기록 (login 이벤트 중복 가드의 기준값)
-      lastSeenAuthUserId = nextSession?.user?.id ?? null;
-      if (!isMounted) {
+    const failSession = (nextSession, revision) => {
+      if (!isMounted || revision !== sessionRevision) return;
+      setState({
+        session: nextSession,
+        user: nextSession?.user ?? null,
+        profile: null,
+        accountRole: nextSession?.user ? "unknown" : "guest",
+        hasSession: Boolean(nextSession?.user),
+        isLoading: false,
+        authError: AUTH_LOADING_ERROR_NOTICE,
+        isConfigured: true,
+      });
+    };
+
+    const applySession = async (nextSession, revision) => {
+      if (!isMounted || revision !== sessionRevision) {
         return;
       }
 
@@ -56,27 +70,44 @@ function PublicAuthProvider({ children }) {
         return;
       }
 
-      if (nextSession.provider_token && nextSession.provider_token !== lastCheckedKakaoToken) {
-        lastCheckedKakaoToken = nextSession.provider_token;
-        // 번호를 못 받았거나 카카오 연결이 지연되면 기존 문자 인증 경로로 진행한다.
-        kakaoPhoneCheck = verifyKakaoMemberPhone(nextSession).catch(() => null);
-      }
-      if (nextSession.provider_token) await kakaoPhoneCheck;
-      const accessState = await getPublicAccountAccessState(nextSession.user);
-      if (!isMounted || revision !== sessionRevision) {
-        return;
-      }
+      try {
+        const accessState = await runAuthTask(async (signal) => {
+          if (nextSession.provider_token && nextSession.provider_token !== lastCheckedKakaoToken) {
+            lastCheckedKakaoToken = nextSession.provider_token;
+            // 번호를 못 받았거나 카카오 연결이 지연되면 기존 문자 인증 경로로 진행한다.
+            kakaoPhoneCheck = verifyKakaoMemberPhone(nextSession).catch(() => null);
+          }
+          if (nextSession.provider_token) await kakaoPhoneCheck;
+          return getPublicAccountAccessState(nextSession.user, { signal });
+        });
+        if (!isMounted || revision !== sessionRevision) return;
+        if (accessState.error || accessState.identity?.status === "error") {
+          failSession(nextSession, revision);
+          return;
+        }
 
-      setState({
-        session: nextSession,
-        user: nextSession.user,
-        profile: accessState.accountRole === "member" ? accessState.profile : null,
-        accountRole: accessState.accountRole,
-        identity: accessState.identity,
-        hasSession: true,
-        isLoading: false,
-        isConfigured: isSupabaseConfigured && Boolean(supabase),
-      });
+        setState({
+          session: nextSession,
+          user: nextSession.user,
+          profile: accessState.accountRole === "member" ? accessState.profile : null,
+          accountRole: accessState.accountRole,
+          identity: accessState.identity,
+          hasSession: true,
+          isLoading: false,
+          authError: null,
+          isConfigured: isSupabaseConfigured && Boolean(supabase),
+        });
+      } catch {
+        failSession(nextSession, revision);
+      }
+    };
+
+    const scheduleSession = (nextSession) => {
+      const revision = ++sessionRevision;
+      lastSeenAuthUserId = nextSession?.user?.id ?? null;
+      // Auth 알림 콜백을 반환한 다음 RPC를 호출해 SDK의 세션 잠금과 분리한다.
+      clearTimeout(sessionTaskId);
+      sessionTaskId = setTimeout(() => { void applySession(nextSession, revision); }, 0);
     };
 
     if (!isSupabaseConfigured || !supabase) {
@@ -96,8 +127,16 @@ function PublicAuthProvider({ children }) {
     }
 
     const initialize = async () => {
-      const { data } = await supabase.auth.getSession();
-      await applySession(data.session);
+      const revision = sessionRevision;
+      try {
+        const { data, error } = await runAuthTask(() => supabase.auth.getSession());
+        // 초기 조회보다 나중에 발생한 로그인/로그아웃 이벤트를 덮어쓰지 않는다.
+        if (!isMounted || revision !== sessionRevision) return;
+        if (error) throw error;
+        scheduleSession(data.session);
+      } catch {
+        failSession(null, revision);
+      }
     };
 
     void initialize();
@@ -121,11 +160,12 @@ function PublicAuthProvider({ children }) {
       ) {
         trackLogin(nextSession.user.app_metadata?.provider ?? "email");
       }
-      void applySession(nextSession);
+      scheduleSession(nextSession);
     });
 
     return () => {
       isMounted = false;
+      clearTimeout(sessionTaskId);
       subscription.unsubscribe();
     };
   }, []);
