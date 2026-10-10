@@ -24,6 +24,7 @@ export const adminNavigationGroups = [
     { key: "notification-logs", label: "알림 이력", to: "/admin/notification-logs", icon: BellIcon },
   ] },
   { key: "content", label: "마케팅·콘텐츠", items: [
+    { key: "study-materials", label: "2028 수능 자료", to: "/admin/study-materials", icon: FolderIcon },
     { key: "home-editor", label: "홈 편집", to: "/admin/home-editor", icon: MegaphoneIcon },
     { key: "coupons", label: "쿠폰", to: "/admin/coupons", icon: TicketIcon },
     { key: "meta-ads", label: "메타 광고", to: "/admin/meta-ads", icon: MegaphoneIcon },

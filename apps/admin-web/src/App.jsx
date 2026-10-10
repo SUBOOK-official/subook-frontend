@@ -6,6 +6,7 @@ import AdminRoute from "./components/AdminRoute";
 import { InlineLoading } from "./components/Loading";
 
 const AdminCsPage = lazy(() => import("./pages/AdminCsPage"));
+const AdminStudyMaterialsPage = lazy(() => import("./pages/AdminStudyMaterialsPage"));
 const AdminInventoryInsightsPage = lazy(() => import("./pages/AdminInventoryInsightsPage"));
 const AdminSettlementExceptionsPage = lazy(() => import("./pages/AdminSettlementExceptionsPage"));
 const AdminWorkHistoryPage = lazy(() => import("./pages/AdminWorkHistoryPage"));
@@ -85,6 +86,7 @@ function App() {
       <AuthEmailRedirector />
       <Suspense fallback={<PageLoadingFallback />}>
         <Routes>
+          <Route path="/admin/study-materials" element={<AdminRoute><AdminStudyMaterialsPage /></AdminRoute>} />
           <Route path="/admin/cs" element={<AdminRoute><AdminCsPage /></AdminRoute>} />
           <Route path="/admin/inventory-insights" element={<AdminRoute><AdminInventoryInsightsPage /></AdminRoute>} />
           <Route path="/admin/settlement-exceptions" element={<AdminRoute><AdminSettlementExceptionsPage /></AdminRoute>} />

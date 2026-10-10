@@ -5,6 +5,7 @@ import tailwindcss from "tailwindcss";
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { pdfjsAssetsPlugin } from "./pdfjsAssetsPlugin.js";
 
 const appRoot = dirname(fileURLToPath(import.meta.url));
 const frontendRepoRoot = resolve(appRoot, "../..");
@@ -28,6 +29,7 @@ function getManualChunk(id) {
   if (normalizedId.includes("/node_modules/@supabase/")) {
     return "supabase-vendor";
   }
+  if (normalizedId.includes("/node_modules/pdfjs-dist/")) return "pdfjs-vendor";
 
   if (
     normalizedId.includes("/node_modules/read-excel-file/") ||
@@ -46,7 +48,7 @@ export default defineConfig({
   root: appRoot,
   cacheDir: resolve(appRoot, ".vite"),
   envDir,
-  plugins: [react()],
+  plugins: [react(), pdfjsAssetsPlugin()],
   build: {
     rollupOptions: {
       output: {
