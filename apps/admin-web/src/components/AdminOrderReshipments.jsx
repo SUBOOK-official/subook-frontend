@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { canReshipOrder, RESHIPMENT_STATE_LABELS } from '@shared-domain/orderReshipments';
+import { canReshipOrder, RESHIPMENT_STATE_LABELS, toReshipmentItem } from '@shared-domain/orderReshipments';
 import { formatDate } from '@shared-domain/format';
 import { requestOrderReshipment } from '@shared-supabase/adminOrderReshipments';
 import AdminDialog from './AdminDialog';
 import { BusyText } from './Loading';
+import ReshipmentBookPicker from './ReshipmentBookPicker';
 
-export default function AdminOrderReshipments({ order, onLabel, onTrace, request = requestOrderReshipment }) {
+export default function AdminOrderReshipments({ order, onLabel, onTrace, request = requestOrderReshipment, searchProducts }) {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [historyError, setHistoryError] = useState('');
@@ -26,20 +27,21 @@ export default function AdminOrderReshipments({ order, onLabel, onTrace, request
   const active = history.some((row) => ['claimed', 'booking'].includes(row.state));
   const latestId = history[0]?.id ?? null;
   const selected = form?.items.filter((item) => item.selected) ?? [];
-  const valid = selected.length > 0 && selected.every((item) => item.title.trim()
+  const valid = selected.length > 0 && selected.every((item) => item.title.trim() && item.title.trim().length <= 200
     && Number.isInteger(Number(item.quantity)) && Number(item.quantity) > 0 && Number(item.quantity) <= item.max)
     && form.reason.trim().length >= 5;
 
   function openForm(existing) {
     setError('');
+    const sourceItems = (order.items ?? []).filter((item) => !item.refunded_at);
     setForm({
       requestKey: existing?.request_key ?? crypto.randomUUID(), expectedLatestId: latestId,
       reason: existing?.reason ?? '', locked: Boolean(existing), confirmed: false,
       items: existing
         ? existing.items.map((item) => ({ ...item, selected: true, max: item.quantity }))
-        : (order.items ?? []).filter((item) => !item.refunded_at).map((item) => ({
-          orderItemId: item.id, title: [item.title, item.option_label].filter(Boolean).join(' · '),
-          quantity: Number(item.quantity) || 1, max: Number(item.quantity) || 1, selected: false,
+        : sourceItems.map((item) => ({
+          orderItemId: item.id, title: '', replacementProductId: null, replacementOption: null,
+          quantity: Number(item.quantity) || 1, max: Number(item.quantity) || 1, selected: sourceItems.length === 1,
         })),
     });
   }
@@ -60,7 +62,7 @@ export default function AdminOrderReshipments({ order, onLabel, onTrace, request
     try {
       const result = await request(order.id, 'register', {
         requestKey: form.requestKey, expectedLatestId: form.expectedLatestId, reason: form.reason.trim(),
-        items: selected.map((item) => ({ orderItemId: item.orderItemId, title: item.title.trim(), quantity: Number(item.quantity) })),
+        items: selected.map(toReshipmentItem),
       });
       setForm(null);
       await load();
@@ -128,20 +130,19 @@ export default function AdminOrderReshipments({ order, onLabel, onTrace, request
           <div className="min-w-0 space-y-5">
             <div>
               <h3 className="text-sm font-bold text-slate-900">다시 보낼 교재</h3>
-              <p className="mt-1 mb-3 text-xs text-slate-500">대상 품목을 선택하고 실제 보낼 교재명·편·수량을 확인해 주세요.</p>
+              <p className="mt-1 mb-3 text-xs text-slate-500">등록된 교재를 검색하고 실제로 보낼 옵션을 선택해 주세요. 원 주문과 다른 교재도 선택할 수 있습니다.</p>
               <div className="divide-y divide-slate-100 rounded-lg border border-slate-200">
                 {form.items.map((item) => <div key={item.orderItemId} className="p-3 space-y-2">
                   <label className="flex items-start gap-2 text-xs font-semibold text-slate-700">
-                    <input type="checkbox" className="mt-0.5" checked={item.selected} disabled={busy || form.locked}
+                    {form.items.length > 1 && <input type="checkbox" className="mt-0.5" checked={item.selected} disabled={busy || form.locked}
                       onChange={(event) => updateItem(item.orderItemId, { selected: event.target.checked })} />
-                    <span>{sourceLabel(item)}</span>
+                    }
+                    <span><span className="mb-1 block font-normal text-slate-400">원 주문 교재</span>{sourceLabel(item)}</span>
                   </label>
-                  {item.selected && <div className="grid grid-cols-[minmax(0,1fr)_64px] gap-2">
-                    <label className="text-xs text-slate-500">실제 재발송 교재명
-                      <textarea className="input-base mt-1 w-full text-sm" rows={3} maxLength={200} value={item.title} disabled={busy || form.locked}
-                        onChange={(event) => updateItem(item.orderItemId, { title: event.target.value })} />
-                    </label>
-                    <label className="text-xs text-slate-500">수량
+                  {item.selected && <div className="space-y-3 border-t border-slate-100 pt-3">
+                    <ReshipmentBookPicker source={(order.items ?? []).find((row) => row.id === item.orderItemId)}
+                      value={item} onChange={(patch) => updateItem(item.orderItemId, patch)} disabled={busy || form.locked} search={searchProducts} />
+                    <label className="block w-24 text-xs text-slate-500">재발송 수량
                       <input type="number" className="input-base mt-1 w-full" min={1} max={item.max} step={1} value={item.quantity} disabled={busy || form.locked}
                         onChange={(event) => updateItem(item.orderItemId, { quantity: event.target.value })} />
                     </label>
@@ -158,8 +159,11 @@ export default function AdminOrderReshipments({ order, onLabel, onTrace, request
           </div>
           <aside className="min-w-0 space-y-4 rounded-lg bg-slate-50 p-4 text-xs self-start">
             <h3 className="text-sm font-bold text-slate-900">재발송 확인</h3>
+            {selected.some((item) => item.title) && <ul className="space-y-2 border-b border-slate-200 pb-3 text-slate-700">
+              {selected.filter((item) => item.title).map((item) => <li key={item.orderItemId} className="break-words">{item.title} · {item.quantity}권</li>)}
+            </ul>}
             <dl className="space-y-2">
-              <div className="flex justify-between"><dt className="text-slate-500">발송 수량</dt><dd className="font-bold">{selected.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0)}권 · 1박스</dd></div>
+              <div className="flex justify-between"><dt className="text-slate-500">발송 수량</dt><dd className="font-bold">{selected.filter((item) => item.title).reduce((sum, item) => sum + (Number(item.quantity) || 0), 0)}권 · 1박스</dd></div>
               <div className="flex justify-between"><dt className="text-slate-500">고객 추가 결제</dt><dd className="font-bold">없음</dd></div>
               <div className="flex justify-between"><dt className="text-slate-500">환불</dt><dd className="font-bold">없음</dd></div>
             </dl>

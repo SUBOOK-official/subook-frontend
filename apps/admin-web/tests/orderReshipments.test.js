@@ -14,7 +14,7 @@ async function api(t, { mode='success', admin=true } = {}, run) {
     shipping_recipient_name:'테스트',shipping_recipient_phone:'01012345678',shipping_address_line1:'테스트로 1',
     order_items:[{id:1416,title:'천체편',quantity:1}]};
   const request={orderId:380,reshipmentAction:'register',requestKey:'00000000-0000-0000-0000-000000000001',
-    reason:'오배송으로 고체편 재발송',items:[{orderItemId:1416,title:'고체편',quantity:1}]};
+    reason:'오배송으로 고체편 재발송',items:[{orderItemId:1416,title:'고체편',quantity:1,replacementProductId:2520,replacementOption:'고체편'}]};
   let row=null; const calls=[]; const bookings=[];
   const response=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{'Content-Type':'application/json'}});
   t.mock.method(globalThis,'fetch',async(input,options={})=>{
@@ -86,6 +86,7 @@ test('재발송: 원 주문과 다른 교재명으로 별도 예약하고 원 �
     assert.equal(calls.filter(path=>path.startsWith('/Req')).length,before);
     assert.equal(bookings.length,1);
     assert.equal('claim_token' in (await invoke({orderId:380,reshipmentAction:'list'})).data.reshipments[0],false);
+    assert.deepEqual((await invoke({orderId:380,reshipmentAction:'list'})).data.reshipments[0].items,request.items);
   });
 });
 for(const mode of ['lost','duplicate','dbfail'])test(`재발송: ${mode}는 예약 재시도/취소 없이 기존 번호를 보존`,async(t)=>{

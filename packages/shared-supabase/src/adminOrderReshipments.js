@@ -1,4 +1,7 @@
 import { supabase } from './adminSupabaseClient.js';
+import { searchReshipmentProducts } from './adminReshipmentCatalog.js';
+
+export const searchOrderReshipmentProducts = (query) => searchReshipmentProducts(supabase, query);
 
 export async function requestOrderReshipment(orderId, reshipmentAction, payload = {}) {
   const { data: { session } } = await supabase.auth.getSession();
