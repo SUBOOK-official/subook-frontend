@@ -5,6 +5,7 @@ import AdminSavedViews from "../components/AdminSavedViews";
 import AdminEntityTimeline from "../components/AdminEntityTimeline";
 import AdminDialog from "../components/AdminDialog";
 import AdminReturnRefundDialog from "../components/AdminReturnRefundDialog";
+import AdminOrderReshipments from "../components/AdminOrderReshipments";
 import RefundRequestItems from "../components/RefundRequestItems";
 import AdminShell from "../components/AdminShell";
 import AdminFulfillmentWorkbench from "../components/AdminFulfillmentWorkbench";
@@ -1590,6 +1591,9 @@ function AdminOrdersPage() {
           </p>
         </div>
       )}
+
+      <AdminOrderReshipments key={selectedOrder.id} order={selectedOrder}
+        onLabel={(row) => { setLabelData(row); setSelectedOrderId(null); }} onTrace={openDeliveryTrace} />
 
       {/* 환불 신청 사유 — 미해소 신청은 강조(자동확정·송금 보류), 해소(처리/반려)되면 이력만 */}
       {selectedOrder.refund_requested_at && selectedOrder.status !== "refunded" && (
