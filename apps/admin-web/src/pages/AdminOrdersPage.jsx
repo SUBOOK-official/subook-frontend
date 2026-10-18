@@ -339,6 +339,8 @@ function AdminOrdersPage() {
   const [deliveryPlan, setDeliveryPlan] = useState([]);
   const [deliveryPlanLoading, setDeliveryPlanLoading] = useState(false);
   const [deliveryPlanError, setDeliveryPlanError] = useState("");
+  const [smartDeliveryPlan, setSmartDeliveryPlan] = useState(false);
+  const [deliveryHeldOrders, setDeliveryHeldOrders] = useState([]);
   const deliveryPlanCount = deliveryPlan.reduce((sum, group) => sum + group.orderIds.length, 0);
   const [bulkCjProgress, setBulkCjProgress] = useState(null); // { done, total }
   const [bulkCjResult, setBulkCjResult] = useState(null); // 실패가 섞였을 때만 결과 요약 모달
@@ -672,7 +674,9 @@ function AdminOrdersPage() {
   };
 
   // 단건 버튼도 서버에서 전체 배송준비 주문을 검사해 합배송 미리보기를 연다.
-  const openDeliveryPlan = async (ids) => {
+  const openDeliveryPlan = async (ids = [], { smart = false } = {}) => {
+    setSmartDeliveryPlan(smart);
+    setDeliveryHeldOrders([]);
     setDeliveryPlan([]);
     setDeliveryPlanError("");
     setDeliveryPlanLoading(true);
@@ -681,16 +685,19 @@ function AdminOrdersPage() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) throw new Error("인증이 만료되었습니다. 다시 로그인해 주세요.");
       const groups = new Map();
-      for (let i = 0; i < ids.length; i += 30) {
+      const requests = smart ? [{ smart: true, preview: true }]
+        : Array.from({ length: Math.ceil(ids.length / 30) }, (_, i) => ({ orderIds: ids.slice(i * 30, (i + 1) * 30), preview: true }));
+      for (const body of requests) {
         const resp = await fetch("/api/admin/cj-delivery", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-          body: JSON.stringify({ orderIds: ids.slice(i, i + 30), preview: true }),
+          body: JSON.stringify(body),
           signal: AbortSignal.timeout(30_000),
         });
         const result = await resp.json().catch(() => ({}));
-        if (!resp.ok || !Array.isArray(result.groups)) throw new Error(result.error || "합배송 대상을 확인하지 못했습니다.");
+        if (!resp.ok || !Array.isArray(result.groups)) throw new Error(result.detail || result.error || "합배송 대상을 확인하지 못했습니다.");
         if (result.excludedOrderIds?.length) throw new Error("선택한 주문의 상태가 변경되었거나 환불 신청 중입니다. 목록을 새로고침해 주세요.");
+        if (smart) setDeliveryHeldOrders(result.heldOrders ?? []);
         for (const group of result.groups) groups.set(group.orderIds.join(","), group);
       }
       const plan = [...groups.values()];
@@ -1924,7 +1931,7 @@ function AdminOrdersPage() {
                 setSearch(e.target.value);
 
               }}
-              placeholder="주문번호, 구매자, 수령인"
+              placeholder="주문번호, 구매자, 수령인, 책 제목"
               type="search"
               value={search}
             />
@@ -1984,7 +1991,16 @@ function AdminOrdersPage() {
             ))}
           </div>
           {/* 판매내역 엑셀 — 운영 구글시트 "판매내역" 탭과 동일 열 구조 (현재 필터 반영) */}
-          <div className="ml-auto pb-1">
+          <div className="ml-auto pb-1 flex flex-wrap gap-2">
+            <button
+              className="btn-primary !w-auto !px-4 !py-2 text-sm"
+              disabled={bulkProcessing || deliveryPlanLoading}
+              onClick={() => openDeliveryPlan([], { smart: true })}
+              title="검색·기간·선택과 관계없이 전체 배송준비 주문을 모아 합배송합니다"
+              type="button"
+            >
+              {deliveryPlanLoading && smartDeliveryPlan ? <BusyText>출고 대상 확인 중...</BusyText> : "스마트 운송장 출력"}
+            </button>
             <button
               className="btn-secondary !w-auto !px-4 !py-2 text-sm"
               disabled={isSalesExporting}
@@ -2445,7 +2461,7 @@ function AdminOrdersPage() {
         onClose={() => setBulkCjConfirmOpen(false)}
         open={bulkCjConfirmOpen}
         size="md"
-        title="CJ 송장 출력 · 자동 합배송"
+        title={smartDeliveryPlan ? "스마트 운송장 출력" : "CJ 송장 출력 · 자동 합배송"}
       >
         <div className="p-6 space-y-4">
           {deliveryPlanLoading ? <InlineLoading label="동일 구매자·배송지 주문 확인 중..." /> : null}
@@ -2453,9 +2469,20 @@ function AdminOrdersPage() {
           {!deliveryPlanLoading && !deliveryPlanError ? (
             <>
               <p className="text-sm text-slate-700">
+                {smartDeliveryPlan ? "전체 출고 대기 " : ""}
                 주문 <strong>{deliveryPlanCount}건</strong>을 <strong>{deliveryPlan.length}박스</strong>로 묶어
                 운송장 <strong>{deliveryPlan.length}장</strong>을 출력합니다.
               </p>
+              {smartDeliveryPlan ? <p className="text-xs text-slate-500">검색·기간·선택과 관계없이 아직 운송장이 없는 배송준비 주문이 대상입니다.</p> : null}
+              {!deliveryPlan.length ? <p className="text-sm text-slate-600">지금 출력할 운송장이 없습니다.</p> : null}
+              {deliveryHeldOrders.length ? (
+                <details className="rounded-lg border border-amber-200 p-3 text-xs text-amber-800">
+                  <summary className="cursor-pointer font-semibold">출력 제외 {deliveryHeldOrders.length}건 · 확인 필요</summary>
+                  <ul className="mt-2 space-y-1">
+                    {deliveryHeldOrders.map((order) => <li key={order.id}>{order.order_number} · {order.reason}</li>)}
+                  </ul>
+                </details>
+              ) : null}
               <p className="text-xs text-slate-500">
                 동일 구매자·수취인·연락처·상세주소의 배송준비 주문을 자동으로 포함했습니다.
                 아래 교재를 박스별로 함께 포장해 주세요.

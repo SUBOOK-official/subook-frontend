@@ -37,7 +37,7 @@ test('미리보기 후 품목 환불·배송지 변경을 감지한다', () => {
 });
 
 // HTTP 경계 통합 검사: Supabase와 CJ를 모두 가짜 응답으로 대체. 외부 발송 없음.
-async function withApi(t, { loseBookingResponse = false, rejectBooking = false } = {}, run) {
+async function withApi(t, { loseBookingResponse = false, rejectBooking = false, smartGroups = [[1, 2]] } = {}, run) {
   const env = { SUPABASE_URL: 'https://database.test', SUPABASE_ANON_KEY: 'anon', SUPABASE_SERVICE_ROLE_KEY: 'service',
     CJ_API_BASE_URL: 'https://courier.test', CJ_CUST_ID: 'fixture', CJ_BIZ_REG_NUM: '1234567890', CJ_LOGISTICS_MOCK: 'false' };
   const old = Object.fromEntries(Object.keys(env).map((key) => [key, process.env[key]]));
@@ -64,6 +64,8 @@ async function withApi(t, { loseBookingResponse = false, rejectBooking = false }
     if (url.pathname === '/auth/v1/user') return response({ id: 'admin-user' });
     if (url.pathname.endsWith('/rpc/is_admin_user')) return response(true);
     if (url.pathname.endsWith('/rpc/admin_plan_order_deliveries')) return response([[1, 2]]);
+    if (url.pathname.endsWith('/rpc/admin_plan_pending_order_deliveries')) return response({ groups: smartGroups,
+      heldOrders: [{ id: 3, order_number: 'TEST-3', reason: '환불 신청 처리 중' }] });
     if (url.pathname.endsWith('/rpc/admin_claim_order_delivery')) {
       if (group?.state === 'booking') return response({ message: 'CJ 접수 결과 확인 필요' }, 400);
       group ??= { id: 'group', claim_token: 'owner', state: 'claimed' };
@@ -84,7 +86,9 @@ async function withApi(t, { loseBookingResponse = false, rejectBooking = false }
     }
     if (url.pathname === '/rest/v1/orders') {
       const idFilter = url.searchParams.get('id') || '';
-      return response(idFilter.startsWith('eq.') ? orders.find((order) => order.id === Number(idFilter.slice(3))) : orders);
+      const ids = idFilter.startsWith('in.') ? idFilter.slice(4, -1).split(',').map(Number) : null;
+      return response(idFilter.startsWith('eq.') ? orders.find((order) => order.id === Number(idFilter.slice(3)))
+        : ids ? orders.filter((order) => ids.includes(order.id)) : orders);
     }
     throw new Error(`Unexpected test request: ${url.pathname}`);
   });
@@ -95,6 +99,39 @@ async function withApi(t, { loseBookingResponse = false, rejectBooking = false }
   };
   await run({ invoke, orders, bookings });
 }
+
+test('API: 스마트 미리보기는 선택 없이 전체 대상·보류 사유를 반환하고 CJ 접수하지 않는다', async (t) => {
+  await withApi(t, {}, async ({ invoke, bookings }) => {
+    assert.equal((await invoke({ smart: true, preview: true }, false)).statusCode, 401);
+    const preview = await invoke({ smart: true, preview: true });
+    assert.deepEqual(preview.data.groups[0].orderIds, [1, 2]);
+    assert.equal(preview.data.heldOrders[0].reason, '환불 신청 처리 중');
+    assert.equal((await invoke({ smart: true })).statusCode, 400);
+    assert.equal((await invoke({ smart: true, preview: true, reprint: true })).statusCode, 400);
+    assert.equal(bookings.length, 0);
+  });
+});
+
+test('API: 출고 대상 없음은 빈 결과이며 기존 주문을 발급하지 않는다', async (t) => {
+  await withApi(t, { smartGroups: [] }, async ({ invoke, bookings }) => {
+    const preview = await invoke({ smart: true, preview: true });
+    assert.equal(preview.statusCode, 200);
+    assert.deepEqual(preview.data.groups, []);
+    assert.equal(bookings.length, 0);
+  });
+});
+
+test('API: 전체 대상 1,001건을 조회 제한으로 누락하지 않고 미리보기한다', async (t) => {
+  const smartGroups = Array.from({ length: 1001 }, (_, i) => [i + 1]);
+  await withApi(t, { smartGroups }, async ({ invoke, orders, bookings }) => {
+    for (let id = 3; id <= 1001; id++) orders.push({ ...fixtureOrders()[0], id, order_number: `TEST-${id}` });
+    const preview = await invoke({ smart: true, preview: true });
+    assert.equal(preview.statusCode, 200);
+    assert.equal(preview.data.groups.length, 1001);
+    assert.equal(preview.data.groups[1000].orders[0].id, 1001);
+    assert.equal(bookings.length, 0);
+  });
+});
 
 test('API: 단건 미리보기 → 두 주문 한 예약 → 어느 주문에서 재출력해도 한 장', async (t) => {
   await withApi(t, {}, async ({ invoke, bookings, orders }) => {
