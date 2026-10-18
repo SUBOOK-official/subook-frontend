@@ -8,6 +8,7 @@ import { PublicAuthProvider } from "./contexts/PublicAuthContext";
 import { PublicWishlistProvider } from "./contexts/PublicWishlistContext";
 import { initSentry, Sentry } from "./lib/sentryInit";
 import { installChunkReloadGuard } from "./lib/chunkReloadGuard";
+import { installStorageImageFallback } from "../../../packages/shared-domain/src/storageImage.js";
 import { installMetaPixel } from "./lib/metaPixel";
 import {
   applyOrderAttributionAnalyticsContext,
@@ -56,6 +57,7 @@ if (!showMaintenance) {
 
   // 배포 후 스테일 청크(옛 해시 자산) 로딩 실패 시 1회 자동 새로고침
   installChunkReloadGuard();
+  installStorageImageFallback();
 
   // 전역 Unhandled Promise rejection
   if (typeof window !== "undefined") {

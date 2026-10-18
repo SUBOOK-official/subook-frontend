@@ -5,6 +5,7 @@ import App from "./App";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { AdminStudioProvider } from "./contexts/AdminStudioContext";
 import { installChunkReloadGuard } from "./lib/chunkReloadGuard";
+import { installStorageImageFallback } from "@shared-domain/storageImage";
 import { initSentry, Sentry } from "./lib/sentryInit";
 import "./index.css";
 
@@ -13,6 +14,7 @@ initSentry();
 
 // 배포 후 스테일 청크(옛 해시 자산) 로딩 실패 시 1회 자동 새로고침
 installChunkReloadGuard();
+installStorageImageFallback();
 
 // 전역 Unhandled Promise rejection 캡처
 if (typeof window !== "undefined") {

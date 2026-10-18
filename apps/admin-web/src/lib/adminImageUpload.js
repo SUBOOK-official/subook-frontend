@@ -2,6 +2,8 @@
 // AdminProductRegisterPage의 업로드 규칙(버킷/타입/용량)과 동일 — 상품 수정 모달 등
 // 등록 위저드 밖에서도 같은 정책으로 업로드하기 위해 분리.
 import { supabase } from "@shared-supabase/adminSupabaseClient";
+import { uploadProductImage } from "@shared-supabase/productImageStorage";
+import { createImageVariants } from "@shared-domain/createImageVariants";
 
 export const COVER_BUCKET = "product-covers";
 export const DETAIL_BUCKET = "inspection-images";
@@ -32,10 +34,10 @@ function sanitizeFileName(name) {
 export async function uploadImageToBucket(bucket, file, prefix = "edit") {
   validateImageFile(file);
   const path = `${prefix}/${Date.now()}-${Math.random().toString(36).slice(2, 10)}-${sanitizeFileName(file.name)}`;
-  const { error } = await supabase.storage
-    .from(bucket)
-    .upload(path, file, { contentType: file.type, upsert: false, cacheControl: "3600" });
-  if (error) {
+  try {
+    const variants = await createImageVariants(file);
+    return await uploadProductImage(supabase, bucket, path, file, variants);
+  } catch (error) {
     // Supabase의 새 코드와 기존 "maximum allowed size" 응답을 모두 처리한다.
     // https://supabase.com/docs/guides/storage/debugging/error-codes
     if (error.code === "EntityTooLarge" || String(error.statusCode) === "413"
@@ -44,6 +46,4 @@ export async function uploadImageToBucket(bucket, file, prefix = "edit") {
     }
     throw error;
   }
-  const { data } = supabase.storage.from(bucket).getPublicUrl(path);
-  return data?.publicUrl ?? null;
 }

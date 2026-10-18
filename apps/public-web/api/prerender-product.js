@@ -85,19 +85,18 @@ function escapeHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
-// storageImage.js(toSupabaseRenderUrl)의 최소 복제 — 원본 2MB 커버를 변환 URL로
-function toRenderImageUrl(url, width, quality) {
-  if (typeof url !== "string" || !url.includes("/storage/v1/object/public/")) {
-    return url;
-  }
-  const [pathPart, existingQuery = ""] = url
-    .replace("/storage/v1/object/public/", "/storage/v1/render/image/public/")
-    .split("?", 2);
-  const params = new URLSearchParams(existingQuery);
-  params.set("width", String(width));
-  params.set("quality", String(quality));
-  params.set("resize", "contain");
-  return `${pathPart}?${params.toString()}`;
+// shared-domain/storageImage.js와 경로 규칙 동기. 봇도 사전 생성한 확대용 파일 사용.
+export function toStoredCoverUrl(value) {
+  try {
+    const url = new URL(value);
+    const marker = "/storage/v1/object/public/product-covers/";
+    if (!/\.supabase\.(co|in)$/.test(url.hostname) || !url.pathname.startsWith(marker)) return value;
+    const path = url.pathname.slice(marker.length);
+    if (!path || path.startsWith("__variants/v1/")) return value;
+    url.pathname = `${marker}__variants/v1/${path}.1600.jpg`;
+    for (const key of ["width", "height", "quality", "resize", "format"]) url.searchParams.delete(key);
+    return url.href;
+  } catch { return value; }
 }
 
 // ai_summary(간단 마크다운)를 안전한 HTML로 — escape 후 **강조**와 줄바꿈만 변환
@@ -272,7 +271,7 @@ function buildHtml({ product, stock, relatedBooks }) {
   }`;
   const canonicalUrl = `${SITE_ORIGIN}/store/${product.id}`;
   const coverUrl = product.cover_image_url
-    ? toRenderImageUrl(product.cover_image_url, 1200, 80)
+    ? toStoredCoverUrl(product.cover_image_url)
     : `${SITE_ORIGIN}/og-image.png`;
   const isSoldOut = stock.stockCount === 0;
   // 품절이어도 마지막 판매가를 표기 (offers.price 필수 요건 + SPA 옵션 표기와 동일 의미)

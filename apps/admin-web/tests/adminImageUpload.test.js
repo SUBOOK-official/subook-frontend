@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { URL } from "node:url";
 import vm from "node:vm";
+import { uploadProductImage } from "../../../packages/shared-supabase/src/productImageStorage.js";
 
 // Vite 전용 Supabase 연결만 대체하고 실제 업로드 진입점의 경계값·오류 처리를 검사한다.
 const source = (await readFile(new URL("../src/lib/adminImageUpload.js", import.meta.url), "utf8"))
@@ -12,12 +13,15 @@ const source = (await readFile(new URL("../src/lib/adminImageUpload.js", import.
 function setup(uploadError = null) {
   const uploads = [];
   const context = vm.createContext({
+    uploadProductImage,
+    createImageVariants: async () => [400, 900, 1600].map((width) => ({ width, blob: { size: 100, type: "image/jpeg" } })),
     supabase: { storage: { from: (bucket) => ({
       upload: async (path, file, options) => {
         uploads.push({ bucket, path, file, options });
         return { error: uploadError };
       },
       getPublicUrl: (path) => ({ data: { publicUrl: `https://storage.test/${bucket}/${path}` } }),
+      remove: async () => ({ error: null }),
     }) } },
   });
   vm.runInContext(source, context);
@@ -27,7 +31,7 @@ function setup(uploadError = null) {
 const image = (size, type = "image/png") => ({ size, type, name: "상세 사진.png" });
 const MB = 1024 * 1024;
 
-test("10MB 초과~15MB 상세사진을 원본 그대로 업로드한다", async () => {
+test("10MB 초과~15MB 상세사진은 축소본 3개를 저장한 뒤 원본 그대로 업로드한다", async () => {
   const { upload, uploads } = setup();
   for (const size of [10 * MB + 1, 12 * MB, 15 * MB]) {
     const file = image(size);
@@ -38,6 +42,8 @@ test("10MB 초과~15MB 상세사진을 원본 그대로 업로드한다", async 
     assert.match(sent.path, /^register\/[a-zA-Z0-9._-]+$/);
     assert.equal(sent.options.contentType, "image/png");
     assert.equal(sent.options.upsert, false);
+    assert.equal(sent.options.cacheControl, "31536000");
+    assert.deepEqual(uploads.slice(-4, -1).map((item) => item.options.contentType), ["image/jpeg", "image/jpeg", "image/jpeg"]);
     assert.equal(url, `https://storage.test/inspection-images/${sent.path}`);
   }
 });

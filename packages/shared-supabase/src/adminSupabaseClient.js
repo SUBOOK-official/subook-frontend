@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { reportMissingSupabaseEnv } from "./envDiagnostics";
+import { fetchWithStorageTimeout } from "./productImageStorage.js";
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_ADMIN_URL || import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey =
@@ -41,6 +42,7 @@ function shouldDetectAdminSessionInUrl(url, params) {
 
 export const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl, supabaseAnonKey, {
+      global: { fetch: fetchWithStorageTimeout },
       auth: {
         detectSessionInUrl: shouldDetectAdminSessionInUrl,
       },

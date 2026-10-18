@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AdminShell from "../components/AdminShell";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { DETAIL_BUCKET, MAX_DETAIL_PHOTOS, uploadImageToBucket } from "../lib/adminImageUpload";
+import { removeProductImage } from "@shared-supabase/productImageStorage";
 import { CheckCircleIcon, CloseIcon, InboxIcon, SearchIcon } from "../components/icons";
 import { BusyText, InlineLoading } from "../components/Loading";
 
@@ -454,7 +455,7 @@ function AdminPhotoIntakePage() {
       const idx = String(scan.url).indexOf(marker);
       if (idx !== -1) {
         const path = decodeURIComponent(String(scan.url).slice(idx + marker.length));
-        await supabase.storage.from(DETAIL_BUCKET).remove([path]);
+        await removeProductImage(supabase, DETAIL_BUCKET, path);
       }
     } catch {
       /* 스토리지 잔재는 무해 — 실패해도 진행 */
