@@ -5,6 +5,9 @@ on:
     branches: [main]
     paths:
       - 'qa/**'
+      - 'apps/public-web/**'
+      - 'apps/admin-web/src/lib/adminImageUpload.js'
+      - 'packages/**'
       - '.github/workflows/qa-regression.yml'
   pull_request:
     paths:

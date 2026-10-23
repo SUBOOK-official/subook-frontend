@@ -117,8 +117,10 @@ try {
     await p.locator('.cart-summary__order-btn').click();await p.waitForURL('**/order');await p.locator('.order-item').first().waitFor();
     assert.equal(await p.locator('.order-item').count(),3);
     assert.equal((await p.locator('.order-item__meta').allTextContents()).filter(t=>t.includes('7')).length,2);
-    const body=await p.locator('body').innerText();
-    for(const amount of ['20,000','3,000','23,000'])assert.ok(body.includes(amount),`주문서 금액 누락: ${amount}`);
+    for(const [label,amount] of [['상품금액','20,000원'],['배송비','3,000원'],['총 결제금액','23,000원']]) {
+      const row=p.locator('.order-sidebar__row').filter({has:p.getByText(label,{exact:true})});
+      assert.equal(await row.locator('span').last().innerText(),amount,`주문서 ${label} 불일치`);
+    }
     await p.getByRole('heading',{name:'결제 수단',exact:true}).locator('..').screenshot({path:path.join(out,'payment-method.png')});
     await p.setViewportSize({width:480,height:900});await shot('purchase-order-items','.order-items');
     assert.deepEqual(s.errors,[]);
