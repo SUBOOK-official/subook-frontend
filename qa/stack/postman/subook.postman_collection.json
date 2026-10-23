@@ -1,0 +1,1590 @@
+{
+  "info": {
+    "name": "SUBOOK 실제 핸들러 API 회귀",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "실제 B2B·계정 연결·나이스페이 복귀 핸들러 검증. DB/PG/알림은 로컬 fixture. 환경의 baseUrl은 127.0.0.1 전용."
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:5199"
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (!new RegExp('^http://127[.]0[.]0[.]1:[0-9]+$').test(pm.variables.get('baseUrl'))) { pm.execution.skipRequest(); throw new Error('QA local target only'); }"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "API-B2B-01 정상 문의 접수와 접수번호",
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-QA-Scenario",
+            "value": "ok"
+          }
+        ],
+        "url": "{{baseUrl}}/api/b2b-inquiry",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"organization\":\"QA 학원\",\"contactName\":\"QA 담당자\",\"phone\":\"010-0000-0001\",\"email\":\"qa@example.invalid\",\"quantity\":30,\"interests\":\"수학\",\"requestDetails\":\"자동화 합성 문의\",\"privacyConsent\":true}"
+        },
+        "description": "우선순위 P1\n기법 동등분할 / 오류 추정\n사전조건 로컬 QA 서버, 합성 데이터, 외부 응답 fixture\n절차 POST /api/b2b-inquiry → 입력·fixture: {\"body\":{\"organization\":\"QA 학원\",\"contactName\":\"QA 담당자\",\"phone\":\"010-0000-0001\",\"email\":\"qa@example.invalid\",\"quantity\":30,\"interests\":\"수학\",\"requestDetails\":\"자동화 합성 문의\",\"privacyConsent\":true},\"scenario\":\"ok\"}\n기대 {\"status\":200,\"code\":null,\"calls\":1}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const expected = {\"status\":200,\"code\":null,\"calls\":1};",
+              "pm.test('HTTP status', () => pm.response.to.have.status(expected.status));",
+              "pm.test('QA target identity', () => pm.expect(pm.response.headers.get('X-QA-Only')).to.eql('local-handler-with-fixtures'));",
+              "pm.test('Unexpected upstream = 0', () => pm.expect(pm.response.headers.get('X-QA-Unexpected')).to.eql('0'));",
+              "pm.test('Upstream call count', () => pm.expect(Number(pm.response.headers.get('X-QA-Upstream-Calls'))).to.eql(expected.calls));",
+              "pm.test('Response contract', () => { if (expected.location) { pm.expect(pm.response.headers.get('Location')).to.include(expected.location); } else { const body=pm.response.json(); if(expected.code) pm.expect(body.code).to.eql(expected.code); if(expected.status===200) pm.expect(body.success).to.eql(true); if(expected.status>=400) pm.expect(body.error).to.be.a('string').and.not.empty; } });",
+              "if(expected.paths) pm.test('Side effect sequence', () => pm.expect(JSON.parse(pm.response.headers.get('X-QA-Upstream-Paths'))).to.eql(expected.paths));",
+              "if(expected.boundPhone) pm.test('Trusted DB phone only', () => pm.expect(pm.response.headers.get('X-QA-Bound-Phone')).to.eql(expected.boundPhone));",
+              "pm.test('Reference id', () => pm.expect(pm.response.json().referenceId).to.match(/^B2B-\\d{8}-[0-9A-F]{6}$/));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "API-B2B-02 수량 최솟값 1",
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-QA-Scenario",
+            "value": "ok"
+          }
+        ],
+        "url": "{{baseUrl}}/api/b2b-inquiry",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"organization\":\"QA 학원\",\"contactName\":\"QA 담당자\",\"phone\":\"010-0000-0001\",\"email\":\"qa@example.invalid\",\"quantity\":1,\"interests\":\"수학\",\"requestDetails\":\"자동화 합성 문의\",\"privacyConsent\":true}"
+        },
+        "description": "우선순위 P1\n기법 경계값\n사전조건 로컬 QA 서버, 합성 데이터, 외부 응답 fixture\n절차 POST /api/b2b-inquiry → 입력·fixture: {\"body\":{\"organization\":\"QA 학원\",\"contactName\":\"QA 담당자\",\"phone\":\"010-0000-0001\",\"email\":\"qa@example.invalid\",\"quantity\":1,\"interests\":\"수학\",\"requestDetails\":\"자동화 합성 문의\",\"privacyConsent\":true},\"scenario\":\"ok\"}\n기대 {\"status\":200,\"code\":null,\"calls\":1}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const expected = {\"status\":200,\"code\":null,\"calls\":1};",
+              "pm.test('HTTP status', () => pm.response.to.have.status(expected.status));",
+              "pm.test('QA target identity', () => pm.expect(pm.response.headers.get('X-QA-Only')).to.eql('local-handler-with-fixtures'));",
+              "pm.test('Unexpected upstream = 0', () => pm.expect(pm.response.headers.get('X-QA-Unexpected')).to.eql('0'));",
+              "pm.test('Upstream call count', () => pm.expect(Number(pm.response.headers.get('X-QA-Upstream-Calls'))).to.eql(expected.calls));",
+              "pm.test('Response contract', () => { if (expected.location) { pm.expect(pm.response.headers.get('Location')).to.include(expected.location); } else { const body=pm.response.json(); if(expected.code) pm.expect(body.code).to.eql(expected.code); if(expected.status===200) pm.expect(body.success).to.eql(true); if(expected.status>=400) pm.expect(body.error).to.be.a('string').and.not.empty; } });",
+              "if(expected.paths) pm.test('Side effect sequence', () => pm.expect(JSON.parse(pm.response.headers.get('X-QA-Upstream-Paths'))).to.eql(expected.paths));",
+              "if(expected.boundPhone) pm.test('Trusted DB phone only', () => pm.expect(pm.response.headers.get('X-QA-Bound-Phone')).to.eql(expected.boundPhone));",
+              "pm.test('Reference id', () => pm.expect(pm.response.json().referenceId).to.match(/^B2B-\\d{8}-[0-9A-F]{6}$/));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "API-B2B-03 수량 0 거절",
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-QA-Scenario",
+            "value": "ok"
+          }
+        ],
+        "url": "{{baseUrl}}/api/b2b-inquiry",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"organization\":\"QA 학원\",\"contactName\":\"QA 담당자\",\"phone\":\"010-0000-0001\",\"email\":\"qa@example.invalid\",\"quantity\":0,\"interests\":\"수학\",\"requestDetails\":\"자동화 합성 문의\",\"privacyConsent\":true}"
+        },
+        "description": "우선순위 P1\n기법 동등분할 / 오류 추정\n사전조건 로컬 QA 서버, 합성 데이터, 외부 응답 fixture\n절차 POST /api/b2b-inquiry → 입력·fixture: {\"body\":{\"organization\":\"QA 학원\",\"contactName\":\"QA 담당자\",\"phone\":\"010-0000-0001\",\"email\":\"qa@example.invalid\",\"quantity\":0,\"interests\":\"수학\",\"requestDetails\":\"자동화 합성 문의\",\"privacyConsent\":true},\"scenario\":\"ok\"}\n기대 {\"status\":400,\"code\":\"INVALID_QUANTITY\",\"calls\":0}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const expected = {\"status\":400,\"code\":\"INVALID_QUANTITY\",\"calls\":0};",
+              "pm.test('HTTP status', () => pm.response.to.have.status(expected.status));",
+              "pm.test('QA target identity', () => pm.expect(pm.response.headers.get('X-QA-Only')).to.eql('local-handler-with-fixtures'));",
+              "pm.test('Unexpected upstream = 0', () => pm.expect(pm.response.headers.get('X-QA-Unexpected')).to.eql('0'));",
+              "pm.test('Upstream call count', () => pm.expect(Number(pm.response.headers.get('X-QA-Upstream-Calls'))).to.eql(expected.calls));",
+              "pm.test('Response contract', () => { if (expected.location) { pm.expect(pm.response.headers.get('Location')).to.include(expected.location); } else { const body=pm.response.json(); if(expected.code) pm.expect(body.code).to.eql(expected.code); if(expected.status===200) pm.expect(body.success).to.eql(true); if(expected.status>=400) pm.expect(body.error).to.be.a('string').and.not.empty; } });",
+              "if(expected.paths) pm.test('Side effect sequence', () => pm.expect(JSON.parse(pm.response.headers.get('X-QA-Upstream-Paths'))).to.eql(expected.paths));",
+              "if(expected.boundPhone) pm.test('Trusted DB phone only', () => pm.expect(pm.response.headers.get('X-QA-Bound-Phone')).to.eql(expected.boundPhone));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "API-B2B-04 수량 최댓값 1000000",
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-QA-Scenario",
+            "value": "ok"
+          }
+        ],
+        "url": "{{baseUrl}}/api/b2b-inquiry",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"organization\":\"QA 학원\",\"contactName\":\"QA 담당자\",\"phone\":\"010-0000-0001\",\"email\":\"qa@example.invalid\",\"quantity\":1000000,\"interests\":\"수학\",\"requestDetails\":\"자동화 합성 문의\",\"privacyConsent\":true}"
+        },
+        "description": "우선순위 P1\n기법 경계값\n사전조건 로컬 QA 서버, 합성 데이터, 외부 응답 fixture\n절차 POST /api/b2b-inquiry → 입력·fixture: {\"body\":{\"organization\":\"QA 학원\",\"contactName\":\"QA 담당자\",\"phone\":\"010-0000-0001\",\"email\":\"qa@example.invalid\",\"quantity\":1000000,\"interests\":\"수학\",\"requestDetails\":\"자동화 합성 문의\",\"privacyConsent\":true},\"scenario\":\"ok\"}\n기대 {\"status\":200,\"code\":null,\"calls\":1}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const expected = {\"status\":200,\"code\":null,\"calls\":1};",
+              "pm.test('HTTP status', () => pm.response.to.have.status(expected.status));",
+              "pm.test('QA target identity', () => pm.expect(pm.response.headers.get('X-QA-Only')).to.eql('local-handler-with-fixtures'));",
+              "pm.test('Unexpected upstream = 0', () => pm.expect(pm.response.headers.get('X-QA-Unexpected')).to.eql('0'));",
+              "pm.test('Upstream call count', () => pm.expect(Number(pm.response.headers.get('X-QA-Upstream-Calls'))).to.eql(expected.calls));",
+              "pm.test('Response contract', () => { if (expected.location) { pm.expect(pm.response.headers.get('Location')).to.include(expected.location); } else { const body=pm.response.json(); if(expected.code) pm.expect(body.code).to.eql(expected.code); if(expected.status===200) pm.expect(body.success).to.eql(true); if(expected.status>=400) pm.expect(body.error).to.be.a('string').and.not.empty; } });",
+              "if(expected.paths) pm.test('Side effect sequence', () => pm.expect(JSON.parse(pm.response.headers.get('X-QA-Upstream-Paths'))).to.eql(expected.paths));",
+              "if(expected.boundPhone) pm.test('Trusted DB phone only', () => pm.expect(pm.response.headers.get('X-QA-Bound-Phone')).to.eql(expected.boundPhone));",
+              "pm.test('Reference id', () => pm.expect(pm.response.json().referenceId).to.match(/^B2B-\\d{8}-[0-9A-F]{6}$/));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "API-B2B-05 수량 1000001 거절",
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-QA-Scenario",
+            "value": "ok"
+          }
+        ],
+        "url": "{{baseUrl}}/api/b2b-inquiry",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"organization\":\"QA 학원\",\"contactName\":\"QA 담당자\",\"phone\":\"010-0000-0001\",\"email\":\"qa@example.invalid\",\"quantity\":1000001,\"interests\":\"수학\",\"requestDetails\":\"자동화 합성 문의\",\"privacyConsent\":true}"
+        },
+        "description": "우선순위 P1\n기법 동등분할 / 오류 추정\n사전조건 로컬 QA 서버, 합성 데이터, 외부 응답 fixture\n절차 POST /api/b2b-inquiry → 입력·fixture: {\"body\":{\"organization\":\"QA 학원\",\"contactName\":\"QA 담당자\",\"phone\":\"010-0000-0001\",\"email\":\"qa@example.invalid\",\"quantity\":1000001,\"interests\":\"수학\",\"requestDetails\":\"자동화 합성 문의\",\"privacyConsent\":true},\"scenario\":\"ok\"}\n기대 {\"status\":400,\"code\":\"INVALID_QUANTITY\",\"calls\":0}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const expected = {\"status\":400,\"code\":\"INVALID_QUANTITY\",\"calls\":0};",
+              "pm.test('HTTP status', () => pm.response.to.have.status(expected.status));",
+              "pm.test('QA target identity', () => pm.expect(pm.response.headers.get('X-QA-Only')).to.eql('local-handler-with-fixtures'));",
+              "pm.test('Unexpected upstream = 0', () => pm.expect(pm.response.headers.get('X-QA-Unexpected')).to.eql('0'));",
+              "pm.test('Upstream call count', () => pm.expect(Number(pm.response.headers.get('X-QA-Upstream-Calls'))).to.eql(expected.calls));",
+              "pm.test('Response contract', () => { if (expected.location) { pm.expect(pm.response.headers.get('Location')).to.include(expected.location); } else { const body=pm.response.json(); if(expected.code) pm.expect(body.code).to.eql(expected.code); if(expected.status===200) pm.expect(body.success).to.eql(true); if(expected.status>=400) pm.expect(body.error).to.be.a('string').and.not.empty; } });",
+              "if(expected.paths) pm.test('Side effect sequence', () => pm.expect(JSON.parse(pm.response.headers.get('X-QA-Upstream-Paths'))).to.eql(expected.paths));",
+              "if(expected.boundPhone) pm.test('Trusted DB phone only', () => pm.expect(pm.response.headers.get('X-QA-Bound-Phone')).to.eql(expected.boundPhone));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "API-B2B-06 소수 수량 거절",
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-QA-Scenario",
+            "value": "ok"
+          }
+        ],
+        "url": "{{baseUrl}}/api/b2b-inquiry",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"organization\":\"QA 학원\",\"contactName\":\"QA 담당자\",\"phone\":\"010-0000-0001\",\"email\":\"qa@example.invalid\",\"quantity\":1.5,\"interests\":\"수학\",\"requestDetails\":\"자동화 합성 문의\",\"privacyConsent\":true}"
+        },
+        "description": "우선순위 P1\n기법 동등분할 / 오류 추정\n사전조건 로컬 QA 서버, 합성 데이터, 외부 응답 fixture\n절차 POST /api/b2b-inquiry → 입력·fixture: {\"body\":{\"organization\":\"QA 학원\",\"contactName\":\"QA 담당자\",\"phone\":\"010-0000-0001\",\"email\":\"qa@example.invalid\",\"quantity\":1.5,\"interests\":\"수학\",\"requestDetails\":\"자동화 합성 문의\",\"privacyConsent\":true},\"scenario\":\"ok\"}\n기대 {\"status\":400,\"code\":\"INVALID_QUANTITY\",\"calls\":0}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const expected = {\"status\":400,\"code\":\"INVALID_QUANTITY\",\"calls\":0};",
+              "pm.test('HTTP status', () => pm.response.to.have.status(expected.status));",
+              "pm.test('QA target identity', () => pm.expect(pm.response.headers.get('X-QA-Only')).to.eql('local-handler-with-fixtures'));",
+              "pm.test('Unexpected upstream = 0', () => pm.expect(pm.response.headers.get('X-QA-Unexpected')).to.eql('0'));",
+              "pm.test('Upstream call count', () => pm.expect(Number(pm.response.headers.get('X-QA-Upstream-Calls'))).to.eql(expected.calls));",
+              "pm.test('Response contract', () => { if (expected.location) { pm.expect(pm.response.headers.get('Location')).to.include(expected.location); } else { const body=pm.response.json(); if(expected.code) pm.expect(body.code).to.eql(expected.code); if(expected.status===200) pm.expect(body.success).to.eql(true); if(expected.status>=400) pm.expect(body.error).to.be.a('string').and.not.empty; } });",
+              "if(expected.paths) pm.test('Side effect sequence', () => pm.expect(JSON.parse(pm.response.headers.get('X-QA-Upstream-Paths'))).to.eql(expected.paths));",
+              "if(expected.boundPhone) pm.test('Trusted DB phone only', () => pm.expect(pm.response.headers.get('X-QA-Bound-Phone')).to.eql(expected.boundPhone));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "API-B2B-07 기관명 공백 거절",
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-QA-Scenario",
+            "value": "ok"
+          }
+        ],
+        "url": "{{baseUrl}}/api/b2b-inquiry",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"organization\":\"   \",\"contactName\":\"QA 담당자\",\"phone\":\"010-0000-0001\",\"email\":\"qa@example.invalid\",\"quantity\":30,\"interests\":\"수학\",\"requestDetails\":\"자동화 합성 문의\",\"privacyConsent\":true}"
+        },
+        "description": "우선순위 P1\n기법 동등분할 / 오류 추정\n사전조건 로컬 QA 서버, 합성 데이터, 외부 응답 fixture\n절차 POST /api/b2b-inquiry → 입력·fixture: {\"body\":{\"organization\":\"   \",\"contactName\":\"QA 담당자\",\"phone\":\"010-0000-0001\",\"email\":\"qa@example.invalid\",\"quantity\":30,\"interests\":\"수학\",\"requestDetails\":\"자동화 합성 문의\",\"privacyConsent\":true},\"scenario\":\"ok\"}\n기대 {\"status\":400,\"code\":\"INVALID_ORGANIZATION\",\"calls\":0}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const expected = {\"status\":400,\"code\":\"INVALID_ORGANIZATION\",\"calls\":0};",
+              "pm.test('HTTP status', () => pm.response.to.have.status(expected.status));",
+              "pm.test('QA target identity', () => pm.expect(pm.response.headers.get('X-QA-Only')).to.eql('local-handler-with-fixtures'));",
+              "pm.test('Unexpected upstream = 0', () => pm.expect(pm.response.headers.get('X-QA-Unexpected')).to.eql('0'));",
+              "pm.test('Upstream call count', () => pm.expect(Number(pm.response.headers.get('X-QA-Upstream-Calls'))).to.eql(expected.calls));",
+              "pm.test('Response contract', () => { if (expected.location) { pm.expect(pm.response.headers.get('Location')).to.include(expected.location); } else { const body=pm.response.json(); if(expected.code) pm.expect(body.code).to.eql(expected.code); if(expected.status===200) pm.expect(body.success).to.eql(true); if(expected.status>=400) pm.expect(body.error).to.be.a('string').and.not.empty; } });",
+              "if(expected.paths) pm.test('Side effect sequence', () => pm.expect(JSON.parse(pm.response.headers.get('X-QA-Upstream-Paths'))).to.eql(expected.paths));",
+              "if(expected.boundPhone) pm.test('Trusted DB phone only', () => pm.expect(pm.response.headers.get('X-QA-Bound-Phone')).to.eql(expected.boundPhone));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "API-B2B-08 기관명 100자 허용",
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-QA-Scenario",
+            "value": "ok"
+          }
+        ],
+        "url": "{{baseUrl}}/api/b2b-inquiry",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"organization\":\"가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가\",\"contactName\":\"QA 담당자\",\"phone\":\"010-0000-0001\",\"email\":\"qa@example.invalid\",\"quantity\":30,\"interests\":\"수학\",\"requestDetails\":\"자동화 합성 문의\",\"privacyConsent\":true}"
+        },
+        "description": "우선순위 P1\n기법 경계값\n사전조건 로컬 QA 서버, 합성 데이터, 외부 응답 fixture\n절차 POST /api/b2b-inquiry → 입력·fixture: {\"body\":{\"organization\":\"가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가\",\"contactName\":\"QA 담당자\",\"phone\":\"010-0000-0001\",\"email\":\"qa@example.invalid\",\"quantity\":30,\"interests\":\"수학\",\"requestDetails\":\"자동화 합성 문의\",\"privacyConsent\":true},\"scenario\":\"ok\"}\n기대 {\"status\":200,\"code\":null,\"calls\":1}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const expected = {\"status\":200,\"code\":null,\"calls\":1};",
+              "pm.test('HTTP status', () => pm.response.to.have.status(expected.status));",
+              "pm.test('QA target identity', () => pm.expect(pm.response.headers.get('X-QA-Only')).to.eql('local-handler-with-fixtures'));",
+              "pm.test('Unexpected upstream = 0', () => pm.expect(pm.response.headers.get('X-QA-Unexpected')).to.eql('0'));",
+              "pm.test('Upstream call count', () => pm.expect(Number(pm.response.headers.get('X-QA-Upstream-Calls'))).to.eql(expected.calls));",
+              "pm.test('Response contract', () => { if (expected.location) { pm.expect(pm.response.headers.get('Location')).to.include(expected.location); } else { const body=pm.response.json(); if(expected.code) pm.expect(body.code).to.eql(expected.code); if(expected.status===200) pm.expect(body.success).to.eql(true); if(expected.status>=400) pm.expect(body.error).to.be.a('string').and.not.empty; } });",
+              "if(expected.paths) pm.test('Side effect sequence', () => pm.expect(JSON.parse(pm.response.headers.get('X-QA-Upstream-Paths'))).to.eql(expected.paths));",
+              "if(expected.boundPhone) pm.test('Trusted DB phone only', () => pm.expect(pm.response.headers.get('X-QA-Bound-Phone')).to.eql(expected.boundPhone));",
+              "pm.test('Reference id', () => pm.expect(pm.response.json().referenceId).to.match(/^B2B-\\d{8}-[0-9A-F]{6}$/));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "API-B2B-09 기관명 101자 거절",
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-QA-Scenario",
+            "value": "ok"
+          }
+        ],
+        "url": "{{baseUrl}}/api/b2b-inquiry",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"organization\":\"가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가\",\"contactName\":\"QA 담당자\",\"phone\":\"010-0000-0001\",\"email\":\"qa@example.invalid\",\"quantity\":30,\"interests\":\"수학\",\"requestDetails\":\"자동화 합성 문의\",\"privacyConsent\":true}"
+        },
+        "description": "우선순위 P1\n기법 동등분할 / 오류 추정\n사전조건 로컬 QA 서버, 합성 데이터, 외부 응답 fixture\n절차 POST /api/b2b-inquiry → 입력·fixture: {\"body\":{\"organization\":\"가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가\",\"contactName\":\"QA 담당자\",\"phone\":\"010-0000-0001\",\"email\":\"qa@example.invalid\",\"quantity\":30,\"interests\":\"수학\",\"requestDetails\":\"자동화 합성 문의\",\"privacyConsent\":true},\"scenario\":\"ok\"}\n기대 {\"status\":400,\"code\":\"INVALID_ORGANIZATION\",\"calls\":0}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const expected = {\"status\":400,\"code\":\"INVALID_ORGANIZATION\",\"calls\":0};",
+              "pm.test('HTTP status', () => pm.response.to.have.status(expected.status));",
+              "pm.test('QA target identity', () => pm.expect(pm.response.headers.get('X-QA-Only')).to.eql('local-handler-with-fixtures'));",
+              "pm.test('Unexpected upstream = 0', () => pm.expect(pm.response.headers.get('X-QA-Unexpected')).to.eql('0'));",
+              "pm.test('Upstream call count', () => pm.expect(Number(pm.response.headers.get('X-QA-Upstream-Calls'))).to.eql(expected.calls));",
+              "pm.test('Response contract', () => { if (expected.location) { pm.expect(pm.response.headers.get('Location')).to.include(expected.location); } else { const body=pm.response.json(); if(expected.code) pm.expect(body.code).to.eql(expected.code); if(expected.status===200) pm.expect(body.success).to.eql(true); if(expected.status>=400) pm.expect(body.error).to.be.a('string').and.not.empty; } });",
+              "if(expected.paths) pm.test('Side effect sequence', () => pm.expect(JSON.parse(pm.response.headers.get('X-QA-Upstream-Paths'))).to.eql(expected.paths));",
+              "if(expected.boundPhone) pm.test('Trusted DB phone only', () => pm.expect(pm.response.headers.get('X-QA-Bound-Phone')).to.eql(expected.boundPhone));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "API-B2B-10 잘못된 연락처 거절",
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-QA-Scenario",
+            "value": "ok"
+          }
+        ],
+        "url": "{{baseUrl}}/api/b2b-inquiry",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"organization\":\"QA 학원\",\"contactName\":\"QA 담당자\",\"phone\":\"123\",\"email\":\"qa@example.invalid\",\"quantity\":30,\"interests\":\"수학\",\"requestDetails\":\"자동화 합성 문의\",\"privacyConsent\":true}"
+        },
+        "description": "우선순위 P1\n기법 동등분할 / 오류 추정\n사전조건 로컬 QA 서버, 합성 데이터, 외부 응답 fixture\n절차 POST /api/b2b-inquiry → 입력·fixture: {\"body\":{\"organization\":\"QA 학원\",\"contactName\":\"QA 담당자\",\"phone\":\"123\",\"email\":\"qa@example.invalid\",\"quantity\":30,\"interests\":\"수학\",\"requestDetails\":\"자동화 합성 문의\",\"privacyConsent\":true},\"scenario\":\"ok\"}\n기대 {\"status\":400,\"code\":\"INVALID_PHONE\",\"calls\":0}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const expected = {\"status\":400,\"code\":\"INVALID_PHONE\",\"calls\":0};",
+              "pm.test('HTTP status', () => pm.response.to.have.status(expected.status));",
+              "pm.test('QA target identity', () => pm.expect(pm.response.headers.get('X-QA-Only')).to.eql('local-handler-with-fixtures'));",
+              "pm.test('Unexpected upstream = 0', () => pm.expect(pm.response.headers.get('X-QA-Unexpected')).to.eql('0'));",
+              "pm.test('Upstream call count', () => pm.expect(Number(pm.response.headers.get('X-QA-Upstream-Calls'))).to.eql(expected.calls));",
+              "pm.test('Response contract', () => { if (expected.location) { pm.expect(pm.response.headers.get('Location')).to.include(expected.location); } else { const body=pm.response.json(); if(expected.code) pm.expect(body.code).to.eql(expected.code); if(expected.status===200) pm.expect(body.success).to.eql(true); if(expected.status>=400) pm.expect(body.error).to.be.a('string').and.not.empty; } });",
+              "if(expected.paths) pm.test('Side effect sequence', () => pm.expect(JSON.parse(pm.response.headers.get('X-QA-Upstream-Paths'))).to.eql(expected.paths));",
+              "if(expected.boundPhone) pm.test('Trusted DB phone only', () => pm.expect(pm.response.headers.get('X-QA-Bound-Phone')).to.eql(expected.boundPhone));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "API-B2B-11 잘못된 이메일 거절",
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-QA-Scenario",
+            "value": "ok"
+          }
+        ],
+        "url": "{{baseUrl}}/api/b2b-inquiry",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"organization\":\"QA 학원\",\"contactName\":\"QA 담당자\",\"phone\":\"010-0000-0001\",\"email\":\"bad@\",\"quantity\":30,\"interests\":\"수학\",\"requestDetails\":\"자동화 합성 문의\",\"privacyConsent\":true}"
+        },
+        "description": "우선순위 P1\n기법 동등분할 / 오류 추정\n사전조건 로컬 QA 서버, 합성 데이터, 외부 응답 fixture\n절차 POST /api/b2b-inquiry → 입력·fixture: {\"body\":{\"organization\":\"QA 학원\",\"contactName\":\"QA 담당자\",\"phone\":\"010-0000-0001\",\"email\":\"bad@\",\"quantity\":30,\"interests\":\"수학\",\"requestDetails\":\"자동화 합성 문의\",\"privacyConsent\":true},\"scenario\":\"ok\"}\n기대 {\"status\":400,\"code\":\"INVALID_EMAIL\",\"calls\":0}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const expected = {\"status\":400,\"code\":\"INVALID_EMAIL\",\"calls\":0};",
+              "pm.test('HTTP status', () => pm.response.to.have.status(expected.status));",
+              "pm.test('QA target identity', () => pm.expect(pm.response.headers.get('X-QA-Only')).to.eql('local-handler-with-fixtures'));",
+              "pm.test('Unexpected upstream = 0', () => pm.expect(pm.response.headers.get('X-QA-Unexpected')).to.eql('0'));",
+              "pm.test('Upstream call count', () => pm.expect(Number(pm.response.headers.get('X-QA-Upstream-Calls'))).to.eql(expected.calls));",
+              "pm.test('Response contract', () => { if (expected.location) { pm.expect(pm.response.headers.get('Location')).to.include(expected.location); } else { const body=pm.response.json(); if(expected.code) pm.expect(body.code).to.eql(expected.code); if(expected.status===200) pm.expect(body.success).to.eql(true); if(expected.status>=400) pm.expect(body.error).to.be.a('string').and.not.empty; } });",
+              "if(expected.paths) pm.test('Side effect sequence', () => pm.expect(JSON.parse(pm.response.headers.get('X-QA-Upstream-Paths'))).to.eql(expected.paths));",
+              "if(expected.boundPhone) pm.test('Trusted DB phone only', () => pm.expect(pm.response.headers.get('X-QA-Bound-Phone')).to.eql(expected.boundPhone));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "API-B2B-12 개인정보 미동의 거절",
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-QA-Scenario",
+            "value": "ok"
+          }
+        ],
+        "url": "{{baseUrl}}/api/b2b-inquiry",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"organization\":\"QA 학원\",\"contactName\":\"QA 담당자\",\"phone\":\"010-0000-0001\",\"email\":\"qa@example.invalid\",\"quantity\":30,\"interests\":\"수학\",\"requestDetails\":\"자동화 합성 문의\",\"privacyConsent\":false}"
+        },
+        "description": "우선순위 P1\n기법 동등분할 / 오류 추정\n사전조건 로컬 QA 서버, 합성 데이터, 외부 응답 fixture\n절차 POST /api/b2b-inquiry → 입력·fixture: {\"body\":{\"organization\":\"QA 학원\",\"contactName\":\"QA 담당자\",\"phone\":\"010-0000-0001\",\"email\":\"qa@example.invalid\",\"quantity\":30,\"interests\":\"수학\",\"requestDetails\":\"자동화 합성 문의\",\"privacyConsent\":false},\"scenario\":\"ok\"}\n기대 {\"status\":400,\"code\":\"PRIVACY_CONSENT_REQUIRED\",\"calls\":0}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const expected = {\"status\":400,\"code\":\"PRIVACY_CONSENT_REQUIRED\",\"calls\":0};",
+              "pm.test('HTTP status', () => pm.response.to.have.status(expected.status));",
+              "pm.test('QA target identity', () => pm.expect(pm.response.headers.get('X-QA-Only')).to.eql('local-handler-with-fixtures'));",
+              "pm.test('Unexpected upstream = 0', () => pm.expect(pm.response.headers.get('X-QA-Unexpected')).to.eql('0'));",
+              "pm.test('Upstream call count', () => pm.expect(Number(pm.response.headers.get('X-QA-Upstream-Calls'))).to.eql(expected.calls));",
+              "pm.test('Response contract', () => { if (expected.location) { pm.expect(pm.response.headers.get('Location')).to.include(expected.location); } else { const body=pm.response.json(); if(expected.code) pm.expect(body.code).to.eql(expected.code); if(expected.status===200) pm.expect(body.success).to.eql(true); if(expected.status>=400) pm.expect(body.error).to.be.a('string').and.not.empty; } });",
+              "if(expected.paths) pm.test('Side effect sequence', () => pm.expect(JSON.parse(pm.response.headers.get('X-QA-Upstream-Paths'))).to.eql(expected.paths));",
+              "if(expected.boundPhone) pm.test('Trusted DB phone only', () => pm.expect(pm.response.headers.get('X-QA-Bound-Phone')).to.eql(expected.boundPhone));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "API-B2B-13 요청사항 2000자 허용",
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-QA-Scenario",
+            "value": "ok"
+          }
+        ],
+        "url": "{{baseUrl}}/api/b2b-inquiry",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"organization\":\"QA 학원\",\"contactName\":\"QA 담당자\",\"phone\":\"010-0000-0001\",\"email\":\"qa@example.invalid\",\"quantity\":30,\"interests\":\"수학\",\"requestDetails\":\"가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가\",\"privacyConsent\":true}"
+        },
+        "description": "우선순위 P1\n기법 경계값\n사전조건 로컬 QA 서버, 합성 데이터, 외부 응답 fixture\n절차 POST /api/b2b-inquiry → 입력·fixture: {\"body\":{\"organization\":\"QA 학원\",\"contactName\":\"QA 담당자\",\"phone\":\"010-0000-0001\",\"email\":\"qa@example.invalid\",\"quantity\":30,\"interests\":\"수학\",\"requestDetails\":\"가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가\",\"privacyConsent\":true},\"scenario\":\"ok\"}\n기대 {\"status\":200,\"code\":null,\"calls\":1}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const expected = {\"status\":200,\"code\":null,\"calls\":1};",
+              "pm.test('HTTP status', () => pm.response.to.have.status(expected.status));",
+              "pm.test('QA target identity', () => pm.expect(pm.response.headers.get('X-QA-Only')).to.eql('local-handler-with-fixtures'));",
+              "pm.test('Unexpected upstream = 0', () => pm.expect(pm.response.headers.get('X-QA-Unexpected')).to.eql('0'));",
+              "pm.test('Upstream call count', () => pm.expect(Number(pm.response.headers.get('X-QA-Upstream-Calls'))).to.eql(expected.calls));",
+              "pm.test('Response contract', () => { if (expected.location) { pm.expect(pm.response.headers.get('Location')).to.include(expected.location); } else { const body=pm.response.json(); if(expected.code) pm.expect(body.code).to.eql(expected.code); if(expected.status===200) pm.expect(body.success).to.eql(true); if(expected.status>=400) pm.expect(body.error).to.be.a('string').and.not.empty; } });",
+              "if(expected.paths) pm.test('Side effect sequence', () => pm.expect(JSON.parse(pm.response.headers.get('X-QA-Upstream-Paths'))).to.eql(expected.paths));",
+              "if(expected.boundPhone) pm.test('Trusted DB phone only', () => pm.expect(pm.response.headers.get('X-QA-Bound-Phone')).to.eql(expected.boundPhone));",
+              "pm.test('Reference id', () => pm.expect(pm.response.json().referenceId).to.match(/^B2B-\\d{8}-[0-9A-F]{6}$/));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "API-B2B-14 요청사항 2001자 거절",
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-QA-Scenario",
+            "value": "ok"
+          }
+        ],
+        "url": "{{baseUrl}}/api/b2b-inquiry",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"organization\":\"QA 학원\",\"contactName\":\"QA 담당자\",\"phone\":\"010-0000-0001\",\"email\":\"qa@example.invalid\",\"quantity\":30,\"interests\":\"수학\",\"requestDetails\":\"가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가\",\"privacyConsent\":true}"
+        },
+        "description": "우선순위 P1\n기법 동등분할 / 오류 추정\n사전조건 로컬 QA 서버, 합성 데이터, 외부 응답 fixture\n절차 POST /api/b2b-inquiry → 입력·fixture: {\"body\":{\"organization\":\"QA 학원\",\"contactName\":\"QA 담당자\",\"phone\":\"010-0000-0001\",\"email\":\"qa@example.invalid\",\"quantity\":30,\"interests\":\"수학\",\"requestDetails\":\"가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가\",\"privacyConsent\":true},\"scenario\":\"ok\"}\n기대 {\"status\":400,\"code\":\"DETAILS_TOO_LONG\",\"calls\":0}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const expected = {\"status\":400,\"code\":\"DETAILS_TOO_LONG\",\"calls\":0};",
+              "pm.test('HTTP status', () => pm.response.to.have.status(expected.status));",
+              "pm.test('QA target identity', () => pm.expect(pm.response.headers.get('X-QA-Only')).to.eql('local-handler-with-fixtures'));",
+              "pm.test('Unexpected upstream = 0', () => pm.expect(pm.response.headers.get('X-QA-Unexpected')).to.eql('0'));",
+              "pm.test('Upstream call count', () => pm.expect(Number(pm.response.headers.get('X-QA-Upstream-Calls'))).to.eql(expected.calls));",
+              "pm.test('Response contract', () => { if (expected.location) { pm.expect(pm.response.headers.get('Location')).to.include(expected.location); } else { const body=pm.response.json(); if(expected.code) pm.expect(body.code).to.eql(expected.code); if(expected.status===200) pm.expect(body.success).to.eql(true); if(expected.status>=400) pm.expect(body.error).to.be.a('string').and.not.empty; } });",
+              "if(expected.paths) pm.test('Side effect sequence', () => pm.expect(JSON.parse(pm.response.headers.get('X-QA-Upstream-Paths'))).to.eql(expected.paths));",
+              "if(expected.boundPhone) pm.test('Trusted DB phone only', () => pm.expect(pm.response.headers.get('X-QA-Bound-Phone')).to.eql(expected.boundPhone));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "API-B2B-15 GET 메서드 거절",
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-QA-Scenario",
+            "value": "ok"
+          }
+        ],
+        "url": "{{baseUrl}}/api/b2b-inquiry",
+        "description": "우선순위 P1\n기법 동등분할 / 오류 추정\n사전조건 로컬 QA 서버, 합성 데이터, 외부 응답 fixture\n절차 GET /api/b2b-inquiry → 입력·fixture: {\"body\":{\"organization\":\"QA 학원\",\"contactName\":\"QA 담당자\",\"phone\":\"010-0000-0001\",\"email\":\"qa@example.invalid\",\"quantity\":30,\"interests\":\"수학\",\"requestDetails\":\"자동화 합성 문의\",\"privacyConsent\":true},\"scenario\":\"ok\"}\n기대 {\"status\":405,\"code\":\"METHOD_NOT_ALLOWED\",\"calls\":0}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const expected = {\"status\":405,\"code\":\"METHOD_NOT_ALLOWED\",\"calls\":0};",
+              "pm.test('HTTP status', () => pm.response.to.have.status(expected.status));",
+              "pm.test('QA target identity', () => pm.expect(pm.response.headers.get('X-QA-Only')).to.eql('local-handler-with-fixtures'));",
+              "pm.test('Unexpected upstream = 0', () => pm.expect(pm.response.headers.get('X-QA-Unexpected')).to.eql('0'));",
+              "pm.test('Upstream call count', () => pm.expect(Number(pm.response.headers.get('X-QA-Upstream-Calls'))).to.eql(expected.calls));",
+              "pm.test('Response contract', () => { if (expected.location) { pm.expect(pm.response.headers.get('Location')).to.include(expected.location); } else { const body=pm.response.json(); if(expected.code) pm.expect(body.code).to.eql(expected.code); if(expected.status===200) pm.expect(body.success).to.eql(true); if(expected.status>=400) pm.expect(body.error).to.be.a('string').and.not.empty; } });",
+              "if(expected.paths) pm.test('Side effect sequence', () => pm.expect(JSON.parse(pm.response.headers.get('X-QA-Upstream-Paths'))).to.eql(expected.paths));",
+              "if(expected.boundPhone) pm.test('Trusted DB phone only', () => pm.expect(pm.response.headers.get('X-QA-Bound-Phone')).to.eql(expected.boundPhone));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "API-B2B-16 Cross-site 요청 거절",
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-QA-Scenario",
+            "value": "ok"
+          },
+          {
+            "key": "sec-fetch-site",
+            "value": "cross-site"
+          }
+        ],
+        "url": "{{baseUrl}}/api/b2b-inquiry",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"organization\":\"QA 학원\",\"contactName\":\"QA 담당자\",\"phone\":\"010-0000-0001\",\"email\":\"qa@example.invalid\",\"quantity\":30,\"interests\":\"수학\",\"requestDetails\":\"자동화 합성 문의\",\"privacyConsent\":true}"
+        },
+        "description": "우선순위 P1\n기법 동등분할 / 오류 추정\n사전조건 로컬 QA 서버, 합성 데이터, 외부 응답 fixture\n절차 POST /api/b2b-inquiry → 입력·fixture: {\"body\":{\"organization\":\"QA 학원\",\"contactName\":\"QA 담당자\",\"phone\":\"010-0000-0001\",\"email\":\"qa@example.invalid\",\"quantity\":30,\"interests\":\"수학\",\"requestDetails\":\"자동화 합성 문의\",\"privacyConsent\":true},\"scenario\":\"ok\"}\n기대 {\"status\":403,\"code\":\"CROSS_SITE_REQUEST\",\"calls\":0}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const expected = {\"status\":403,\"code\":\"CROSS_SITE_REQUEST\",\"calls\":0};",
+              "pm.test('HTTP status', () => pm.response.to.have.status(expected.status));",
+              "pm.test('QA target identity', () => pm.expect(pm.response.headers.get('X-QA-Only')).to.eql('local-handler-with-fixtures'));",
+              "pm.test('Unexpected upstream = 0', () => pm.expect(pm.response.headers.get('X-QA-Unexpected')).to.eql('0'));",
+              "pm.test('Upstream call count', () => pm.expect(Number(pm.response.headers.get('X-QA-Upstream-Calls'))).to.eql(expected.calls));",
+              "pm.test('Response contract', () => { if (expected.location) { pm.expect(pm.response.headers.get('Location')).to.include(expected.location); } else { const body=pm.response.json(); if(expected.code) pm.expect(body.code).to.eql(expected.code); if(expected.status===200) pm.expect(body.success).to.eql(true); if(expected.status>=400) pm.expect(body.error).to.be.a('string').and.not.empty; } });",
+              "if(expected.paths) pm.test('Side effect sequence', () => pm.expect(JSON.parse(pm.response.headers.get('X-QA-Upstream-Paths'))).to.eql(expected.paths));",
+              "if(expected.boundPhone) pm.test('Trusted DB phone only', () => pm.expect(pm.response.headers.get('X-QA-Bound-Phone')).to.eql(expected.boundPhone));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "API-B2B-17 봇 미끼 필드는 접수 없이 성공 응답",
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-QA-Scenario",
+            "value": "ok"
+          }
+        ],
+        "url": "{{baseUrl}}/api/b2b-inquiry",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"organization\":\"QA 학원\",\"contactName\":\"QA 담당자\",\"phone\":\"010-0000-0001\",\"email\":\"qa@example.invalid\",\"quantity\":30,\"interests\":\"수학\",\"requestDetails\":\"자동화 합성 문의\",\"privacyConsent\":true,\"website\":\"https://bot.invalid\"}"
+        },
+        "description": "우선순위 P1\n기법 동등분할 / 오류 추정\n사전조건 로컬 QA 서버, 합성 데이터, 외부 응답 fixture\n절차 POST /api/b2b-inquiry → 입력·fixture: {\"body\":{\"organization\":\"QA 학원\",\"contactName\":\"QA 담당자\",\"phone\":\"010-0000-0001\",\"email\":\"qa@example.invalid\",\"quantity\":30,\"interests\":\"수학\",\"requestDetails\":\"자동화 합성 문의\",\"privacyConsent\":true,\"website\":\"https://bot.invalid\"},\"scenario\":\"ok\"}\n기대 {\"status\":200,\"code\":null,\"calls\":0}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const expected = {\"status\":200,\"code\":null,\"calls\":0};",
+              "pm.test('HTTP status', () => pm.response.to.have.status(expected.status));",
+              "pm.test('QA target identity', () => pm.expect(pm.response.headers.get('X-QA-Only')).to.eql('local-handler-with-fixtures'));",
+              "pm.test('Unexpected upstream = 0', () => pm.expect(pm.response.headers.get('X-QA-Unexpected')).to.eql('0'));",
+              "pm.test('Upstream call count', () => pm.expect(Number(pm.response.headers.get('X-QA-Upstream-Calls'))).to.eql(expected.calls));",
+              "pm.test('Response contract', () => { if (expected.location) { pm.expect(pm.response.headers.get('Location')).to.include(expected.location); } else { const body=pm.response.json(); if(expected.code) pm.expect(body.code).to.eql(expected.code); if(expected.status===200) pm.expect(body.success).to.eql(true); if(expected.status>=400) pm.expect(body.error).to.be.a('string').and.not.empty; } });",
+              "if(expected.paths) pm.test('Side effect sequence', () => pm.expect(JSON.parse(pm.response.headers.get('X-QA-Upstream-Paths'))).to.eql(expected.paths));",
+              "if(expected.boundPhone) pm.test('Trusted DB phone only', () => pm.expect(pm.response.headers.get('X-QA-Bound-Phone')).to.eql(expected.boundPhone));",
+              "pm.test('Reference id', () => pm.expect(pm.response.json().referenceId).to.match(/^B2B-\\d{8}-[0-9A-F]{6}$/));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "API-B2B-18 업스트림 503 1회 후 재시도 성공",
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-QA-Scenario",
+            "value": "queue-retry"
+          }
+        ],
+        "url": "{{baseUrl}}/api/b2b-inquiry",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"organization\":\"QA 학원\",\"contactName\":\"QA 담당자\",\"phone\":\"010-0000-0001\",\"email\":\"qa@example.invalid\",\"quantity\":30,\"interests\":\"수학\",\"requestDetails\":\"자동화 합성 문의\",\"privacyConsent\":true}"
+        },
+        "description": "우선순위 P1\n기법 동등분할 / 오류 추정\n사전조건 로컬 QA 서버, 합성 데이터, 외부 응답 fixture\n절차 POST /api/b2b-inquiry → 입력·fixture: {\"body\":{\"organization\":\"QA 학원\",\"contactName\":\"QA 담당자\",\"phone\":\"010-0000-0001\",\"email\":\"qa@example.invalid\",\"quantity\":30,\"interests\":\"수학\",\"requestDetails\":\"자동화 합성 문의\",\"privacyConsent\":true},\"scenario\":\"queue-retry\"}\n기대 {\"status\":200,\"code\":null,\"calls\":2}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const expected = {\"status\":200,\"code\":null,\"calls\":2};",
+              "pm.test('HTTP status', () => pm.response.to.have.status(expected.status));",
+              "pm.test('QA target identity', () => pm.expect(pm.response.headers.get('X-QA-Only')).to.eql('local-handler-with-fixtures'));",
+              "pm.test('Unexpected upstream = 0', () => pm.expect(pm.response.headers.get('X-QA-Unexpected')).to.eql('0'));",
+              "pm.test('Upstream call count', () => pm.expect(Number(pm.response.headers.get('X-QA-Upstream-Calls'))).to.eql(expected.calls));",
+              "pm.test('Response contract', () => { if (expected.location) { pm.expect(pm.response.headers.get('Location')).to.include(expected.location); } else { const body=pm.response.json(); if(expected.code) pm.expect(body.code).to.eql(expected.code); if(expected.status===200) pm.expect(body.success).to.eql(true); if(expected.status>=400) pm.expect(body.error).to.be.a('string').and.not.empty; } });",
+              "if(expected.paths) pm.test('Side effect sequence', () => pm.expect(JSON.parse(pm.response.headers.get('X-QA-Upstream-Paths'))).to.eql(expected.paths));",
+              "if(expected.boundPhone) pm.test('Trusted DB phone only', () => pm.expect(pm.response.headers.get('X-QA-Bound-Phone')).to.eql(expected.boundPhone));",
+              "pm.test('Stable reference across retry', () => pm.expect(pm.response.headers.get('X-QA-Reference-Count')).to.eql('1'));",
+              "pm.test('Reference id', () => pm.expect(pm.response.json().referenceId).to.match(/^B2B-\\d{8}-[0-9A-F]{6}$/));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "API-B2B-19 업스트림 연속 실패 시 502와 안내",
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-QA-Scenario",
+            "value": "queue-fail"
+          }
+        ],
+        "url": "{{baseUrl}}/api/b2b-inquiry",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"organization\":\"QA 학원\",\"contactName\":\"QA 담당자\",\"phone\":\"010-0000-0001\",\"email\":\"qa@example.invalid\",\"quantity\":30,\"interests\":\"수학\",\"requestDetails\":\"자동화 합성 문의\",\"privacyConsent\":true}"
+        },
+        "description": "우선순위 P1\n기법 동등분할 / 오류 추정\n사전조건 로컬 QA 서버, 합성 데이터, 외부 응답 fixture\n절차 POST /api/b2b-inquiry → 입력·fixture: {\"body\":{\"organization\":\"QA 학원\",\"contactName\":\"QA 담당자\",\"phone\":\"010-0000-0001\",\"email\":\"qa@example.invalid\",\"quantity\":30,\"interests\":\"수학\",\"requestDetails\":\"자동화 합성 문의\",\"privacyConsent\":true},\"scenario\":\"queue-fail\"}\n기대 {\"status\":502,\"code\":\"DELIVERY_FAILED\",\"calls\":2}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const expected = {\"status\":502,\"code\":\"DELIVERY_FAILED\",\"calls\":2};",
+              "pm.test('HTTP status', () => pm.response.to.have.status(expected.status));",
+              "pm.test('QA target identity', () => pm.expect(pm.response.headers.get('X-QA-Only')).to.eql('local-handler-with-fixtures'));",
+              "pm.test('Unexpected upstream = 0', () => pm.expect(pm.response.headers.get('X-QA-Unexpected')).to.eql('0'));",
+              "pm.test('Upstream call count', () => pm.expect(Number(pm.response.headers.get('X-QA-Upstream-Calls'))).to.eql(expected.calls));",
+              "pm.test('Response contract', () => { if (expected.location) { pm.expect(pm.response.headers.get('Location')).to.include(expected.location); } else { const body=pm.response.json(); if(expected.code) pm.expect(body.code).to.eql(expected.code); if(expected.status===200) pm.expect(body.success).to.eql(true); if(expected.status>=400) pm.expect(body.error).to.be.a('string').and.not.empty; } });",
+              "if(expected.paths) pm.test('Side effect sequence', () => pm.expect(JSON.parse(pm.response.headers.get('X-QA-Upstream-Paths'))).to.eql(expected.paths));",
+              "if(expected.boundPhone) pm.test('Trusted DB phone only', () => pm.expect(pm.response.headers.get('X-QA-Bound-Phone')).to.eql(expected.boundPhone));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "API-B2B-20 업스트림 권한 오류는 재시도하지 않음",
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-QA-Scenario",
+            "value": "queue-denied"
+          }
+        ],
+        "url": "{{baseUrl}}/api/b2b-inquiry",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"organization\":\"QA 학원\",\"contactName\":\"QA 담당자\",\"phone\":\"010-0000-0001\",\"email\":\"qa@example.invalid\",\"quantity\":30,\"interests\":\"수학\",\"requestDetails\":\"자동화 합성 문의\",\"privacyConsent\":true}"
+        },
+        "description": "우선순위 P1\n기법 동등분할 / 오류 추정\n사전조건 로컬 QA 서버, 합성 데이터, 외부 응답 fixture\n절차 POST /api/b2b-inquiry → 입력·fixture: {\"body\":{\"organization\":\"QA 학원\",\"contactName\":\"QA 담당자\",\"phone\":\"010-0000-0001\",\"email\":\"qa@example.invalid\",\"quantity\":30,\"interests\":\"수학\",\"requestDetails\":\"자동화 합성 문의\",\"privacyConsent\":true},\"scenario\":\"queue-denied\"}\n기대 {\"status\":502,\"code\":\"DELIVERY_FAILED\",\"calls\":1}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const expected = {\"status\":502,\"code\":\"DELIVERY_FAILED\",\"calls\":1};",
+              "pm.test('HTTP status', () => pm.response.to.have.status(expected.status));",
+              "pm.test('QA target identity', () => pm.expect(pm.response.headers.get('X-QA-Only')).to.eql('local-handler-with-fixtures'));",
+              "pm.test('Unexpected upstream = 0', () => pm.expect(pm.response.headers.get('X-QA-Unexpected')).to.eql('0'));",
+              "pm.test('Upstream call count', () => pm.expect(Number(pm.response.headers.get('X-QA-Upstream-Calls'))).to.eql(expected.calls));",
+              "pm.test('Response contract', () => { if (expected.location) { pm.expect(pm.response.headers.get('Location')).to.include(expected.location); } else { const body=pm.response.json(); if(expected.code) pm.expect(body.code).to.eql(expected.code); if(expected.status===200) pm.expect(body.success).to.eql(true); if(expected.status>=400) pm.expect(body.error).to.be.a('string').and.not.empty; } });",
+              "if(expected.paths) pm.test('Side effect sequence', () => pm.expect(JSON.parse(pm.response.headers.get('X-QA-Upstream-Paths'))).to.eql(expected.paths));",
+              "if(expected.boundPhone) pm.test('Trusted DB phone only', () => pm.expect(pm.response.headers.get('X-QA-Bound-Phone')).to.eql(expected.boundPhone));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "API-AUTH-01 토큰 없는 계정 연결 차단",
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-QA-Scenario",
+            "value": "ok"
+          }
+        ],
+        "url": "{{baseUrl}}/api/auth/member-identity",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"action\":\"bind\"}"
+        },
+        "description": "우선순위 P1\n기법 동등분할 / 오류 추정\n사전조건 로컬 QA 서버, 합성 데이터, 외부 응답 fixture\n절차 POST /api/auth/member-identity → 입력·fixture: {\"body\":{\"action\":\"bind\"},\"scenario\":\"ok\"}\n기대 {\"status\":401,\"calls\":0}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const expected = {\"status\":401,\"calls\":0};",
+              "pm.test('HTTP status', () => pm.response.to.have.status(expected.status));",
+              "pm.test('QA target identity', () => pm.expect(pm.response.headers.get('X-QA-Only')).to.eql('local-handler-with-fixtures'));",
+              "pm.test('Unexpected upstream = 0', () => pm.expect(pm.response.headers.get('X-QA-Unexpected')).to.eql('0'));",
+              "pm.test('Upstream call count', () => pm.expect(Number(pm.response.headers.get('X-QA-Upstream-Calls'))).to.eql(expected.calls));",
+              "pm.test('Response contract', () => { if (expected.location) { pm.expect(pm.response.headers.get('Location')).to.include(expected.location); } else { const body=pm.response.json(); if(expected.code) pm.expect(body.code).to.eql(expected.code); if(expected.status===200) pm.expect(body.success).to.eql(true); if(expected.status>=400) pm.expect(body.error).to.be.a('string').and.not.empty; } });",
+              "if(expected.paths) pm.test('Side effect sequence', () => pm.expect(JSON.parse(pm.response.headers.get('X-QA-Upstream-Paths'))).to.eql(expected.paths));",
+              "if(expected.boundPhone) pm.test('Trusted DB phone only', () => pm.expect(pm.response.headers.get('X-QA-Bound-Phone')).to.eql(expected.boundPhone));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "API-AUTH-02 GET 계정 연결 차단",
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-QA-Scenario",
+            "value": "ok"
+          }
+        ],
+        "url": "{{baseUrl}}/api/auth/member-identity",
+        "description": "우선순위 P1\n기법 동등분할 / 오류 추정\n사전조건 로컬 QA 서버, 합성 데이터, 외부 응답 fixture\n절차 GET /api/auth/member-identity → 입력·fixture: {\"body\":null,\"scenario\":\"ok\"}\n기대 {\"status\":405,\"calls\":0}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const expected = {\"status\":405,\"calls\":0};",
+              "pm.test('HTTP status', () => pm.response.to.have.status(expected.status));",
+              "pm.test('QA target identity', () => pm.expect(pm.response.headers.get('X-QA-Only')).to.eql('local-handler-with-fixtures'));",
+              "pm.test('Unexpected upstream = 0', () => pm.expect(pm.response.headers.get('X-QA-Unexpected')).to.eql('0'));",
+              "pm.test('Upstream call count', () => pm.expect(Number(pm.response.headers.get('X-QA-Upstream-Calls'))).to.eql(expected.calls));",
+              "pm.test('Response contract', () => { if (expected.location) { pm.expect(pm.response.headers.get('Location')).to.include(expected.location); } else { const body=pm.response.json(); if(expected.code) pm.expect(body.code).to.eql(expected.code); if(expected.status===200) pm.expect(body.success).to.eql(true); if(expected.status>=400) pm.expect(body.error).to.be.a('string').and.not.empty; } });",
+              "if(expected.paths) pm.test('Side effect sequence', () => pm.expect(JSON.parse(pm.response.headers.get('X-QA-Upstream-Paths'))).to.eql(expected.paths));",
+              "if(expected.boundPhone) pm.test('Trusted DB phone only', () => pm.expect(pm.response.headers.get('X-QA-Bound-Phone')).to.eql(expected.boundPhone));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "API-AUTH-03 인증 결과에 user id 없으면 차단",
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-QA-Scenario",
+            "value": "no-user"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer qa-user-only"
+          }
+        ],
+        "url": "{{baseUrl}}/api/auth/member-identity",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"action\":\"bind\"}"
+        },
+        "description": "우선순위 P1\n기법 동등분할 / 오류 추정\n사전조건 로컬 QA 서버, 합성 데이터, 외부 응답 fixture\n절차 POST /api/auth/member-identity → 입력·fixture: {\"body\":{\"action\":\"bind\"},\"scenario\":\"no-user\"}\n기대 {\"status\":401,\"calls\":1}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const expected = {\"status\":401,\"calls\":1};",
+              "pm.test('HTTP status', () => pm.response.to.have.status(expected.status));",
+              "pm.test('QA target identity', () => pm.expect(pm.response.headers.get('X-QA-Only')).to.eql('local-handler-with-fixtures'));",
+              "pm.test('Unexpected upstream = 0', () => pm.expect(pm.response.headers.get('X-QA-Unexpected')).to.eql('0'));",
+              "pm.test('Upstream call count', () => pm.expect(Number(pm.response.headers.get('X-QA-Upstream-Calls'))).to.eql(expected.calls));",
+              "pm.test('Response contract', () => { if (expected.location) { pm.expect(pm.response.headers.get('Location')).to.include(expected.location); } else { const body=pm.response.json(); if(expected.code) pm.expect(body.code).to.eql(expected.code); if(expected.status===200) pm.expect(body.success).to.eql(true); if(expected.status>=400) pm.expect(body.error).to.be.a('string').and.not.empty; } });",
+              "if(expected.paths) pm.test('Side effect sequence', () => pm.expect(JSON.parse(pm.response.headers.get('X-QA-Upstream-Paths'))).to.eql(expected.paths));",
+              "if(expected.boundPhone) pm.test('Trusted DB phone only', () => pm.expect(pm.response.headers.get('X-QA-Bound-Phone')).to.eql(expected.boundPhone));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "API-AUTH-04 정의되지 않은 action 거절",
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-QA-Scenario",
+            "value": "ok"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer qa-user-only"
+          }
+        ],
+        "url": "{{baseUrl}}/api/auth/member-identity",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"action\":\"delete\"}"
+        },
+        "description": "우선순위 P1\n기법 동등분할 / 오류 추정\n사전조건 로컬 QA 서버, 합성 데이터, 외부 응답 fixture\n절차 POST /api/auth/member-identity → 입력·fixture: {\"body\":{\"action\":\"delete\"},\"scenario\":\"ok\"}\n기대 {\"status\":400,\"calls\":1}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const expected = {\"status\":400,\"calls\":1};",
+              "pm.test('HTTP status', () => pm.response.to.have.status(expected.status));",
+              "pm.test('QA target identity', () => pm.expect(pm.response.headers.get('X-QA-Only')).to.eql('local-handler-with-fixtures'));",
+              "pm.test('Unexpected upstream = 0', () => pm.expect(pm.response.headers.get('X-QA-Unexpected')).to.eql('0'));",
+              "pm.test('Upstream call count', () => pm.expect(Number(pm.response.headers.get('X-QA-Upstream-Calls'))).to.eql(expected.calls));",
+              "pm.test('Response contract', () => { if (expected.location) { pm.expect(pm.response.headers.get('Location')).to.include(expected.location); } else { const body=pm.response.json(); if(expected.code) pm.expect(body.code).to.eql(expected.code); if(expected.status===200) pm.expect(body.success).to.eql(true); if(expected.status>=400) pm.expect(body.error).to.be.a('string').and.not.empty; } });",
+              "if(expected.paths) pm.test('Side effect sequence', () => pm.expect(JSON.parse(pm.response.headers.get('X-QA-Upstream-Paths'))).to.eql(expected.paths));",
+              "if(expected.boundPhone) pm.test('Trusted DB phone only', () => pm.expect(pm.response.headers.get('X-QA-Bound-Phone')).to.eql(expected.boundPhone));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "API-AUTH-05 요청 번호를 무시하고 DB 검증 번호만 연결",
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-QA-Scenario",
+            "value": "ok"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer qa-user-only"
+          }
+        ],
+        "url": "{{baseUrl}}/api/auth/member-identity",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"action\":\"bind\",\"phone\":\"01099999999\"}"
+        },
+        "description": "우선순위 P1\n기법 동등분할 / 오류 추정\n사전조건 로컬 QA 서버, 합성 데이터, 외부 응답 fixture\n절차 POST /api/auth/member-identity → 입력·fixture: {\"body\":{\"action\":\"bind\",\"phone\":\"01099999999\"},\"scenario\":\"ok\"}\n기대 {\"status\":200,\"calls\":3,\"boundPhone\":\"01000000001\"}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const expected = {\"status\":200,\"calls\":3,\"boundPhone\":\"01000000001\"};",
+              "pm.test('HTTP status', () => pm.response.to.have.status(expected.status));",
+              "pm.test('QA target identity', () => pm.expect(pm.response.headers.get('X-QA-Only')).to.eql('local-handler-with-fixtures'));",
+              "pm.test('Unexpected upstream = 0', () => pm.expect(pm.response.headers.get('X-QA-Unexpected')).to.eql('0'));",
+              "pm.test('Upstream call count', () => pm.expect(Number(pm.response.headers.get('X-QA-Upstream-Calls'))).to.eql(expected.calls));",
+              "pm.test('Response contract', () => { if (expected.location) { pm.expect(pm.response.headers.get('Location')).to.include(expected.location); } else { const body=pm.response.json(); if(expected.code) pm.expect(body.code).to.eql(expected.code); if(expected.status===200) pm.expect(body.success).to.eql(true); if(expected.status>=400) pm.expect(body.error).to.be.a('string').and.not.empty; } });",
+              "if(expected.paths) pm.test('Side effect sequence', () => pm.expect(JSON.parse(pm.response.headers.get('X-QA-Upstream-Paths'))).to.eql(expected.paths));",
+              "if(expected.boundPhone) pm.test('Trusted DB phone only', () => pm.expect(pm.response.headers.get('X-QA-Bound-Phone')).to.eql(expected.boundPhone));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "API-PAY-01 카드 인증 중단은 주문·승인 호출 없음",
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-QA-Scenario",
+            "value": "ok"
+          }
+        ],
+        "url": "{{baseUrl}}/api/payments/nicepay-return",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"authResultCode\":\"USER_CANCEL\",\"tid\":\"qa-tid\",\"orderId\":\"QA-ORDER-001\",\"amount\":\"23000\",\"authToken\":\"qa-auth\",\"clientId\":\"qa-client-only\",\"signature\":\"6278ff5914c34518aee3479b3108e0d03dad9a9d0db112c7bb79b53fbd3edde5\"}"
+        },
+        "description": "우선순위 P0\n기법 동등분할 / 오류 추정\n사전조건 로컬 QA 서버, 합성 데이터, 외부 응답 fixture\n절차 POST /api/payments/nicepay-return → 입력·fixture: {\"body\":{\"authResultCode\":\"USER_CANCEL\",\"tid\":\"qa-tid\",\"orderId\":\"QA-ORDER-001\",\"amount\":\"23000\",\"authToken\":\"qa-auth\",\"clientId\":\"qa-client-only\",\"signature\":\"6278ff5914c34518aee3479b3108e0d03dad9a9d0db112c7bb79b53fbd3edde5\"},\"scenario\":\"ok\"}\n기대 {\"status\":303,\"location\":\"code=USER_CANCEL\",\"calls\":0}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const expected = {\"status\":303,\"location\":\"code=USER_CANCEL\",\"calls\":0};",
+              "pm.test('HTTP status', () => pm.response.to.have.status(expected.status));",
+              "pm.test('QA target identity', () => pm.expect(pm.response.headers.get('X-QA-Only')).to.eql('local-handler-with-fixtures'));",
+              "pm.test('Unexpected upstream = 0', () => pm.expect(pm.response.headers.get('X-QA-Unexpected')).to.eql('0'));",
+              "pm.test('Upstream call count', () => pm.expect(Number(pm.response.headers.get('X-QA-Upstream-Calls'))).to.eql(expected.calls));",
+              "pm.test('Response contract', () => { if (expected.location) { pm.expect(pm.response.headers.get('Location')).to.include(expected.location); } else { const body=pm.response.json(); if(expected.code) pm.expect(body.code).to.eql(expected.code); if(expected.status===200) pm.expect(body.success).to.eql(true); if(expected.status>=400) pm.expect(body.error).to.be.a('string').and.not.empty; } });",
+              "if(expected.paths) pm.test('Side effect sequence', () => pm.expect(JSON.parse(pm.response.headers.get('X-QA-Upstream-Paths'))).to.eql(expected.paths));",
+              "if(expected.boundPhone) pm.test('Trusted DB phone only', () => pm.expect(pm.response.headers.get('X-QA-Bound-Phone')).to.eql(expected.boundPhone));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "API-PAY-02 필수 인증값 누락 거절",
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-QA-Scenario",
+            "value": "ok"
+          }
+        ],
+        "url": "{{baseUrl}}/api/payments/nicepay-return",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"authResultCode\":\"0000\",\"tid\":\"qa-tid\",\"orderId\":\"QA-ORDER-001\",\"amount\":\"23000\",\"authToken\":\"\",\"clientId\":\"qa-client-only\",\"signature\":\"6278ff5914c34518aee3479b3108e0d03dad9a9d0db112c7bb79b53fbd3edde5\"}"
+        },
+        "description": "우선순위 P0\n기법 동등분할 / 오류 추정\n사전조건 로컬 QA 서버, 합성 데이터, 외부 응답 fixture\n절차 POST /api/payments/nicepay-return → 입력·fixture: {\"body\":{\"authResultCode\":\"0000\",\"tid\":\"qa-tid\",\"orderId\":\"QA-ORDER-001\",\"amount\":\"23000\",\"authToken\":\"\",\"clientId\":\"qa-client-only\",\"signature\":\"6278ff5914c34518aee3479b3108e0d03dad9a9d0db112c7bb79b53fbd3edde5\"},\"scenario\":\"ok\"}\n기대 {\"status\":303,\"location\":\"code=MISSING_PARAMS\",\"calls\":0}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const expected = {\"status\":303,\"location\":\"code=MISSING_PARAMS\",\"calls\":0};",
+              "pm.test('HTTP status', () => pm.response.to.have.status(expected.status));",
+              "pm.test('QA target identity', () => pm.expect(pm.response.headers.get('X-QA-Only')).to.eql('local-handler-with-fixtures'));",
+              "pm.test('Unexpected upstream = 0', () => pm.expect(pm.response.headers.get('X-QA-Unexpected')).to.eql('0'));",
+              "pm.test('Upstream call count', () => pm.expect(Number(pm.response.headers.get('X-QA-Upstream-Calls'))).to.eql(expected.calls));",
+              "pm.test('Response contract', () => { if (expected.location) { pm.expect(pm.response.headers.get('Location')).to.include(expected.location); } else { const body=pm.response.json(); if(expected.code) pm.expect(body.code).to.eql(expected.code); if(expected.status===200) pm.expect(body.success).to.eql(true); if(expected.status>=400) pm.expect(body.error).to.be.a('string').and.not.empty; } });",
+              "if(expected.paths) pm.test('Side effect sequence', () => pm.expect(JSON.parse(pm.response.headers.get('X-QA-Upstream-Paths'))).to.eql(expected.paths));",
+              "if(expected.boundPhone) pm.test('Trusted DB phone only', () => pm.expect(pm.response.headers.get('X-QA-Bound-Phone')).to.eql(expected.boundPhone));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "API-PAY-03 0원 승인 요청 차단",
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-QA-Scenario",
+            "value": "ok"
+          }
+        ],
+        "url": "{{baseUrl}}/api/payments/nicepay-return",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"authResultCode\":\"0000\",\"tid\":\"qa-tid\",\"orderId\":\"QA-ORDER-001\",\"amount\":\"0\",\"authToken\":\"qa-auth\",\"clientId\":\"qa-client-only\",\"signature\":\"6278ff5914c34518aee3479b3108e0d03dad9a9d0db112c7bb79b53fbd3edde5\"}"
+        },
+        "description": "우선순위 P0\n기법 동등분할 / 오류 추정\n사전조건 로컬 QA 서버, 합성 데이터, 외부 응답 fixture\n절차 POST /api/payments/nicepay-return → 입력·fixture: {\"body\":{\"authResultCode\":\"0000\",\"tid\":\"qa-tid\",\"orderId\":\"QA-ORDER-001\",\"amount\":\"0\",\"authToken\":\"qa-auth\",\"clientId\":\"qa-client-only\",\"signature\":\"6278ff5914c34518aee3479b3108e0d03dad9a9d0db112c7bb79b53fbd3edde5\"},\"scenario\":\"ok\"}\n기대 {\"status\":303,\"location\":\"code=INVALID_AMOUNT\",\"calls\":0}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const expected = {\"status\":303,\"location\":\"code=INVALID_AMOUNT\",\"calls\":0};",
+              "pm.test('HTTP status', () => pm.response.to.have.status(expected.status));",
+              "pm.test('QA target identity', () => pm.expect(pm.response.headers.get('X-QA-Only')).to.eql('local-handler-with-fixtures'));",
+              "pm.test('Unexpected upstream = 0', () => pm.expect(pm.response.headers.get('X-QA-Unexpected')).to.eql('0'));",
+              "pm.test('Upstream call count', () => pm.expect(Number(pm.response.headers.get('X-QA-Upstream-Calls'))).to.eql(expected.calls));",
+              "pm.test('Response contract', () => { if (expected.location) { pm.expect(pm.response.headers.get('Location')).to.include(expected.location); } else { const body=pm.response.json(); if(expected.code) pm.expect(body.code).to.eql(expected.code); if(expected.status===200) pm.expect(body.success).to.eql(true); if(expected.status>=400) pm.expect(body.error).to.be.a('string').and.not.empty; } });",
+              "if(expected.paths) pm.test('Side effect sequence', () => pm.expect(JSON.parse(pm.response.headers.get('X-QA-Upstream-Paths'))).to.eql(expected.paths));",
+              "if(expected.boundPhone) pm.test('Trusted DB phone only', () => pm.expect(pm.response.headers.get('X-QA-Bound-Phone')).to.eql(expected.boundPhone));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "API-PAY-04 서명 위변조 차단",
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-QA-Scenario",
+            "value": "ok"
+          }
+        ],
+        "url": "{{baseUrl}}/api/payments/nicepay-return",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"authResultCode\":\"0000\",\"tid\":\"qa-tid\",\"orderId\":\"QA-ORDER-001\",\"amount\":\"23000\",\"authToken\":\"qa-auth\",\"clientId\":\"qa-client-only\",\"signature\":\"tampered\"}"
+        },
+        "description": "우선순위 P0\n기법 동등분할 / 오류 추정\n사전조건 로컬 QA 서버, 합성 데이터, 외부 응답 fixture\n절차 POST /api/payments/nicepay-return → 입력·fixture: {\"body\":{\"authResultCode\":\"0000\",\"tid\":\"qa-tid\",\"orderId\":\"QA-ORDER-001\",\"amount\":\"23000\",\"authToken\":\"qa-auth\",\"clientId\":\"qa-client-only\",\"signature\":\"tampered\"},\"scenario\":\"ok\"}\n기대 {\"status\":303,\"location\":\"code=SIGNATURE_MISMATCH\",\"calls\":0}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const expected = {\"status\":303,\"location\":\"code=SIGNATURE_MISMATCH\",\"calls\":0};",
+              "pm.test('HTTP status', () => pm.response.to.have.status(expected.status));",
+              "pm.test('QA target identity', () => pm.expect(pm.response.headers.get('X-QA-Only')).to.eql('local-handler-with-fixtures'));",
+              "pm.test('Unexpected upstream = 0', () => pm.expect(pm.response.headers.get('X-QA-Unexpected')).to.eql('0'));",
+              "pm.test('Upstream call count', () => pm.expect(Number(pm.response.headers.get('X-QA-Upstream-Calls'))).to.eql(expected.calls));",
+              "pm.test('Response contract', () => { if (expected.location) { pm.expect(pm.response.headers.get('Location')).to.include(expected.location); } else { const body=pm.response.json(); if(expected.code) pm.expect(body.code).to.eql(expected.code); if(expected.status===200) pm.expect(body.success).to.eql(true); if(expected.status>=400) pm.expect(body.error).to.be.a('string').and.not.empty; } });",
+              "if(expected.paths) pm.test('Side effect sequence', () => pm.expect(JSON.parse(pm.response.headers.get('X-QA-Upstream-Paths'))).to.eql(expected.paths));",
+              "if(expected.boundPhone) pm.test('Trusted DB phone only', () => pm.expect(pm.response.headers.get('X-QA-Bound-Phone')).to.eql(expected.boundPhone));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "API-PAY-05 가맹점 불일치 차단",
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-QA-Scenario",
+            "value": "ok"
+          }
+        ],
+        "url": "{{baseUrl}}/api/payments/nicepay-return",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"authResultCode\":\"0000\",\"tid\":\"qa-tid\",\"orderId\":\"QA-ORDER-001\",\"amount\":\"23000\",\"authToken\":\"qa-auth\",\"clientId\":\"wrong-client\",\"signature\":\"6278ff5914c34518aee3479b3108e0d03dad9a9d0db112c7bb79b53fbd3edde5\"}"
+        },
+        "description": "우선순위 P0\n기법 동등분할 / 오류 추정\n사전조건 로컬 QA 서버, 합성 데이터, 외부 응답 fixture\n절차 POST /api/payments/nicepay-return → 입력·fixture: {\"body\":{\"authResultCode\":\"0000\",\"tid\":\"qa-tid\",\"orderId\":\"QA-ORDER-001\",\"amount\":\"23000\",\"authToken\":\"qa-auth\",\"clientId\":\"wrong-client\",\"signature\":\"6278ff5914c34518aee3479b3108e0d03dad9a9d0db112c7bb79b53fbd3edde5\"},\"scenario\":\"ok\"}\n기대 {\"status\":303,\"location\":\"code=CLIENT_MISMATCH\",\"calls\":0}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const expected = {\"status\":303,\"location\":\"code=CLIENT_MISMATCH\",\"calls\":0};",
+              "pm.test('HTTP status', () => pm.response.to.have.status(expected.status));",
+              "pm.test('QA target identity', () => pm.expect(pm.response.headers.get('X-QA-Only')).to.eql('local-handler-with-fixtures'));",
+              "pm.test('Unexpected upstream = 0', () => pm.expect(pm.response.headers.get('X-QA-Unexpected')).to.eql('0'));",
+              "pm.test('Upstream call count', () => pm.expect(Number(pm.response.headers.get('X-QA-Upstream-Calls'))).to.eql(expected.calls));",
+              "pm.test('Response contract', () => { if (expected.location) { pm.expect(pm.response.headers.get('Location')).to.include(expected.location); } else { const body=pm.response.json(); if(expected.code) pm.expect(body.code).to.eql(expected.code); if(expected.status===200) pm.expect(body.success).to.eql(true); if(expected.status>=400) pm.expect(body.error).to.be.a('string').and.not.empty; } });",
+              "if(expected.paths) pm.test('Side effect sequence', () => pm.expect(JSON.parse(pm.response.headers.get('X-QA-Upstream-Paths'))).to.eql(expected.paths));",
+              "if(expected.boundPhone) pm.test('Trusted DB phone only', () => pm.expect(pm.response.headers.get('X-QA-Bound-Phone')).to.eql(expected.boundPhone));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "API-PAY-06 정상 인증 후 주문→승인→확정 순서",
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-QA-Scenario",
+            "value": "ok"
+          }
+        ],
+        "url": "{{baseUrl}}/api/payments/nicepay-return",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"authResultCode\":\"0000\",\"tid\":\"qa-tid\",\"orderId\":\"QA-ORDER-001\",\"amount\":\"23000\",\"authToken\":\"qa-auth\",\"clientId\":\"qa-client-only\",\"signature\":\"6278ff5914c34518aee3479b3108e0d03dad9a9d0db112c7bb79b53fbd3edde5\"}"
+        },
+        "description": "우선순위 P0\n기법 동등분할 / 오류 추정\n사전조건 로컬 QA 서버, 합성 데이터, 외부 응답 fixture\n절차 POST /api/payments/nicepay-return → 입력·fixture: {\"body\":{\"authResultCode\":\"0000\",\"tid\":\"qa-tid\",\"orderId\":\"QA-ORDER-001\",\"amount\":\"23000\",\"authToken\":\"qa-auth\",\"clientId\":\"qa-client-only\",\"signature\":\"6278ff5914c34518aee3479b3108e0d03dad9a9d0db112c7bb79b53fbd3edde5\"},\"scenario\":\"ok\"}\n기대 {\"status\":303,\"location\":\"/order/complete/910001\",\"calls\":3,\"paths\":[\"/rest/v1/rpc/finalize_pg_checkout_session\",\"/v1/payments/qa-tid\",\"/rest/v1/rpc/confirm_pg_payment\"]}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const expected = {\"status\":303,\"location\":\"/order/complete/910001\",\"calls\":3,\"paths\":[\"/rest/v1/rpc/finalize_pg_checkout_session\",\"/v1/payments/qa-tid\",\"/rest/v1/rpc/confirm_pg_payment\"]};",
+              "pm.test('HTTP status', () => pm.response.to.have.status(expected.status));",
+              "pm.test('QA target identity', () => pm.expect(pm.response.headers.get('X-QA-Only')).to.eql('local-handler-with-fixtures'));",
+              "pm.test('Unexpected upstream = 0', () => pm.expect(pm.response.headers.get('X-QA-Unexpected')).to.eql('0'));",
+              "pm.test('Upstream call count', () => pm.expect(Number(pm.response.headers.get('X-QA-Upstream-Calls'))).to.eql(expected.calls));",
+              "pm.test('Response contract', () => { if (expected.location) { pm.expect(pm.response.headers.get('Location')).to.include(expected.location); } else { const body=pm.response.json(); if(expected.code) pm.expect(body.code).to.eql(expected.code); if(expected.status===200) pm.expect(body.success).to.eql(true); if(expected.status>=400) pm.expect(body.error).to.be.a('string').and.not.empty; } });",
+              "if(expected.paths) pm.test('Side effect sequence', () => pm.expect(JSON.parse(pm.response.headers.get('X-QA-Upstream-Paths'))).to.eql(expected.paths));",
+              "if(expected.boundPhone) pm.test('Trusted DB phone only', () => pm.expect(pm.response.headers.get('X-QA-Bound-Phone')).to.eql(expected.boundPhone));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "API-PAY-07 기완료 응답은 재승인 없이 완료 이동",
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-QA-Scenario",
+            "value": "duplicate"
+          }
+        ],
+        "url": "{{baseUrl}}/api/payments/nicepay-return",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"authResultCode\":\"0000\",\"tid\":\"qa-tid\",\"orderId\":\"QA-ORDER-001\",\"amount\":\"23000\",\"authToken\":\"qa-auth\",\"clientId\":\"qa-client-only\",\"signature\":\"6278ff5914c34518aee3479b3108e0d03dad9a9d0db112c7bb79b53fbd3edde5\"}"
+        },
+        "description": "우선순위 P0\n기법 동등분할 / 오류 추정\n사전조건 로컬 QA 서버, 합성 데이터, 외부 응답 fixture\n절차 POST /api/payments/nicepay-return → 입력·fixture: {\"body\":{\"authResultCode\":\"0000\",\"tid\":\"qa-tid\",\"orderId\":\"QA-ORDER-001\",\"amount\":\"23000\",\"authToken\":\"qa-auth\",\"clientId\":\"qa-client-only\",\"signature\":\"6278ff5914c34518aee3479b3108e0d03dad9a9d0db112c7bb79b53fbd3edde5\"},\"scenario\":\"duplicate\"}\n기대 {\"status\":303,\"location\":\"/order/complete/910001\",\"calls\":1,\"paths\":[\"/rest/v1/rpc/finalize_pg_checkout_session\"]}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const expected = {\"status\":303,\"location\":\"/order/complete/910001\",\"calls\":1,\"paths\":[\"/rest/v1/rpc/finalize_pg_checkout_session\"]};",
+              "pm.test('HTTP status', () => pm.response.to.have.status(expected.status));",
+              "pm.test('QA target identity', () => pm.expect(pm.response.headers.get('X-QA-Only')).to.eql('local-handler-with-fixtures'));",
+              "pm.test('Unexpected upstream = 0', () => pm.expect(pm.response.headers.get('X-QA-Unexpected')).to.eql('0'));",
+              "pm.test('Upstream call count', () => pm.expect(Number(pm.response.headers.get('X-QA-Upstream-Calls'))).to.eql(expected.calls));",
+              "pm.test('Response contract', () => { if (expected.location) { pm.expect(pm.response.headers.get('Location')).to.include(expected.location); } else { const body=pm.response.json(); if(expected.code) pm.expect(body.code).to.eql(expected.code); if(expected.status===200) pm.expect(body.success).to.eql(true); if(expected.status>=400) pm.expect(body.error).to.be.a('string').and.not.empty; } });",
+              "if(expected.paths) pm.test('Side effect sequence', () => pm.expect(JSON.parse(pm.response.headers.get('X-QA-Upstream-Paths'))).to.eql(expected.paths));",
+              "if(expected.boundPhone) pm.test('Trusted DB phone only', () => pm.expect(pm.response.headers.get('X-QA-Bound-Phone')).to.eql(expected.boundPhone));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "API-PAY-08 세션 만료 시 승인 생략",
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-QA-Scenario",
+            "value": "expired"
+          }
+        ],
+        "url": "{{baseUrl}}/api/payments/nicepay-return",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"authResultCode\":\"0000\",\"tid\":\"qa-tid\",\"orderId\":\"QA-ORDER-001\",\"amount\":\"23000\",\"authToken\":\"qa-auth\",\"clientId\":\"qa-client-only\",\"signature\":\"6278ff5914c34518aee3479b3108e0d03dad9a9d0db112c7bb79b53fbd3edde5\"}"
+        },
+        "description": "우선순위 P0\n기법 동등분할 / 오류 추정\n사전조건 로컬 QA 서버, 합성 데이터, 외부 응답 fixture\n절차 POST /api/payments/nicepay-return → 입력·fixture: {\"body\":{\"authResultCode\":\"0000\",\"tid\":\"qa-tid\",\"orderId\":\"QA-ORDER-001\",\"amount\":\"23000\",\"authToken\":\"qa-auth\",\"clientId\":\"qa-client-only\",\"signature\":\"6278ff5914c34518aee3479b3108e0d03dad9a9d0db112c7bb79b53fbd3edde5\"},\"scenario\":\"expired\"}\n기대 {\"status\":303,\"location\":\"code=SESSION_EXPIRED\",\"calls\":1,\"paths\":[\"/rest/v1/rpc/finalize_pg_checkout_session\"]}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const expected = {\"status\":303,\"location\":\"code=SESSION_EXPIRED\",\"calls\":1,\"paths\":[\"/rest/v1/rpc/finalize_pg_checkout_session\"]};",
+              "pm.test('HTTP status', () => pm.response.to.have.status(expected.status));",
+              "pm.test('QA target identity', () => pm.expect(pm.response.headers.get('X-QA-Only')).to.eql('local-handler-with-fixtures'));",
+              "pm.test('Unexpected upstream = 0', () => pm.expect(pm.response.headers.get('X-QA-Unexpected')).to.eql('0'));",
+              "pm.test('Upstream call count', () => pm.expect(Number(pm.response.headers.get('X-QA-Upstream-Calls'))).to.eql(expected.calls));",
+              "pm.test('Response contract', () => { if (expected.location) { pm.expect(pm.response.headers.get('Location')).to.include(expected.location); } else { const body=pm.response.json(); if(expected.code) pm.expect(body.code).to.eql(expected.code); if(expected.status===200) pm.expect(body.success).to.eql(true); if(expected.status>=400) pm.expect(body.error).to.be.a('string').and.not.empty; } });",
+              "if(expected.paths) pm.test('Side effect sequence', () => pm.expect(JSON.parse(pm.response.headers.get('X-QA-Upstream-Paths'))).to.eql(expected.paths));",
+              "if(expected.boundPhone) pm.test('Trusted DB phone only', () => pm.expect(pm.response.headers.get('X-QA-Bound-Phone')).to.eql(expected.boundPhone));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "API-PAY-09 재고 충돌 시 승인 생략",
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-QA-Scenario",
+            "value": "stock-conflict"
+          }
+        ],
+        "url": "{{baseUrl}}/api/payments/nicepay-return",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"authResultCode\":\"0000\",\"tid\":\"qa-tid\",\"orderId\":\"QA-ORDER-001\",\"amount\":\"23000\",\"authToken\":\"qa-auth\",\"clientId\":\"qa-client-only\",\"signature\":\"6278ff5914c34518aee3479b3108e0d03dad9a9d0db112c7bb79b53fbd3edde5\"}"
+        },
+        "description": "우선순위 P0\n기법 동등분할 / 오류 추정\n사전조건 로컬 QA 서버, 합성 데이터, 외부 응답 fixture\n절차 POST /api/payments/nicepay-return → 입력·fixture: {\"body\":{\"authResultCode\":\"0000\",\"tid\":\"qa-tid\",\"orderId\":\"QA-ORDER-001\",\"amount\":\"23000\",\"authToken\":\"qa-auth\",\"clientId\":\"qa-client-only\",\"signature\":\"6278ff5914c34518aee3479b3108e0d03dad9a9d0db112c7bb79b53fbd3edde5\"},\"scenario\":\"stock-conflict\"}\n기대 {\"status\":303,\"location\":\"code=ORDER_CREATE_FAILED\",\"calls\":1,\"paths\":[\"/rest/v1/rpc/finalize_pg_checkout_session\"]}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const expected = {\"status\":303,\"location\":\"code=ORDER_CREATE_FAILED\",\"calls\":1,\"paths\":[\"/rest/v1/rpc/finalize_pg_checkout_session\"]};",
+              "pm.test('HTTP status', () => pm.response.to.have.status(expected.status));",
+              "pm.test('QA target identity', () => pm.expect(pm.response.headers.get('X-QA-Only')).to.eql('local-handler-with-fixtures'));",
+              "pm.test('Unexpected upstream = 0', () => pm.expect(pm.response.headers.get('X-QA-Unexpected')).to.eql('0'));",
+              "pm.test('Upstream call count', () => pm.expect(Number(pm.response.headers.get('X-QA-Upstream-Calls'))).to.eql(expected.calls));",
+              "pm.test('Response contract', () => { if (expected.location) { pm.expect(pm.response.headers.get('Location')).to.include(expected.location); } else { const body=pm.response.json(); if(expected.code) pm.expect(body.code).to.eql(expected.code); if(expected.status===200) pm.expect(body.success).to.eql(true); if(expected.status>=400) pm.expect(body.error).to.be.a('string').and.not.empty; } });",
+              "if(expected.paths) pm.test('Side effect sequence', () => pm.expect(JSON.parse(pm.response.headers.get('X-QA-Upstream-Paths'))).to.eql(expected.paths));",
+              "if(expected.boundPhone) pm.test('Trusted DB phone only', () => pm.expect(pm.response.headers.get('X-QA-Bound-Phone')).to.eql(expected.boundPhone));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "API-PAY-10 승인 뒤 확정 실패 시 PG 취소 후 주문 해제",
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-QA-Scenario",
+            "value": "confirm-fail"
+          }
+        ],
+        "url": "{{baseUrl}}/api/payments/nicepay-return",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"authResultCode\":\"0000\",\"tid\":\"qa-tid\",\"orderId\":\"QA-ORDER-001\",\"amount\":\"23000\",\"authToken\":\"qa-auth\",\"clientId\":\"qa-client-only\",\"signature\":\"6278ff5914c34518aee3479b3108e0d03dad9a9d0db112c7bb79b53fbd3edde5\"}"
+        },
+        "description": "우선순위 P0\n기법 동등분할 / 오류 추정\n사전조건 로컬 QA 서버, 합성 데이터, 외부 응답 fixture\n절차 POST /api/payments/nicepay-return → 입력·fixture: {\"body\":{\"authResultCode\":\"0000\",\"tid\":\"qa-tid\",\"orderId\":\"QA-ORDER-001\",\"amount\":\"23000\",\"authToken\":\"qa-auth\",\"clientId\":\"qa-client-only\",\"signature\":\"6278ff5914c34518aee3479b3108e0d03dad9a9d0db112c7bb79b53fbd3edde5\"},\"scenario\":\"confirm-fail\"}\n기대 {\"status\":303,\"location\":\"code=ORDER_CONFIRM_FAILED\",\"calls\":5,\"paths\":[\"/rest/v1/rpc/finalize_pg_checkout_session\",\"/v1/payments/qa-tid\",\"/rest/v1/rpc/confirm_pg_payment\",\"/v1/payments/qa-tid/cancel\",\"/rest/v1/rpc/cancel_unpaid_order\"]}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const expected = {\"status\":303,\"location\":\"code=ORDER_CONFIRM_FAILED\",\"calls\":5,\"paths\":[\"/rest/v1/rpc/finalize_pg_checkout_session\",\"/v1/payments/qa-tid\",\"/rest/v1/rpc/confirm_pg_payment\",\"/v1/payments/qa-tid/cancel\",\"/rest/v1/rpc/cancel_unpaid_order\"]};",
+              "pm.test('HTTP status', () => pm.response.to.have.status(expected.status));",
+              "pm.test('QA target identity', () => pm.expect(pm.response.headers.get('X-QA-Only')).to.eql('local-handler-with-fixtures'));",
+              "pm.test('Unexpected upstream = 0', () => pm.expect(pm.response.headers.get('X-QA-Unexpected')).to.eql('0'));",
+              "pm.test('Upstream call count', () => pm.expect(Number(pm.response.headers.get('X-QA-Upstream-Calls'))).to.eql(expected.calls));",
+              "pm.test('Response contract', () => { if (expected.location) { pm.expect(pm.response.headers.get('Location')).to.include(expected.location); } else { const body=pm.response.json(); if(expected.code) pm.expect(body.code).to.eql(expected.code); if(expected.status===200) pm.expect(body.success).to.eql(true); if(expected.status>=400) pm.expect(body.error).to.be.a('string').and.not.empty; } });",
+              "if(expected.paths) pm.test('Side effect sequence', () => pm.expect(JSON.parse(pm.response.headers.get('X-QA-Upstream-Paths'))).to.eql(expected.paths));",
+              "if(expected.boundPhone) pm.test('Trusted DB phone only', () => pm.expect(pm.response.headers.get('X-QA-Bound-Phone')).to.eql(expected.boundPhone));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "API-PAY-11 자동취소 실패 시 주문 보존과 운영 경보",
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-QA-Scenario",
+            "value": "cancel-fail"
+          }
+        ],
+        "url": "{{baseUrl}}/api/payments/nicepay-return",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"authResultCode\":\"0000\",\"tid\":\"qa-tid\",\"orderId\":\"QA-ORDER-001\",\"amount\":\"23000\",\"authToken\":\"qa-auth\",\"clientId\":\"qa-client-only\",\"signature\":\"6278ff5914c34518aee3479b3108e0d03dad9a9d0db112c7bb79b53fbd3edde5\"}"
+        },
+        "description": "우선순위 P0\n기법 동등분할 / 오류 추정\n사전조건 로컬 QA 서버, 합성 데이터, 외부 응답 fixture\n절차 POST /api/payments/nicepay-return → 입력·fixture: {\"body\":{\"authResultCode\":\"0000\",\"tid\":\"qa-tid\",\"orderId\":\"QA-ORDER-001\",\"amount\":\"23000\",\"authToken\":\"qa-auth\",\"clientId\":\"qa-client-only\",\"signature\":\"6278ff5914c34518aee3479b3108e0d03dad9a9d0db112c7bb79b53fbd3edde5\"},\"scenario\":\"cancel-fail\"}\n기대 {\"status\":303,\"location\":\"code=ORDER_CONFIRM_FAILED\",\"calls\":5,\"paths\":[\"/rest/v1/rpc/finalize_pg_checkout_session\",\"/v1/payments/qa-tid\",\"/rest/v1/rpc/confirm_pg_payment\",\"/v1/payments/qa-tid/cancel\",\"/rest/v1/rpc/notify_ops_slack\"]}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const expected = {\"status\":303,\"location\":\"code=ORDER_CONFIRM_FAILED\",\"calls\":5,\"paths\":[\"/rest/v1/rpc/finalize_pg_checkout_session\",\"/v1/payments/qa-tid\",\"/rest/v1/rpc/confirm_pg_payment\",\"/v1/payments/qa-tid/cancel\",\"/rest/v1/rpc/notify_ops_slack\"]};",
+              "pm.test('HTTP status', () => pm.response.to.have.status(expected.status));",
+              "pm.test('QA target identity', () => pm.expect(pm.response.headers.get('X-QA-Only')).to.eql('local-handler-with-fixtures'));",
+              "pm.test('Unexpected upstream = 0', () => pm.expect(pm.response.headers.get('X-QA-Unexpected')).to.eql('0'));",
+              "pm.test('Upstream call count', () => pm.expect(Number(pm.response.headers.get('X-QA-Upstream-Calls'))).to.eql(expected.calls));",
+              "pm.test('Response contract', () => { if (expected.location) { pm.expect(pm.response.headers.get('Location')).to.include(expected.location); } else { const body=pm.response.json(); if(expected.code) pm.expect(body.code).to.eql(expected.code); if(expected.status===200) pm.expect(body.success).to.eql(true); if(expected.status>=400) pm.expect(body.error).to.be.a('string').and.not.empty; } });",
+              "if(expected.paths) pm.test('Side effect sequence', () => pm.expect(JSON.parse(pm.response.headers.get('X-QA-Upstream-Paths'))).to.eql(expected.paths));",
+              "if(expected.boundPhone) pm.test('Trusted DB phone only', () => pm.expect(pm.response.headers.get('X-QA-Bound-Phone')).to.eql(expected.boundPhone));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -2,6 +2,28 @@
   "name": "subook-qa-regression",
   "private": true,
   "type": "module",
-  "scripts": { "test": "node run.mjs" },
-  "devDependencies": { "playwright": "1.64.1" }
+  "scripts": {
+    "test": "node run.mjs",
+    "test:selenium": "node stack/selenium/run.mjs",
+    "test:api": "node stack/postman/run.mjs",
+    "test:load": "node stack/jmeter/run.mjs",
+    "test:stack": "npm run test:selenium && npm run test:api && npm run test:load",
+    "api:serve": "node stack/api-server.mjs",
+    "postman:export": "node stack/postman/export.mjs",
+    "jmeter:setup": "node stack/jmeter/setup.mjs",
+    "report:portfolio": "node portfolio/build.mjs"
+  },
+  "overrides": {
+    "handlebars": "4.7.10",
+    "lodash": "4.18.1",
+    "flatted": "3.4.4",
+    "qs": "6.16.1",
+    "underscore": "1.13.8",
+    "jose": "4.15.9"
+  },
+  "devDependencies": {
+    "newman": "6.2.3",
+    "playwright": "1.64.1",
+    "selenium-webdriver": "4.51.0"
+  }
 }

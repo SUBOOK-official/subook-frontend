@@ -1,0 +1,723 @@
+{
+  "notice": "가상 QA 수행 시나리오. 아래 수행 상태·발견 이력은 포트폴리오용 설정이며 실제 실행 증거는 qa/results/stack에 별도 기록한다.",
+  "project": "SUBOOK",
+  "duration": "6주",
+  "cases": [
+    {
+      "id": "TC-001",
+      "area": "AUTH",
+      "priority": "P1",
+      "title": "카카오 인증 완료 후 원래 화면 복귀",
+      "precondition": "인증 회원 /faq 진입",
+      "steps": [
+        "로그인 필요 화면 열기",
+        "로그인 callback 완료"
+      ],
+      "expected": "/faq로 복귀하고 로그인 상태 유지",
+      "automation": "SEL-06",
+      "cycle1": "Pass",
+      "cycle2": "Pass",
+      "bug": "",
+      "owner": "QA",
+      "evidenceType": "fictional-work-scenario"
+    },
+    {
+      "id": "TC-002",
+      "area": "AUTH",
+      "priority": "P1",
+      "title": "휴대폰 미인증 회원 구매 차단",
+      "precondition": "회원 identity=unverified",
+      "steps": [
+        "로그인",
+        "주문서 진입"
+      ],
+      "expected": "휴대폰 인증 화면으로 이동",
+      "automation": "SEL-07",
+      "cycle1": "Pass",
+      "cycle2": "Pass",
+      "bug": "",
+      "owner": "QA",
+      "evidenceType": "fictional-work-scenario"
+    },
+    {
+      "id": "TC-003",
+      "area": "AUTH",
+      "priority": "P1",
+      "title": "회원 조회 무응답에서 복구",
+      "precondition": "회원 조회 응답 없음",
+      "steps": [
+        "로그인 callback",
+        "30초 대기",
+        "재로그인"
+      ],
+      "expected": "대기 종료·안내 표시·원래 목적지 유지",
+      "automation": "SEL-08",
+      "cycle1": "Fail",
+      "cycle2": "Pass",
+      "bug": "SIM-BUG-005",
+      "owner": "QA",
+      "evidenceType": "fictional-work-scenario"
+    },
+    {
+      "id": "TC-004",
+      "area": "AUTH",
+      "priority": "P0",
+      "title": "다른 회원의 휴대폰 번호 요청 무시",
+      "precondition": "검증 DB번호와 요청번호 다름",
+      "steps": [
+        "bind API에 다른 phone 값 전달"
+      ],
+      "expected": "DB에서 검증된 번호만 연결",
+      "automation": "API-AUTH-05",
+      "cycle1": "Pass",
+      "cycle2": "Pass",
+      "bug": "",
+      "owner": "QA",
+      "evidenceType": "fictional-work-scenario"
+    },
+    {
+      "id": "TC-005",
+      "area": "AUTH",
+      "priority": "P0",
+      "title": "비로그인 계정 연결 차단",
+      "precondition": "Authorization 없음",
+      "steps": [
+        "member-identity bind 호출"
+      ],
+      "expected": "401, 외부 인증/DB 호출 없음",
+      "automation": "API-AUTH-01",
+      "cycle1": "Pass",
+      "cycle2": "Pass",
+      "bug": "",
+      "owner": "QA",
+      "evidenceType": "fictional-work-scenario"
+    },
+    {
+      "id": "TC-006",
+      "area": "CAT",
+      "priority": "P1",
+      "title": "동일 옵션 수량 상한",
+      "precondition": "옵션7 재고2권, 권당6000원",
+      "steps": [
+        "옵션7 세 번 선택",
+        "증량 시도"
+      ],
+      "expected": "2권·12000원 유지, 증량 비활성",
+      "automation": "SEL-02",
+      "cycle1": "Fail",
+      "cycle2": "Pass",
+      "bug": "SIM-BUG-001",
+      "owner": "QA",
+      "evidenceType": "fictional-work-scenario"
+    },
+    {
+      "id": "TC-007",
+      "area": "CART",
+      "priority": "P1",
+      "title": "동일 옵션 개별 교재 ID 보존",
+      "precondition": "7회 2권 + 10회 1권",
+      "steps": [
+        "옵션 선택",
+        "장바구니 담기",
+        "API 요청 확인"
+      ],
+      "expected": "900001·900002·900003 각각 1회 반영",
+      "automation": "SEL-03",
+      "cycle1": "Fail",
+      "cycle2": "Pass",
+      "bug": "SIM-BUG-002",
+      "owner": "QA",
+      "evidenceType": "fictional-work-scenario"
+    },
+    {
+      "id": "TC-008",
+      "area": "CAT",
+      "priority": "P1",
+      "title": "품절 옵션 선택 차단",
+      "precondition": "옵션11 재고0",
+      "steps": [
+        "옵션 목록 열기",
+        "11회 선택 시도"
+      ],
+      "expected": "품절 표시·선택 차단·금액 불변",
+      "automation": "SEL-01",
+      "cycle1": "Pass",
+      "cycle2": "Pass",
+      "bug": "",
+      "owner": "QA",
+      "evidenceType": "fictional-work-scenario"
+    },
+    {
+      "id": "TC-009",
+      "area": "CAT",
+      "priority": "P2",
+      "title": "작은 화면 옵션 조작",
+      "precondition": "480px 모바일 웹",
+      "steps": [
+        "상품 옵션 열기",
+        "목록 끝 확인",
+        "옵션10 선택"
+      ],
+      "expected": "목록이 화면 안에 표시되고 8000원 반영",
+      "automation": "SEL-05",
+      "cycle1": "Pass",
+      "cycle2": "Pass",
+      "bug": "",
+      "owner": "QA",
+      "evidenceType": "fictional-work-scenario"
+    },
+    {
+      "id": "TC-010",
+      "area": "CAT",
+      "priority": "P1",
+      "title": "숨김 상품 직접 접근",
+      "precondition": "숨김 처리된 상품 ID",
+      "steps": [
+        "상품 URL 직접 접속",
+        "구매 시도"
+      ],
+      "expected": "구매 불가 안내, 주문 생성 차단",
+      "automation": "수동",
+      "cycle1": "Pass",
+      "cycle2": "Pass",
+      "bug": "",
+      "owner": "QA",
+      "evidenceType": "fictional-work-scenario"
+    },
+    {
+      "id": "TC-011",
+      "area": "CART",
+      "priority": "P1",
+      "title": "장바구니 그룹과 실제 권수",
+      "precondition": "같은 옵션2권과 다른 옵션1권",
+      "steps": [
+        "장바구니 확인",
+        "주문서 이동"
+      ],
+      "expected": "장바구니2그룹, 주문서3권",
+      "automation": "SEL-04",
+      "cycle1": "Pass",
+      "cycle2": "Pass",
+      "bug": "",
+      "owner": "QA",
+      "evidenceType": "fictional-work-scenario"
+    },
+    {
+      "id": "TC-012",
+      "area": "CART",
+      "priority": "P1",
+      "title": "품절 교재 포함 재주문",
+      "precondition": "장바구니 저장 뒤 다른 회원이 구매",
+      "steps": [
+        "기존 장바구니 열기",
+        "주문하기"
+      ],
+      "expected": "품절 항목 안내, 유효 재고만 주문 가능",
+      "automation": "수동 / DB 통합 필요",
+      "cycle1": "Pass",
+      "cycle2": "Pass",
+      "bug": "",
+      "owner": "QA",
+      "evidenceType": "fictional-work-scenario"
+    },
+    {
+      "id": "TC-013",
+      "area": "ORDER",
+      "priority": "P0",
+      "title": "주문서 상품·배송·총액",
+      "precondition": "상품합계20000원",
+      "steps": [
+        "장바구니",
+        "주문서",
+        "각 금액 확인"
+      ],
+      "expected": "상품20000 + 배송3000 = 23000원",
+      "automation": "SEL-04",
+      "cycle1": "Pass",
+      "cycle2": "Pass",
+      "bug": "",
+      "owner": "QA",
+      "evidenceType": "fictional-work-scenario"
+    },
+    {
+      "id": "TC-014",
+      "area": "ORDER",
+      "priority": "P1",
+      "title": "무료배송 경계",
+      "precondition": "상품합계49999 / 50000 / 50001",
+      "steps": [
+        "동일 배송지로 각 금액 주문서 생성"
+      ],
+      "expected": "배송3000 / 0 / 0, 합계52999 / 50000 / 50001",
+      "automation": "수동",
+      "cycle1": "Fail",
+      "cycle2": "Pass",
+      "bug": "SIM-BUG-003",
+      "owner": "QA",
+      "evidenceType": "fictional-work-scenario"
+    },
+    {
+      "id": "TC-015",
+      "area": "ORDER",
+      "priority": "P1",
+      "title": "필수 배송 정보 누락",
+      "precondition": "수취인·휴대폰·주소 중 하나 누락",
+      "steps": [
+        "각 필드별 누락",
+        "결제 시도"
+      ],
+      "expected": "누락 필드 안내, 결제 요청 없음",
+      "automation": "수동",
+      "cycle1": "Pass",
+      "cycle2": "Pass",
+      "bug": "",
+      "owner": "QA",
+      "evidenceType": "fictional-work-scenario"
+    },
+    {
+      "id": "TC-016",
+      "area": "ORDER",
+      "priority": "P1",
+      "title": "계좌이체 환불계좌 검증",
+      "precondition": "계좌이체 선택, 환불계좌 공란",
+      "steps": [
+        "결제 동의",
+        "주문 시도"
+      ],
+      "expected": "환불 은행·계좌·예금주 입력 요구",
+      "automation": "수동",
+      "cycle1": "Pass",
+      "cycle2": "Pass",
+      "bug": "",
+      "owner": "QA",
+      "evidenceType": "fictional-work-scenario"
+    },
+    {
+      "id": "TC-017",
+      "area": "PAY",
+      "priority": "P0",
+      "title": "카드 인증 전 결제 중단",
+      "precondition": "아직 인증되지 않은 결제 세션",
+      "steps": [
+        "카드창 진입",
+        "중단",
+        "주문·재고 확인"
+      ],
+      "expected": "신규 주문·승인·재고 선점이 남지 않음",
+      "automation": "API-PAY-01 부분 / DB 수동",
+      "cycle1": "Fail",
+      "cycle2": "Pass",
+      "bug": "SIM-BUG-004",
+      "owner": "QA",
+      "evidenceType": "fictional-work-scenario"
+    },
+    {
+      "id": "TC-018",
+      "area": "PAY",
+      "priority": "P0",
+      "title": "카드 정상 결제 처리 순서",
+      "precondition": "유효 서명, 재고 사용 가능",
+      "steps": [
+        "인증 성공 POST",
+        "후속 호출 확인"
+      ],
+      "expected": "주문 실체화 → 승인 → 주문 확정 → 완료 이동",
+      "automation": "API-PAY-06",
+      "cycle1": "Pass",
+      "cycle2": "Pass",
+      "bug": "",
+      "owner": "QA",
+      "evidenceType": "fictional-work-scenario"
+    },
+    {
+      "id": "TC-019",
+      "area": "PAY",
+      "priority": "P0",
+      "title": "중복 결제 복귀 방어",
+      "precondition": "동일 세션 이미 paid",
+      "steps": [
+        "동일 인증 결과 재전송"
+      ],
+      "expected": "추가 승인 없이 기존 완료 페이지",
+      "automation": "API-PAY-07",
+      "cycle1": "Pass",
+      "cycle2": "Pass",
+      "bug": "",
+      "owner": "QA",
+      "evidenceType": "fictional-work-scenario"
+    },
+    {
+      "id": "TC-020",
+      "area": "PAY",
+      "priority": "P0",
+      "title": "변조 서명 승인 차단",
+      "precondition": "signature=tampered",
+      "steps": [
+        "결제 복귀 POST 전송"
+      ],
+      "expected": "SIGNATURE_MISMATCH, 후속 호출0",
+      "automation": "API-PAY-04",
+      "cycle1": "Pass",
+      "cycle2": "Pass",
+      "bug": "",
+      "owner": "QA",
+      "evidenceType": "fictional-work-scenario"
+    },
+    {
+      "id": "TC-021",
+      "area": "PAY",
+      "priority": "P0",
+      "title": "인증 후 재고 충돌",
+      "precondition": "finalize가 재고 충돌 반환",
+      "steps": [
+        "유효 인증 결과 전달"
+      ],
+      "expected": "승인 생략·안내, 청구 없음",
+      "automation": "API-PAY-09",
+      "cycle1": "Pass",
+      "cycle2": "Pass",
+      "bug": "",
+      "owner": "QA",
+      "evidenceType": "fictional-work-scenario"
+    },
+    {
+      "id": "TC-022",
+      "area": "PAY",
+      "priority": "P0",
+      "title": "승인 후 확정 실패 보상",
+      "precondition": "PG승인 성공, DB확정 실패",
+      "steps": [
+        "정상 복귀",
+        "DB오류 주입"
+      ],
+      "expected": "PG전액취소 성공 확인 후 주문 해제",
+      "automation": "API-PAY-10",
+      "cycle1": "Pass",
+      "cycle2": "Pass",
+      "bug": "",
+      "owner": "QA",
+      "evidenceType": "fictional-work-scenario"
+    },
+    {
+      "id": "TC-023",
+      "area": "PAY",
+      "priority": "P0",
+      "title": "보상 취소 실패 보호",
+      "precondition": "DB확정 실패 + PG취소 실패",
+      "steps": [
+        "복귀",
+        "보상 실패 주입"
+      ],
+      "expected": "주문 보존·운영 경보, 무조건 재고 해제 금지",
+      "automation": "API-PAY-11",
+      "cycle1": "Pass",
+      "cycle2": "Pass",
+      "bug": "",
+      "owner": "QA",
+      "evidenceType": "fictional-work-scenario"
+    },
+    {
+      "id": "TC-024",
+      "area": "PICK",
+      "priority": "P1",
+      "title": "수거 교재와 주소 저장",
+      "precondition": "판매 회원, 교재2권, 주소·계좌",
+      "steps": [
+        "수거 요청 작성",
+        "제출",
+        "상세 조회"
+      ],
+      "expected": "2권·주소·계좌·선택 박스가 동일하게 저장",
+      "automation": "수동",
+      "cycle1": "Pass",
+      "cycle2": "Pass",
+      "bug": "",
+      "owner": "QA",
+      "evidenceType": "fictional-work-scenario"
+    },
+    {
+      "id": "TC-025",
+      "area": "PICK",
+      "priority": "P1",
+      "title": "수거 박스 상한",
+      "precondition": "박스 수4 / 5 / 6",
+      "steps": [
+        "수거 폼에서 박스 수 변경"
+      ],
+      "expected": "4·5 허용, 6 차단",
+      "automation": "수동",
+      "cycle1": "Pass",
+      "cycle2": "Pass",
+      "bug": "",
+      "owner": "QA",
+      "evidenceType": "fictional-work-scenario"
+    },
+    {
+      "id": "TC-026",
+      "area": "PICK",
+      "priority": "P1",
+      "title": "허용 박스 규격",
+      "precondition": "코드01·02·03·04·07 및05·06",
+      "steps": [
+        "허용/비허용 코드로 제출"
+      ],
+      "expected": "허용 코드만 저장, 잘못된 코드 거절",
+      "automation": "수동",
+      "cycle1": "Pass",
+      "cycle2": "Pass",
+      "bug": "",
+      "owner": "QA",
+      "evidenceType": "fictional-work-scenario"
+    },
+    {
+      "id": "TC-027",
+      "area": "ADMIN",
+      "priority": "P0",
+      "title": "일반 회원 관리자 접근 차단",
+      "precondition": "일반 회원 세션",
+      "steps": [
+        "관리 화면·관리 API 직접 호출"
+      ],
+      "expected": "접근 차단, 관리 데이터 반환 없음",
+      "automation": "수동",
+      "cycle1": "Blocked",
+      "cycle2": "Pass",
+      "bug": "",
+      "owner": "QA",
+      "evidenceType": "fictional-work-scenario"
+    },
+    {
+      "id": "TC-028",
+      "area": "ADMIN",
+      "priority": "P1",
+      "title": "검수 결과 상품 등록 반영",
+      "precondition": "입고 교재, S등급, 판매가6000",
+      "steps": [
+        "검수 저장",
+        "상품 등록",
+        "공개 상세 확인"
+      ],
+      "expected": "등급·가격·사진·개별 재고 일치",
+      "automation": "수동",
+      "cycle1": "Pass",
+      "cycle2": "Pass",
+      "bug": "",
+      "owner": "QA",
+      "evidenceType": "fictional-work-scenario"
+    },
+    {
+      "id": "TC-029",
+      "area": "IMAGE",
+      "priority": "P2",
+      "title": "15MiB 업로드 경계 처리",
+      "precondition": "15728639 / 15728640 / 15728641 bytes",
+      "steps": [
+        "각 파일 업로드 시도"
+      ],
+      "expected": "이하 허용, 초과는 변환·저장 호출 전 차단",
+      "automation": "기존 IMG-01~03",
+      "cycle1": "Pass",
+      "cycle2": "Pass",
+      "bug": "",
+      "owner": "QA",
+      "evidenceType": "fictional-work-scenario"
+    },
+    {
+      "id": "TC-030",
+      "area": "IMAGE",
+      "priority": "P3",
+      "title": "업로드 초과 용량 안내",
+      "precondition": "15728641 bytes PNG",
+      "steps": [
+        "이미지 업로드",
+        "오류 표시 확인"
+      ],
+      "expected": "초과 사실을 사용자에게 모순 없이 설명",
+      "automation": "기존 BR-IMG-001 참고",
+      "cycle1": "Fail",
+      "cycle2": "Deferred",
+      "bug": "SIM-BUG-008",
+      "owner": "QA",
+      "evidenceType": "fictional-work-scenario"
+    },
+    {
+      "id": "TC-031",
+      "area": "REFUND",
+      "priority": "P0",
+      "title": "부분환불 대상 분리",
+      "precondition": "3권 주문 중 1권 환불 신청",
+      "steps": [
+        "1권 선택",
+        "환불",
+        "나머지2권 상태 조회"
+      ],
+      "expected": "선택 상품만 환불, 나머지 주문항목 유지",
+      "automation": "수동 / DB 통합 필요",
+      "cycle1": "Blocked",
+      "cycle2": "Pass",
+      "bug": "",
+      "owner": "QA",
+      "evidenceType": "fictional-work-scenario"
+    },
+    {
+      "id": "TC-032",
+      "area": "REFUND",
+      "priority": "P0",
+      "title": "환불 보류 중 자동 확정 차단",
+      "precondition": "환불 신청이 열린 배송완료 주문",
+      "steps": [
+        "자동 구매확정·정산 실행 조건 확인"
+      ],
+      "expected": "보류 대상의 확정·정산 진입 없음",
+      "automation": "수동",
+      "cycle1": "Blocked",
+      "cycle2": "Pass",
+      "bug": "",
+      "owner": "QA",
+      "evidenceType": "fictional-work-scenario"
+    },
+    {
+      "id": "TC-033",
+      "area": "SETTLE",
+      "priority": "P0",
+      "title": "기존 수거 수수료 스냅샷 유지",
+      "precondition": "정책 전·후 수거 각1건, 동일 판매가",
+      "steps": [
+        "정책 변경",
+        "동일 금액 판매·정산 계산"
+      ],
+      "expected": "기존 수거 요율 유지, 신규 수거만 새 정책",
+      "automation": "수동 / DB 통합 필요",
+      "cycle1": "Fail",
+      "cycle2": "Pass",
+      "bug": "SIM-BUG-006",
+      "owner": "QA",
+      "evidenceType": "fictional-work-scenario"
+    },
+    {
+      "id": "TC-034",
+      "area": "SETTLE",
+      "priority": "P0",
+      "title": "새 수수료 1만원 경계",
+      "precondition": "새 정책 수거, 판매가9999 / 10000",
+      "steps": [
+        "구매확정",
+        "정산 예상액 조회"
+      ],
+      "expected": "요율50% / 45%, 판매자 금액4999 / 5500",
+      "automation": "수동",
+      "cycle1": "Pass",
+      "cycle2": "Pass",
+      "bug": "",
+      "owner": "QA",
+      "evidenceType": "fictional-work-scenario"
+    },
+    {
+      "id": "TC-035",
+      "area": "SETTLE",
+      "priority": "P0",
+      "title": "월말 구매확정 정산 귀속",
+      "precondition": "월말·다음달초 구매확정 주문",
+      "steps": [
+        "각 시각 확정",
+        "정산 대상 집계"
+      ],
+      "expected": "각 구매확정 월 기준 익월1일 대상 반영",
+      "automation": "수동",
+      "cycle1": "Blocked",
+      "cycle2": "Pass",
+      "bug": "",
+      "owner": "QA",
+      "evidenceType": "fictional-work-scenario"
+    },
+    {
+      "id": "TC-036",
+      "area": "B2B",
+      "priority": "P1",
+      "title": "대량 공급 문의 정상 접수",
+      "precondition": "필수 정보·개인정보 동의",
+      "steps": [
+        "문의 폼 제출",
+        "접수번호 확인"
+      ],
+      "expected": "접수 완료·참조번호 표시",
+      "automation": "SEL-09 / API-B2B-01",
+      "cycle1": "Pass",
+      "cycle2": "Pass",
+      "bug": "",
+      "owner": "QA",
+      "evidenceType": "fictional-work-scenario"
+    },
+    {
+      "id": "TC-037",
+      "area": "B2B",
+      "priority": "P1",
+      "title": "일시 장애 재시도 중복 방어",
+      "precondition": "첫 RPC503, 두 번째 성공",
+      "steps": [
+        "정상 문의 제출",
+        "호출 referenceId 비교"
+      ],
+      "expected": "동일 참조번호 재시도, 성공1건 응답",
+      "automation": "API-B2B-18 부분",
+      "cycle1": "Fail",
+      "cycle2": "Pass",
+      "bug": "SIM-BUG-007",
+      "owner": "QA",
+      "evidenceType": "fictional-work-scenario"
+    },
+    {
+      "id": "TC-038",
+      "area": "B2B",
+      "priority": "P1",
+      "title": "미동의 문의 차단",
+      "precondition": "동의 false",
+      "steps": [
+        "폼 제출 및 API 직접 POST"
+      ],
+      "expected": "화면 제출 차단 / API400·후속 호출0",
+      "automation": "SEL-10 / API-B2B-12",
+      "cycle1": "Pass",
+      "cycle2": "Pass",
+      "bug": "",
+      "owner": "QA",
+      "evidenceType": "fictional-work-scenario"
+    },
+    {
+      "id": "TC-039",
+      "area": "B2B",
+      "priority": "P1",
+      "title": "수량 경계 검증",
+      "precondition": "0 / 1 / 1000000 / 1000001",
+      "steps": [
+        "각 수량으로 API 전송"
+      ],
+      "expected": "400 / 200 / 200 / 400",
+      "automation": "API-B2B-02~05",
+      "cycle1": "Pass",
+      "cycle2": "Pass",
+      "bug": "",
+      "owner": "QA",
+      "evidenceType": "fictional-work-scenario"
+    },
+    {
+      "id": "TC-040",
+      "area": "NFR",
+      "priority": "P1",
+      "title": "문의·인증·결제 가드 혼합 부하",
+      "precondition": "격리 API, 가상사용자1·10·25",
+      "steps": [
+        "워밍업",
+        "부하 실행",
+        "p95·오류율 확인"
+      ],
+      "expected": "로컬 기준 p95<500ms, 오류율<1%, 표본≥20",
+      "automation": "LOAD-SMOKE / BASELINE / PEAK",
+      "cycle1": "Pass",
+      "cycle2": "Pass",
+      "bug": "",
+      "owner": "QA",
+      "evidenceType": "fictional-work-scenario"
+    }
+  ]
+}
