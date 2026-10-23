@@ -1,0 +1,12 @@
+[
+  {"id":"BUY-01","priority":"P1","name":"품절 회차 선택 차단","precondition":"11회 재고 0권","steps":"상품 상세에서 옵션 목록 열기","expected":"11회 옵션 비활성"},
+  {"id":"BUY-02","priority":"P1","name":"동일 회차 재고 상한","precondition":"7회 재고 2권, 권당 6000원","steps":"7회 옵션을 세 번 선택","expected":"수량 2, 추가 버튼 비활성, 합계 12000원"},
+  {"id":"BUY-03","priority":"P1","name":"장바구니 교재 식별자 보존","precondition":"7회 2권 선택","steps":"10회 1권 추가 후 장바구니 담기","expected":"서로 다른 교재 ID 3개 전달"},
+  {"id":"BUY-04","priority":"P1","name":"장바구니·주문서 수량과 금액","precondition":"7회 2권 + 10회 1권 담김","steps":"장바구니에서 주문서 이동","expected":"장바구니 2묶음, 주문서 3권, 상품 20000원 + 배송 3000원 = 23000원"},
+  {"id":"AUTH-01","priority":"P1","name":"계정 조회 무응답 복구","precondition":"계정 조회 응답 보류, 목적지 /faq","steps":"인증 콜백 진입 후 30초 대기","expected":"로그인 오류 안내, /login 이동, 복귀 목적지 /faq 보존"},
+  {"id":"AUTH-02","priority":"P1","name":"미인증 회원 분기","precondition":"휴대폰 미인증 회원","steps":"인증 콜백 진입","expected":"/auth/verify-phone 이동"},
+  {"id":"AUTH-03","priority":"P1","name":"인증 완료 회원 분기","precondition":"인증 완료 회원, 목적지 /faq","steps":"인증 콜백 진입","expected":"/faq 이동"},
+  {"id":"IMG-01","priority":"P2","name":"용량 경계 바로 아래","precondition":"PNG 메타데이터, 15728639바이트","steps":"현재 uploadImageToBucket 호출","expected":"허용, 변환 1회·저장소 호출 4회"},
+  {"id":"IMG-02","priority":"P2","name":"용량 경계 일치","precondition":"PNG 메타데이터, 15728640바이트","steps":"현재 uploadImageToBucket 호출","expected":"허용, 변환 1회·저장소 호출 4회"},
+  {"id":"IMG-03","priority":"P2","name":"용량 경계 바로 위","precondition":"PNG 메타데이터, 15728641바이트","steps":"현재 uploadImageToBucket 호출","expected":"용량 오류, 변환·저장소 호출 0회"}
+]

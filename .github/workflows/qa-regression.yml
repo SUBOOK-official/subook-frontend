@@ -1,0 +1,40 @@
+name: QA regression
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'qa/**'
+      - '.github/workflows/qa-regression.yml'
+  pull_request:
+    paths:
+      - 'qa/**'
+      - 'apps/public-web/**'
+      - 'apps/admin-web/src/lib/adminImageUpload.js'
+      - 'packages/**'
+      - '.github/workflows/qa-regression.yml'
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            qa/package-lock.json
+      - run: npm ci
+      - run: npm --prefix qa ci
+      - run: npx --prefix qa playwright install --with-deps chromium
+      - run: npm --prefix qa test
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: qa-regression-results
+          path: qa/results/
+          retention-days: 30
