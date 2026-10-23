@@ -1,0 +1,44 @@
+import assert from 'node:assert/strict';
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { Builder, By, until } from 'selenium-webdriver';
+import chrome from 'selenium-webdriver/chrome.js';
+import path from 'node:path';
+import { pathToFileURL, fileURLToPath } from 'node:url';
+
+const qa=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+const date=process.argv[2]||'2026-10-24';
+assert.match(date,/^\d{4}-\d{2}-\d{2}$/);
+const root=path.join(qa,'evidence',date);
+await mkdir(path.join(root,'report-screenshots'),{recursive:true});
+const driver=await new Builder().forBrowser('chrome').setChromeOptions(new chrome.Options().addArguments('--headless=new','--window-size=1440,1100')).build();
+try{
+ const shot=async(file)=>writeFile(path.join(root,'report-screenshots',file),Buffer.from(await driver.takeScreenshot(),'base64'));
+ await driver.get(pathToFileURL(path.join(qa,'portfolio','index.html')).href);
+ assert.equal((await driver.findElements(By.css('#cases-table tbody tr'))).length,40);
+ assert.ok(!(await driver.findElement(By.css('body')).getText()).includes('가상'));
+ await driver.findElement(By.css('[data-tab="cases"]')).click();
+ const search=await driver.findElement(By.id('search'));
+ await search.sendKeys('TC-003');
+ assert.equal(await driver.findElement(By.id('count')).getText(),'1건');
+ await driver.findElement(By.css('tr[data-search^="tc-003"] summary')).click();
+ await shot('portfolio-tc.png');
+ await search.clear();
+ await driver.executeScript('document.querySelector("#search").dispatchEvent(new Event("input"))');
+ await driver.findElement(By.css('#status option:last-child')).click();
+ assert.equal(await driver.findElement(By.id('count')).getText(),'1건');
+ await driver.findElement(By.css('[data-tab="bugs"]')).click();
+ assert.ok((await driver.findElement(By.id('bugs')).getText()).includes('QA-BUG-008'));
+ await driver.get(pathToFileURL(path.join(root,'index.html')).href);
+ await driver.wait(until.elementLocated(By.css('.shot img')),5000);
+ assert.equal((await driver.findElements(By.css('.shot'))).length,10);
+ await driver.executeScript('document.querySelectorAll("img").forEach(i=>i.loading="eager");return Promise.all([...document.images].map(i=>i.decode()))');
+ assert.ok(await driver.executeScript('return [...document.images].every(i=>i.naturalWidth>0)'));
+ await shot('evidence-overview.png');
+ await driver.get(pathToFileURL(path.join(root,'local','postman','report.html')).href);
+ await driver.wait(until.elementLocated(By.css('table')),5000);
+ await shot('newman-report.png');
+ await driver.get(pathToFileURL(path.join(root,'local','jmeter','peak-dashboard','index.html')).href);
+ await driver.wait(async()=> (await driver.findElements(By.css('#statisticsTable tbody tr'))).length>0,10000);
+ await shot('jmeter-dashboard.png');
+ console.log('40 TC rows, search, Deferred filter, bug tab, 10 original images and report screenshots verified.');
+}finally{await driver.quit();}

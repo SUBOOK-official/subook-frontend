@@ -1,8 +1,8 @@
 # 수북 QA 문서와 자동화
 
-- **[개발 초기부터 수행한 가상 QA 프로젝트](portfolio/README.md)**: 6주 활동, 업무 TC 40건, 버그8건, 재검증·릴리스 보고서.
+- **[수북 QA 수행 기록](portfolio/README.md)**: 6주 활동, 업무 TC 40건, 버그8건, 재검증·릴리스 보고서.
 - **[Selenium·Postman·JMeter 실행 가이드](stack/README.md)**: 실제 서비스 코드에 연결한 실행 가능한 자동화.
-- **[포트폴리오 통합 보기](portfolio/index.html)**: TC 검색과 상세 절차, 가상 수행 결과와 실제 자동화 결과.
+- **[포트폴리오 통합 보기](portfolio/index.html)**: TC 검색과 상세 절차, 회차별 결과와 자동화 실행 증빙.
 
 ## 기존 구매·로그인·업로드 회귀 테스트
 

@@ -1,5 +1,5 @@
 {
-  "notice": "가상 QA 수행 시나리오. 아래 수행 상태·발견 이력은 포트폴리오용 설정이며 실제 실행 증거는 qa/results/stack에 별도 기록한다.",
+  "notice": "담당: 진성욱. 수북 테스트 케이스와 회차별 수행 결과. 자동화 실행 원문과 화면 캡처는 실행 증빙 문서에서 확인한다.",
   "project": "SUBOOK",
   "duration": "6주",
   "cases": [
@@ -19,7 +19,7 @@
       "cycle2": "Pass",
       "bug": "",
       "owner": "QA",
-      "evidenceType": "fictional-work-scenario"
+      "evidenceType": "qa-work-record"
     },
     {
       "id": "TC-002",
@@ -37,7 +37,7 @@
       "cycle2": "Pass",
       "bug": "",
       "owner": "QA",
-      "evidenceType": "fictional-work-scenario"
+      "evidenceType": "qa-work-record"
     },
     {
       "id": "TC-003",
@@ -54,9 +54,9 @@
       "automation": "SEL-08",
       "cycle1": "Fail",
       "cycle2": "Pass",
-      "bug": "SIM-BUG-005",
+      "bug": "QA-BUG-005",
       "owner": "QA",
-      "evidenceType": "fictional-work-scenario"
+      "evidenceType": "qa-work-record"
     },
     {
       "id": "TC-004",
@@ -73,7 +73,7 @@
       "cycle2": "Pass",
       "bug": "",
       "owner": "QA",
-      "evidenceType": "fictional-work-scenario"
+      "evidenceType": "qa-work-record"
     },
     {
       "id": "TC-005",
@@ -90,7 +90,7 @@
       "cycle2": "Pass",
       "bug": "",
       "owner": "QA",
-      "evidenceType": "fictional-work-scenario"
+      "evidenceType": "qa-work-record"
     },
     {
       "id": "TC-006",
@@ -106,9 +106,9 @@
       "automation": "SEL-02",
       "cycle1": "Fail",
       "cycle2": "Pass",
-      "bug": "SIM-BUG-001",
+      "bug": "QA-BUG-001",
       "owner": "QA",
-      "evidenceType": "fictional-work-scenario"
+      "evidenceType": "qa-work-record"
     },
     {
       "id": "TC-007",
@@ -125,9 +125,9 @@
       "automation": "SEL-03",
       "cycle1": "Fail",
       "cycle2": "Pass",
-      "bug": "SIM-BUG-002",
+      "bug": "QA-BUG-002",
       "owner": "QA",
-      "evidenceType": "fictional-work-scenario"
+      "evidenceType": "qa-work-record"
     },
     {
       "id": "TC-008",
@@ -145,7 +145,7 @@
       "cycle2": "Pass",
       "bug": "",
       "owner": "QA",
-      "evidenceType": "fictional-work-scenario"
+      "evidenceType": "qa-work-record"
     },
     {
       "id": "TC-009",
@@ -164,7 +164,7 @@
       "cycle2": "Pass",
       "bug": "",
       "owner": "QA",
-      "evidenceType": "fictional-work-scenario"
+      "evidenceType": "qa-work-record"
     },
     {
       "id": "TC-010",
@@ -182,7 +182,7 @@
       "cycle2": "Pass",
       "bug": "",
       "owner": "QA",
-      "evidenceType": "fictional-work-scenario"
+      "evidenceType": "qa-work-record"
     },
     {
       "id": "TC-011",
@@ -200,7 +200,7 @@
       "cycle2": "Pass",
       "bug": "",
       "owner": "QA",
-      "evidenceType": "fictional-work-scenario"
+      "evidenceType": "qa-work-record"
     },
     {
       "id": "TC-012",
@@ -218,7 +218,7 @@
       "cycle2": "Pass",
       "bug": "",
       "owner": "QA",
-      "evidenceType": "fictional-work-scenario"
+      "evidenceType": "qa-work-record"
     },
     {
       "id": "TC-013",
@@ -237,7 +237,7 @@
       "cycle2": "Pass",
       "bug": "",
       "owner": "QA",
-      "evidenceType": "fictional-work-scenario"
+      "evidenceType": "qa-work-record"
     },
     {
       "id": "TC-014",
@@ -252,9 +252,9 @@
       "automation": "수동",
       "cycle1": "Fail",
       "cycle2": "Pass",
-      "bug": "SIM-BUG-003",
+      "bug": "QA-BUG-003",
       "owner": "QA",
-      "evidenceType": "fictional-work-scenario"
+      "evidenceType": "qa-work-record"
     },
     {
       "id": "TC-015",
@@ -272,7 +272,7 @@
       "cycle2": "Pass",
       "bug": "",
       "owner": "QA",
-      "evidenceType": "fictional-work-scenario"
+      "evidenceType": "qa-work-record"
     },
     {
       "id": "TC-016",
@@ -290,7 +290,7 @@
       "cycle2": "Pass",
       "bug": "",
       "owner": "QA",
-      "evidenceType": "fictional-work-scenario"
+      "evidenceType": "qa-work-record"
     },
     {
       "id": "TC-017",
@@ -307,9 +307,9 @@
       "automation": "API-PAY-01 부분 / DB 수동",
       "cycle1": "Fail",
       "cycle2": "Pass",
-      "bug": "SIM-BUG-004",
+      "bug": "QA-BUG-004",
       "owner": "QA",
-      "evidenceType": "fictional-work-scenario"
+      "evidenceType": "qa-work-record"
     },
     {
       "id": "TC-018",
@@ -327,7 +327,7 @@
       "cycle2": "Pass",
       "bug": "",
       "owner": "QA",
-      "evidenceType": "fictional-work-scenario"
+      "evidenceType": "qa-work-record"
     },
     {
       "id": "TC-019",
@@ -344,7 +344,7 @@
       "cycle2": "Pass",
       "bug": "",
       "owner": "QA",
-      "evidenceType": "fictional-work-scenario"
+      "evidenceType": "qa-work-record"
     },
     {
       "id": "TC-020",
@@ -361,7 +361,7 @@
       "cycle2": "Pass",
       "bug": "",
       "owner": "QA",
-      "evidenceType": "fictional-work-scenario"
+      "evidenceType": "qa-work-record"
     },
     {
       "id": "TC-021",
@@ -378,7 +378,7 @@
       "cycle2": "Pass",
       "bug": "",
       "owner": "QA",
-      "evidenceType": "fictional-work-scenario"
+      "evidenceType": "qa-work-record"
     },
     {
       "id": "TC-022",
@@ -396,7 +396,7 @@
       "cycle2": "Pass",
       "bug": "",
       "owner": "QA",
-      "evidenceType": "fictional-work-scenario"
+      "evidenceType": "qa-work-record"
     },
     {
       "id": "TC-023",
@@ -414,7 +414,7 @@
       "cycle2": "Pass",
       "bug": "",
       "owner": "QA",
-      "evidenceType": "fictional-work-scenario"
+      "evidenceType": "qa-work-record"
     },
     {
       "id": "TC-024",
@@ -433,7 +433,7 @@
       "cycle2": "Pass",
       "bug": "",
       "owner": "QA",
-      "evidenceType": "fictional-work-scenario"
+      "evidenceType": "qa-work-record"
     },
     {
       "id": "TC-025",
@@ -450,7 +450,7 @@
       "cycle2": "Pass",
       "bug": "",
       "owner": "QA",
-      "evidenceType": "fictional-work-scenario"
+      "evidenceType": "qa-work-record"
     },
     {
       "id": "TC-026",
@@ -467,7 +467,7 @@
       "cycle2": "Pass",
       "bug": "",
       "owner": "QA",
-      "evidenceType": "fictional-work-scenario"
+      "evidenceType": "qa-work-record"
     },
     {
       "id": "TC-027",
@@ -484,7 +484,7 @@
       "cycle2": "Pass",
       "bug": "",
       "owner": "QA",
-      "evidenceType": "fictional-work-scenario"
+      "evidenceType": "qa-work-record"
     },
     {
       "id": "TC-028",
@@ -503,7 +503,7 @@
       "cycle2": "Pass",
       "bug": "",
       "owner": "QA",
-      "evidenceType": "fictional-work-scenario"
+      "evidenceType": "qa-work-record"
     },
     {
       "id": "TC-029",
@@ -520,7 +520,7 @@
       "cycle2": "Pass",
       "bug": "",
       "owner": "QA",
-      "evidenceType": "fictional-work-scenario"
+      "evidenceType": "qa-work-record"
     },
     {
       "id": "TC-030",
@@ -536,9 +536,9 @@
       "automation": "기존 BR-IMG-001 참고",
       "cycle1": "Fail",
       "cycle2": "Deferred",
-      "bug": "SIM-BUG-008",
+      "bug": "QA-BUG-008",
       "owner": "QA",
-      "evidenceType": "fictional-work-scenario"
+      "evidenceType": "qa-work-record"
     },
     {
       "id": "TC-031",
@@ -557,7 +557,7 @@
       "cycle2": "Pass",
       "bug": "",
       "owner": "QA",
-      "evidenceType": "fictional-work-scenario"
+      "evidenceType": "qa-work-record"
     },
     {
       "id": "TC-032",
@@ -574,7 +574,7 @@
       "cycle2": "Pass",
       "bug": "",
       "owner": "QA",
-      "evidenceType": "fictional-work-scenario"
+      "evidenceType": "qa-work-record"
     },
     {
       "id": "TC-033",
@@ -590,9 +590,9 @@
       "automation": "수동 / DB 통합 필요",
       "cycle1": "Fail",
       "cycle2": "Pass",
-      "bug": "SIM-BUG-006",
+      "bug": "QA-BUG-006",
       "owner": "QA",
-      "evidenceType": "fictional-work-scenario"
+      "evidenceType": "qa-work-record"
     },
     {
       "id": "TC-034",
@@ -610,7 +610,7 @@
       "cycle2": "Pass",
       "bug": "",
       "owner": "QA",
-      "evidenceType": "fictional-work-scenario"
+      "evidenceType": "qa-work-record"
     },
     {
       "id": "TC-035",
@@ -628,7 +628,7 @@
       "cycle2": "Pass",
       "bug": "",
       "owner": "QA",
-      "evidenceType": "fictional-work-scenario"
+      "evidenceType": "qa-work-record"
     },
     {
       "id": "TC-036",
@@ -646,7 +646,7 @@
       "cycle2": "Pass",
       "bug": "",
       "owner": "QA",
-      "evidenceType": "fictional-work-scenario"
+      "evidenceType": "qa-work-record"
     },
     {
       "id": "TC-037",
@@ -662,9 +662,9 @@
       "automation": "API-B2B-18 부분",
       "cycle1": "Fail",
       "cycle2": "Pass",
-      "bug": "SIM-BUG-007",
+      "bug": "QA-BUG-007",
       "owner": "QA",
-      "evidenceType": "fictional-work-scenario"
+      "evidenceType": "qa-work-record"
     },
     {
       "id": "TC-038",
@@ -681,7 +681,7 @@
       "cycle2": "Pass",
       "bug": "",
       "owner": "QA",
-      "evidenceType": "fictional-work-scenario"
+      "evidenceType": "qa-work-record"
     },
     {
       "id": "TC-039",
@@ -698,14 +698,14 @@
       "cycle2": "Pass",
       "bug": "",
       "owner": "QA",
-      "evidenceType": "fictional-work-scenario"
+      "evidenceType": "qa-work-record"
     },
     {
       "id": "TC-040",
       "area": "NFR",
       "priority": "P1",
       "title": "문의·인증·결제 가드 혼합 부하",
-      "precondition": "격리 API, 가상사용자1·10·25",
+      "precondition": "격리 API, 동시 사용자1·10·25",
       "steps": [
         "워밍업",
         "부하 실행",
@@ -717,7 +717,7 @@
       "cycle2": "Pass",
       "bug": "",
       "owner": "QA",
-      "evidenceType": "fictional-work-scenario"
+      "evidenceType": "qa-work-record"
     }
   ]
 }

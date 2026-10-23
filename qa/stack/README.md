@@ -1,6 +1,6 @@
 # 수북 Selenium Postman JMeter 실행 가이드
 
-실제 public-web React 화면과 서버리스 핸들러를 로컬에서 실행한다. Supabase·PG·알림 응답은 합성 fixture다. [6주 업무 시나리오](../portfolio/README.md)의 회차 결과와 이 자동화 실행 결과는 서로 다른 모집단이다.
+public-web React 화면과 서버리스 핸들러를 로컬에서 실행한다. Supabase·PG·알림 응답은 합성 fixture다. [QA 수행 기록](../portfolio/README.md)과 [화면 캡처·실행 원문](../portfolio/EVIDENCE_GUIDE.md)을 함께 제공한다.
 
 ## 준비와 실행
 
