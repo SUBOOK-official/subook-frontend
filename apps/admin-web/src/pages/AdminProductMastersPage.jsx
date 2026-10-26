@@ -553,6 +553,36 @@ function AdminProductMastersPage() {
     await loadProducts();
   };
 
+  const handleBookSold = (book) => {
+    const product = detailTarget;
+    const bookLabel = [product?.title, book.option, book.serial_number != null ? `No.${book.serial_number}` : null]
+      .filter(Boolean).join(" · ");
+    setDestructiveModal({
+      title: "수동 판매완료 처리",
+      description:
+        `${bookLabel} 1권을 판매완료로 처리하시겠습니까?\n\n` +
+        "· 이 권은 판매 재고에서 제외되어 더 이상 구매할 수 없습니다.\n" +
+        "· 결제나 정산 내역은 생성되지 않으며, 판매대금 정산은 별도로 확인해야 합니다.\n" +
+        "· 실제 판매된 교재인지 확인한 뒤 진행해 주세요.",
+      confirmLabel: "판매완료 처리",
+      run: async () => {
+        const detailRequest = detailRequestRef.current;
+        setBookBusyId(book.id);
+        try {
+          const { data, error } = await supabase.rpc("admin_mark_book_sold", { p_book_id: book.id });
+          if (error) throw error;
+          showToast(data?.already_sold ? "이미 판매완료된 교재입니다." : `${bookLabel} 1권을 판매완료 처리했습니다.`, "success");
+          if (product && detailRequest === detailRequestRef.current) await openDetail(product);
+          await loadProducts();
+        } catch (error) {
+          showToast(error.message || "판매완료 처리에 실패했습니다. 현재 상태를 확인한 뒤 다시 시도해 주세요.", "error");
+        } finally {
+          setBookBusyId(null);
+        }
+      },
+    });
+  };
+
   // 권별 폐기 (2026-08-11 대표 요청) — 배송 준비 중 답지 누락/파손을 발견했을 때
   // 그 권 하나만 재고에서 내린다. 검수 상세 페이지의 일괄 폐기와 같은 RPC를 쓰며
   // 재고 화면 진입점만 추가한 것 (하드 삭제가 아니라 status='discarded'):
@@ -1394,15 +1424,26 @@ function AdminProductMastersPage() {
                         </td>
                         <td className="whitespace-nowrap px-3 py-2 text-right">
                           {book.status === "on_sale" ? (
-                            <button
-                              className="rounded-md border border-rose-200 px-2.5 py-1 text-xs font-bold text-rose-600 hover:border-rose-400 hover:bg-rose-50 disabled:opacity-50"
-                              disabled={bookBusyId === book.id}
-                              onClick={() => handleBookDiscard(book)}
-                              title="이 권만 폐기합니다 (답지 없음·파손 등)"
-                              type="button"
-                            >
-                              {bookBusyId === book.id ? "처리 중" : "폐기"}
-                            </button>
+                            <div className="flex justify-end gap-2">
+                              <button
+                                className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-bold text-slate-700 hover:border-slate-400 hover:bg-slate-50 disabled:opacity-50"
+                                disabled={bookBusyId != null || book.picking_pending}
+                                onClick={() => handleBookSold(book)}
+                                title={book.picking_pending ? "주문이 진행 중인 교재는 주문 화면에서 처리해 주세요." : "이 권만 수동으로 판매완료 처리합니다"}
+                                type="button"
+                              >
+                                판매완료
+                              </button>
+                              <button
+                                className="rounded-md border border-rose-200 px-2.5 py-1 text-xs font-bold text-rose-600 hover:border-rose-400 hover:bg-rose-50 disabled:opacity-50"
+                                disabled={bookBusyId === book.id}
+                                onClick={() => handleBookDiscard(book)}
+                                title="이 권만 폐기합니다 (답지 없음·파손 등)"
+                                type="button"
+                              >
+                                {bookBusyId === book.id ? "처리 중" : "폐기"}
+                              </button>
+                            </div>
                           ) : book.status === "discarded" ? (
                             <span className="text-xs text-slate-400">폐기됨</span>
                           ) : (
