@@ -447,7 +447,7 @@ function SettlementCard({ settlement, status }) {
       <dl className="mypage-money-breakdown">
         <div><dt>판매금액</dt><dd>{formatCurrency(settlement.grossSales)}</dd></div>
         <div><dt>판매 수수료{settlement.grossSales > 0 ? ` (${Math.round((settlement.feeAmount / settlement.grossSales) * 100)}%)` : ""}</dt><dd>−{formatCurrency(settlement.feeAmount)}</dd></div>
-        {settlement.boxCostDeducted > 0 ? <div><dt>박스비</dt><dd>−{formatCurrency(settlement.boxCostDeducted)}</dd></div> : null}
+        {settlement.boxCostDeducted > 0 ? <div><dt>상품화 비용</dt><dd>−{formatCurrency(settlement.boxCostDeducted)}</dd></div> : null}
         <div className="is-total"><dt>{isCompleted ? "입금금액" : "입금 예정금액"}</dt><dd>{formatCurrency(settlement.amount)}</dd></div>
       </dl>
       {settlement.hasAccountInfo ? <p className="mypage-settlement-bank">{settlement.bankLabel} {settlement.maskedAccount}</p> : null}
