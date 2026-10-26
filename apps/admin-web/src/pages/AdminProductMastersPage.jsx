@@ -562,7 +562,8 @@ function AdminProductMastersPage() {
       description:
         `${bookLabel} 1권을 판매완료로 처리하시겠습니까?\n\n` +
         "· 이 권은 판매 재고에서 제외되어 더 이상 구매할 수 없습니다.\n" +
-        "· 결제나 정산 내역은 생성되지 않으며, 판매대금 정산은 별도로 확인해야 합니다.\n" +
+        "· 등록된 판매가와 수거 당시 수수료, 남은 상품화 비용을 반영한 정산 예정 내역이 함께 생성됩니다.\n" +
+        "· 자체매입·자체판매 교재는 판매자 정산 대상에서 제외됩니다. 실제 입금은 정산 메뉴에서 별도로 처리해 주세요.\n" +
         "· 실제 판매된 교재인지 확인한 뒤 진행해 주세요.",
       confirmLabel: "판매완료 처리",
       run: async () => {
@@ -571,7 +572,12 @@ function AdminProductMastersPage() {
         try {
           const { data, error } = await supabase.rpc("admin_mark_book_sold", { p_book_id: book.id });
           if (error) throw error;
-          showToast(data?.already_sold ? "이미 판매완료된 교재입니다." : `${bookLabel} 1권을 판매완료 처리했습니다.`, "success");
+          const resultMessage = data?.settlement_created
+            ? `판매완료 · 정산 예정 ${formatCurrency(data.net_amount)} 등록 (${formatDate(data.scheduled_date)})`
+            : data?.settlement_excluded
+              ? "판매완료 처리했습니다. 자체매입·자체판매 교재는 판매자 정산 대상이 아닙니다."
+              : "이미 판매완료 및 정산 내역이 등록된 교재입니다.";
+          showToast(resultMessage, "success");
           if (product && detailRequest === detailRequestRef.current) await openDetail(product);
           await loadProducts();
         } catch (error) {

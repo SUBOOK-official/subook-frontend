@@ -488,8 +488,8 @@ function AdminSettlementsPage() {
                   {detail.items.map((item) => <tr key={item.id} className="align-top">
                     <td className="max-w-[320px] px-3 py-4"><p className="font-semibold text-slate-900">{item.book_title || "교재명 없음"}</p>
                       <p className="mt-1 text-xs text-slate-500">{[item.book_option, item.condition_grade].filter(Boolean).join(" · ")}</p>
-                      <p className="mt-1 font-mono text-xs text-slate-400">{item.order_number} · 교재 #{item.book_id}</p>
-                      <p className="mt-1 text-xs text-slate-400">{isPayable ? `구매확정 ${formatDate(item.confirmed_at)} · 지급 예정 ${formatDate(item.scheduled_date)}` : `지급 완료 ${formatDate(item.completed_at)}`}</p>
+                      <p className="mt-1 font-mono text-xs text-slate-400">{item.order_number || "수동 판매완료"} · 교재 #{item.book_id}</p>
+                      <p className="mt-1 text-xs text-slate-400">{isPayable ? `${item.order_id ? `구매확정 ${formatDate(item.confirmed_at)} · ` : ""}지급 예정 ${formatDate(item.scheduled_date)}` : `지급 완료 ${formatDate(item.completed_at)}`}</p>
                     </td>
                     <td className="whitespace-nowrap px-3 py-4 text-right tabular-nums">{formatCurrency(item.sale_amount)}</td>
                     <td className="whitespace-nowrap px-3 py-4 text-right tabular-nums">{formatCurrency(item.fee_amount)}<p className="mt-1 text-xs text-slate-400">{Number(item.fee_percent)}%</p></td>
