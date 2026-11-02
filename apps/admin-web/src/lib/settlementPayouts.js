@@ -7,6 +7,7 @@ export function hasPayoutAccount(row) {
 
 // 금액은 정산 원장의 스냅샷을 합산한다. 현재 수수료 정책으로 다시 계산하지 않는다.
 export function settlementDeduction(row) {
+  if (row.sale_source === "box_cost_adjustment") return -amount(row.net_amount);
   return Math.max(0, amount(row.sale_amount) - amount(row.fee_amount) - amount(row.net_amount));
 }
 

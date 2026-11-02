@@ -1,8 +1,38 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { completeJeonilSettlements, fetchAdminSettlementRows, fetchJeonilSettlementData } from "./adminSettlementClient.js";
+import { completeJeonilSettlements, completeSettlementPayouts, fetchAdminSettlementRows, fetchJeonilSettlementData, updateShipmentBoxCount } from "./adminSettlementClient.js";
 
 const mockClient = (run) => ({ rpc: (...args) => ({ abortSignal: (signal) => run(...args, signal) }) });
+
+test("박스 수 저장은 이전 값을 전달하고 저장 결과·추가 지급액을 반환한다", async () => {
+  const data = { box_count: 1, box_cost_charged: 5000, additional_pending_amount: 5000 };
+  assert.deepEqual(await updateShipmentBoxCount(mockClient(async (name, args) => {
+    assert.equal(name, "admin_update_shipment_box_count");
+    assert.deepEqual(args, { p_shipment_id: 74, p_box_count: 1, p_expected_box_count: 2 });
+    return { data };
+  }), { id: 74, box_count: 2 }, 1), data);
+});
+
+test("박스 저장과 지급 완료는 응답 유실 시 자동 재시도하지 않는다", async () => {
+  for (const run of [
+    (client) => updateShipmentBoxCount(client, { id: 74, box_count: 2 }, 1),
+    (client) => completeSettlementPayouts(client, [{ id: 12, net_amount: 5000 }], "입금"),
+  ]) {
+    let calls = 0;
+    await assert.rejects(run(mockClient(async () => { calls++; throw Error("응답 유실"); })));
+    assert.equal(calls, 1);
+  }
+});
+
+test("일반·추가 지급 모두 확인한 행별 금액을 전달하고 일부 완료를 성공으로 처리하지 않는다", async () => {
+  const rows = [{ id: 11, net_amount: 6000 }, { id: 12, net_amount: 5000, sale_source: "box_cost_adjustment" }];
+  const client = mockClient(async (name, args) => {
+    assert.equal(name, "admin_complete_settlement_payouts");
+    assert.deepEqual(args, { p_rows: [{ id: 11, net_amount: 6000 }, { id: 12, net_amount: 5000 }], p_transfer_reference: "입금" });
+    return { data: { updated_count: 1 } };
+  });
+  await assert.rejects(completeSettlementPayouts(client, rows, " 입금 "), /새로고침/);
+});
 
 test("전일학원 조회는 일반 셀러 RPC와 분리하고 응답 구조를 검증한다", async () => {
   const data = { payable: [], waiting: [], completed: [], fee_percent: 50 };

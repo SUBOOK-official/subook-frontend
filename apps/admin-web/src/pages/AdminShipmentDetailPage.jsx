@@ -10,6 +10,7 @@ import { formatCurrency, formatDate } from "@shared-domain/format";
 import { getSettlementInfo } from "@shared-domain/settlement";
 import { bookStatusLabel, shipmentStatusLabel } from "@shared-domain/status";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
+import { updateShipmentBoxCount } from "@shared-supabase/adminSettlementClient";
 import StatusBadge from "@shared-domain/StatusBadge";
 import NotificationResultModal from "../components/NotificationResultModal";
 import { notifyInspectionDone } from "../lib/adminNotification";
@@ -960,22 +961,22 @@ function AdminShipmentDetailPage() {
   // 운영자가 폐기/미등급 책을 인지하고 명시적으로 강행하도록 강제.
   const handleSaveBoxCount = async () => {
     if (!isSupabaseConfigured || !shipment) return;
-    const parsed = Math.max(0, Number.parseInt(boxCountInput, 10) || 0);
+    const parsed = Number(boxCountInput);
+    if (!boxCountInput.trim() || !Number.isInteger(parsed) || parsed < 0 || parsed > 10000) {
+      setError("박스 수는 0~10,000 사이의 정수로 입력해 주세요.");
+      return;
+    }
     setActionLoading(true);
     setError("");
     setNotice("");
-    const { error: updateError } = await supabase
-      .from("shipments")
-      .update({ box_count: parsed })
-      .eq("id", shipment.id);
-    setActionLoading(false);
-    if (updateError) {
-      setError("박스 수 저장에 실패했습니다.");
-      return;
-    }
-    setShipment((prev) => (prev ? { ...prev, box_count: parsed } : prev));
-    setBoxCountInput(String(parsed));
-    setNotice(`박스 수 ${parsed}개 저장 — 상품화 비용 ${(parsed * 5000).toLocaleString()}원이 셀러 정산 시 차감됩니다.`);
+    try {
+      const result = await updateShipmentBoxCount(supabase, shipment, parsed);
+      setShipment((prev) => (prev ? { ...prev, box_count: parsed, box_cost_charged: result.box_cost_charged } : prev));
+      setBoxCountInput(String(parsed));
+      setNotice(`박스 수 ${parsed}개 · 상품화 비용 ${(parsed * 5000).toLocaleString()}원으로 미지급 정산을 반영했습니다.${result.additional_pending_amount > 0 ? ` 추가 지급 대기 ${result.additional_pending_amount.toLocaleString()}원은 정산 메뉴에서 확인해 주세요.` : ""}`);
+    } catch (error) {
+      setError(error?.message || "저장 결과를 확인하지 못했습니다. 새로고침 후 확인해 주세요.");
+    } finally { setActionLoading(false); }
   };
 
   // 검수중 진입은 수동 버튼이 아니라 책 등록 시 DB 트리거(trg_books_auto_inspecting)가

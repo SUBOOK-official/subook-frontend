@@ -10,7 +10,7 @@ import { groupSettlementNotificationTargets, notifySettlementDoneGroup } from ".
 import { exportRowsToXlsx } from "../lib/excelFile";
 import { filterSettlementPayouts, groupSettlementPayouts, settlementDeduction } from "../lib/settlementPayouts";
 import { formatCurrency, formatDate } from "@shared-domain/format";
-import { fetchAdminSettlementRows } from "@shared-supabase/adminSettlementClient";
+import { completeSettlementPayouts, fetchAdminSettlementRows } from "@shared-supabase/adminSettlementClient";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { BusyText, InlineLoading, LoadingOverlay } from "../components/Loading";
 
@@ -104,7 +104,7 @@ function AdminSettlementsPage() {
   const summaryCards = [
     { label: isPayable ? "미지급 금액" : "지급 완료 금액", value: summaryUnavailable ? "—" : formatCurrency(totalAmount), hint: isPayable ? "아직 지급하지 않은 정산" : "지급 완료된 정산" },
     { label: isPayable ? "정산할 셀러" : "지급받은 셀러", value: summaryUnavailable ? "—" : `${new Set(groups.map((group) => group.sellerKey)).size}명`, hint: `입금계좌 ${groups.length}개` },
-    { label: "대상 교재", value: summaryUnavailable ? "—" : `${rows.length}권`, hint: isPayable ? `계좌 확인 필요 ${groups.filter((group) => !group.hasAccount).length}건` : "셀러를 누르면 상세 내역 확인" },
+    { label: "정산 내역", value: summaryUnavailable ? "—" : `${rows.length}건`, hint: isPayable ? `계좌 확인 필요 ${groups.filter((group) => !group.hasAccount).length}건` : "셀러를 누르면 상세 내역 확인" },
   ];
 
   const changeTab = (key) => {
@@ -205,15 +205,8 @@ function AdminSettlementsPage() {
 
     setBusyAction("complete");
     try {
-      const { data, error } = await supabase.rpc("admin_complete_settlements", {
-        p_settlement_ids: ids,
-        p_transfer_reference:
-          typeof transferReference === "string" && transferReference.trim()
-            ? transferReference.trim()
-            : null,
-      });
-
-      if (error) throw error;
+      const selectedRows = completeConfirm.groups.flatMap((group) => group.items);
+      const data = await completeSettlementPayouts(supabase, selectedRows, transferReference);
 
       const completedRows = Array.isArray(data?.settlements) ? data.settlements : [];
       // 셀러(수신번호+계좌) 단위로 묶어 총 정산액 1건만 발송 — 건별 발송은 권수만큼 중복 수신
@@ -405,7 +398,7 @@ function AdminSettlementsPage() {
               {isPayable ? <input type="checkbox" aria-label="현재 페이지 전체 선택" checked={allVisibleSelected}
                 disabled={actionsDisabled || !eligibleVisibleGroups.length} onChange={toggleVisible} /> : null}
               <div className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_6rem_9rem]">
-                <span>셀러</span><span className="hidden sm:block">입금계좌</span><span className="hidden text-right sm:block">교재</span><span className="text-right">{isPayable ? "정산할 금액" : "지급한 금액"}</span>
+                <span>셀러</span><span className="hidden sm:block">입금계좌</span><span className="hidden text-right sm:block">내역</span><span className="text-right">{isPayable ? "정산할 금액" : "지급한 금액"}</span>
               </div>
               <span className="hidden w-12 sm:block" />
             </div>
@@ -424,10 +417,10 @@ function AdminSettlementsPage() {
                       <span className="col-span-2 row-start-2 text-xs text-slate-600 sm:col-span-1 sm:col-start-2 sm:row-start-1">
                         {group.hasAccount ? <><span className="block">{group.bank_name} <span className="font-mono">{group.account_number}</span></span><span className="mt-1 block text-slate-400">예금주 {group.account_holder}</span></> : <span className="font-bold text-amber-700">계좌 확인 필요</span>}
                       </span>
-                      <span className="hidden text-right text-sm text-slate-600 sm:block">{group.items.length}권</span>
+                      <span className="hidden text-right text-sm text-slate-600 sm:block">{group.items.length}건</span>
                       <span className="col-start-2 row-start-1 text-right sm:col-start-4">
                         <span className="block text-lg font-black tabular-nums text-slate-950">{formatCurrency(group.total_net_amount)}</span>
-                        <span className="mt-1 block text-xs text-slate-400 sm:hidden">{group.items.length}권</span>
+                        <span className="mt-1 block text-xs text-slate-400 sm:hidden">{group.items.length}건</span>
                         {!isPayable ? <span className="mt-1 block text-xs text-slate-500">최근 지급 {formatDate(group.completed_at)}</span> : null}
                       </span>
                     </span>
@@ -444,7 +437,7 @@ function AdminSettlementsPage() {
       <AdminDialog open={Boolean(detail) && !accountModal && !completeConfirm && !isLoading} onClose={() => setDetailKey(null)}
         title={`${detail?.seller_name ?? ""} 정산 상세`} size="2xl" busy={Boolean(busyAction)}
         footer={<div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm font-bold text-slate-700">{detail?.items.length ?? 0}권 · <span className="text-lg text-slate-950">{formatCurrency(detail?.total_net_amount ?? 0)}</span></p>
+          <p className="text-sm font-bold text-slate-700">{detail?.items.length ?? 0}건 · <span className="text-lg text-slate-950">{formatCurrency(detail?.total_net_amount ?? 0)}</span></p>
           <div className="flex gap-2">
             <button className="btn-secondary !w-auto !px-4 !py-2 text-sm" type="button" onClick={() => setDetailKey(null)}>닫기</button>
             {isPayable && detail ? <button className="btn-primary !w-auto !px-4 !py-2 text-sm" type="button" disabled={actionsDisabled || !detail.hasAccount} onClick={() => requestCompletion([detail])}>지급 완료 처리</button> : null}
@@ -478,7 +471,7 @@ function AdminSettlementsPage() {
             ))}
           </dl>
           <div>
-            <h3 className="mb-3 font-bold text-slate-900">정산 대상 교재 <span className="text-slate-500">{detail.items.length}권</span></h3>
+            <h3 className="mb-3 font-bold text-slate-900">정산 내역 <span className="text-slate-500">{detail.items.length}건</span></h3>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[640px] text-sm">
                 <thead className="border-b border-slate-200 bg-slate-50 text-xs font-bold text-slate-500">
@@ -488,7 +481,7 @@ function AdminSettlementsPage() {
                   {detail.items.map((item) => <tr key={item.id} className="align-top">
                     <td className="max-w-[320px] px-3 py-4"><p className="font-semibold text-slate-900">{item.book_title || "교재명 없음"}</p>
                       <p className="mt-1 text-xs text-slate-500">{[item.book_option, item.condition_grade].filter(Boolean).join(" · ")}</p>
-                      <p className="mt-1 font-mono text-xs text-slate-400">{item.order_number || "수동 판매완료"} · 교재 #{item.book_id}</p>
+                      <p className="mt-1 font-mono text-xs text-slate-400">{item.sale_source === "box_cost_adjustment" ? `수거 #${item.shipment_id} · 상품화 비용 반환` : `${item.order_number || "수동 판매완료"} · 교재 #${item.book_id}`}</p>
                       <p className="mt-1 text-xs text-slate-400">{isPayable ? `${item.order_id ? `구매확정 ${formatDate(item.confirmed_at)} · ` : ""}지급 예정 ${formatDate(item.scheduled_date)}` : `지급 완료 ${formatDate(item.completed_at)}`}</p>
                     </td>
                     <td className="whitespace-nowrap px-3 py-4 text-right tabular-nums">{formatCurrency(item.sale_amount)}</td>
@@ -533,7 +526,7 @@ function AdminSettlementsPage() {
         </div>}
       >
         <div className="space-y-5 p-6">
-          <div><p className="text-sm font-semibold text-slate-500">{completeConfirm?.groups.length ?? 0}개 계좌 · 교재 {completeConfirm?.ids.length ?? 0}권</p>
+          <div><p className="text-sm font-semibold text-slate-500">{completeConfirm?.groups.length ?? 0}개 계좌 · 정산 {completeConfirm?.ids.length ?? 0}건</p>
             <p className="mt-1 text-2xl font-black text-slate-950">{formatCurrency(completeConfirm?.amount ?? 0)}</p>
           </div>
           <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200 px-4">

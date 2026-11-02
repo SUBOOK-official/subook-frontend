@@ -9,6 +9,17 @@ const row = (id, extra = {}) => ({
   status: "pending", scheduled_date: "2026-12-01", ...extra,
 });
 
+test("추가 지급은 판매액을 늘리지 않고 상품화 비용 반환과 정산 합계에 반영한다", () => {
+  const [group] = groupSettlementPayouts([row(1), row(2, {
+    sale_source: "box_cost_adjustment", sale_amount: 0, fee_amount: 0, net_amount: 5000,
+  })]);
+  assert.equal(group.total_sale_amount, 10000);
+  assert.equal(group.total_deduction, -5000);
+  assert.equal(group.total_net_amount, 10500);
+  assert.equal(group.total_sale_amount - group.total_fee_amount - group.total_deduction, group.total_net_amount);
+  assert.deepEqual(group.settlement_ids, [1, 2]);
+});
+
 test("예정일·pending/approved 구분 없이 원장 금액을 합산하고 0원도 포함한다", () => {
   const [group] = groupSettlementPayouts([row(1), row(2, { status: "approved", net_amount: 500 }), row(3, { net_amount: 0 })]);
   assert.deepEqual(group.settlement_ids, [1, 2, 3]);

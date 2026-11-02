@@ -44,6 +44,33 @@ export async function completeJeonilSettlements(client, rows, expectedAmount, tr
 }
 
 // list_admin_settlements의 최대 페이지 크기는 500이다. 셀러 합계는 모든 페이지를 받은 뒤 표시한다.
+export async function updateShipmentBoxCount(client, shipment, boxCount) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30000);
+  try {
+    const { data, error } = await client.rpc("admin_update_shipment_box_count", {
+      p_shipment_id: shipment.id, p_box_count: boxCount, p_expected_box_count: shipment.box_count ?? 0,
+    }).abortSignal(controller.signal);
+    if (error) throw error;
+    if (data?.box_count !== boxCount) throw new Error("저장 결과를 확인하지 못했습니다. 새로고침해 주세요.");
+    return data;
+  } finally { clearTimeout(timer); }
+}
+
+export async function completeSettlementPayouts(client, rows, transferReference) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30000);
+  try {
+    const { data, error } = await client.rpc("admin_complete_settlement_payouts", {
+      p_rows: rows.map(({ id, net_amount }) => ({ id, net_amount })),
+      p_transfer_reference: transferReference?.trim() || null,
+    }).abortSignal(controller.signal);
+    if (error) throw error;
+    if (data?.updated_count !== rows.length) throw new Error("처리 결과를 확인하지 못했습니다. 목록을 새로고침해 주세요.");
+    return data;
+  } finally { clearTimeout(timer); }
+}
+
 export async function fetchAdminSettlementRows(client, statuses, isCurrent = () => true) {
   const rows = [];
   let totalCount = null;
