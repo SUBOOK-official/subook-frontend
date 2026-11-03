@@ -24,6 +24,7 @@ import {
 import { requestCoverScan } from "../lib/coverScanClient";
 import { rotateLandscapePhoto } from "../lib/photoOrientation";
 import { getRegistrationDetailUrls } from "../lib/registrationPhotos";
+import { getRegisterLocation } from "../lib/registerLocation";
 
 // 통합 상품 등록 플로우 (Frame 2~4 프로토타입).
 //   고객(수거) 선택/생성 → 교재 목록 작성(기존 검색 + 신규 표) → 사진 일괄 → 등록 완료
@@ -64,7 +65,7 @@ function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function blankNewRow(location = "") {
+function blankNewRow() {
   return {
     uid: nextUid(),
     title: "",
@@ -74,7 +75,7 @@ function blankNewRow(location = "") {
     option: "",
     // 같은 구성(옵션 세트)을 여러 권 등록할 때 — 옵션 수 × 수량 만큼 books 생성
     quantity: "1",
-    location,
+    location: "",
     // 비우면 시작 번호 순차 배정, 입력하면 이 행만 그 번호부터 배정
     serialOverride: "",
     originalPrice: "",
@@ -372,7 +373,7 @@ function AdminProductRegisterForm() {
   const savedProductTitlesRef = useRef(new Map());
   // 신규 교재 카테고리(과목·브랜드·유형) 설정 모달 — 대상 행 uid
   const [categoryModalUid, setCategoryModalUid] = useState(null);
-  // 창고 위치 항상성 — 한 곳에서 입력하면 배치 전체(신규 행·기존 교재)에 같은 값이 따라간다
+  // 개별 위치가 비어 있는 신규·기존 교재는 이 기본 위치를 표시하고 제출한다.
   const [batchLocation, setBatchLocation] = useState(initialDraft?.batchLocation ?? "");
   // 시작 일련번호 — 운영자가 정하면 등록 순서대로 start, start+1, ... 순차 배정
   const [serialStart, setSerialStart] = useState(initialDraft?.serialStart ?? "");
@@ -922,27 +923,24 @@ function AdminProductRegisterForm() {
     showToast(`${row.request_number} 수거신청에 연결해 등록을 시작합니다.`, "success");
   };
 
-  // 신규 교재 행 편집 — 마지막 행이 채워지면 빈 행 자동 추가 (위치는 배치 위치로 프리필)
+  // 신규 교재 행 편집 — 마지막 행이 채워지면 기본 위치를 사용하는 빈 행 자동 추가
   const handleRowChange = (uid, field, value) => {
     setNewRows((prev) => {
       let rows = prev.map((r) => (r.uid === uid ? changeRegisterRow(r, field, value) : r));
       const last = rows[rows.length - 1];
-      if (last && !isNewRowBlank(last)) rows = [...rows, blankNewRow(batchLocation)];
+      if (last && !isNewRowBlank(last)) rows = [...rows, blankNewRow()];
       return rows;
     });
   };
   const handleRowDelete = (uid) => {
     setNewRows((prev) => {
       const rows = prev.filter((r) => r.uid !== uid);
-      if (rows.length === 0 || !isNewRowBlank(rows[rows.length - 1])) rows.push(blankNewRow(batchLocation));
+      if (rows.length === 0 || !isNewRowBlank(rows[rows.length - 1])) rows.push(blankNewRow());
       return rows;
     });
   };
 
-  // 창고 위치 전체 적용 — '전체 적용' 버튼에서만 호출.
-  // (2026-07-22 운영자 피드백: 한 행을 바꾸면 전체가 따라 바뀌어 행별 설정이 불가능했음.
-  //  자동 전파를 제거하고 행별 입력 + 명시적 일괄 채움으로 전환. batchLocation은
-  //  새 행/모달의 프리필 기본값으로만 쓰인다.)
+  // '전체 적용'은 따로 지정한 위치도 덮어쓴다. 기본 위치 입력만으로는 개별값을 유지한다.
   const applyLocationEverywhere = (value) => {
     setNewRows((prev) => prev.map((r) => ({ ...r, location: value })));
     setExistingAdditions((prev) => prev.map((a) => ({ ...a, location: value })));
@@ -1016,13 +1014,13 @@ function AdminProductRegisterForm() {
       discountType: o.discount_type || "none",
       discountValue: o.discount_value ?? "",
     }));
-    // 이미 목록에 추가해 둔 배치를 수정하는 경우 위치 입력값은 유지, 아니면 배치 위치 프리필
+    // 개별값만 보관하고, 비어 있으면 현재 기본 위치를 표시한다.
     setFramePanel({
       product,
       isEditing: Boolean(prevAddition),
       existingOptions,
       newOptions: [...restoredNewOptions, blankNewOption(defaultNewPrice, repOriginal)],
-      location: prevAddition?.location ?? batchLocation,
+      location: prevAddition?.location ?? "",
       titleEditing: false,
       titleInput: product.title ?? "",
       titleError: "",
@@ -1364,7 +1362,7 @@ function AdminProductRegisterForm() {
         uid: r.uid,
         title: r.title,
         subtitle: `${optionSummary(r.option)} · ${getBookTypeDecision(r, bookTypeHints[r.uid]).value || "유형 확인 필요"}`,
-        location: r.location,
+        location: getRegisterLocation(r.location, batchLocation),
         coverUrl: r.coverUrl,
         coverBusy: r.coverBusy,
         detailUrls: getRegistrationDetailUrls(r),
@@ -1377,7 +1375,7 @@ function AdminProductRegisterForm() {
         uid: a.uid,
         title: a.product.title,
         subtitle: a.options.map((o) => o.option || "옵션 없음").join(", "),
-        location: a.location,
+        location: getRegisterLocation(a.location, batchLocation),
         coverUrl: a.coverUrl,
         coverBusy: a.coverBusy,
         detailUrls: getRegistrationDetailUrls(a),
@@ -1386,7 +1384,7 @@ function AdminProductRegisterForm() {
         coverAutoStudio: a.coverAutoStudio === true,
       })),
     ],
-    [newProductsForSubmit, existingAdditions, bookTypeHints],
+    [newProductsForSubmit, existingAdditions, bookTypeHints, batchLocation],
   );
 
   // 일련번호 배정 플랜 — 시작 번호부터 등록 순서(신규 표 → 기존 교재)대로 순차 배정.
@@ -1478,7 +1476,7 @@ function AdminProductRegisterForm() {
       option: r.option.trim(),
       // 같은 구성 여러 권 등록 — RPC가 옵션 수 × 수량 만큼 books 생성
       quantity: parseRowQuantity(r.quantity),
-      location: r.location.trim() || null,
+      location: getRegisterLocation(r.location, batchLocation).trim() || null,
       // 행별 일련번호 직접 지정 (비우면 시작 번호 순차/자동 채번)
       serial_override: parseSerialStart(r.serialOverride),
       cover_image_url: r.coverUrl || null,
@@ -1487,7 +1485,7 @@ function AdminProductRegisterForm() {
     }));
     const existing_additions = existingAdditions.map((a) => ({
       product_id: a.product.id,
-      location: a.location || null,
+      location: getRegisterLocation(a.location, batchLocation).trim() || null,
       serial_override: parseSerialStart(a.serialOverride),
       cover_image_url: a.coverUrl || null,
       inspection_image_urls: getRegistrationDetailUrls(a),
@@ -1990,7 +1988,7 @@ function AdminProductRegisterForm() {
                   · 할인 방식을 정가로 두면 정가 그대로 판매 · 옵션은 콤마(,)로 여러 개 자동 등록 · 같은 구성이 여러 권이면 수량만 올리면 돼요
                 </p>
                 <p className="mt-1 text-xs text-indigo-600">
-                  · 위치는 행별 입력 (아래 '전체 적용'으로 일괄 채움) · 일련번호는 시작 번호부터 순차 배정, 행별로 직접 지정도 가능
+                  · 위치를 따로 입력하지 않으면 아래 기본 창고 위치가 적용됩니다 · 일련번호는 시작 번호부터 순차 배정, 행별로 직접 지정도 가능
                 </p>
                 {/* 표 → 교재별 카드. 11칸짜리 가로 표는 상품명이 잘리고 가로 스크롤이
                     필요했다 (2026-08-11 운영자 피드백). 상품명은 한 줄을 통째로 쓰고,
@@ -2072,10 +2070,10 @@ function AdminProductRegisterForm() {
                               />
                             </FieldCell>
                             <FieldCell label="위치">
-                              {/* 행별 위치 — 개별 수정 가능, 일괄 채움은 하단 '전체 적용' */}
+                              {/* 개별 위치가 없으면 기본 위치를 첫 행부터 동일하게 표시 */}
                               <input
                                 type="text"
-                                value={row.location}
+                                value={getRegisterLocation(row.location, batchLocation)}
                                 onChange={(e) => handleRowChange(row.uid, "location", e.target.value)}
                                 placeholder="A1"
                                 aria-label="창고 위치"
@@ -2188,7 +2186,7 @@ function AdminProductRegisterForm() {
                           {a.options
                             .map((o) => `${o.option || "기본"} ${o.quantity}권`)
                             .join(" · ")}
-                          {a.location ? ` · 위치 ${a.location}` : ""}
+                          {getRegisterLocation(a.location, batchLocation).trim() ? ` · 위치 ${getRegisterLocation(a.location, batchLocation).trim()}` : ""}
                           {serialRangeText("existing", a.uid)
                             ? ` · 일련번호 ${serialRangeText("existing", a.uid)}`
                             : ""}
@@ -2227,10 +2225,10 @@ function AdminProductRegisterForm() {
             ) : null}
 
             <div className="flex flex-wrap items-center justify-end gap-3">
-              {/* 창고 위치 일괄 채움 — 행별 입력이 기본, 이 버튼으로만 전체 적용 (2026-07-22) */}
+              {/* 기본 위치는 빈 위치에 자동 적용, 전체 적용은 개별 지정값까지 변경 */}
               <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2">
                 <label className="text-xs font-bold text-slate-700" htmlFor="register-batch-location">
-                  창고 위치
+                  기본 창고 위치
                 </label>
                 <input
                   id="register-batch-location"
@@ -2844,7 +2842,7 @@ function AdminProductRegisterForm() {
               <h3 className="text-sm font-black text-slate-900">창고 위치</h3>
               <input
                 type="text"
-                value={framePanel.location ?? ""}
+                value={getRegisterLocation(framePanel.location, batchLocation)}
                 onChange={(e) => setFramePanel((fp) => (fp ? { ...fp, location: e.target.value } : fp))}
                 placeholder="예: A1, 모7"
                 className="mt-2 w-48 rounded border border-slate-200 px-2 py-1.5 text-sm"
