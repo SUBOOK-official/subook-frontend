@@ -308,8 +308,8 @@ templateId `KA01TP2611091537490371CSjaDIpw6I` · 카테고리 구매 > 구매완
   일성월심 앱의 '코드 등록'에서 16자리 코드를 입력하면 4과목 학습지가 등록됩니다.
   수북 주문 상세(비회원은 주문 조회)에서도 확인할 수 있습니다.
   ```
-- 승인 후: admin-web Vercel `SOLAPI_TEMPLATE_IDS` JSON에 `"app_code": "KA01TP2611091537490371CSjaDIpw6I"` 추가 → admin 재배포.
-  (키가 없으면 코드 기본값 `SB_APP_CODE`로 요청해 솔라피가 거절 → 대기열이 재시도하다 약 20시간 뒤 실패·슬랙 경보.
-  **템플릿 승인·env 반영 전에는 판매를 켜지 말 것.**) 반려되면 사유 확인 → 문안 수정 시
+- templateId는 [send-notification.js](api/admin/send-notification.js) `DEFAULT_SOLAPI_TEMPLATE_IDS`에 기본값으로 넣어 둠 →
+  **승인되면 env 변경 없이 바로 쓰인다.** (`SOLAPI_TEMPLATE_IDS` JSON에 `app_code` 키를 넣으면 그 값이 우선.)
+  승인 전에 발송되면 솔라피가 거절 → 대기열이 재시도하다 약 20시간 뒤 실패·슬랙 경보. **템플릿 승인 전에는 판매를 켜지 말 것.** 반려되면 사유 확인 → 문안 수정 시
   [send-notification.js](api/admin/send-notification.js) `buildMessageBody`의 `app_code` 문안도 같이 맞춘다.
 - 알림 로그·인앱 알림에는 코드가 가려져 저장된다(`ABCD-••••-••••-NPQR`). 실제 발송분에만 원문이 들어간다.
