@@ -7,14 +7,47 @@
     "icon": "../public-web/public/apple-touch-icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": false
+      "supportsTablet": false,
+      "bundleIdentifier": "kr.subook.app",
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoadsInWebContent": true
+        },
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "web": {
       "favicon": "../public-web/public/favicon.png",
       "name": "수북 앱 개발 미리보기"
     },
     "plugins": [
-      "expo-font"
-    ]
+      "expo-font",
+      "expo-status-bar",
+      "expo-secure-store",
+      "expo-image",
+      "expo-web-browser",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#FFFFFF",
+          "image": "../public-web/src/assets/brand/logo-horizontal.png",
+          "imageWidth": 160
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ],
+      "./plugins/withPaymentApps.cjs"
+    ],
+    "scheme": "subook",
+    "backgroundColor": "#FFFFFF",
+    "android": {
+      "package": "kr.subook.app"
+    }
   }
 }

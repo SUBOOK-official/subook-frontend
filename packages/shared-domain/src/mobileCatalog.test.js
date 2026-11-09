@@ -45,3 +45,20 @@ test("같은 실물 구성은 한 줄로 묶고 하나라도 판매 가능하면
   assert.equal(product.options[1].isAvailable, false);
   assert.equal("stockCount" in product.options[0], false);
 });
+
+test("상세 사진·옵션 실물·장바구니 줄을 앱 형태로 바꾼다", async () => {
+  const { normalizeMobileCartItem, toCheckoutItems } = await import("./mobileCatalog.js");
+  const product = normalizeMobileProduct({ id: 7, title: "기출", book_type: "기출",
+    inspection_image_urls: ["https://a.example/1.jpg", "http://bad", "https://a.example/2.jpg", "https://a.example/3.jpg"],
+    option_books: [{ book_id: 70, option: " 1회 ", is_available: true, stock_count: 1, price: 5000, original_price: 9000 },
+      { book_id: "x" }, { book_id: 71, option: "", is_available: false, stock_count: 0, price: 5000 }] });
+  assert.deepEqual(product.detailImages, ["https://a.example/1.jpg", "https://a.example/2.jpg"]);
+  assert.equal(product.bookType, "기출");
+  assert.deepEqual(product.optionBooks.map((book) => [book.id, book.option, book.isSoldOut]), [["70", "1회", false], ["71", "", true]]);
+
+  const item = normalizeMobileCartItem({ id: 3, book_id: 70, product_id: 7, title: "기출", option_label: "1회", price: 5000, stock_count: 1, is_sold_out: false, cover_image_url: "https://a.example/c.jpg" });
+  assert.equal(item.isSoldOut, false);
+  assert.deepEqual(toCheckoutItems([item, { bookId: "x" }]), [{ bookId: 70, productId: 7, quantity: 1, title: "기출", optionLabel: "1회", conditionGrade: "", coverImageUrl: "https://a.example/c.jpg", price: 5000, originalPrice: null }]);
+  assert.equal(normalizeMobileCartItem({ id: "x" }), null);
+  assert.equal(normalizeMobileCartItem({ id: 3, book_id: 70, stock_count: 0 }).isSoldOut, true);
+});
