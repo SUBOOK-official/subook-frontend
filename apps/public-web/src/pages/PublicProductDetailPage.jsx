@@ -32,6 +32,8 @@ import {
   trackViewItemList,
 } from "../lib/analytics";
 import { useInViewOnce } from "../lib/useInViewOnce";
+import { fetchAppPackageProductIds } from "../lib/ilseongAppCodes";
+import { AppPackageNotice } from "../components/OrderAppCodes";
 import { FREE_SHIPPING_THRESHOLD, SHIPPING_FEE, addToCart } from "../lib/cart";
 import usePublicMemberGate from "../lib/publicMemberGate";
 import {
@@ -850,6 +852,18 @@ function PublicProductDetailPage() {
         setAiSummary(data?.ai_summary ?? null);
       }
     })();
+    return () => {
+      cancelled = true;
+    };
+  }, [productId]);
+  // 일성월심 앱 패키지 상품이면 앱 이용권 안내 한 줄(공개 읽기 표시 테이블)
+  const [isAppPackage, setIsAppPackage] = useState(false);
+  useEffect(() => {
+    if (!productId) return undefined;
+    let cancelled = false;
+    fetchAppPackageProductIds([productId]).then((ids) => {
+      if (!cancelled) setIsAppPackage(ids.has(Number(productId)));
+    });
     return () => {
       cancelled = true;
     };
@@ -2066,6 +2080,8 @@ function PublicProductDetailPage() {
                     </div>
                   </dl>
                 )}
+
+                {isAppPackage ? <AppPackageNotice className="public-detail-hero__app-notice" /> : null}
 
                 <div className={`public-detail-hero__actions${!canPurchase ? " public-detail-hero__actions--single" : ""}${isPreRelease ? " public-detail-hero__actions--pre-release" : ""}`}>
                   <button

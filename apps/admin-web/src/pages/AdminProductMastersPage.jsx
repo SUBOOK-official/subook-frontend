@@ -12,6 +12,7 @@ import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseCl
 import { formatCurrency, formatDate } from "@shared-domain/format";
 import { productStatusLabel as STATUS_LABEL } from "@shared-domain/status";
 import StatusBadge from "@shared-domain/StatusBadge";
+import { ILSEONG_APP_PRODUCT_CODE } from "@shared-domain/ilseongApp";
 import { CloseIcon } from "../components/icons";
 import { downloadInventoryAuditXlsx } from "../lib/inventoryAuditExport";
 import { COVER_BUCKET, uploadImageToBucket } from "../lib/adminImageUpload";
@@ -140,6 +141,8 @@ function AdminProductMastersPage() {
   const [invSaving, setInvSaving] = useState(false);
   // 수북 자체 판매 교재 지정 (2026-09-15) — 위치·일련번호·상세 사진 점검 제외
   const [directSaleBusy, setDirectSaleBusy] = useState(false);
+  const [appPackage, setAppPackage] = useState(null);
+  const [appPackageBusy, setAppPackageBusy] = useState(false);
   // 수정 모달 (제목/가격/사진 — 2026-07-06 피드백)
   const [editTarget, setEditTarget] = useState(null);
   const requestIdRef = useRef(0);
@@ -517,6 +520,11 @@ function AdminProductMastersPage() {
       return;
     }
     setDetailData(invRes.data);
+    // 일성월심 앱 패키지 여부 — 실패하면(함수 미배포 등) 버튼만 숨긴다
+    setAppPackage(null);
+    const appRes = await supabase.rpc("admin_get_ilseong_app_product", { p_product_id: product.id });
+    if (request !== detailRequestRef.current) return;
+    setAppPackage(appRes.error ? null : appRes.data);
   }, [showToast]);
   useEffect(() => {
     if (!list.product) { detailRequestRef.current += 1; setDetailTarget(null); setDetailData(null); return undefined; }
@@ -655,6 +663,33 @@ function AdminProductMastersPage() {
       next ? "자체 판매 교재로 지정했습니다. 위치·일련번호·상세 사진 점검에서 빠집니다." : "자체 판매 지정을 해제했습니다.",
       "success",
     );
+    await openDetail(detailTarget);
+    await loadProducts();
+  };
+
+  // 일성월심 앱 패키지 지정/해제 — 결제 확인 시 주문 줄마다 앱 코드를 받아 알림톡으로 보낸다.
+  // 판매가 꺼져 있으면 지정과 동시에 숨겨지고, 켜기 전에는 공개할 수 없다(어드민 > 일성월심 앱).
+  const handleAppPackageToggle = async () => {
+    if (!detailTarget || appPackageBusy || !appPackage) return;
+    const next = appPackage.is_app_package !== true;
+    if (next && !window.confirm(
+      `이 상품을 일성월심 앱 패키지(${ILSEONG_APP_PRODUCT_CODE})로 지정합니다.\n결제가 확인되면 주문 줄마다 앱 코드가 발급됩니다.${
+        appPackage.sales_enabled ? "" : "\n앱 패키지 판매가 꺼져 있어 상품이 숨김으로 바뀝니다."
+      }`,
+    )) return;
+    setAppPackageBusy(true);
+    const { data, error } = await supabase.rpc("admin_set_ilseong_app_product", {
+      p_product_id: detailTarget.id,
+      p_is_app_package: next,
+      p_app_product_code: ILSEONG_APP_PRODUCT_CODE,
+    });
+    setAppPackageBusy(false);
+    if (error) {
+      showToast(error.message || "앱 패키지 설정을 바꾸지 못했습니다.", "error");
+      return;
+    }
+    setAppPackage(data);
+    showToast(next ? "일성월심 앱 패키지로 지정했습니다." : "앱 패키지 지정을 해제했습니다.", "success");
     await openDetail(detailTarget);
     await loadProducts();
   };
@@ -1233,6 +1268,12 @@ function AdminProductMastersPage() {
                       수북 자체 판매 교재 · 위치·일련번호·상세 사진 점검 제외
                     </p>
                   ) : null}
+                  {appPackage?.is_app_package ? (
+                    <p className="mt-1.5 inline-flex rounded bg-emerald-50 px-1.5 py-0.5 text-[11px] font-bold text-emerald-700">
+                      일성월심 앱 패키지 · {appPackage.app_product_code}
+                      {appPackage.sales_enabled ? "" : " · 판매 꺼짐(공개 불가)"}
+                    </p>
+                  ) : null}
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -1249,6 +1290,17 @@ function AdminProductMastersPage() {
                     type="button"
                   >
                     {directSaleBusy ? "처리 중" : detailProduct.is_direct_sale ? "자체 판매 해제" : "자체 판매로 지정"}
+                  </button>
+                ) : null}
+                {detailProduct && appPackage ? (
+                  <button
+                    className="whitespace-nowrap rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-slate-500 hover:bg-slate-50 disabled:opacity-50"
+                    disabled={appPackageBusy}
+                    onClick={handleAppPackageToggle}
+                    title="결제 확인 시 일성월심 앱 코드를 발급해 알림톡으로 보내는 상품"
+                    type="button"
+                  >
+                    {appPackageBusy ? "처리 중" : appPackage.is_app_package ? "앱 패키지 해제" : "앱 패키지로 지정"}
                   </button>
                 ) : null}
                 <button

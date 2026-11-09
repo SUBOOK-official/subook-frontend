@@ -27,6 +27,7 @@ const TYPE_LABELS = {
   order_confirmed: "주문 확인",
   shipping_started: "배송 시작",
   delivery_done: "배송 완료",
+  app_code: "앱 코드",
 };
 
 const STATUS_META = {

@@ -46,6 +46,10 @@
       "schedule": "15 * * * *"
     },
     {
+      "path": "/api/admin/ilseong-app-codes",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/admin/ops-health",
       "schedule": "0 0 * * *"
     }

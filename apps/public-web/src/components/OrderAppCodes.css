@@ -1,0 +1,105 @@
+/* 일성월심 앱 코드 칸 — 운송장 행(public-mypage-purchase-card__tracking)과 같은 결 */
+.order-app-codes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid var(--public-ds-border);
+  border-radius: var(--public-ds-radius);
+  background: var(--public-ds-card);
+}
+
+.order-app-codes__title {
+  margin: 0;
+  color: var(--public-ds-text);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.order-app-codes__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.order-app-codes__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--public-ds-divider);
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.order-app-codes__label {
+  flex: 1 1 100%;
+  color: var(--public-ds-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.order-app-codes__code {
+  font-family: "LINE Seed Sans KR", "Apple SD Gothic Neo", sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--public-ds-text);
+  background: transparent;
+  overflow-wrap: anywhere;
+}
+
+.order-app-codes__state {
+  color: var(--public-ds-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.order-app-codes__row--redeemed .order-app-codes__state {
+  color: var(--public-ds-success);
+}
+
+.order-app-codes__copy {
+  margin-left: auto;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--public-ds-border);
+  border-radius: 6px;
+  background: var(--public-ds-card);
+  color: var(--public-ds-text);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.order-app-codes__copy:hover {
+  border-color: var(--public-ds-accent);
+  color: var(--public-ds-accent);
+}
+
+.order-app-codes__guide,
+.order-app-codes__notice,
+.app-package-notice {
+  margin: 0;
+  color: var(--public-ds-text-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.order-app-codes__guide {
+  color: var(--public-ds-text-secondary);
+  font-weight: 600;
+}
+
+.public-detail-hero__app-notice {
+  margin-top: 8px;
+}
+
+.order-section__app-notice {
+  margin-top: 10px;
+}

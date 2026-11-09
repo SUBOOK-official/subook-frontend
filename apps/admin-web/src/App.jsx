@@ -15,6 +15,7 @@ const AdminAnalyticsPage = lazy(() => import("./pages/AdminAnalyticsPage"));
 const AdminPerformancePage = lazy(() => import("./pages/AdminPerformancePage"));
 const AdminMetaAdsPage = lazy(() => import("./pages/AdminMetaAdsPage"));
 const AdminIntegrationsPage = lazy(() => import("./pages/AdminIntegrationsPage"));
+const AdminIlseongAppPage = lazy(() => import("./pages/AdminIlseongAppPage"));
 const AdminDashboardPage = lazy(() => import("./pages/AdminDashboardPage"));
 const AdminEventSubscriptionsPage = lazy(() => import("./pages/AdminEventSubscriptionsPage"));
 const AdminFaqsPage = lazy(() => import("./pages/AdminFaqsPage"));
@@ -94,6 +95,7 @@ function App() {
           <Route path="/admin/home-editor" element={<AdminRoute><AdminHomeEditorPage /></AdminRoute>} />
           <Route path="/admin/meta-ads" element={<AdminRoute><AdminMetaAdsPage /></AdminRoute>} />
           <Route path="/admin/integrations" element={<AdminRoute><AdminIntegrationsPage /></AdminRoute>} />
+          <Route path="/admin/ilseong-app" element={<AdminRoute><AdminIlseongAppPage /></AdminRoute>} />
           <Route element={<Navigate replace to="/admin/login" />} path="/" />
           <Route element={<AdminLoginPage />} path="/admin/login" />
           <Route

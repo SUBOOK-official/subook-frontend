@@ -77,6 +77,8 @@ import {
 } from "../lib/nicepay";
 import { PG_OVERRIDE } from "../lib/pgReviewMode";
 import { BANK_OPTIONS } from "../lib/publicMypageUtils";
+import { fetchAppPackageProductIds } from "../lib/ilseongAppCodes";
+import { AppPackageNotice } from "../components/OrderAppCodes";
 import "./PublicOrderPage.css";
 
 // 백엔드 create_order가 던지는 영문/시스템 메시지를 사용자 친화 한국어로 매핑.
@@ -775,6 +777,19 @@ function PublicOrderPage() {
     persistCheckoutItems(window.history, location.key, orderItems);
   }, [location.key, initialOrderItems, orderItems]);
   const [priceDriftWarning, setPriceDriftWarning] = useState(null);
+
+  // 일성월심 앱 패키지가 담겨 있으면 앱 이용권 안내 한 줄
+  const orderProductIdsKey = (orderItems || []).map((item) => item.productId).filter(Boolean).join(",");
+  const [hasAppPackage, setHasAppPackage] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    fetchAppPackageProductIds(orderProductIdsKey ? orderProductIdsKey.split(",") : []).then((ids) => {
+      if (!cancelled) setHasAppPackage(ids.size > 0);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [orderProductIdsKey]);
 
   const [shipping, setShipping] = useState({
     recipientName: "",
@@ -1857,6 +1872,7 @@ function PublicOrderPage() {
                     }} />
                   ))}
                 </div>
+                {hasAppPackage ? <AppPackageNotice className="order-section__app-notice" /> : null}
               </div>
 
               <CheckoutRecommendations key={location.key} disabled={isSubmitting} onBusyChange={(busy) => {

@@ -11,6 +11,7 @@ export const adminNavigationGroups = [
   { key: "inventory", label: "상품·재고", items: [
     { key: "products", label: "상품 재고", to: "/admin/products", icon: FolderIcon },
     { key: "inventory-insights", label: "재고 분석", to: "/admin/inventory-insights", icon: ChartBarIcon },
+    { key: "ilseong-app", label: "일성월심 앱", to: "/admin/ilseong-app", icon: TicketIcon },
   ] },
   { key: "fulfillment", label: "주문·배송", items: [{ key: "orders", label: "주문·출고·환불", to: "/admin/orders", icon: CartIcon }] },
   { key: "settlement", label: "정산", items: [

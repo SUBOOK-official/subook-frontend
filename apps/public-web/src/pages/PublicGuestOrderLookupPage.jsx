@@ -14,6 +14,8 @@ import {
 } from "../lib/analytics";
 import { usePageMeta } from "../lib/usePageMeta";
 import { fetchGuestOrder } from "../lib/guestOrder";
+import { fetchGuestOrderAppCodes } from "../lib/ilseongAppCodes";
+import OrderAppCodes from "../components/OrderAppCodes";
 import {
   formatDateTime,
   getOrderStatusLabel,
@@ -112,7 +114,7 @@ function PublicGuestOrderLookupPage() {
     }
 
     trackGuestOrderLookup(true, { lookupSource });
-    setResult(data);
+    setResult({ ...data, lookupPhone: phoneDigits });
   };
 
   const handleSubmit = (event) => {
@@ -282,6 +284,13 @@ function PublicGuestOrderLookupPage() {
                   <dd>{formatCurrency(order.total_amount)}</dd>
                 </div>
               </dl>
+
+              {/* 일성월심 앱 패키지 주문이면 앱 코드 칸(같은 주문번호+휴대폰 인증으로 읽음) */}
+              <OrderAppCodes
+                loadLines={() => fetchGuestOrderAppCodes(order.order_number, result.lookupPhone)}
+                reloadKey={`${order.order_number}:${result.lookupPhone}`}
+                surface="guest_lookup"
+              />
 
               {isPendingBank ? (
                 <div className="guest-lookup-bank">

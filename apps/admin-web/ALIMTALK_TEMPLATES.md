@@ -269,3 +269,37 @@
 
 카카오 채널(@subook)·발신프로필(pfId)·발신번호·API 키는 그대로 재사용 —
 템플릿만 교체하므로 `SOLAPI_API_KEY`/`SOLAPI_API_SECRET`/`SOLAPI_PFID`/`SOLAPI_FROM`은 건드리지 않는다.
+
+---
+
+## 일성월심 앱 코드 (2026-11 신규) — 제안 이름: `수북 일성월심 앱코드 v1`
+
+일성월심 학습지 앱 패키지 주문의 결제가 확인되면 앱 서버에서 받은 코드를 보낸다.
+내부 타입 `app_code`, 코드 기본값 `SB_APP_CODE`. **이 타입만 알림톡 실패 시 SMS(LMS) 대체발송**
+(`kakaoOptions.disableSms=false`) — 코드를 못 받으면 앱을 못 쓰기 때문.
+
+```
+[수북(SUBOOK) 일성월심 앱 코드 안내]
+안녕하세요, 수북(SUBOOK)입니다.
+주문하신 일성월심 학습지의 앱 이용 코드를 보내드립니다.
+► 주문번호 : #{orderNumber}
+► 앱 코드 : #{appCode}
+► 앱 받는 곳 : #{appDownloadUrl}
+[코드 등록 방법]
+1. 일성월심 앱을 설치하고 로그인합니다.
+2. 앱에서 '코드 등록'을 누릅니다.
+3. 위 16자리 코드를 입력하면 4과목 학습지가 한 번에 등록됩니다.
+코드는 수북(SUBOOK) 주문 상세(비회원은 주문 조회)에서도 확인하실 수 있습니다.
+※ 앱 이용권은 교재 구매 고객에게 드리는 부가서비스이며, 교재를 반품·환불하면 앱 이용도 함께 끝납니다.
+```
+
+- 변수: `orderNumber`(예: ORD-2611-0042), `appCode`(예: ABCD-EFGH-JKLM-NPQR — 패키지 2개 이상이면
+  쉼표로 이어 붙임), `appDownloadUrl`(예: https://subook.kr/app — 어드민 「일성월심 앱」 화면에서 저장한 값)
+- 유형: 기본형(정보성). 코드·주문번호는 고객이 주문한 내용에 대한 안내라 정보성 요건에 맞음.
+- 검수 반려 가능성: 본문 안 URL 변수(`#{appDownloadUrl}`)에 지적이 오면 URL을 **웹링크 버튼**으로 옮기고
+  본문에서는 "► 앱 받는 곳 : 아래 버튼" 으로 바꿔 재검수. 바꾸면 [send-notification.js](api/admin/send-notification.js)
+  `buildMessageBody`의 `app_code` 문안도 같이 맞춘다.
+- 승인 후: admin-web Vercel `SOLAPI_TEMPLATE_IDS` JSON에 `"app_code": "KA01TP…"` 키 추가 → 재배포.
+  (키가 없으면 코드 기본값 `SB_APP_CODE`로 요청해 솔라피가 거절 → 대기열이 재시도하다 약 20시간 뒤 실패·슬랙 경보.
+  **템플릿 승인·env 반영 전에는 판매를 켜지 말 것.**)
+- 알림 로그·인앱 알림에는 코드가 가려져 저장된다(`ABCD-••••-••••-NPQR`). 실제 발송분에만 원문이 들어간다.
