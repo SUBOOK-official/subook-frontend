@@ -199,7 +199,7 @@ export default function AdminIlseongAppPage() {
               </select>
             </label>
             <label className="flex flex-col gap-1 text-sm text-slate-700">
-              앱 받는 곳(알림톡에 들어감)
+              앱 스토어 링크(출시 후 입력, 알림톡에는 넣지 않음)
               <input
                 className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
                 disabled={busy}
