@@ -45,6 +45,7 @@ import { KAKAO_CHANNEL_URL } from "../lib/supportChannels";
 import { loadMemberPortalSnapshot } from "../lib/memberPortal";
 import { isValidKoreanMobile } from "../lib/publicAuthFormUtils";
 import { usePageMeta } from "../lib/usePageMeta";
+import { openPostcodeSearch } from "../lib/postcode";
 import "./PublicPickupRequestPage.css";
 
 const PICKUP_REQUEST_PATH = "/pickup/new";
@@ -522,7 +523,7 @@ function StepAddressForm({
       await loadScript();
       setIsSearchingAddress(false);
 
-      new window.daum.Postcode({
+      openPostcodeSearch({
         oncomplete: (data) => {
           setAddress((prev) => ({
             ...prev,
@@ -533,7 +534,7 @@ function StepAddressForm({
           trackEvent("address_search_complete", { uiSurface: "pickup" });
           setTimeout(() => detailRef.current?.focus(), 50);
         },
-      }).open();
+      });
     } catch (error) {
       setIsSearchingAddress(false);
       // GA4 우편번호 스크립트 로드 실패 — 주소 입력 자체가 막히는 치명적 이탈 지점

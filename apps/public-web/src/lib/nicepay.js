@@ -12,6 +12,8 @@
 //   주문·입금대기·재고 선점이 생기지 않고 장바구니도 유지된다(24시간 뒤 세션 자동 청소).
 // - fnError는 결제창 호출 자체가 실패했을 때만 불린다(result.errorMsg).
 
+import { getAppPaymentScheme } from "./appBridge";
+
 const NICEPAY_JS_URL = "https://pay.nicepay.co.kr/v1/js/";
 const SDK_LOAD_TIMEOUT_MS = 10_000;
 
@@ -81,6 +83,8 @@ export function requestNicepayCardPay({
     amount,
     goodsName,
     returnUrl: `${window.location.origin}/api/payments/nicepay-return`,
+    // 수북 앱 안에서 결제할 때 카드사 앱 인증 뒤 수북 앱으로 돌아오는 주소
+    ...(getAppPaymentScheme() ? { appScheme: getAppPaymentScheme() } : {}),
     ...(buyerName ? { buyerName } : {}),
     ...(buyerTel ? { buyerTel } : {}),
     ...(buyerEmail ? { buyerEmail } : {}),

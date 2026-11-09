@@ -29,6 +29,7 @@ const PublicOAuthConsentPage = lazy(() => import("./pages/PublicOAuthConsentPage
 const PublicOrderCompletePage = lazy(() => import("./pages/PublicOrderCompletePage"));
 const PublicOrderPage = lazy(() => import("./pages/PublicOrderPage"));
 const PublicPaymentFailPage = lazy(() => import("./pages/PublicPaymentFailPage"));
+const PublicAppBridgePage = lazy(() => import("./pages/PublicAppBridgePage"));
 const PublicPaymentSuccessPage = lazy(() => import("./pages/PublicPaymentSuccessPage"));
 const PublicPickupRequestPage = lazy(() => import("./pages/PublicPickupRequestPage"));
 const PublicSellGuidePage = lazy(() => import("./pages/PublicSellGuidePage"));
@@ -149,6 +150,7 @@ function App() {
       <ScrollToTop />
       <Suspense fallback={<PageLoadingFallback />}>
         <MemberPhoneGate><Routes>
+          <Route element={<PublicAppBridgePage />} path="/app/:action" />
           <Route element={<PublicPhoneAuthPage />} path="/auth/phone" />
           <Route element={<PublicRequiredEmailPage />} path="/auth/required-email" />
           <Route element={<PublicPhoneAuthPage mode="verify" />} path="/auth/verify-phone" />

@@ -13,7 +13,7 @@
     "dev:mobile:web": "npm --prefix apps/mobile run web",
     "build:mobile": "npm --prefix apps/mobile run export",
     "lint:mobile": "node ./node_modules/eslint/bin/eslint.js --max-warnings=0 \"apps/mobile/**/*.{js,jsx,cjs}\"",
-    "test:mobile": "node --test \"packages/shared-domain/src/mobileCatalog.test.js\" \"packages/shared-supabase/src/publicCatalogClient.test.js\"",
+    "test:mobile": "node --test \"packages/shared-domain/src/mobileCatalog.test.js\" \"packages/shared-domain/src/appBridge.test.js\" \"packages/shared-supabase/src/publicCatalogClient.test.js\"",
     "build": "npm run build:seller && npm run build:admin && npm run build:public",
     "build:seller": "vite build --config apps/seller-lookup/vite.config.js",
     "build:public": "vite build --config apps/public-web/vite.config.js",

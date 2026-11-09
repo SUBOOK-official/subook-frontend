@@ -1,19 +1,10 @@
 import { isSupabaseConfigured, supabase } from "@shared-supabase/publicSupabaseClient";
-
-// 배송비 정책 — public-web 전체의 source of truth.
-// 상세/카트/주문/안내탭 모두 이 상수에서 import해 동일한 기준을 사용해야 한다.
-// ⚠️ 실제 청구는 백엔드 create_order(v_free_shipping_threshold = 50000)가 결정하므로
-// 표시값(이 상수)은 반드시 백엔드와 일치해야 한다. 기준 변경 시 양쪽을 함께 조정할 것.
-// 2026-07-07 운영 확정: 3,500 → 3,000원 (백엔드 20260707110000 마이그레이션과 동시 변경)
-const SHIPPING_FEE = 3000;
-const FREE_SHIPPING_THRESHOLD = 50000;
+// 배송비 정책 상수는 웹·앱 공통 shared-domain/shipping.js가 원본이다.
+// 상세/카트/주문/안내탭은 계속 이 모듈에서 import한다(아래 export로 재노출).
+import { FREE_SHIPPING_THRESHOLD, SHIPPING_FEE, calculateShippingFee } from "@shared-domain/shipping";
 
 const LOCAL_CART_STORAGE_KEY = "subook.public.local-cart.v1";
 const LOCAL_CART_ID_PREFIX = "local-";
-
-function calculateShippingFee(subtotal) {
-  return subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_FEE;
-}
 
 function toBigintParam(value) {
   if (value === null || value === undefined || value === "") {

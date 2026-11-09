@@ -99,6 +99,8 @@ import {
 import { useInViewOnce } from "../lib/useInViewOnce";
 import { formatPhoneNumber, hasValidPhoneNumber } from "../lib/publicAuthFormUtils";
 import { fetchWishlistProducts } from "../lib/publicWishlist";
+import { openPostcodeSearch } from "../lib/postcode";
+import { openNewWindow } from "../lib/appBridge";
 import {
   fetchMyRestockSubscribedProductIds,
   subscribeRestock,
@@ -1546,7 +1548,7 @@ function PublicMypagePage() {
 
     // GA4 배송 조회 클릭
     trackDeliveryTrackClick(uiSurface, extra);
-    window.open(trackingUrl, "_blank", "noopener,noreferrer");
+    openNewWindow(trackingUrl);
   };
 
   // source: mypage_sales_empty / mypage_settlements_empty …
@@ -1676,7 +1678,7 @@ function PublicMypagePage() {
       await loadScript();
       setIsSearchingAddress(false);
 
-      new window.daum.Postcode({
+      openPostcodeSearch({
         oncomplete: (data) => {
           setAddressForm((currentValue) => ({
             ...currentValue,
@@ -1695,7 +1697,7 @@ function PublicMypagePage() {
             addressDetailInputRef.current?.focus();
           }, 50);
         },
-      }).open();
+      });
     } catch (error) {
       setIsSearchingAddress(false);
       setToastState({

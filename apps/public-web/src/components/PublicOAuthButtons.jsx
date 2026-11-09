@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/publicSupabaseClient";
 import { trackEvent, trackOAuthStart } from "../lib/analytics";
+import { isSubookApp } from "../lib/appBridge";
 
 // 카카오톡 공식 심볼: 검은색 말풍선. 카카오 브랜드 가이드 기준.
 function KakaoBrandIcon({ size = 18 }) {
@@ -223,7 +224,10 @@ function PublicOAuthButtons({
         {(providers
           ? oauthProviders.filter((config) => providers.includes(config.provider))
           : oauthProviders
-        ).map((providerConfig) => {
+        )
+          // 구글은 앱 안 웹 화면 로그인을 막는다(disallowed_useragent). 앱 전용 구글 로그인은 다음 단계.
+          .filter((config) => !(isSubookApp() && config.provider === "google"))
+          .map((providerConfig) => {
           const isActive = activeProvider === providerConfig.provider;
           const BrandIcon = BRAND_ICONS[providerConfig.brandIcon];
 

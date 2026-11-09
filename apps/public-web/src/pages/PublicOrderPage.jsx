@@ -78,6 +78,7 @@ import {
 import { PG_OVERRIDE } from "../lib/pgReviewMode";
 import { BANK_OPTIONS } from "../lib/publicMypageUtils";
 import { fetchAppPackageProductIds } from "../lib/ilseongAppCodes";
+import { openPostcodeSearch } from "../lib/postcode";
 import { AppPackageNotice } from "../components/OrderAppCodes";
 import "./PublicOrderPage.css";
 
@@ -449,7 +450,7 @@ function OrderAddressBookModal({
       showToast("주소 검색을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.", "error");
       return;
     }
-    new window.daum.Postcode({
+    openPostcodeSearch({
       oncomplete: (data) => {
         // GA4 address_search_complete — 주소 원문은 절대 보내지 않고 도서산간 여부만
         trackEvent("address_search_complete", {
@@ -463,7 +464,7 @@ function OrderAddressBookModal({
           addressLine1: data.roadAddress || data.jibunAddress,
         }));
       },
-    }).open();
+    });
   };
 
   const handleSave = async () => {
@@ -1347,7 +1348,7 @@ function PublicOrderPage() {
       return;
     }
 
-    new window.daum.Postcode({
+    openPostcodeSearch({
       oncomplete: (data) => {
         // GA4 address_search_complete — 주소 원문 없이 도서산간 여부만 남긴다
         trackEvent("address_search_complete", {
@@ -1362,7 +1363,7 @@ function PublicOrderPage() {
         }));
         setSelectedAddressId(null);
       },
-    }).open();
+    });
   };
 
   // GA4 form_progress — 배송 필드 최초 입력 완료(blur 시 값 있음)를 필드별 1회.
