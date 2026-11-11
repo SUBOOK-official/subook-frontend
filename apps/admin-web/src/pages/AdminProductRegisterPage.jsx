@@ -25,6 +25,7 @@ import { requestCoverScan } from "../lib/coverScanClient";
 import { rotateLandscapePhoto } from "../lib/photoOrientation";
 import { getRegistrationDetailUrls } from "../lib/registrationPhotos";
 import { getRegisterLocation } from "../lib/registerLocation";
+import { registrationVisibilityLabel } from "../lib/registrationVisibility";
 
 // 통합 상품 등록 플로우 (Frame 2~4 프로토타입).
 //   고객(수거) 선택/생성 → 교재 목록 작성(기존 검색 + 신규 표) → 사진 일괄 → 등록 완료
@@ -1519,12 +1520,13 @@ function AdminProductRegisterForm() {
     const createdProducts = data?.created_products ?? 0;
     const createdBooks = data?.created_books ?? 0;
     const createdSerials = Array.isArray(data?.created_serials) ? data.created_serials : [];
+    const visibilityLabel = registrationVisibilityLabel(data);
     // 등록에 성공했으면 임시 저장 초안은 역할이 끝났다
     clearDraft();
     setDraftSavedAt(null);
     setDraftRestoredAt(null);
     showToast(
-      `교재 ${createdProducts}종 · 재고 ${createdBooks}권 등록 완료${publishOnComplete ? " (스토어 공개)" : ""}`,
+      `교재 ${createdProducts}종 · 재고 ${createdBooks}권 등록 완료 (${visibilityLabel})`,
       "success",
     );
     // 자동 채번된 일련번호를 확인하고 실물에 라벨을 붙일 수 있게 완료 모달을 띄운 뒤 이동
@@ -1532,6 +1534,7 @@ function AdminProductRegisterForm() {
       products: createdProducts,
       books: createdBooks,
       serials: createdSerials,
+      visibilityLabel,
       shipmentId: shipment.id,
     });
   };
@@ -2445,7 +2448,7 @@ function AdminProductRegisterForm() {
                 />
                 <span className="text-sm font-bold text-slate-900">등록 즉시 스토어에 공개</span>
                 <span className="text-xs text-slate-500">
-                  (정가/판매가가 입력된 책만 공개됩니다. 끄면 비공개로 등록 후 나중에 공개)
+                  판매가가 입력된 책을 공개합니다. 기존 숨김 상품도 공개로 전환됩니다.
                 </span>
               </label>
               <div className="mt-4 flex flex-wrap items-center justify-end gap-3">
@@ -2897,7 +2900,7 @@ function AdminProductRegisterForm() {
           <div className="space-y-3 px-6 py-5">
             <p className="text-sm font-bold text-slate-900">
               교재 {completeInfo.products}종 · 재고 {completeInfo.books}권 등록 완료
-              {publishOnComplete ? " (스토어 공개)" : ""}
+              {` (${completeInfo.visibilityLabel})`}
             </p>
             {completeInfo.serials.length > 0 ? (
               <>
