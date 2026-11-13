@@ -19,12 +19,12 @@ iOS App Store·Google Play 출시를 목표로 하는 React Native·Expo 앱. **
 
 | 화면 | 방식 | 비고 |
 | --- | --- | --- |
-| 홈 | 앱 화면 | 배너(추천 교재+어드민 배너)·테마 바로가기·BEST·전체 교재 |
+| 홈 | 앱 화면 | 배너(추천 교재+어드민 배너)·어드민 팝업·테마 바로가기·BEST 또는 회원 맞춤 교재·전체 교재 |
 | 검색 | 앱 화면 | 최근 검색어는 기기에만 저장 |
-| 상품 상세 | 앱 화면 | 사진·AI 요약·옵션 선택·장바구니·바로구매·찜·재입고 알림·공유 |
+| 상품 상세 | 앱 화면 | 사진·AI 요약(콜라보 상품은 전용 상세 이미지)·구매 후기·옵션 선택·장바구니·바로구매·찜·재입고 알림·공유 |
 | 장바구니·찜 | 앱 화면 | 회원 전용 |
 | 판매 | 앱 화면(안내) + 웹 화면(신청서 `/pickup/new`) | |
-| 마이 | 앱 화면(메뉴) + 웹 화면(`/mypage#탭`, 알림, 공지, 정책) | |
+| 마이 | 앱 화면(메뉴·사업자 정보) + 웹 화면(`/mypage#탭`, 알림, 공지, 정책) | 사업자 정보 원본은 `shared-domain/businessInfo.js` |
 | 로그인·회원가입 | 웹 화면(`/app/login`) | 2단계에서 앱 로그인으로 교체 |
 | 주문·결제 | 웹 화면(`/app/checkout` → `/order`) | 나이스페이 카드·계좌이체 |
 
@@ -38,6 +38,15 @@ iOS App Store·Google Play 출시를 목표로 하는 React Native·Expo 앱. **
 - **메시지(웹 → 앱)**: `ready` · `auth`(세션) · `navigate`(홈·상품·장바구니 등 앱 화면 경로) · `open`(새 창 링크) · `close` · `cart`.
 - 세션·주문 정보는 **`https://subook.kr` 화면에만** 넣고, 그 화면이 보낸 메시지만 받는다. 결제창 등 다른 사이트에는 아무것도 넣지 않는다.
 - 주소 검색(우편번호 서비스)은 앱 안에서 새 창 대신 화면 위 레이어로 연다(`public-web/src/lib/postcode.js`).
+
+## 버전과 업데이트
+
+- **앱 버전 안내**: 앱이 켜질 때 `https://subook.kr/app-version.json`(원본 `apps/public-web/public/app-version.json`, 웹 배포로 반영)을 읽는다. `minimum`보다 낮으면 사용을 막고 업데이트를 요구하고, `latest`보다 낮고 `storeUrl`이 있으면 한 번 권한다. 읽지 못하면 그대로 쓴다. 규칙은 `shared-domain/appVersion.js`.
+  - `minimum`은 앱↔웹 연결 방식이 바뀌어 옛 앱이 동작하지 않을 때만 올린다.
+- **심사 없이 고치는 업데이트(EAS Update)**: 화면·스크립트 수정은 스토어 심사 없이 배포할 수 있다. `npx eas-cli@latest update --channel preview --environment preview --message "<내용>"` (운영은 `production`). 앱을 다시 켤 때 내려받고 그다음 실행부터 적용된다.
+  - 런타임 버전은 앱 버전과 같다(`runtimeVersion.policy: appVersion`). **네이티브 구성이 바뀌면(새 네이티브 모듈·설정 플러그인·권한) app.json·package.json의 버전을 올리고 새로 빌드한다.** 같은 버전에 네이티브가 다른 업데이트를 올리면 앱이 깨질 수 있다.
+  - 0.1.0 설치본은 이 기능이 없어 업데이트를 받지 못한다(0.2.0부터).
+- 앱 안 웹 화면에서는 메타 픽셀을 실행하지 않는다(Apple 추적 동의 기준). GA는 그대로 동작하므로 스토어 개인정보 신고에 포함한다.
 
 ## 카드 결제(나이스페이) 설정
 
@@ -80,6 +89,7 @@ npx eas-cli@latest build --platform android --profile preview
 - Android 서명 키는 Expo 서버에 보관된다(첫 빌드 때 자동 생성). 빌드 번호(versionCode)도 Expo 서버에서 관리한다.
 - 업로드 범위는 저장소 최상위 `frontend/.easignore`가 정한다. 앱 빌드에 필요한 폴더(`apps/mobile`, `packages`, `apps/public-web/src/lib`·`src/assets`·`public`)만 올린다. 앱이 다른 폴더의 파일을 새로 가져다 쓰면 이 파일에 추가해야 클라우드 빌드가 된다. 올라가는 내용은 `npx eas-cli@latest build:inspect -p android -e preview --stage archive --output <폴더>`로 확인한다.
 - 2026-11-13 첫 빌드 성공: 버전 0.1.0(1), 커밋 `4de5e83`, 약 12분, APK 89MB.
+- `preview` 프로필은 빌드마다 빌드 번호를 올린다(`autoIncrement`).
 
 ## 검증
 
