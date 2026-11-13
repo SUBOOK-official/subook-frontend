@@ -9,6 +9,7 @@ import {
   trackSelectContent,
 } from "../lib/analytics";
 import brandLogoWhiteImage from "../assets/brand/logo-horizontal-white.png";
+import { BUSINESS_INFO_LINES } from "@shared-domain/businessInfo";
 
 const SELL_GUIDE_PATH = "/sell";
 
@@ -84,32 +85,8 @@ const footerTopLinks = [
   { label: "1:1문의 (카카오톡)", href: KAKAO_CHANNEL_URL, external: true },
 ];
 
-const footerMetaLines = [
-  [
-    ["상호", "수북(SUBOOK)"],
-    ["대표", "박영제"],
-    ["개인정보관리책임자", "진성욱"],
-  ],
-  [
-    ["전화", "010-6271-5792"],
-    ["이메일", "subook2025@gmail.com"],
-    // 2026-07-16 정본 사업장 주소로 통일 (이용약관 사업자정보표와 일치)
-    ["주소", "광주광역시 서구 치평로 15"],
-  ],
-  [
-    [
-      "사업자등록번호",
-      "421-99-01928",
-      // 공정거래위원회 통신판매 사업자정보 조회 팝업 (무신사 등 커머스 표준 패턴).
-      // 통신판매업 신고 완료 후 자동으로 조회 결과가 표시된다 — 별도 코드 변경 불필요.
-      {
-        label: "사업자정보확인",
-        href: "https://www.ftc.go.kr/bizCommPop.do?wrkr_no=4219901928",
-      },
-    ],
-    ["통신판매업신고번호", "2026-광주서구-0566"],
-  ],
-];
+// 사업자 정보는 앱(마이 탭)과 같은 원본을 쓴다.
+const footerMetaLines = BUSINESS_INFO_LINES;
 
 function FooterMetaPair({ label, value, action }) {
   return (

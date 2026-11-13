@@ -10,6 +10,12 @@ test("Meta: 운영 도메인만 허용하고 개발·preview·유사 도메인·
   assert.equal(isMetaTrackingAllowed({ origin: "https://subook.kr" }, { globalPrivacyControl: true }), false);
 });
 
+test("Meta: 수북 앱 안 웹 화면에서는 실행하지 않는다", () => {
+  const appAgent = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36 SubookApp/0.1.0";
+  assert.equal(isMetaTrackingAllowed({ origin: "https://subook.kr" }, { userAgent: appAgent }), false);
+  assert.equal(isMetaTrackingAllowed({ origin: "https://subook.kr" }, { userAgent: "Mozilla/5.0 Chrome/120 Mobile Safari/537.36" }), true);
+});
+
 test("Meta 초기화는 운영 빌드에서 한 번만 실행되고 개발 환경에서는 SDK조차 로드하지 않는다", () => {
   const scripts = [];
   const document = { createElement: () => ({}), head: { appendChild: (script) => scripts.push(script) } };
