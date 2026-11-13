@@ -15,6 +15,7 @@ import {
   trackLoadMore,
   trackNotificationClick,
 } from "../lib/analytics";
+import { resolveNotificationPath } from "../lib/notificationLinks";
 import { usePageMeta } from "../lib/usePageMeta";
 import {
   BankIcon,
@@ -150,10 +151,12 @@ function PublicNotificationsPage() {
 
   const handleItemClick = async (item) => {
     // GA4 알림 클릭 — 읽음 여부·이동 링크 유무까지(제목·본문은 보내지 않는다).
+    // 알림 링크는 사이트 내부 경로만 이동한다 — 그 외 값(javascript:, 외부 주소)은 열지 않는다.
+    const internalPath = resolveNotificationPath(item.ref_url);
     trackNotificationClick(item.type, {
       wasUnread: !item.read_at,
       hasRefUrl: Boolean(item.ref_url),
-      isExternal: Boolean(item.ref_url) && !String(item.ref_url).startsWith("/"),
+      isExternal: Boolean(item.ref_url) && !internalPath,
     });
     if (!item.read_at && supabase) {
       // 비동기로 읽음 처리 (실패해도 이동은 진행)
@@ -162,12 +165,8 @@ function PublicNotificationsPage() {
         prev.map((it) => (it.id === item.id ? { ...it, read_at: new Date().toISOString() } : it)),
       );
     }
-    if (item.ref_url) {
-      if (item.ref_url.startsWith("/")) {
-        navigate(item.ref_url);
-      } else {
-        window.location.assign(item.ref_url);
-      }
+    if (internalPath) {
+      navigate(internalPath);
     }
   };
 
