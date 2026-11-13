@@ -1,4 +1,6 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { Linking, StyleSheet, View } from "react-native";
+import { Image } from "expo-image";
 import { StatusBar } from "expo-status-bar";
 import { useFonts } from "expo-font";
 import * as SplashScreen from "expo-splash-screen";
@@ -7,7 +9,8 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import Feather from "@expo/vector-icons/Feather";
-import { DialogHost } from "./src/components/Dialog.jsx";
+import { DialogHost, showDialog } from "./src/components/Dialog.jsx";
+import { Button, Txt } from "./src/components/ui.jsx";
 import { AuthProvider, useAuth } from "./src/context/AuthContext.jsx";
 import { ShopProvider } from "./src/context/ShopContext.jsx";
 import CartScreen from "./src/screens/CartScreen.jsx";
@@ -20,7 +23,8 @@ import ThemeScreen from "./src/screens/ThemeScreen.jsx";
 import WebScreen from "./src/screens/WebScreen.jsx";
 import WishlistScreen from "./src/screens/WishlistScreen.jsx";
 import { APP_SCHEME } from "./src/config.js";
-import { colors, fonts } from "./src/theme.js";
+import { checkAppUpdate, shouldPromptOptionalUpdate } from "./src/lib/appUpdate.js";
+import { colors, fonts, logoSource } from "./src/theme.js";
 
 // 글꼴과 로그인 상태를 읽을 때까지 시작 화면을 유지한다.
 void SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -76,13 +80,45 @@ function MainTabs() {
   </Tabs.Navigator>;
 }
 
+// 지금 버전으로는 더 이용할 수 없을 때(앱↔웹 연결 방식이 바뀐 경우)만 뜨는 화면
+function UpdateRequired({ storeUrl }) {
+  return <View style={styles.update}>
+    <Image source={logoSource} style={styles.updateLogo} contentFit="contain" accessibilityLabel="수북" />
+    <Txt bold style={styles.updateTitle}>새 버전으로 업데이트해 주세요</Txt>
+    <Txt style={styles.updateMessage}>지금 버전에서는 수북을 이용할 수 없어요.</Txt>
+    {storeUrl ? <Button style={styles.updateButton} onPress={() => void Linking.openURL(storeUrl).catch(() => {})}>업데이트</Button> : null}
+  </View>;
+}
+
 function Root({ fontsReady }) {
   const { ready } = useAuth();
+  const [requiredUpdate, setRequiredUpdate] = useState(null);
+
+  // 켜질 때 한 번 버전을 확인한다. 확인에 실패하면 그대로 쓴다.
+  useEffect(() => {
+    let active = true;
+    void checkAppUpdate().then(async (result) => {
+      if (!active) return;
+      if (result.status === "required") {
+        setRequiredUpdate(result);
+      } else if (result.status === "optional" && (await shouldPromptOptionalUpdate(result.latest))) {
+        showDialog("새 버전이 나왔어요", undefined, [
+          { text: "나중에", style: "cancel" },
+          { text: "업데이트", onPress: () => void Linking.openURL(result.storeUrl).catch(() => {}) },
+        ]);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const visible = fontsReady && ready;
   useEffect(() => {
     if (visible) void SplashScreen.hideAsync().catch(() => {});
   }, [visible]);
   if (!visible) return null;
+  if (requiredUpdate) return <UpdateRequired storeUrl={requiredUpdate.storeUrl} />;
   return <NavigationContainer theme={theme} linking={linking}>
     <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.surface } }}>
       <Stack.Screen name="Main" component={MainTabs} />
@@ -111,3 +147,11 @@ export default function App() {
     </AuthProvider>
   </SafeAreaProvider>;
 }
+
+const styles = StyleSheet.create({
+  update: { flex: 1, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center", padding: 32, gap: 10 },
+  updateLogo: { width: 120, height: 32, marginBottom: 20 },
+  updateTitle: { fontSize: 20, textAlign: "center" },
+  updateMessage: { fontSize: 15, lineHeight: 22, color: colors.textSecondary, textAlign: "center" },
+  updateButton: { alignSelf: "stretch", marginTop: 22 },
+});

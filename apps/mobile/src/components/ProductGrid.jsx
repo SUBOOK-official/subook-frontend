@@ -7,16 +7,17 @@ import { Feedback, Skeleton } from "./ui.jsx";
 
 const GAP = 12;
 
-export function useGridItemWidth() {
+// 화면 너비에 따라 열 수를 정한다(폰 2열, 폴더블·작은 태블릿 3열, 큰 태블릿 4열).
+export function useGridLayout() {
   const { width } = useWindowDimensions();
-  // 큰 화면(태블릿·웹 미리보기)에서도 카드가 지나치게 커지지 않게 한다.
-  const contentWidth = Math.min(width, 560);
-  return Math.floor((contentWidth - space.page * 2 - GAP) / 2);
+  const columns = width >= 900 ? 4 : width >= 600 ? 3 : 2;
+  const itemWidth = Math.floor((width - space.page * 2 - GAP * (columns - 1)) / columns);
+  return { columns, itemWidth };
 }
 
-function GridSkeleton({ itemWidth }) {
+function GridSkeleton({ itemWidth, columns }) {
   return <View style={styles.skeletonRow}>
-    {[0, 1, 2, 3].map((key) => <View key={key} style={{ width: itemWidth, gap: 8 }}>
+    {Array.from({ length: columns * 2 }, (_, key) => <View key={key} style={{ width: itemWidth, gap: 8 }}>
       <Skeleton style={{ width: itemWidth, height: itemWidth }} />
       <Skeleton style={{ width: itemWidth * 0.8, height: 14 }} />
       <Skeleton style={{ width: itemWidth * 0.5, height: 14 }} />
@@ -27,7 +28,7 @@ function GridSkeleton({ itemWidth }) {
 // 2열 교재 목록(무한 스크롤). 머리말(ListHeaderComponent)에 화면별 구역을 넣는다.
 export function ProductGrid({ products, loading, error, onEndReached, onRetry, onRefresh, refreshing = false, ListHeaderComponent, emptyTitle = "찾는 교재가 없어요", emptyMessage, contentStyle }) {
   const navigation = useNavigation();
-  const itemWidth = useGridItemWidth();
+  const { columns, itemWidth } = useGridLayout();
   const openProduct = useCallback((product) => navigation.push("Product", { productId: product.id, title: product.title }), [navigation]);
   const renderItem = useCallback(({ item }) => <ProductCard product={item} width={itemWidth} onPress={openProduct} />, [itemWidth, openProduct]);
 
@@ -35,14 +36,16 @@ export function ProductGrid({ products, loading, error, onEndReached, onRetry, o
     ? <ActivityIndicator style={styles.footer} color={colors.primary} />
     : error && products.length > 0 ? <Feedback icon="wifi-off" message={error} onAction={onRetry} /> : <View style={styles.footer} />;
 
-  const empty = loading ? <GridSkeleton itemWidth={itemWidth} />
+  const empty = loading ? <GridSkeleton itemWidth={itemWidth} columns={columns} />
     : error ? <Feedback icon="wifi-off" title="교재를 불러오지 못했어요" message={error} onAction={onRetry} />
       : <Feedback icon="search" title={emptyTitle} message={emptyMessage} />;
 
   return <FlatList
     data={products}
     keyExtractor={(item) => item.id}
-    numColumns={2}
+    // 열 수가 바뀌면(화면 회전·폴더블 펼침) 목록을 새로 만든다.
+    key={columns}
+    numColumns={columns}
     renderItem={renderItem}
     columnWrapperStyle={styles.row}
     contentContainerStyle={[styles.content, contentStyle]}

@@ -13,7 +13,9 @@ import {
   groupOptionsByVariant,
   sumAllocatedBookPrices,
 } from "../../../public-web/src/lib/productOptionGroups.js";
-import { findFeaturedProductEntry, isLowStockCount, isPreReleaseProduct, resolveFeaturedCoverUrl } from "../../../public-web/src/lib/publicFeaturedProducts.js";
+import { findFeaturedProductEntry, getFeaturedDetailKey, isLowStockCount, isPreReleaseProduct, resolveFeaturedCoverUrl } from "../../../public-web/src/lib/publicFeaturedProducts.js";
+import { FeaturedDetailImages, hasFeaturedDetailImages } from "../components/FeaturedDetailImages.jsx";
+import { ReviewsSection } from "../components/ReviewsSection.jsx";
 import { WishButton } from "../components/ProductCard.jsx";
 import { BookCover, Button, Divider, Feedback, IconButton, Price, Txt } from "../components/ui.jsx";
 import { LOGIN_WEB_ROUTE, useAuth, useRequireLogin } from "../context/AuthContext.jsx";
@@ -46,7 +48,7 @@ function Gallery({ images, title, dim }) {
   const list = images.length ? images : [null];
   return <View>
     <FlatList data={list} keyExtractor={(item, itemIndex) => `${itemIndex}-${item}`} horizontal pagingEnabled showsHorizontalScrollIndicator={false}
-      renderItem={({ item }) => <BookCover uri={item} title={title} large dim={dim} style={{ width, height: width, borderRadius: 0 }} />}
+      renderItem={({ item }) => <BookCover uri={item} title={title} large dim={dim} style={{ width, height: Math.min(width, 520), borderRadius: 0 }} />}
       onMomentumScrollEnd={(event) => setIndex(Math.round(event.nativeEvent.contentOffset.x / width))} />
     {list.length > 1 && <View style={styles.counter}><Txt style={styles.counterText}>{index + 1} / {list.length}</Txt></View>}
   </View>;
@@ -238,6 +240,9 @@ export default function ProductScreen({ route, navigation }) {
   }
 
   const coverUrl = resolveFeaturedCoverUrl(product, product.coverUrl);
+  // 콜라보 상품은 AI 요약 대신 전용 상세 이미지를 보여 준다(웹과 같은 규칙).
+  const featuredDetailKey = featured ? getFeaturedDetailKey(featured) : null;
+  const showFeaturedDetail = hasFeaturedDetailImages(featuredDetailKey);
   const images = [coverUrl, ...product.detailImages].filter(Boolean);
   const meta = [product.instructor, product.year ? `${product.year}` : "", product.bookType].filter(Boolean).join(" · ");
   const paragraphs = summary.split(/\n+/).map((line) => line.trim()).filter(Boolean);
@@ -264,7 +269,8 @@ export default function ProductScreen({ route, navigation }) {
         <Txt style={styles.shippingText}>배송비 {formatCurrency(SHIPPING_FEE)} · {formatCurrency(FREE_SHIPPING_THRESHOLD)} 이상 구매 시 무료 배송</Txt>
       </View>}
       <Divider thick />
-      {paragraphs.length > 0 && <View style={styles.section}>
+      {showFeaturedDetail && <FeaturedDetailImages detailKey={featuredDetailKey} title={product.title} />}
+      {!showFeaturedDetail && paragraphs.length > 0 && <View style={styles.section}>
         <View style={styles.summaryHeader}>
           <Feather name="zap" size={16} color={colors.primary} />
           <Txt bold style={styles.sectionTitle}>AI 요약</Txt>
@@ -282,6 +288,7 @@ export default function ProductScreen({ route, navigation }) {
           <Feather name="chevron-right" size={14} color={colors.muted} />
         </Pressable>
       </View>
+      <ReviewsSection productId={product.id} />
     </ScrollView>
     {topBar}
 

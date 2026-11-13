@@ -1,8 +1,11 @@
+import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import Feather from "@expo/vector-icons/Feather";
+import { BUSINESS_INFO_LINES } from "../../../../packages/shared-domain/src/businessInfo.js";
 import { Button, ScreenHeader, Txt } from "../components/ui.jsx";
 import { LOGIN_WEB_ROUTE, useAuth } from "../context/AuthContext.jsx";
 import { APP_VERSION } from "../config.js";
+import { openSiteLink } from "../lib/siteLinks.js";
 import { colors, radius, space } from "../theme.js";
 import { showDialog } from "../components/Dialog.jsx";
 
@@ -30,6 +33,26 @@ function MenuRow({ label, onPress, tone }) {
     <Txt style={[styles.menuLabel, tone === "muted" && { color: colors.muted }]}>{label}</Txt>
     <Feather name="chevron-right" size={18} color={colors.muted} />
   </Pressable>;
+}
+
+// 사업자 정보(웹 바닥글과 같은 원본). 앱에서는 웹 바닥글을 숨기므로 여기서 보여 준다.
+function BusinessInfo({ navigation }) {
+  const [open, setOpen] = useState(false);
+  return <View style={styles.business}>
+    <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpen(!open)} style={styles.businessHead}>
+      <Txt bold style={styles.businessTitle}>수북(SUBOOK) 사업자 정보</Txt>
+      <Feather name={open ? "chevron-up" : "chevron-down"} size={16} color={colors.muted} />
+    </Pressable>
+    {open && <View style={styles.businessBody}>
+      {BUSINESS_INFO_LINES.flat().map(([label, value, link]) => <View key={label} style={styles.businessRow}>
+        <Txt style={styles.businessLabel}>{label}</Txt>
+        <Txt selectable style={styles.businessValue}>{value}</Txt>
+        {link ? <Pressable accessibilityRole="link" hitSlop={8} onPress={() => openSiteLink(navigation, link.href, link.label)}>
+          <Txt style={styles.businessLink}>{link.label}</Txt>
+        </Pressable> : null}
+      </View>)}
+    </View>}
+  </View>;
 }
 
 export default function MyScreen({ navigation }) {
@@ -72,6 +95,7 @@ export default function MyScreen({ navigation }) {
         {isSignedIn && <MenuRow label="로그아웃" onPress={confirmSignOut} />}
         {isSignedIn && <MenuRow label="회원 탈퇴" tone="muted" onPress={() => openWeb("/mypage#settings", "회원 정보")} />}
       </View>
+      <BusinessInfo navigation={navigation} />
       <Txt style={styles.version}>앱 버전 {APP_VERSION}</Txt>
     </ScrollView>
   </View>;
@@ -95,5 +119,13 @@ const styles = StyleSheet.create({
   menu: { marginTop: 24, borderTopWidth: 8, borderTopColor: colors.divider },
   menuRow: { minHeight: 54, paddingHorizontal: space.page, flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.divider },
   menuLabel: { fontSize: 15 },
-  version: { textAlign: "center", fontSize: 12, color: colors.muted, marginTop: 24 },
+  business: { marginTop: 8, paddingHorizontal: space.page },
+  businessHead: { flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 14 },
+  businessTitle: { fontSize: 13, color: colors.textSecondary },
+  businessBody: { gap: 6, paddingBottom: 8 },
+  businessRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 },
+  businessLabel: { fontSize: 12, color: colors.muted, minWidth: 104 },
+  businessValue: { fontSize: 12, color: colors.textSecondary },
+  businessLink: { fontSize: 12, color: colors.textSecondary, textDecorationLine: "underline" },
+  version: { textAlign: "center", fontSize: 12, color: colors.muted, marginTop: 16 },
 });

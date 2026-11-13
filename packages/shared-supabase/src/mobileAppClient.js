@@ -97,3 +97,21 @@ export async function setRestockSubscription(client, productId, active) {
   if (!id) throw new Error("교재 정보가 올바르지 않아요.");
   unwrap(await client.rpc(active ? "subscribe_restock" : "unsubscribe_restock", { p_product_id: id }));
 }
+
+// ── 통합 구매 후기 (웹 상품 상세와 같은 RPC) ─────────────────────────
+// productId를 주면 같은 교재가 포함된 주문의 후기가 위로 온다.
+export async function fetchPublicReviewsPage(client, { productId = null, limit, offset }) {
+  return unwrap(await client.rpc("get_public_reviews", { p_product_id: toId(productId), p_limit: limit, p_offset: offset }));
+}
+
+// ── 맞춤 추천용 신호 (웹 홈 MemberRecommendations와 같은 조회) ──────────
+export async function fetchMyRecentOrders(client) {
+  const rows = unwrap(await client.rpc("get_my_orders", { p_limit: 20, p_offset: 0 }));
+  return Array.isArray(rows) ? rows : [];
+}
+
+export async function fetchProductSignals(client, productIds) {
+  const ids = productIds.map(toId).filter(Boolean);
+  if (ids.length === 0) return [];
+  return unwrap(await client.from("products").select("id,subject,book_type").in("id", ids)) ?? [];
+}

@@ -2,7 +2,7 @@
   "expo": {
     "name": "수북",
     "slug": "subook-mobile",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "orientation": "portrait",
     "icon": "../public-web/public/apple-touch-icon.png",
     "userInterfaceStyle": "light",
@@ -54,6 +54,12 @@
         "projectId": "2046176f-7a48-46b9-8531-f81eb35a9fe0"
       }
     },
-    "owner": "seongwoooook"
+    "owner": "seongwoooook",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/2046176f-7a48-46b9-8531-f81eb35a9fe0"
+    }
   }
 }

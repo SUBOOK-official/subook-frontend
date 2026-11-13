@@ -6,11 +6,13 @@ import { LinearGradient } from "expo-linear-gradient";
 import Feather from "@expo/vector-icons/Feather";
 import { MOBILE_STORE_SUBJECTS } from "../../../../packages/shared-domain/src/mobileCatalog.js";
 import { getDetailImageUrl, getThumbnailImageUrl } from "../../../public-web/src/lib/storageImage.js";
+import { HomePopup } from "../components/HomePopup.jsx";
 import { ProductCard } from "../components/ProductCard.jsx";
 import { ProductGrid } from "../components/ProductGrid.jsx";
 import { Chip, IconButton, SectionHeader, Skeleton, Txt } from "../components/ui.jsx";
+import { useAuth } from "../context/AuthContext.jsx";
 import { useShop } from "../context/ShopContext.jsx";
-import { loadHomeSections } from "../lib/catalog.js";
+import { loadHomeSections, loadMemberRail } from "../lib/catalog.js";
 import { goToTab, openSiteLink } from "../lib/siteLinks.js";
 import { useCatalog } from "../lib/useCatalog.js";
 import { colors, logoSource, radius, space } from "../theme.js";
@@ -48,8 +50,14 @@ function HeroSlide({ slide, width, onPress }) {
   </Pressable>;
 }
 
-function HeroCarousel({ slides, loading, navigation }) {
+// 배너 한 장의 크기. 폰은 화면 너비 정사각형, 넓은 화면은 한 줄에 여러 장이 보이게 줄인다.
+function useHeroSize() {
   const { width } = useWindowDimensions();
+  return width >= 600 ? Math.round(Math.min(width / 2, 420)) : width;
+}
+
+function HeroCarousel({ slides, loading, navigation }) {
+  const width = useHeroSize();
   const listRef = useRef(null);
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -71,10 +79,11 @@ function HeroCarousel({ slides, loading, navigation }) {
     else if (slide.href) openSiteLink(navigation, slide.href, slide.title);
   }, [navigation]);
 
-  if (loading) return <Skeleton style={{ width, height: width, borderRadius: 0 }} />;
+  if (loading) return <Skeleton style={{ width: "100%", height: width, borderRadius: 0 }} />;
   if (slides.length === 0) return null;
   return <View>
-    <FlatList ref={listRef} data={slides} keyExtractor={(item) => item.id} horizontal pagingEnabled showsHorizontalScrollIndicator={false}
+    <FlatList ref={listRef} data={slides} keyExtractor={(item) => item.id} horizontal showsHorizontalScrollIndicator={false}
+      snapToInterval={width} decelerationRate="fast"
       renderItem={({ item }) => <HeroSlide slide={item} width={width} onPress={onPress} />}
       getItemLayout={(_, itemIndex) => ({ length: width, offset: width * itemIndex, index: itemIndex })}
       onScrollBeginDrag={() => setPaused(true)}
@@ -102,14 +111,15 @@ function ThemeLinks({ themes, navigation }) {
   </ScrollView>;
 }
 
-function BestRail({ products, navigation }) {
+// 로그인 회원에게 맞춤 교재가 있으면 그것을, 아니면 BEST(순위 표시)를 보여 준다.
+function BestRail({ products, personalized = false, navigation }) {
   if (products.length === 0) return null;
   const openProduct = (product) => navigation.push("Product", { productId: product.id, title: product.title });
   return <View style={styles.section}>
-    <SectionHeader title="BEST 교재" onAction={() => goToTab(navigation, "Search", { sort: "popular" })} />
+    <SectionHeader title={personalized ? "나를 위한 맞춤 교재" : "BEST 교재"} onAction={() => goToTab(navigation, "Search", { sort: "popular" })} />
     <FlatList data={products} keyExtractor={(item) => item.id} horizontal showsHorizontalScrollIndicator={false}
       contentContainerStyle={styles.rail}
-      renderItem={({ item, index }) => <ProductCard product={item} width={136} rank={index + 1} onPress={openProduct} />} />
+      renderItem={({ item, index }) => <ProductCard product={item} width={136} rank={personalized ? undefined : index + 1} onPress={openProduct} />} />
   </View>;
 }
 
@@ -126,7 +136,12 @@ function PickupBanner({ navigation }) {
 
 export default function HomeScreen({ navigation }) {
   const [subject, setSubject] = useState("전체");
-  const [home, setHome] = useState({ slides: [], themes: [], best: [], loading: true });
+  const { user } = useAuth();
+  const { wishlistIds } = useShop();
+  const [home, setHome] = useState({ slides: [], popups: [], themes: [], best: [], loading: true });
+  const [memberRail, setMemberRail] = useState(null);
+  const userId = user?.id ?? null;
+  const wishKey = [...wishlistIds].join(",");
   const [refreshing, setRefreshing] = useState(false);
   const catalog = useCatalog({ search: "", subject, sort: "popular" });
 
@@ -139,6 +154,22 @@ export default function HomeScreen({ navigation }) {
     void loadHome();
   }, [loadHome]);
 
+  // 로그인 회원 맞춤 교재(최근 구매 → 찜 기준). 신호가 없으면 BEST를 그대로 둔다.
+  useEffect(() => {
+    let active = true;
+    setMemberRail(null);
+    if (!userId) return undefined;
+    void loadMemberRail(wishKey ? wishKey.split(",") : [])
+      .then((result) => {
+        if (active && result) setMemberRail({ userId, ...result });
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [userId, wishKey]);
+  const rail = memberRail?.userId === userId && memberRail.source !== "best" && memberRail.products.length > 0 ? memberRail : null;
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     catalog.refresh();
@@ -149,7 +180,7 @@ export default function HomeScreen({ navigation }) {
   const header = <View>
     <HeroCarousel slides={home.slides} loading={home.loading} navigation={navigation} />
     <ThemeLinks themes={home.themes} navigation={navigation} />
-    <BestRail products={home.best} navigation={navigation} />
+    <BestRail products={rail?.products ?? home.best} personalized={Boolean(rail)} navigation={navigation} />
     <PickupBanner navigation={navigation} />
     <View style={styles.section}>
       <SectionHeader title="전체 교재" onAction={() => goToTab(navigation, "Search", { subject })} />
@@ -161,6 +192,7 @@ export default function HomeScreen({ navigation }) {
 
   return <View style={styles.screen}>
     <HomeHeader navigation={navigation} />
+    <HomePopup popups={home.popups} />
     <ProductGrid products={catalog.products} loading={catalog.loading} error={catalog.error}
       onEndReached={catalog.loadMore} onRetry={catalog.retry} onRefresh={onRefresh} refreshing={refreshing}
       ListHeaderComponent={header} emptyMessage="다른 과목을 골라 보세요." />

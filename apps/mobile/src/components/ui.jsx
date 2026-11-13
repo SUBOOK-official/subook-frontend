@@ -135,7 +135,7 @@ const styles = StyleSheet.create({
   buttonLabelMd: { fontSize: 14 },
   dimmed: { opacity: 0.45 },
   iconButton: { width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: radius.pill },
-  iconButtonFilled: { backgroundColor: "rgba(255,255,255,0.92)" },
+  iconButtonFilled: { backgroundColor: "rgba(255,255,255,0.94)", borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
   badge: { position: "absolute", top: 2, right: 0, minWidth: 17, height: 17, paddingHorizontal: 4, borderRadius: radius.pill, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center", borderWidth: 1.5, borderColor: colors.surface },
   badgeText: { color: colors.surface, fontSize: 10, lineHeight: 13 },
   priceRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "baseline", columnGap: 5 },
