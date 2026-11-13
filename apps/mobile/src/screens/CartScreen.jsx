@@ -8,7 +8,7 @@ import { toCheckoutItems } from "../../../../packages/shared-domain/src/mobileCa
 import { calculateShippingFee, FREE_SHIPPING_THRESHOLD } from "../../../../packages/shared-domain/src/shipping.js";
 import { formatCurrency } from "../../../../packages/shared-domain/src/format.js";
 import { BookCover, Button, Feedback, ScreenHeader, Txt } from "../components/ui.jsx";
-import { LOGIN_WEB_ROUTE, useAuth } from "../context/AuthContext.jsx";
+import { LOGIN_SCREEN, useAuth } from "../context/AuthContext.jsx";
 import { useShop } from "../context/ShopContext.jsx";
 import { tapFeedback } from "../lib/haptics.js";
 import { goToTab } from "../lib/siteLinks.js";
@@ -91,7 +91,7 @@ export default function CartScreen({ navigation }) {
   if (!isSignedIn) {
     return <View style={styles.screen}>
       {header}
-      <Feedback icon="shopping-bag" title="로그인하고 장바구니를 이용해 보세요" actionLabel="로그인" onAction={() => navigation.navigate("Web", LOGIN_WEB_ROUTE)} />
+      <Feedback icon="shopping-bag" title="로그인하고 장바구니를 이용해 보세요" actionLabel="로그인" onAction={() => navigation.navigate(LOGIN_SCREEN)} />
     </View>;
   }
 

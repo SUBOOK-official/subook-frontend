@@ -19,8 +19,10 @@ export function createMobileSupabaseClient({ url, publicKey, storage, fetchImpl 
       storage,
       persistSession: true,
       autoRefreshToken: true,
-      // 앱은 주소창이 없다. 로그인 결과는 앱 안 웹 화면이 넘겨 준다.
+      // 앱은 주소창이 없다. 로그인 결과는 앱 안 웹 화면이 넘겨 주거나, 소셜 로그인 복귀 주소에서 직접 읽는다.
       detectSessionInUrl: false,
+      // 소셜 로그인은 인증 코드를 받아 앱에서 세션으로 바꾼다(복귀 주소에 토큰을 싣지 않는다).
+      flowType: "pkce",
     },
     global: { fetch: fetchImpl },
   });
@@ -114,4 +116,50 @@ export async function fetchProductSignals(client, productIds) {
   const ids = productIds.map(toId).filter(Boolean);
   if (ids.length === 0) return [];
   return unwrap(await client.from("products").select("id,subject,book_type").in("id", ids)) ?? [];
+}
+
+// ── 소셜 로그인 (기기 브라우저 창에서 인증 → 앱 주소로 복귀, PKCE) ─────────
+// redirectTo(예: subook://auth-callback)는 Supabase 로그인 설정의 Redirect URLs에 등록돼 있어야 한다.
+export async function getOAuthSignInUrl(client, provider, redirectTo) {
+  const { data, error } = await client.auth.signInWithOAuth({ provider, options: { redirectTo, skipBrowserRedirect: true } });
+  if (error) throw error;
+  if (!data?.url) throw new Error("로그인 주소를 받지 못했어요.");
+  return data.url;
+}
+
+function readParams(text) {
+  const params = {};
+  for (const part of String(text ?? "").split("&")) {
+    if (!part) continue;
+    const index = part.indexOf("=");
+    const key = index === -1 ? part : part.slice(0, index);
+    try {
+      params[decodeURIComponent(key)] = index === -1 ? "" : decodeURIComponent(part.slice(index + 1).replace(/\+/g, " "));
+    } catch {
+      // 해석할 수 없는 값은 건너뛴다.
+    }
+  }
+  return params;
+}
+
+// 복귀 주소(subook://auth-callback?code=...)에서 인증 코드나 오류를 꺼낸다.
+export function parseOAuthCallback(callbackUrl) {
+  const text = String(callbackUrl ?? "");
+  const hashIndex = text.indexOf("#");
+  const beforeHash = hashIndex === -1 ? text : text.slice(0, hashIndex);
+  const queryIndex = beforeHash.indexOf("?");
+  const params = {
+    ...readParams(hashIndex === -1 ? "" : text.slice(hashIndex + 1)),
+    ...readParams(queryIndex === -1 ? "" : beforeHash.slice(queryIndex + 1)),
+  };
+  return { code: params.code || null, error: params.error_description || params.error || null };
+}
+
+export async function completeOAuthSignIn(client, callbackUrl) {
+  const { code, error: callbackError } = parseOAuthCallback(callbackUrl);
+  if (callbackError) throw new Error(callbackError);
+  if (!code) throw new Error("로그인 정보를 받지 못했어요.");
+  const { data, error } = await client.auth.exchangeCodeForSession(code);
+  if (error) throw error;
+  return data.session;
 }

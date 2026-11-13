@@ -6,6 +6,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import Feather from "@expo/vector-icons/Feather";
 import { MOBILE_STORE_SUBJECTS } from "../../../../packages/shared-domain/src/mobileCatalog.js";
 import { getDetailImageUrl, getThumbnailImageUrl } from "../../../public-web/src/lib/storageImage.js";
+import { useIsFocused } from "@react-navigation/native";
+import { FortuneCookie } from "../components/FortuneCookie.jsx";
 import { HomePopup } from "../components/HomePopup.jsx";
 import { ProductCard } from "../components/ProductCard.jsx";
 import { ProductGrid } from "../components/ProductGrid.jsx";
@@ -136,6 +138,7 @@ function PickupBanner({ navigation }) {
 
 export default function HomeScreen({ navigation }) {
   const [subject, setSubject] = useState("전체");
+  const isFocused = useIsFocused();
   const { user } = useAuth();
   const { wishlistIds } = useShop();
   const [home, setHome] = useState({ slides: [], popups: [], themes: [], best: [], loading: true });
@@ -196,6 +199,7 @@ export default function HomeScreen({ navigation }) {
     <ProductGrid products={catalog.products} loading={catalog.loading} error={catalog.error}
       onEndReached={catalog.loadMore} onRetry={catalog.retry} onRefresh={onRefresh} refreshing={refreshing}
       ListHeaderComponent={header} emptyMessage="다른 과목을 골라 보세요." />
+    <FortuneCookie active={isFocused} />
   </View>;
 }
 

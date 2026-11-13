@@ -14,6 +14,8 @@ export const colors = {
   danger: "#D0342C",
   accent: "#FF4A4A",
   success: "#2E7D4F",
+  // 카카오 로그인 버튼 지정색(카카오 디자인 가이드, 웹 로그인 버튼과 같은 값)
+  kakao: "#FEE500",
   overlay: "rgba(8, 15, 71, 0.45)",
 };
 

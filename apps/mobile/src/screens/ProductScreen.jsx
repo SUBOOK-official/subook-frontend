@@ -18,7 +18,7 @@ import { FeaturedDetailImages, hasFeaturedDetailImages } from "../components/Fea
 import { ReviewsSection } from "../components/ReviewsSection.jsx";
 import { WishButton } from "../components/ProductCard.jsx";
 import { BookCover, Button, Divider, Feedback, IconButton, Price, Txt } from "../components/ui.jsx";
-import { LOGIN_WEB_ROUTE, useAuth, useRequireLogin } from "../context/AuthContext.jsx";
+import { LOGIN_SCREEN, useAuth, useRequireLogin } from "../context/AuthContext.jsx";
 import { useShop } from "../context/ShopContext.jsx";
 import { catalogClient } from "../lib/catalog.js";
 import { errorFeedback, successFeedback, tapFeedback } from "../lib/haptics.js";
@@ -194,11 +194,8 @@ export default function ProductScreen({ route, navigation }) {
       checkout(false);
       return;
     }
-    showDialog("어떻게 구매할까요?", "회원은 쿠폰·포인트를 쓸 수 있어요.", [
-      { text: "취소", style: "cancel" },
-      { text: "비회원 구매", onPress: () => checkout(true) },
-      { text: "로그인", onPress: () => navigation.navigate("Web", { ...LOGIN_WEB_ROUTE, path: "/app/login?next=/app/checkout", checkout: { items, guestMode: false } }) },
-    ]);
+    // 비회원은 로그인 화면으로: 카카오·구글·이메일 로그인 또는 비회원 구매를 고른다.
+    navigation.navigate(LOGIN_SCREEN, { checkout: { items, guestMode: false } });
   };
 
   const handleRestock = async () => {

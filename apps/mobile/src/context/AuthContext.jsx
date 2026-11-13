@@ -5,7 +5,8 @@ import { showDialog } from "../components/Dialog.jsx";
 
 const AuthContext = createContext(null);
 
-export const LOGIN_WEB_ROUTE = { path: "/app/login?next=/app/done", title: "로그인" };
+// 로그인은 앱의 로그인 화면(screens/LoginScreen.jsx)에서 시작한다.
+export const LOGIN_SCREEN = "Login";
 
 // 앱이 로그인 상태의 주인이다. 앱 안 웹 화면에서 로그인·갱신·로그아웃하면
 // 그 결과를 받아 앱 세션에 반영한다(lib/webBridge.js, screens/WebScreen.jsx).
@@ -93,7 +94,7 @@ export function useRequireLogin(navigation) {
     if (isSignedIn) return true;
     showDialog("로그인이 필요해요", message, [
       { text: "취소", style: "cancel" },
-      { text: "로그인", onPress: () => navigation.navigate("Web", LOGIN_WEB_ROUTE) },
+      { text: "로그인", onPress: () => navigation.navigate(LOGIN_SCREEN) },
     ]);
     return false;
   }, [isSignedIn, navigation]);

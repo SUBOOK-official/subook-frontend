@@ -5,7 +5,7 @@ import { normalizeMobileProduct } from "../../../../packages/shared-domain/src/m
 import { fetchWishlistProducts } from "../../../../packages/shared-supabase/src/mobileAppClient.js";
 import { ProductGrid } from "../components/ProductGrid.jsx";
 import { Feedback, ScreenHeader } from "../components/ui.jsx";
-import { LOGIN_WEB_ROUTE, useAuth } from "../context/AuthContext.jsx";
+import { LOGIN_SCREEN, useAuth } from "../context/AuthContext.jsx";
 import { useShop } from "../context/ShopContext.jsx";
 import { supabase } from "../lib/supabase.js";
 import { colors } from "../theme.js";
@@ -35,7 +35,7 @@ export default function WishlistScreen({ navigation }) {
   if (!isSignedIn) {
     return <View style={styles.screen}>
       {header}
-      <Feedback icon="heart" title="로그인하고 찜한 교재를 모아 보세요" actionLabel="로그인" onAction={() => navigation.navigate("Web", LOGIN_WEB_ROUTE)} />
+      <Feedback icon="heart" title="로그인하고 찜한 교재를 모아 보세요" actionLabel="로그인" onAction={() => navigation.navigate(LOGIN_SCREEN)} />
     </View>;
   }
 

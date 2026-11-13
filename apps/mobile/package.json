@@ -1,6 +1,6 @@
 {
   "name": "@subook/mobile",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
   "main": "index.js",
   "dependencies": {
@@ -19,6 +19,7 @@
     "expo-image": "~58.0.18",
     "expo-linear-gradient": "~58.0.4",
     "expo-secure-store": "~58.0.3",
+    "expo-sensors": "~58.0.5",
     "expo-splash-screen": "~58.0.14",
     "expo-status-bar": "~58.0.5",
     "expo-system-ui": "~58.0.7",
@@ -29,6 +30,7 @@
     "react-native": "0.88.1",
     "react-native-safe-area-context": "~5.11.1",
     "react-native-screens": "~4.30.1",
+    "react-native-svg": "15.16.0",
     "react-native-web": "^0.21.4",
     "react-native-webview": "14.0.1"
   },

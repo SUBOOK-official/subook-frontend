@@ -15,6 +15,7 @@ import { AuthProvider, useAuth } from "./src/context/AuthContext.jsx";
 import { ShopProvider } from "./src/context/ShopContext.jsx";
 import CartScreen from "./src/screens/CartScreen.jsx";
 import HomeScreen from "./src/screens/HomeScreen.jsx";
+import LoginScreen from "./src/screens/LoginScreen.jsx";
 import MyScreen from "./src/screens/MyScreen.jsx";
 import ProductScreen from "./src/screens/ProductScreen.jsx";
 import SearchScreen from "./src/screens/SearchScreen.jsx";
@@ -66,6 +67,8 @@ const linking = {
   },
 };
 
+const TAB_BAR_HEIGHT = 60;
+
 function MainTabs() {
   const insets = useSafeAreaInsets();
   return <Tabs.Navigator screenOptions={({ route }) => ({
@@ -73,7 +76,9 @@ function MainTabs() {
     tabBarActiveTintColor: colors.primary,
     tabBarInactiveTintColor: colors.muted,
     tabBarLabelStyle: { fontFamily: fonts.regular, fontSize: 11, lineHeight: 16 },
-    tabBarStyle: { height: 58 + insets.bottom, paddingTop: 6, paddingBottom: Math.max(insets.bottom, 6), borderTopColor: colors.border },
+    // 아이콘(28) + 글자 한 줄(16) + 탭 위아래 여백(10)이 들어가는 높이. 모자라면 글자가 잘린다.
+    // 아래 안전 영역 여백은 라이브러리가 붙이므로 높이에만 더한다.
+    tabBarStyle: { height: TAB_BAR_HEIGHT + insets.bottom, borderTopColor: colors.border },
     tabBarIcon: ({ color }) => <Feather name={TABS.find((tab) => tab.name === route.name)?.icon} color={color} size={22} />,
   })}>
     {TABS.map((tab) => <Tabs.Screen key={tab.name} name={tab.name} component={tab.component} options={{ title: tab.title }} />)}
@@ -125,6 +130,7 @@ function Root({ fontsReady }) {
       <Stack.Screen name="Product" component={ProductScreen} />
       <Stack.Screen name="Cart" component={CartScreen} />
       <Stack.Screen name="Theme" component={ThemeScreen} />
+      <Stack.Screen name="Login" component={LoginScreen} options={{ animation: "slide_from_bottom" }} />
       {/* 웹 화면은 아래에서 올라오고, 쓸어 넘겨 닫히지 않게 한다(주문·결제 도중 실수로 닫힘 방지). */}
       <Stack.Screen name="Web" component={WebScreen} options={{ animation: "slide_from_bottom", gestureEnabled: false }} />
     </Stack.Navigator>

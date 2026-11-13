@@ -3,7 +3,7 @@ import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import Feather from "@expo/vector-icons/Feather";
 import { BUSINESS_INFO_LINES } from "../../../../packages/shared-domain/src/businessInfo.js";
 import { Button, ScreenHeader, Txt } from "../components/ui.jsx";
-import { LOGIN_WEB_ROUTE, useAuth } from "../context/AuthContext.jsx";
+import { LOGIN_SCREEN, useAuth } from "../context/AuthContext.jsx";
 import { APP_VERSION } from "../config.js";
 import { openSiteLink } from "../lib/siteLinks.js";
 import { colors, radius, space } from "../theme.js";
@@ -76,7 +76,7 @@ export default function MyScreen({ navigation }) {
         </View>
       </View> : <View style={styles.guest}>
         <Txt bold style={styles.guestTitle}>로그인하고 수북을 더 편하게 이용해 보세요</Txt>
-        <Button onPress={() => navigation.navigate("Web", LOGIN_WEB_ROUTE)}>로그인 · 회원가입</Button>
+        <Button onPress={() => navigation.navigate(LOGIN_SCREEN)}>로그인 · 회원가입</Button>
         <Pressable accessibilityRole="button" onPress={() => openWeb("/order/lookup", "비회원 주문 조회")} style={styles.guestLink}>
           <Txt style={styles.guestLinkText}>비회원 주문 조회</Txt>
         </Pressable>

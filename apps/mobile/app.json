@@ -2,7 +2,7 @@
   "expo": {
     "name": "수북",
     "slug": "subook-mobile",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "orientation": "portrait",
     "icon": "../public-web/public/apple-touch-icon.png",
     "userInterfaceStyle": "light",
@@ -26,6 +26,12 @@
       "expo-secure-store",
       "expo-image",
       "expo-web-browser",
+      [
+        "expo-sensors",
+        {
+          "motionPermission": "흔들어서 포춘쿠키를 여는 데 기기 움직임을 사용합니다."
+        }
+      ],
       [
         "expo-splash-screen",
         {
