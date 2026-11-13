@@ -63,8 +63,23 @@ npm run dev:mobile:web
 ```
 
 - 웹 화면(주문·로그인 등)은 `react-native-webview`를 쓰므로 **Expo Go나 브라우저 미리보기에서는 열리지 않는다.** 브라우저 미리보기는 앱 화면(홈·검색·상세 등) 확인용이다.
-- 로그인·결제까지 확인하려면 개발 빌드나 EAS 내부 배포 빌드(`eas.json`의 `preview`, Android APK)를 기기에 설치한다. `.env.local`은 저장소에 올라가지 않으므로 EAS에는 같은 두 값을 환경 변수로 등록해야 한다.
+- 로그인·결제까지 확인하려면 아래 테스트 설치본을 기기에 설치한다.
 - Windows에서는 iOS 빌드를 만들 수 없다(macOS/Xcode 또는 EAS Build 필요).
+
+## 테스트 설치본(Android APK)
+
+Expo 클라우드 빌드를 쓴다. 프로젝트는 `@seongwoooook/subook-mobile`(app.json의 `owner`·`extra.eas.projectId`), Expo CLI 로그인이 필요하다.
+
+```sh
+cd apps/mobile
+npx eas-cli@latest build --platform android --profile preview
+```
+
+- `preview` 프로필은 내부 배포용 APK를 만든다. 끝나면 빌드 페이지에 설치 링크가 나오고, Android 기기에서 그 링크를 열어 설치한다(출처를 알 수 없는 앱 설치 허용 필요). 링크는 아는 사람 누구나 받을 수 있으니 공개된 곳에 올리지 않는다. 무료 요금제에서는 빌드 결과가 14일 뒤 만료된다.
+- 공개 Supabase 주소·키(`EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`)는 저장소에 없고 EAS 환경 변수(development·preview·production, plaintext)로 등록돼 있다. 값이 바뀌면 `npx eas-cli@latest env:set --name <이름> --value <값> --environment preview --environment production --environment development --visibility plaintext`로 고친다.
+- Android 서명 키는 Expo 서버에 보관된다(첫 빌드 때 자동 생성). 빌드 번호(versionCode)도 Expo 서버에서 관리한다.
+- 업로드 범위는 저장소 최상위 `frontend/.easignore`가 정한다. 앱 빌드에 필요한 폴더(`apps/mobile`, `packages`, `apps/public-web/src/lib`·`src/assets`·`public`)만 올린다. 앱이 다른 폴더의 파일을 새로 가져다 쓰면 이 파일에 추가해야 클라우드 빌드가 된다. 올라가는 내용은 `npx eas-cli@latest build:inspect -p android -e preview --stage archive --output <폴더>`로 확인한다.
+- 2026-11-13 첫 빌드 성공: 버전 0.1.0(1), 커밋 `4de5e83`, 약 12분, APK 89MB.
 
 ## 검증
 

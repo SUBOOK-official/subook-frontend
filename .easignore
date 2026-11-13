@@ -1,0 +1,40 @@
+# 수북 앱(apps/mobile) 클라우드 빌드에 올릴 파일 범위.
+# 이 파일이 있으면 Expo 빌드는 .gitignore 대신 이 파일만 따른다(저장소 최상위에서만 읽음).
+# 전부 제외한 뒤, 앱 빌드에 필요한 폴더만 다시 포함하는 방식이다.
+# 폴더 이름 끝에 /를 붙이지 않는다(Expo 쪽 처리에서 /로 끝나는 줄이 폴더에 적용되지 않는 것을 확인함).
+# 앱이 다른 폴더의 파일을 새로 가져다 쓰게 되면 여기에도 추가해야 빌드가 된다.
+# 확인: apps/mobile에서 `npx eas-cli build:inspect -p android -e preview --stage archive --output <폴더>`
+
+/*
+!/package.json
+!/packages
+!/apps
+/apps/*
+!/apps/mobile
+!/apps/public-web
+/apps/public-web/*
+!/apps/public-web/public
+!/apps/public-web/src
+/apps/public-web/src/*
+!/apps/public-web/src/assets
+!/apps/public-web/src/lib
+
+# 포함한 폴더 안에서도 올리지 않는 것
+node_modules
+.expo
+dist
+web-build
+/apps/mobile/android
+/apps/mobile/ios
+.env
+.env.*
+!.env.example
+*.log
+*.jks
+*.keystore
+*.p8
+*.p12
+*.key
+*.pem
+*.mobileprovision
+credentials.json
