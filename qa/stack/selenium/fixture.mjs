@@ -19,7 +19,7 @@ export async function startUiServer(apiOrigin) {
   const allowedEmpty=new Set(['get_public_faqs','get_public_store_products','get_public_store_filters','get_public_banners','get_member_orders','get_member_addresses',
     'get_member_profile','get_my_coupons','get_my_points_summary','get_my_point_balance','get_notifications','get_unread_notification_count',
     'count_my_unread_notifications','get_applicable_coupons','get_member_recent_shipments','get_my_order_return_progress','get_my_orders',
-    'get_my_pickup_requests_v2','get_my_points','get_my_settlements','get_public_reviews','is_subscribed_restock',
+    'get_my_pickup_requests_v2','get_my_points','get_my_settlements','get_public_reviews','ilseong_app_products','is_subscribed_restock',
     'list_member_settlement_accounts','list_public_faqs','list_public_store_products','member_shipping_addresses','products','wishlist_items']);
   // env 파일을 읽지 않으며 process에 상속된 VITE 값도 사용하지 않는다.
   const saved=Object.fromEntries(Object.entries(process.env).filter(([k])=>k.startsWith('VITE_')));
