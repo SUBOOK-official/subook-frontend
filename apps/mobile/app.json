@@ -48,6 +48,12 @@
     "backgroundColor": "#FFFFFF",
     "android": {
       "package": "kr.subook.app"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "2046176f-7a48-46b9-8531-f81eb35a9fe0"
+      }
+    },
+    "owner": "seongwoooook"
   }
 }
