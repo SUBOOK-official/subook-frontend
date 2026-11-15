@@ -66,7 +66,7 @@ class ErrorBoundary extends Component {
       return (
         <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
           <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-8 text-center space-y-4">
-            <h1 className="text-xl font-black text-slate-900">화면을 불러오지 못했습니다</h1>
+            <h1 className="text-xl font-bold text-slate-900">화면을 불러오지 못했습니다</h1>
             <p className="text-sm text-slate-600">
               네트워크 상태를 확인한 뒤 새로고침해 주세요.
             </p>
@@ -85,7 +85,7 @@ class ErrorBoundary extends Component {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
         <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-8 text-center space-y-4">
-          <h1 className="text-xl font-black text-slate-900">일시적인 오류가 발생했습니다</h1>
+          <h1 className="text-xl font-bold text-slate-900">일시적인 오류가 발생했습니다</h1>
           <p className="text-sm text-slate-600">
             어드민 화면을 불러오는 중 문제가 발생했습니다.<br />
             잠시 후 다시 시도하거나 개발팀에 문의해 주세요.

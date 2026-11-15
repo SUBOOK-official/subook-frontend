@@ -66,7 +66,7 @@ function NotificationResultModal({
         ref={dialogRef}
         role="dialog"
       >
-        <h2 className="text-lg font-black text-slate-950" id={titleId}>{title}</h2>
+        <h2 className="text-lg font-bold text-slate-950" id={titleId}>{title}</h2>
         <p className="mt-2 text-sm text-slate-700">
           성공{" "}
           <strong className="font-bold text-emerald-700">{successCount}건</strong>

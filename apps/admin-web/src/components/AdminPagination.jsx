@@ -37,10 +37,10 @@ function AdminPagination({ currentPage, totalCount, pageSize, isLoading = false,
   };
 
   return (
-    <nav aria-label="페이지 이동" className="flex items-center justify-center gap-1 pt-2">
+    <nav aria-label="페이지 이동" className="flex flex-wrap items-center justify-center gap-1 pt-2">
       <button
         aria-label="첫 페이지로"
-        className="btn-secondary !w-auto !px-2 !py-2 text-xs"
+        className="btn-secondary !w-auto !rounded-lg !px-2.5 !py-2 text-xs"
         disabled={currentPage === 1 || isLoading}
         onClick={() => goTo(1)}
         type="button"
@@ -48,7 +48,7 @@ function AdminPagination({ currentPage, totalCount, pageSize, isLoading = false,
         «
       </button>
       <button
-        className="btn-secondary !w-auto !px-3 !py-2 text-xs"
+        className="btn-secondary !w-auto !rounded-lg !px-3 !py-2 text-xs"
         disabled={currentPage === 1 || isLoading}
         onClick={() => goTo(currentPage - 1)}
         type="button"
@@ -58,16 +58,16 @@ function AdminPagination({ currentPage, totalCount, pageSize, isLoading = false,
 
       {items.map((item, index) =>
         item === "..." ? (
-          <span className="px-1 text-sm font-bold text-slate-400" key={`ellipsis-${index}`}>
+          <span className="px-1 text-sm font-semibold text-slate-400" key={`ellipsis-${index}`}>
             ...
           </span>
         ) : (
           <button
             aria-current={item === currentPage ? "page" : undefined}
-            className={`h-9 min-w-9 rounded-lg px-2 text-sm font-bold ${
+            className={`h-9 min-w-9 rounded-lg px-2 text-sm font-semibold tabular-nums transition-colors ${
               item === currentPage
-                ? "bg-brand text-white"
-                : "border border-slate-300 bg-white text-slate-700"
+                ? "bg-blue-50 text-blue-600"
+                : "text-slate-600 hover:bg-slate-200"
             }`}
             disabled={isLoading}
             key={item}
@@ -80,7 +80,7 @@ function AdminPagination({ currentPage, totalCount, pageSize, isLoading = false,
       )}
 
       <button
-        className="btn-secondary !w-auto !px-3 !py-2 text-xs"
+        className="btn-secondary !w-auto !rounded-lg !px-3 !py-2 text-xs"
         disabled={currentPage === totalPages || isLoading}
         onClick={() => goTo(currentPage + 1)}
         type="button"
@@ -89,7 +89,7 @@ function AdminPagination({ currentPage, totalCount, pageSize, isLoading = false,
       </button>
       <button
         aria-label="마지막 페이지로"
-        className="btn-secondary !w-auto !px-2 !py-2 text-xs"
+        className="btn-secondary !w-auto !rounded-lg !px-2.5 !py-2 text-xs"
         disabled={currentPage === totalPages || isLoading}
         onClick={() => goTo(totalPages)}
         type="button"

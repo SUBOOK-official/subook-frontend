@@ -11,7 +11,7 @@ const labels = { payable: "미지급", waiting: "정산 대기", completed: "지
 function AmountSummary({ summary, amountLabel }) {
   return <dl className="grid grid-cols-1 gap-4 rounded-xl bg-slate-50 p-4 sm:grid-cols-3">
     {[["판매금액", summary.saleAmount], [`수수료 ${JEONIL_SETTLEMENT_FEE_PERCENT}%`, summary.feeAmount], [amountLabel, summary.netAmount]].map(([label, amount]) => (
-      <div key={label}><dt className="text-xs font-semibold text-slate-500">{label}</dt><dd className="mt-1 text-lg font-black tabular-nums text-slate-950">{formatCurrency(amount)}</dd></div>
+      <div key={label}><dt className="text-xs font-semibold text-slate-500">{label}</dt><dd className="mt-1 text-lg font-bold tabular-nums text-slate-950">{formatCurrency(amount)}</dd></div>
     ))}
   </dl>;
 }
@@ -81,7 +81,7 @@ export default function JeonilSettlementSection({ status, refreshKey }) {
 
   return <section className="rounded-2xl border border-indigo-200 bg-white p-5 sm:p-6" aria-label="전일학원 모의고사 정산">
     <div className="flex flex-wrap items-start justify-between gap-3">
-      <div><div className="flex flex-wrap items-center gap-2"><h2 className="font-black text-slate-950">전일학원 모의고사</h2><span className="rounded-md bg-indigo-50 px-2 py-1 text-xs font-bold text-indigo-700">별도 정산</span></div>
+      <div><div className="flex flex-wrap items-center gap-2"><h2 className="font-bold text-slate-950">전일학원 모의고사</h2><span className="rounded-md bg-indigo-50 px-2 py-1 text-xs font-bold text-indigo-700">별도 정산</span></div>
         <p className="mt-2 text-sm text-slate-500">전일학원 원장님 지급 · 수수료 {JEONIL_SETTLEMENT_FEE_PERCENT}%</p>
       </div>
       <span className="text-xs font-semibold text-slate-500">{labels[status]}</span>
@@ -90,7 +90,7 @@ export default function JeonilSettlementSection({ status, refreshKey }) {
       : error ? <div className="mt-4 space-y-3" role="alert"><p className="text-sm text-rose-700">{error}</p><button className="btn-secondary !w-auto !px-4 !py-2 text-sm" type="button" onClick={load}>전일학원 다시 불러오기</button></div>
         : <>
           <button className="mt-4 flex w-full flex-wrap items-center justify-between gap-4 rounded-xl bg-indigo-50/60 p-4 text-left hover:bg-indigo-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-600" type="button" disabled={disabled} onClick={() => setDetailMode(status)} aria-label={`전일학원 ${labels[status]} 상세`}>
-            <span><span className="block text-xs font-semibold text-slate-500">{isPayable ? "원장님께 정산할 금액" : "원장님께 지급한 금액"}</span><span className="mt-1 block text-2xl font-black tabular-nums text-slate-950">{formatCurrency(summary.netAmount)}</span></span>
+            <span><span className="block text-xs font-semibold text-slate-500">{isPayable ? "원장님께 정산할 금액" : "원장님께 지급한 금액"}</span><span className="mt-1 block text-2xl font-bold tabular-nums text-slate-950">{formatCurrency(summary.netAmount)}</span></span>
             <span className="text-right"><span className="block text-sm font-bold text-slate-700">{summary.quantity}권</span><span className="mt-1 block text-xs font-semibold text-indigo-700">교재 내역 보기 →</span></span>
           </button>
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3">

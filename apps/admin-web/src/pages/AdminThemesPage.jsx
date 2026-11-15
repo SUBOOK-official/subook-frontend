@@ -12,7 +12,7 @@ import { STOREFRONT_FEATURED_YEARS } from "@shared-domain/storefrontYears";
 import { normalizeThemeFilterContext, THEME_FILTER_FIELDS, themeFilterContextLabels } from "@shared-domain/themeFilters";
 const input = "mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white";
 const button = "rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold disabled:opacity-50";
-const primary = "rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white disabled:opacity-50";
+const primary = "rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white disabled:opacity-50";
 const contextOptions = { brands: BRAND_OPTIONS, types: BOOK_TYPE_OPTIONS, years: STOREFRONT_FEATURED_YEARS.map(String), subject: SUBJECT_OPTIONS };
 
 export default function AdminThemesPage() {

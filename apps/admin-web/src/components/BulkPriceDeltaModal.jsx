@@ -84,7 +84,7 @@ function BulkPriceDeltaModal({ open, books, selectedIds, busy = false, onCancel,
         ref={dialogRef}
         role="dialog"
       >
-        <h2 className="text-lg font-black text-slate-900" id={titleId}>
+        <h2 className="text-lg font-bold text-slate-900" id={titleId}>
           일괄 가격 변경 — {selectedBooks.length}권
         </h2>
         <p className="mt-2 text-sm text-slate-700">

@@ -879,7 +879,7 @@ export default function MetaAdEditor({
             )}
             <button
               type="submit"
-              className="rounded-lg bg-slate-950 px-4 py-2 text-sm font-bold text-white disabled:opacity-40"
+              className="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white disabled:opacity-40"
               disabled={!canManage || busy || loading}
             >
               {busy ? "확인 중…" : "반영 전 내용 확인"}

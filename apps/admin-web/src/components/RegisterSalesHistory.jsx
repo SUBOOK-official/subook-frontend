@@ -43,7 +43,7 @@ export default function RegisterSalesHistory({ productId }) {
 
   return (
     <div className="mt-5">
-      <h3 className="text-sm font-black text-slate-900">
+      <h3 className="text-sm font-bold text-slate-900">
         판매 내역
         {!state.loading && !state.error ? <span className="ml-1.5 text-xs font-bold text-slate-500">{salesCount}건</span> : null}
       </h3>

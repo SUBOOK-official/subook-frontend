@@ -8,7 +8,7 @@ import { BookIcon, FolderIcon, PlusIcon, SearchIcon } from "../components/icons"
 import { InlineLoading } from "../components/Loading";
 
 const buttonClass = "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50";
-const primaryClass = "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-slate-900 px-5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50";
+const primaryClass = "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-brand px-5 text-sm font-semibold text-white hover:bg-brand-soft disabled:opacity-50";
 const inputClass = "min-h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100";
 const PdfPreview = lazy(() => import("../components/StudyMaterialPdfPreview"));
 

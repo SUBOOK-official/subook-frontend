@@ -215,7 +215,7 @@ function ResetPasswordPage() {
     <main className="app-shell">
       <header className="mb-6">
         <p className="text-sm font-bold uppercase tracking-wide text-brand">Admin</p>
-        <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-900">{pageTitle}</h1>
+        <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">{pageTitle}</h1>
         <p className="mt-2 text-sm font-semibold text-slate-600">
           초대/비밀번호 재설정 메일에서 넘어온 링크로 관리자 비밀번호를 설정합니다.
         </p>

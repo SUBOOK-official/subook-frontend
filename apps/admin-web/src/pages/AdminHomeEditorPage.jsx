@@ -40,7 +40,7 @@ export default function AdminHomeEditorPage() {
     <AdminQueryState loading={state.loading} error={state.error} onRetry={load}>
       {data ? <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_260px]">
         <div className="overflow-auto rounded-2xl border border-slate-200 bg-slate-100 p-3 sm:p-6"><div className={`mx-auto space-y-6 rounded-xl bg-white p-4 shadow-sm ${mobile ? "max-w-[390px]" : "w-full"}`}>
-          <div className="border-b border-slate-100 pb-3 text-lg font-black tracking-tight">수북 <span className="float-right text-xs font-normal text-slate-400">교재 찾기</span></div>
+          <div className="border-b border-slate-100 pb-3 text-lg font-bold tracking-tight">수북 <span className="float-right text-xs font-normal text-slate-400">교재 찾기</span></div>
           {active.filter((p) => p.placement === "home_hero").map((p) => <Link key={p.id} to="/admin/promotions"><img src={mobile ? p.mobile_image_url || p.image_url : p.image_url} alt={p.alt_text} className="w-full rounded-xl" /></Link>)}
           {data.hero.some((r) => r.is_enabled) ? <section><h2 className="mb-3 text-sm font-bold">홈 배너 교재</h2><div className={`grid gap-3 ${mobile ? "grid-cols-2" : "grid-cols-4"}`}>{productTiles(data.hero)}</div></section> : null}
           <section><div className="flex gap-4 overflow-x-auto">{data.themes.filter((t) => t.is_enabled).map((theme) => <Link key={theme.id} to="/admin/themes" className="w-16 shrink-0 text-center"><img src={theme.image_url} alt="" className="h-16 w-16 rounded-full object-cover" /><p className="mt-2 text-[11px] font-semibold">{theme.title}</p></Link>)}</div></section>

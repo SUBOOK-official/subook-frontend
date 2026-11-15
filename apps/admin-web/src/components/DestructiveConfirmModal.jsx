@@ -76,7 +76,7 @@ function DestructiveConfirmModal({
         ref={dialogRef}
         role="dialog"
       >
-        <h2 className="text-lg font-black text-rose-700" id={titleId}>{title}</h2>
+        <h2 className="text-lg font-bold text-rose-700" id={titleId}>{title}</h2>
         <p className="mt-2 whitespace-pre-line text-sm text-slate-700">{description}</p>
 
         {reasonRequired ? (

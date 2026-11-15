@@ -47,7 +47,7 @@ function StatCard({ label, value, hint, tone = "default" }) {
   return (
     <div className={`rounded-2xl shadow-sm border border-slate-100 p-5 ${toneClass}`}>
       <p className="text-xs font-semibold text-slate-500">{label}</p>
-      <p className="mt-2 whitespace-nowrap text-2xl font-black text-slate-900 tabular-nums">{value}</p>
+      <p className="mt-2 whitespace-nowrap text-2xl font-bold text-slate-900 tabular-nums">{value}</p>
       {hint ? <p className="mt-1 text-xs text-slate-400">{hint}</p> : null}
     </div>
   );

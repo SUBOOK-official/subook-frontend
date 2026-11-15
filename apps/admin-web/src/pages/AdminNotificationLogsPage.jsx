@@ -272,12 +272,12 @@ function AdminNotificationLogsPage() {
             <table className="min-w-full divide-y divide-slate-200 text-sm">
               <thead className="bg-slate-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-black text-slate-500">시각</th>
-                  <th className="px-4 py-3 text-left text-xs font-black text-slate-500">유형</th>
-                  <th className="px-4 py-3 text-left text-xs font-black text-slate-500">수신자</th>
-                  <th className="px-4 py-3 text-left text-xs font-black text-slate-500">상태</th>
-                  <th className="px-4 py-3 text-left text-xs font-black text-slate-500">내용</th>
-                  <th className="px-4 py-3 text-right text-xs font-black text-slate-500">작업</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-500">시각</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-500">유형</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-500">수신자</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-500">상태</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-500">내용</th>
+                  <th className="px-4 py-3 text-right text-xs font-bold text-slate-500">작업</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">

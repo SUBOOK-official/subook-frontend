@@ -97,7 +97,7 @@ function MemberPointsPanel({ userId }) {
     <div className="space-y-3">
       <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
         <span className="text-sm font-semibold text-slate-600">보유 포인트</span>
-        <span className="text-lg font-black text-slate-900">{isLoading ? "…" : formatPoints(balance)}</span>
+        <span className="text-lg font-bold text-slate-900">{isLoading ? "…" : formatPoints(balance)}</span>
       </div>
 
       <div className="flex flex-wrap items-end gap-2">
@@ -155,7 +155,7 @@ function MemberPointsPanel({ userId }) {
                   {Number(row.amount) > 0 && row.expires_at ? ` · ${formatDateTime(row.expires_at).slice(0, 10)} 소멸` : ""}
                 </p>
               </div>
-              <span className={`shrink-0 font-black ${Number(row.amount) < 0 ? "text-slate-500" : "text-blue-700"}`}>
+              <span className={`shrink-0 font-bold ${Number(row.amount) < 0 ? "text-slate-500" : "text-blue-700"}`}>
                 {Number(row.amount) > 0 ? "+" : ""}
                 {formatPoints(row.amount)}
               </span>

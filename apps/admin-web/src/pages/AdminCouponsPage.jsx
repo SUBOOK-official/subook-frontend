@@ -471,7 +471,7 @@ function AdminCouponsPage() {
     <AdminShell
       actions={
         <button
-          className="rounded-md bg-slate-900 px-3 py-2 text-xs font-bold text-white hover:bg-slate-700"
+          className="rounded-md bg-brand px-3 py-2 text-xs font-bold text-white hover:bg-brand-soft"
           onClick={openCreate}
           type="button"
         >
@@ -921,7 +921,7 @@ function AdminCouponsPage() {
               <button
                 type="submit"
                 disabled={isSaving}
-                className="rounded-md bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700 disabled:opacity-50"
+                className="rounded-md bg-brand px-4 py-2 text-sm font-bold text-white hover:bg-brand-soft disabled:opacity-50"
               >
                 {isSaving ? <BusyText>저장 중...</BusyText> : form.id ? "수정 저장" : "쿠폰 생성"}
               </button>
@@ -940,7 +940,7 @@ function AdminCouponsPage() {
           >
             <header className="mb-4 flex items-center justify-between">
               <div>
-                <h2 id="coupon-issue-title" className="text-xl font-black text-slate-900">쿠폰 발급</h2>
+                <h2 id="coupon-issue-title" className="text-xl font-bold text-slate-900">쿠폰 발급</h2>
                 <p className="mt-1 text-sm text-slate-500">
                   <span className="font-bold">{issueTarget.title}</span>
                   {issueTarget.issuance_type === "code" || issueTarget.issuance_type === "download"
@@ -1010,7 +1010,7 @@ function AdminCouponsPage() {
                         type="button"
                         disabled={isIssuing}
                         onClick={() => handleIssueToUser(member)}
-                        className="rounded-md bg-slate-900 px-3 py-1 text-xs font-bold text-white hover:bg-slate-700 disabled:opacity-50"
+                        className="rounded-md bg-brand px-3 py-1 text-xs font-bold text-white hover:bg-brand-soft disabled:opacity-50"
                       >
                         발급
                       </button>
@@ -1039,7 +1039,7 @@ function AdminCouponsPage() {
           <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg bg-white p-6 shadow-xl">
             <header className="mb-4 flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-black text-slate-900">발급 이력</h2>
+                <h2 className="text-xl font-bold text-slate-900">발급 이력</h2>
                 <p className="mt-1 text-sm text-slate-500">{historyTarget.title}</p>
               </div>
               <button
@@ -1056,23 +1056,23 @@ function AdminCouponsPage() {
               <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
                 <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-center">
                   <div className="text-xs text-slate-500">총 발급</div>
-                  <div className="mt-1 text-xl font-black text-slate-900">{historyStats.total_issued}</div>
+                  <div className="mt-1 text-xl font-bold text-slate-900">{historyStats.total_issued}</div>
                 </div>
                 <div className="rounded-md border border-slate-200 bg-emerald-50 p-3 text-center">
                   <div className="text-xs text-emerald-700">사용</div>
-                  <div className="mt-1 text-xl font-black text-emerald-800">{historyStats.used_count}</div>
+                  <div className="mt-1 text-xl font-bold text-emerald-800">{historyStats.used_count}</div>
                 </div>
                 <div className="rounded-md border border-slate-200 bg-blue-50 p-3 text-center">
                   <div className="text-xs text-blue-700">미사용</div>
-                  <div className="mt-1 text-xl font-black text-blue-800">{historyStats.available_count}</div>
+                  <div className="mt-1 text-xl font-bold text-blue-800">{historyStats.available_count}</div>
                 </div>
                 <div className="rounded-md border border-slate-200 bg-rose-50 p-3 text-center">
                   <div className="text-xs text-rose-700">만료</div>
-                  <div className="mt-1 text-xl font-black text-rose-800">{historyStats.expired_count}</div>
+                  <div className="mt-1 text-xl font-bold text-rose-800">{historyStats.expired_count}</div>
                 </div>
                 <div className="rounded-md border border-slate-200 bg-amber-50 p-3 text-center">
                   <div className="text-xs text-amber-700">잔여 발급</div>
-                  <div className="mt-1 text-xl font-black text-amber-800">
+                  <div className="mt-1 text-xl font-bold text-amber-800">
                     {historyStats.remaining_quota == null ? "무제한" : historyStats.remaining_quota}
                   </div>
                 </div>

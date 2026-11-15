@@ -21,7 +21,7 @@ function MetricCard({ label, value, previous, format = "count", source, hint, in
   const good = change && (inverse ? change.value < 0 : change.value > 0);
   return <article className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
     <div className="flex items-center justify-between gap-2"><h2 className="text-sm font-semibold text-slate-600">{label}</h2><span className="text-[10px] font-semibold text-slate-400">{source}</span></div>
-    <p className="mt-3 break-words text-lg font-black tracking-tight text-slate-950 tabular-nums sm:text-xl 2xl:text-2xl">{fmt(value, format)}</p>
+    <p className="mt-3 break-words text-lg font-bold tracking-tight text-slate-950 tabular-nums sm:text-xl 2xl:text-2xl">{fmt(value, format)}</p>
     <p className={`mt-2 text-xs font-semibold tabular-nums ${neutral ? "text-slate-500" : change?.value ? good ? "text-emerald-700" : "text-rose-700" : "text-slate-400"}`}>
       {change ? `${change.value > 0 ? "+" : ""}${change.value.toLocaleString("ko-KR", { maximumFractionDigits: 1 })}${change.unit} · 직전 기간 대비` : value == null ? "집계 전" : previous === 0 ? "직전 기간 실적 없음" : "비교 데이터 없음"}
     </p>
@@ -157,7 +157,7 @@ export default function AdminPerformancePage() {
         })}</div>
         <div className="flex flex-wrap gap-2">
           <button type="button" className={buttonClass} disabled={salesLoading || providersLoading} onClick={() => setReload((value) => value + 1)}>새로고침</button>
-          <button type="button" className={`${buttonClass} !border-slate-950 !bg-slate-950 !text-white`} disabled={exportDisabled} onClick={downloadPerformance} aria-busy={exporting}>{exporting ? "엑셀 생성 중…" : "엑셀 다운로드"}</button>
+          <button type="button" className={`${buttonClass} !border-brand !bg-brand !text-white`} disabled={exportDisabled} onClick={downloadPerformance} aria-busy={exporting}>{exporting ? "엑셀 생성 중…" : "엑셀 다운로드"}</button>
         </div>
       </div>
       <form className="mt-4 flex flex-wrap items-end gap-2" onSubmit={(event) => { event.preventDefault(); const values = new FormData(event.currentTarget); selectRange({ from: values.get("from"), to: values.get("to") }); }}>

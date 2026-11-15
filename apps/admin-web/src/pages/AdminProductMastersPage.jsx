@@ -745,7 +745,7 @@ function AdminProductMastersPage() {
             {isInventoryExporting ? <BusyText>생성 중...</BusyText> : "재고 엑셀"}
           </button>
           <Link
-            className="rounded-md bg-slate-900 px-3 py-2 text-xs font-bold text-white hover:bg-slate-700"
+            className="rounded-md bg-brand px-3 py-2 text-xs font-bold text-white hover:bg-brand-soft"
             to="/admin/register"
           >
             + 상품 등록
@@ -785,7 +785,7 @@ function AdminProductMastersPage() {
                 <div className="text-xs font-bold uppercase tracking-wide">
                   {card.label}
                 </div>
-                <div className="mt-1 text-2xl font-black">{card.value ?? 0}</div>
+                <div className="mt-1 text-2xl font-bold">{card.value ?? 0}</div>
               </button>
             );
           })}
@@ -1248,7 +1248,7 @@ function AdminProductMastersPage() {
                   ) : null}
                 </div>
                 <div className="min-w-0">
-                  <h2 className="text-lg font-black text-slate-900">{detailTarget.title}</h2>
+                  <h2 className="text-lg font-bold text-slate-900">{detailTarget.title}</h2>
                   <p className="mt-1 text-sm text-slate-500">
                     {[
                       detailTarget.brand,

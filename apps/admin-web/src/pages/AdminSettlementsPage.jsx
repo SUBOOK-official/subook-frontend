@@ -340,7 +340,7 @@ function AdminSettlementsPage() {
       <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {summaryCards.map((card, index) => <div className={`card !p-4 ${index === 0 ? "col-span-2 sm:col-span-1" : ""}`} key={card.label}>
           <dt className="text-xs font-semibold text-slate-500">{card.label}</dt>
-          <dd className="mt-1 text-2xl font-black tabular-nums text-slate-950">{card.value}</dd>
+          <dd className="mt-1 text-2xl font-bold tabular-nums text-slate-950">{card.value}</dd>
           <dd className="mt-1 text-xs text-slate-500">{isLoading ? "불러오는 중" : loadError ? "조회 실패" : card.hint}</dd>
         </div>)}
       </dl>
@@ -419,7 +419,7 @@ function AdminSettlementsPage() {
                       </span>
                       <span className="hidden text-right text-sm text-slate-600 sm:block">{group.items.length}건</span>
                       <span className="col-start-2 row-start-1 text-right sm:col-start-4">
-                        <span className="block text-lg font-black tabular-nums text-slate-950">{formatCurrency(group.total_net_amount)}</span>
+                        <span className="block text-lg font-bold tabular-nums text-slate-950">{formatCurrency(group.total_net_amount)}</span>
                         <span className="mt-1 block text-xs text-slate-400 sm:hidden">{group.items.length}건</span>
                         {!isPayable ? <span className="mt-1 block text-xs text-slate-500">최근 지급 {formatDate(group.completed_at)}</span> : null}
                       </span>
@@ -467,7 +467,7 @@ function AdminSettlementsPage() {
           {isPayable && !detail.hasAccount && detail.items.some((item) => item.seller_user_id) ? <p className="text-sm text-amber-700">회원 셀러에게 마이페이지에서 정산계좌를 등록하도록 안내해 주세요.</p> : null}
           <dl className="grid grid-cols-2 gap-4 rounded-xl bg-slate-50 p-4 sm:grid-cols-4">
             {[["판매금액", detail.total_sale_amount], ["수수료", detail.total_fee_amount], ["상품화 비용 차감", detail.total_deduction], [isPayable ? "정산할 금액" : "지급한 금액", detail.total_net_amount]].map(([label, value]) => (
-              <div key={label}><dt className="text-xs font-semibold text-slate-500">{label}</dt><dd className="mt-1 text-lg font-black tabular-nums text-slate-950">{formatCurrency(value)}</dd></div>
+              <div key={label}><dt className="text-xs font-semibold text-slate-500">{label}</dt><dd className="mt-1 text-lg font-bold tabular-nums text-slate-950">{formatCurrency(value)}</dd></div>
             ))}
           </dl>
           <div>
@@ -527,7 +527,7 @@ function AdminSettlementsPage() {
       >
         <div className="space-y-5 p-6">
           <div><p className="text-sm font-semibold text-slate-500">{completeConfirm?.groups.length ?? 0}개 계좌 · 정산 {completeConfirm?.ids.length ?? 0}건</p>
-            <p className="mt-1 text-2xl font-black text-slate-950">{formatCurrency(completeConfirm?.amount ?? 0)}</p>
+            <p className="mt-1 text-2xl font-bold text-slate-950">{formatCurrency(completeConfirm?.amount ?? 0)}</p>
           </div>
           <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200 px-4">
             {(completeConfirm?.groups ?? []).map((group) => <li className="py-3" key={group.key}>

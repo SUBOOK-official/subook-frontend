@@ -9,7 +9,7 @@ import { fromKstInput, isPromotionUrl, PROMOTION_PLACEMENTS, promotionStatus, to
 
 const inputClass = "mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white";
 const buttonClass = "rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold disabled:opacity-50";
-const primaryClass = "rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white disabled:opacity-50";
+const primaryClass = "rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white disabled:opacity-50";
 const previewUrl = (url) => isPromotionUrl(url) ? (url.startsWith("/") ? `https://subook.kr${url}` : url) : undefined;
 const scheduleLabel = (value, end = false) => toKstInput(value, end).replace("T", " ");
 

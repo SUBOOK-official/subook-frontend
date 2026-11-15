@@ -82,7 +82,7 @@ function AdminDialog({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
       onClick={requestClose}
       role="presentation"
     >
@@ -101,12 +101,12 @@ function AdminDialog({
         role="dialog"
       >
         {title ? (
-          <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-            <h2 className="text-lg font-black text-slate-950" id={titleId}>{title}</h2>
+          <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+            <h2 className="text-lg font-bold tracking-tight text-slate-900" id={titleId}>{title}</h2>
             {/* ✕ 닫기 버튼 — busy일 때 비활성 (저장 중 우발적 닫힘 방지) */}
             <button
               aria-label="닫기"
-              className="text-slate-400 hover:text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed text-2xl leading-none w-8 h-8 flex items-center justify-center rounded-md hover:bg-slate-100"
+              className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-30"
               disabled={busy}
               onClick={() => requestClose(null)}
               type="button"
@@ -118,7 +118,7 @@ function AdminDialog({
         {hasFooter ? (
           <>
             <div className="flex-1 overflow-y-auto">{children}</div>
-            <div className="border-t border-slate-200 bg-slate-50 px-6 py-3">{footer}</div>
+            <div className="border-t border-slate-100 bg-white px-6 py-4">{footer}</div>
           </>
         ) : (
           children

@@ -213,7 +213,7 @@ export default function AdminIlseongAppPage() {
                 환불은 이 설정과 관계없이 그대로 진행됩니다. 교재가 포함된 환불(발송 전 취소 포함)에만 적용되고, 굿즈만 환불하면 앱에는 아무 처리도 하지 않습니다.
               </p>
               <button
-                className="rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
                 disabled={busy || loading}
                 type="submit"
               >

@@ -75,7 +75,7 @@ function AuthEmailRedirector() {
 
 function PageLoadingFallback() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm font-semibold text-slate-500">
+    <div className="flex min-h-screen items-center justify-center text-sm font-semibold text-slate-500">
       <InlineLoading />
     </div>
   );

@@ -134,11 +134,11 @@ function AdminLoginPage() {
   };
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-12">
+    <main className="flex min-h-screen items-center justify-center px-4 py-12">
       <div className="w-full max-w-md">
         <header className="mb-8 text-center">
-          <img alt="SUBOOK" className="mx-auto h-5 w-auto" src={brandLogoImage} />
-          <h1 className="mt-2 text-2xl font-black tracking-tight text-slate-900">관리자 로그인</h1>
+          <img alt="SUBOOK" className="mx-auto h-6 w-auto" src={brandLogoImage} />
+          <h1 className="mt-5 text-[26px] font-bold tracking-tight text-slate-900">관리자 로그인</h1>
           <p className="mt-2 text-sm text-slate-500">
             관리자 계정으로 로그인해 주세요
           </p>
@@ -152,7 +152,7 @@ function AdminLoginPage() {
 
         {error ? <p className="notice-error mb-4">{error}</p> : null}
 
-        <section className="card animate-rise">
+        <section className="card animate-rise !p-6 sm:!p-7">
           <form className="space-y-4" onSubmit={handleSubmit}>
             <label className="block">
               <span className="label">이메일</span>
@@ -184,7 +184,7 @@ function AdminLoginPage() {
             </button>
           </form>
 
-          <div className="mt-5 border-t border-slate-200 pt-4">
+          <div className="mt-5 border-t border-slate-100 pt-4">
             <button
               className="btn-secondary w-full"
               disabled={isSendingReset}
@@ -199,7 +199,7 @@ function AdminLoginPage() {
         </section>
 
         <div className="mt-5 text-center">
-          <a className="text-sm font-semibold text-slate-500 underline transition hover:text-brand" href={sellerPortalUrl}>
+          <a className="text-sm font-semibold text-slate-500 transition-colors hover:text-slate-800" href={sellerPortalUrl}>
             판매자 조회 화면으로
           </a>
         </div>

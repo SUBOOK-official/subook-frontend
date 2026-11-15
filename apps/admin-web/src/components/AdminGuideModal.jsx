@@ -34,14 +34,14 @@ function AdminGuideModal({ guide, open, onClose }) {
         className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl"
         onClick={(event) => event.stopPropagation()}
       >
-        <header className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+        <header className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
           <div>
-            <p className="text-xs font-bold uppercase tracking-widest text-slate-400">사용 가이드</p>
-            <h2 className="text-xl font-black text-slate-950">{guide.title}</h2>
+            <p className="text-xs font-semibold text-slate-400">사용 가이드</p>
+            <h2 className="text-xl font-bold tracking-tight text-slate-900">{guide.title}</h2>
           </div>
           <button
             aria-label="가이드 닫기"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 text-slate-500 transition hover:bg-slate-50 hover:text-slate-900"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
             onClick={onClose}
             type="button"
           >
@@ -56,8 +56,8 @@ function AdminGuideModal({ guide, open, onClose }) {
 
           {(guide.sections ?? []).map((section, index) => (
             <section key={section.heading}>
-              <h3 className="flex items-center gap-2 text-sm font-black text-slate-900">
-                <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-950 text-xs font-black text-white">
+              <h3 className="flex items-center gap-2 text-[15px] font-bold text-slate-900">
+                <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-blue-600">
                   {index + 1}
                 </span>
                 {section.heading}
@@ -73,7 +73,7 @@ function AdminGuideModal({ guide, open, onClose }) {
                 <figure className="mt-3 pl-8">
                   <img
                     alt={section.imageCaption || `${guide.title} 화면 예시`}
-                    className="w-full rounded-xl border border-slate-200 shadow-sm"
+                    className="w-full rounded-xl border border-slate-200"
                     loading="lazy"
                     src={section.image}
                   />
@@ -85,7 +85,7 @@ function AdminGuideModal({ guide, open, onClose }) {
                 </figure>
               ) : null}
               {section.tips?.length ? (
-                <div className="mt-3 ml-8 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                <div className="mt-3 ml-8 rounded-xl bg-amber-50 px-4 py-3">
                   {section.tips.map((tip) => (
                     <p className="text-xs font-semibold leading-relaxed text-amber-800" key={tip}>
                       {tip}
@@ -97,9 +97,9 @@ function AdminGuideModal({ guide, open, onClose }) {
           ))}
         </div>
 
-        <footer className="flex justify-end border-t border-slate-200 px-6 py-3">
+        <footer className="flex justify-end border-t border-slate-100 px-6 py-4">
           <button
-            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white transition hover:bg-slate-700"
+            className="btn-primary !w-auto !px-5 !py-2.5"
             onClick={onClose}
             type="button"
           >

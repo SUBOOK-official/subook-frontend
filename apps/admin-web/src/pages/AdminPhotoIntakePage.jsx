@@ -669,7 +669,7 @@ function AdminPhotoIntakePage() {
         {/* 좌: 작업 큐 */}
         <section className="card !p-0 overflow-hidden">
           <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-3">
-            <h2 className="text-sm font-black text-slate-900">작업 큐</h2>
+            <h2 className="text-sm font-bold text-slate-900">작업 큐</h2>
             <div className="flex-1" />
             <select
               className="input-base !mt-0 !w-auto !py-1.5 text-xs"
@@ -743,7 +743,7 @@ function AdminPhotoIntakePage() {
                     <p className="text-[11px] font-bold uppercase tracking-wide text-indigo-600">
                       지금 스캔할 책{currentQueuePos >= 0 ? ` — 큐 ${currentQueuePos + 1}/${workQueue.length}` : ""}
                     </p>
-                    <h2 className="mt-0.5 text-lg font-black text-slate-900">{current.title}</h2>
+                    <h2 className="mt-0.5 text-lg font-bold text-slate-900">{current.title}</h2>
                     <p className="mt-1 font-mono text-sm font-bold text-indigo-700">
                       위치 {current.locations.join(" · ") || "미지정"} · No.
                       {current.serials.join(", ") || "—"}
@@ -838,7 +838,7 @@ function AdminPhotoIntakePage() {
           {/* 미배정 트레이 */}
           {tray.length > 0 ? (
             <section className="card p-4">
-              <h3 className="text-sm font-black text-slate-900">
+              <h3 className="text-sm font-bold text-slate-900">
                 미배정 스캔 ({tray.length}) —{" "}
                 <span className="font-semibold text-slate-500">
                   2장 초과분이나 트레이로 뺀 스캔입니다. 클릭하면 현재 상품에 붙어요.

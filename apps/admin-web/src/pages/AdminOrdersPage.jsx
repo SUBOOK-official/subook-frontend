@@ -1444,7 +1444,7 @@ function AdminOrdersPage() {
     <div className="space-y-4 border-l-4 border-blue-500 bg-white px-5 py-5">
       <div className="flex items-start justify-between">
         <div>
-          <h3 className="text-lg font-black text-slate-950">
+          <h3 className="text-lg font-bold text-slate-950">
             주문 {selectedOrder.order_number}
           </h3>
           <p className="text-sm text-slate-500 mt-1">
@@ -1498,13 +1498,13 @@ function AdminOrdersPage() {
                     {pointsUsed > 0 ? `포인트 −${formatCurrency(pointsUsed)}` : ""}
                   </span>
                 ) : (
-                  <span className="font-black text-lg">{formatCurrency(selectedOrder.total_amount)}</span>
+                  <span className="font-bold text-lg">{formatCurrency(selectedOrder.total_amount)}</span>
                 )}
               </div>
               {hasDiscount && (
                 <div className="flex justify-between items-center">
                   <span className="text-xs text-slate-400">할인 적용 후 결제 금액</span>
-                  <span className="font-black text-lg">{formatCurrency(selectedOrder.total_amount)}</span>
+                  <span className="font-bold text-lg">{formatCurrency(selectedOrder.total_amount)}</span>
                 </div>
               )}
               {/* 환불 누계 (2026-08-01 부분환불) — 부분환불 진행 중이면 잔액도 표시 */}
@@ -2080,7 +2080,7 @@ function AdminOrdersPage() {
           {/* CJ 송장 일괄 출력 — 발급 후 한 번의 인쇄 작업으로 N장 (배송 건수 늘어난 뒤 핵심 동선) */}
           {selectedCjTargets.length > 0 && (
             <button
-              className="text-xs font-semibold text-white bg-slate-900 hover:bg-slate-700 rounded-md px-3 py-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
+              className="text-xs font-semibold text-white bg-brand hover:bg-brand-soft rounded-md px-3 py-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
               disabled={bulkProcessing}
               onClick={() => openDeliveryPlan(selectedCjTargets.map((order) => order.id))}
               type="button"
@@ -3007,7 +3007,7 @@ function AdminOrdersPage() {
           >
             <header className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
               <div>
-                <h2 className="text-lg font-black text-slate-950">배송조회 — {deliveryTrace.orderNumber}</h2>
+                <h2 className="text-lg font-bold text-slate-950">배송조회 — {deliveryTrace.orderNumber}</h2>
                 <p className="mt-0.5 text-xs font-medium text-slate-500">
                   CJ대한통운 · <span className="font-mono">{deliveryTrace.invcNo}</span>
                   {deliveryTraceData?.delivered ? (
@@ -3051,7 +3051,7 @@ function AdminOrdersPage() {
                           <span className="w-px flex-1 bg-slate-200" aria-hidden="true" />
                         </div>
                         <div className={isLatest ? "" : "opacity-80"}>
-                          <p className={`text-sm ${isLatest ? "font-black text-slate-950" : "font-semibold text-slate-700"}`}>
+                          <p className={`text-sm ${isLatest ? "font-bold text-slate-950" : "font-semibold text-slate-700"}`}>
                             {event.statusText || event.statusCode || "-"}
                           </p>
                           <p className="mt-0.5 text-xs text-slate-500">
@@ -3086,7 +3086,7 @@ function AdminOrdersPage() {
                 CJ 조회 페이지에서 열기 ↗
               </a>
               <button
-                className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700"
+                className="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white hover:bg-brand-soft"
                 onClick={closeDeliveryTrace}
                 type="button"
               >

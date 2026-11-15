@@ -659,7 +659,7 @@ export default function AdminMetaAdsPage() {
             )}
             {isEntity && (
               <button
-                className={`${button} !bg-slate-950 !text-white`}
+                className={`${button} !border-brand !bg-brand !text-white`}
                 disabled={busy}
                 onClick={() => setEditor({ kind, parent })}
               >

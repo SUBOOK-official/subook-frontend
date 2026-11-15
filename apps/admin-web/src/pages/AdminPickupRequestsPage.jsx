@@ -144,7 +144,7 @@ function PickupDetailModal({ request, onClose }) {
     >
       <div className="space-y-6 px-6 py-5">
         <section>
-          <h3 className="mb-2 text-xs font-black uppercase tracking-wider text-slate-500">수령인 · 수거지</h3>
+          <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">수령인 · 수거지</h3>
           <dl className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
             <PickupDetailRow label="이름" value={request.pickup_recipient_name} />
             <PickupDetailRow label="연락처" value={request.pickup_recipient_phone} mono />
@@ -159,7 +159,7 @@ function PickupDetailModal({ request, onClose }) {
         </section>
 
         <section>
-          <h3 className="mb-2 text-xs font-black uppercase tracking-wider text-slate-500">수거 정보</h3>
+          <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">수거 정보</h3>
           <dl className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
             <PickupDetailRow
               label="희망 수거일"
@@ -180,7 +180,7 @@ function PickupDetailModal({ request, onClose }) {
         </section>
 
         <section>
-          <h3 className="mb-2 text-xs font-black uppercase tracking-wider text-slate-500">
+          <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">
             품목 {items.length > 0 ? `(${items.length})` : ""}
           </h3>
           {items.length > 0 ? (
@@ -206,7 +206,7 @@ function PickupDetailModal({ request, onClose }) {
 
         {request.tracking_number ? (
           <section>
-            <h3 className="mb-2 text-xs font-black uppercase tracking-wider text-slate-500">배송</h3>
+            <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">배송</h3>
             <dl className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
               {boxWaybills.length > 1 ? (
                 boxWaybills.map((waybill) => (
@@ -513,13 +513,13 @@ function InspectionWorkbenchSection() {
             <table className="w-full min-w-[56rem] divide-y divide-slate-200 text-sm">
               <thead className="bg-slate-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-black text-slate-500">#</th>
-                  <th className="px-4 py-3 text-left text-xs font-black text-slate-500">셀러</th>
-                  <th className="px-4 py-3 text-left text-xs font-black text-slate-500">연락처</th>
-                  <th className="px-4 py-3 text-left text-xs font-black text-slate-500">수거일</th>
-                  <th className="px-4 py-3 text-left text-xs font-black text-slate-500">상태</th>
-                  <th className="px-4 py-3 text-right text-xs font-black text-slate-500">책</th>
-                  <th className="px-4 py-3 text-right text-xs font-black text-slate-500">작업</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-500">#</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-500">셀러</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-500">연락처</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-500">수거일</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-500">상태</th>
+                  <th className="px-4 py-3 text-right text-xs font-bold text-slate-500">책</th>
+                  <th className="px-4 py-3 text-right text-xs font-bold text-slate-500">작업</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -1577,7 +1577,7 @@ function AdminPickupRequestsPage() {
                           />
                         </td>
                         <td className="px-4 py-4">
-                          <p className="font-mono text-xs font-black text-slate-900">
+                          <p className="font-mono text-xs font-bold text-slate-900">
                             {pickupRequest.request_number}
                           </p>
                           <p className="mt-1 text-xs font-semibold text-slate-500">
@@ -1665,7 +1665,7 @@ function AdminPickupRequestsPage() {
                         <td className="min-w-[160px] px-4 py-4">
                           {pickupRequest.tracking_number ? (
                             <div>
-                              <p className="font-mono text-xs font-black text-slate-900">
+                              <p className="font-mono text-xs font-bold text-slate-900">
                                 {pickupRequest.tracking_number}
                               </p>
                               <p className="mt-1 text-xs font-semibold text-slate-500">
@@ -1974,7 +1974,7 @@ function AdminPickupRequestsPage() {
                     type="button"
                   >
                     <div>
-                      <p className="font-mono text-xs font-black text-slate-900">
+                      <p className="font-mono text-xs font-bold text-slate-900">
                         {candidate.request_number}
                       </p>
                       <p className="mt-1 text-xs font-semibold text-slate-500">
@@ -2141,7 +2141,7 @@ function AdminPickupRequestsPage() {
           >
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h2 className="text-xl font-black text-slate-950">배송 추적</h2>
+                <h2 className="text-xl font-bold text-slate-950">배송 추적</h2>
                 <p className="mt-1 text-sm font-semibold text-slate-500">
                   운송장 {trackingModal.tracking?.waybillNo}
                   {trackingModal.tracking?.boxes?.length > 1
@@ -2159,7 +2159,7 @@ function AdminPickupRequestsPage() {
             </div>
 
             <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-sm font-black text-slate-900">
+              <p className="text-sm font-bold text-slate-900">
                 {trackingModal.tracking?.statusText || "상태 미확인"}
               </p>
               {trackingModal.tracking?.statusCode ? (
@@ -2175,7 +2175,7 @@ function AdminPickupRequestsPage() {
                 {trackingModal.tracking.boxes.map((box) => (
                   <section className="rounded-xl border border-slate-200" key={box.boxSeq}>
                     <header className="flex flex-wrap items-center justify-between gap-2 rounded-t-xl border-b border-slate-100 bg-slate-50 px-4 py-2.5">
-                      <p className="text-sm font-black text-slate-900">
+                      <p className="text-sm font-bold text-slate-900">
                         박스 {box.boxSeq}
                         <span className="ml-2 text-xs font-bold text-slate-600">
                           {box.failed ? "조회 실패" : box.statusText || "상태 미확인"}

@@ -149,7 +149,7 @@ export default function MetaMutationReview({ plans, onClose, onComplete }) {
             type="button"
             disabled={!ack || busy}
             onClick={execute}
-            className="mt-3 rounded-lg bg-slate-950 px-5 py-3 text-sm font-bold text-white disabled:opacity-40"
+            className="mt-3 rounded-lg bg-brand px-5 py-3 text-sm font-bold text-white disabled:opacity-40"
           >
             {busy ? "반영 중…" : `${plans.length}건 반영`}
           </button>

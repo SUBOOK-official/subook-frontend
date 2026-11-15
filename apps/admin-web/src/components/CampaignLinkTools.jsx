@@ -10,7 +10,7 @@ export default function CampaignLinkTools() {
     <p className="my-3 text-xs leading-relaxed text-slate-500">캠페인 이름은 기간·목표별로, ID는 광고 관리자와 같게 입력하세요. 소재마다 content를 구분하세요. URL을 만든 뒤 실제 광고의 최종 주소에 적용해야 집계됩니다.</p>
     <form onSubmit={(event)=>{event.preventDefault();try{setOutput(buildCampaignUrl(form));setMessage('주소를 만들었습니다.');}catch(error){setOutput('');setMessage(error.message);}}}>
       <div className="grid gap-3 md:grid-cols-2">{[['url','랜딩 주소'],['source','출처 (instagram / facebook 등)'],['medium','매체 (광고 cpc / 일반 게시물 social)'],['campaign','캠페인 이름 (예: 202609_sales_jeonil)'],['id','캠페인 ID'],['content','소재 ID·구분명']].map(([key,label])=><label key={key} className="text-xs font-semibold text-slate-600">{label}<input className={inputClass} required value={form[key]} onChange={(e)=>setForm({...form,[key]:e.target.value})}/></label>)}</div>
-      <button className="mt-3 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white" type="submit">URL 생성</button>
+      <button className="mt-3 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white" type="submit">URL 생성</button>
     </form>
     {output&&<div className="mt-3"><textarea aria-label="생성된 캠페인 URL" className={inputClass} readOnly rows={3} value={output}/><button type="button" className="mt-2 text-sm underline" onClick={async()=>{try{await navigator.clipboard.writeText(output);setMessage('복사했습니다.');}catch{setMessage('위 주소를 선택해서 복사해 주세요.');}}}>주소 복사</button></div>}
     <p className="mt-2 text-sm text-slate-600" role="status">{message}</p>

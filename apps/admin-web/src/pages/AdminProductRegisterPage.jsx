@@ -307,7 +307,7 @@ function StepBadge({ index, label, active, done }) {
   return (
     <div className="flex items-center gap-2">
       <span
-        className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-black ${
+        className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${
           active ? "bg-slate-900 text-white" : done ? "bg-emerald-500 text-white" : "bg-slate-200 text-slate-500"
         }`}
       >
@@ -1616,7 +1616,7 @@ function AdminProductRegisterForm() {
         {step === "customer" ? (
           <div className="grid gap-5 lg:grid-cols-2">
             <section className="rounded-2xl border border-slate-200 bg-white p-6">
-              <h2 className="text-lg font-black text-slate-900">최근 입고 · 등록할 수거 건</h2>
+              <h2 className="text-lg font-bold text-slate-900">최근 입고 · 등록할 수거 건</h2>
               <p className="mt-1 text-sm text-slate-500">
                 최근 입고·검수 중인 수거 건입니다. 이름·전화번호·수거신청 번호로도 검색할 수 있습니다.
               </p>
@@ -1687,7 +1687,7 @@ function AdminProductRegisterForm() {
             </section>
 
             <section className="rounded-2xl border border-slate-200 bg-white p-6">
-              <h2 className="text-lg font-black text-slate-900">새 고객 등록</h2>
+              <h2 className="text-lg font-bold text-slate-900">새 고객 등록</h2>
               <p className="mt-1 text-sm text-slate-500">
                 수거신청 없이 직접 입고된 셀러용입니다. 회원 수거신청은 왼쪽에서 고르세요.
               </p>
@@ -1796,7 +1796,7 @@ function AdminProductRegisterForm() {
                 <button
                   type="submit"
                   disabled={creatingCust}
-                  className="w-full rounded-md bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700 disabled:opacity-50"
+                  className="w-full rounded-md bg-brand px-4 py-2 text-sm font-bold text-white hover:bg-brand-soft disabled:opacity-50"
                 >
                   {creatingCust ? <BusyText>등록 중...</BusyText> : "이 고객으로 상품 등록 시작"}
                 </button>
@@ -1811,7 +1811,7 @@ function AdminProductRegisterForm() {
             <div className="grid gap-5 xl:grid-cols-2">
               {/* 좌측: 기존 교재 검색 */}
               <section className="rounded-2xl border border-slate-200 bg-white p-6">
-                <h2 className="text-lg font-black text-slate-900">기존 교재 추가하기</h2>
+                <h2 className="text-lg font-bold text-slate-900">기존 교재 추가하기</h2>
                 <p className="mt-1 text-sm text-slate-500">
                   이미 등록된 교재인지 검색하고, 선택해 재고/옵션을 추가합니다.
                 </p>
@@ -1819,7 +1819,7 @@ function AdminProductRegisterForm() {
                 {/* 표지 스캔 — 스캐너 저장 폴더 감시 or 사진 선택 → 인식 후보 원클릭 */}
                 <div className="mt-3 rounded-xl border border-indigo-200 bg-indigo-50/60 p-3">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs font-black text-indigo-900">표지 스캔</span>
+                    <span className="text-xs font-bold text-indigo-900">표지 스캔</span>
                     <button
                       type="button"
                       onClick={toggleCoverWatch}
@@ -1983,7 +1983,7 @@ function AdminProductRegisterForm() {
 
               {/* 우측: 신규 교재 등록 표 */}
               <section className="rounded-2xl border border-slate-200 bg-white p-6">
-                <h2 className="text-lg font-black text-slate-900">신규 교재 등록하기</h2>
+                <h2 className="text-lg font-bold text-slate-900">신규 교재 등록하기</h2>
                 <p className="mt-1 text-xs text-slate-500">
                   등록 순서: 연도+브랜드명+교재명+과목+선생님 (예: 2026 강남대성 크럭스 CRUX 수학1 현우진T)
                 </p>
@@ -2176,7 +2176,7 @@ function AdminProductRegisterForm() {
             {/* 추가된 기존 교재 요약 */}
             {existingAdditions.length > 0 ? (
               <section className="rounded-2xl border border-slate-200 bg-white p-6">
-                <h3 className="text-sm font-black text-slate-900">추가한 기존 교재 ({existingAdditions.length})</h3>
+                <h3 className="text-sm font-bold text-slate-900">추가한 기존 교재 ({existingAdditions.length})</h3>
                 <div className="mt-3 space-y-2">
                   {existingAdditions.map((a) => (
                     <div
@@ -2285,7 +2285,7 @@ function AdminProductRegisterForm() {
                 type="button"
                 disabled={!hasItems}
                 onClick={() => { if (validateBookTypes()) setStep("photos"); }}
-                className="rounded-md bg-slate-900 px-5 py-2.5 text-sm font-bold text-white hover:bg-slate-700 disabled:opacity-40"
+                className="rounded-md bg-brand px-5 py-2.5 text-sm font-bold text-white hover:bg-brand-soft disabled:opacity-40"
               >
                 사진 등록하기 →
               </button>
@@ -2316,7 +2316,7 @@ function AdminProductRegisterForm() {
               {photoTargets.map((t) => (
                 <section key={`${t.kind}-${t.uid}`} className="rounded-2xl border border-slate-200 bg-white p-5">
                   <div className="mb-3">
-                    <p className="text-sm font-black text-slate-900">{t.title}</p>
+                    <p className="text-sm font-bold text-slate-900">{t.title}</p>
                     <p className="text-xs text-slate-500">
                       옵션: {t.subtitle}
                       {serialRangeText(t.kind, t.uid) ? ` · 일련번호 ${serialRangeText(t.kind, t.uid)}` : ""}
@@ -2585,7 +2585,7 @@ function AdminProductRegisterForm() {
                   </form>
                 ) : (
                   <div className="flex flex-wrap items-start gap-2">
-                    <p className="min-w-0 break-words text-base font-black text-slate-900">{framePanel.product.title}</p>
+                    <p className="min-w-0 break-words text-base font-bold text-slate-900">{framePanel.product.title}</p>
                     <button
                       type="button"
                       className="btn-secondary !w-auto shrink-0 !px-2 !py-1 text-xs"
@@ -2611,7 +2611,7 @@ function AdminProductRegisterForm() {
 
             {/* 기존 옵션 재고 추가 — 정가/할인 입력 시 판매가 자동 계산 (신규 등록과 동일 규칙) */}
             <div className="mt-5">
-              <h3 className="text-sm font-black text-slate-900">재고 수량 추가하기</h3>
+              <h3 className="text-sm font-bold text-slate-900">재고 수량 추가하기</h3>
               {framePanel.existingOptions.some((o) => o.isDefaultSynthetic) ? (
                 <p className="mt-1 text-xs text-slate-500">
                   등록된 옵션 이력이 없습니다. 옵션명 없이 추가하려면 <strong>기본 옵션</strong>에 수량을 입력하세요.
@@ -2746,7 +2746,7 @@ function AdminProductRegisterForm() {
 
             {/* 신규 옵션 추가 */}
             <div className="mt-6">
-              <h3 className="text-sm font-black text-slate-900">신규 옵션 추가하기</h3>
+              <h3 className="text-sm font-bold text-slate-900">신규 옵션 추가하기</h3>
               <p className="mt-1 text-xs text-slate-500">
                 수량 1 · 판매가(기존 옵션 참고 가격)는 미리 채워져요 — 옵션명만 입력하면 됩니다. 판매가를 고치면
                 아직 손대지 않은 행에도 같이 적용되고, 정가+할인을 입력하면 판매가가 자동 계산돼요.
@@ -2842,7 +2842,7 @@ function AdminProductRegisterForm() {
 
             {/* 창고 위치 — 이 교재(배치)로 추가되는 책들에만 적용 (권별 수정은 상품 재고에서) */}
             <div className="mt-6">
-              <h3 className="text-sm font-black text-slate-900">창고 위치</h3>
+              <h3 className="text-sm font-bold text-slate-900">창고 위치</h3>
               <input
                 type="text"
                 value={getRegisterLocation(framePanel.location, batchLocation)}
@@ -2869,7 +2869,7 @@ function AdminProductRegisterForm() {
                 type="button"
                 onClick={confirmFramePanel}
                 disabled={titleSaving || framePanel.titleEditing}
-                className="rounded-md bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-md bg-brand px-4 py-2 text-sm font-bold text-white hover:bg-brand-soft disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {framePanel.isEditing ? "수정 반영" : "목록에 추가"}
               </button>

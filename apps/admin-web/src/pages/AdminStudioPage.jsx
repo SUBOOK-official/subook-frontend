@@ -273,19 +273,19 @@ function AdminStudioPage() {
         <div className="mt-4 grid gap-2 sm:grid-cols-4">
           <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
             <p className="text-[11px] font-bold text-slate-500">준비</p>
-            <p className="text-lg font-black text-slate-900">{summary.ready}</p>
+            <p className="text-lg font-bold text-slate-900">{summary.ready}</p>
           </div>
           <div className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-2">
             <p className="text-[11px] font-bold text-sky-700">진행</p>
-            <p className="text-lg font-black text-sky-900">{summary.queued + summary.processing}</p>
+            <p className="text-lg font-bold text-sky-900">{summary.queued + summary.processing}</p>
           </div>
           <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2">
             <p className="text-[11px] font-bold text-emerald-700">완료</p>
-            <p className="text-lg font-black text-emerald-900">{summary.done}</p>
+            <p className="text-lg font-bold text-emerald-900">{summary.done}</p>
           </div>
           <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2">
             <p className="text-[11px] font-bold text-rose-700">실패</p>
-            <p className="text-lg font-black text-rose-900">{summary.error}</p>
+            <p className="text-lg font-bold text-rose-900">{summary.error}</p>
           </div>
         </div>
 
@@ -416,7 +416,7 @@ function AdminStudioPage() {
               ref={selectModeDialogRef}
               role="dialog"
             >
-              <h2 className="text-lg font-black text-slate-900" id="studio-select-mode-title">
+              <h2 className="text-lg font-bold text-slate-900" id="studio-select-mode-title">
                 파일 선택 방식
               </h2>
               <p
