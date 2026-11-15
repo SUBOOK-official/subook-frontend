@@ -449,3 +449,70 @@ export function StarIcon(props) {
     </IconBase>
   );
 }
+
+// ── admin 전용: 2026-11 사이드바·통합 검색 개편용 ───────────────────
+// 아래 6개는 Lucide(ISC License, https://lucide.dev) 원본 path를 그대로 가져왔다.
+
+// lucide: house
+export function HomeIcon(props) {
+  return (
+    <IconBase {...props}>
+      <path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8" />
+      <path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+    </IconBase>
+  );
+}
+
+// lucide: message-circle
+export function MessageIcon(props) {
+  return (
+    <IconBase {...props}>
+      <path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719" />
+    </IconBase>
+  );
+}
+
+// lucide: layout-template
+export function LayoutIcon(props) {
+  return (
+    <IconBase {...props}>
+      <rect width="18" height="7" x="3" y="3" rx="1" />
+      <rect width="9" height="7" x="3" y="14" rx="1" />
+      <rect width="5" height="7" x="16" y="14" rx="1" />
+    </IconBase>
+  );
+}
+
+// lucide: file-text
+export function FileTextIcon(props) {
+  return (
+    <IconBase {...props}>
+      <path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z" />
+      <path d="M14 2v5a1 1 0 0 0 1 1h5" />
+      <path d="M10 9H8" />
+      <path d="M16 13H8" />
+      <path d="M16 17H8" />
+    </IconBase>
+  );
+}
+
+// lucide: log-out
+export function LogOutIcon(props) {
+  return (
+    <IconBase {...props}>
+      <path d="m16 17 5-5-5-5" />
+      <path d="M21 12H9" />
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+    </IconBase>
+  );
+}
+
+// lucide: corner-down-left (Enter 키 안내)
+export function EnterIcon(props) {
+  return (
+    <IconBase {...props}>
+      <path d="M20 4v7a4 4 0 0 1-4 4H4" />
+      <path d="m9 10-5 5 5 5" />
+    </IconBase>
+  );
+}

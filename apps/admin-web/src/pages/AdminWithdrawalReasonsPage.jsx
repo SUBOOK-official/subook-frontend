@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AdminShell from "../components/AdminShell";
-import AdminPageTabs from "../components/AdminPageTabs";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { InlineLoading } from "../components/Loading";
 import {
@@ -116,14 +115,7 @@ function AdminWithdrawalReasonsPage() {
       description="회원탈퇴 설문 응답 통계 — 개인정보 파기 후에도 익명으로 보관되는 서비스 개선 데이터입니다"
       title="회원"
     >
-      {/* R1 IA 개편: 회원 메뉴의 탭 (사이드바 단독 메뉴에서 이동) */}
-      <AdminPageTabs
-        activeKey="withdrawal"
-        tabs={[
-          { key: "members", label: "회원 목록", to: "/admin/members" },
-          { key: "withdrawal", label: "탈퇴 사유", hint: "설문 통계" },
-        ]}
-      />
+      {/* 회원 목록 ↔ 탈퇴 사유 탭은 AdminShell 상단 탭(lib/adminMenu.js)이 그린다 */}
       {errorMessage ? (
         <p className="mb-3 rounded-lg bg-rose-50 border border-rose-200 text-sm text-rose-700 px-4 py-3">
           {errorMessage}
@@ -165,11 +157,11 @@ function AdminWithdrawalReasonsPage() {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div className="card p-4">
               <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">기간 내 응답</p>
-              <p className="mt-1 text-2xl font-black text-slate-950">{categoryStats.total}건</p>
+              <p className="mt-1 text-2xl font-bold text-slate-950">{categoryStats.total}건</p>
             </div>
             <div className="card p-4">
               <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">누적 전체</p>
-              <p className="mt-1 text-2xl font-black text-slate-950">{rows.length}건</p>
+              <p className="mt-1 text-2xl font-bold text-slate-950">{rows.length}건</p>
             </div>
             <div className="card p-4">
               <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">최다 사유</p>
@@ -181,7 +173,7 @@ function AdminWithdrawalReasonsPage() {
 
           {/* 사유 분포 */}
           <div className="card p-5">
-            <h3 className="text-sm font-black text-slate-950 mb-3">사유 분포</h3>
+            <h3 className="text-sm font-bold text-slate-950 mb-3">사유 분포</h3>
             {categoryStats.total === 0 ? (
               <p className="text-sm text-slate-500">선택한 기간에 응답이 없습니다.</p>
             ) : (
@@ -221,7 +213,7 @@ function AdminWithdrawalReasonsPage() {
 
           {/* 직접 입력(상세) 목록 */}
           <div className="card p-5">
-            <h3 className="text-sm font-black text-slate-950 mb-3">
+            <h3 className="text-sm font-bold text-slate-950 mb-3">
               직접 입력 내용 <span className="text-slate-400 font-semibold">({detailRows.length}건)</span>
             </h3>
             {detailRows.length === 0 ? (

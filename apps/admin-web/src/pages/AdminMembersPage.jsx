@@ -4,7 +4,6 @@ import { useAdminListState } from "../lib/useAdminListState";
 import AdminDialog from "../components/AdminDialog";
 import AdminShell from "../components/AdminShell";
 import MemberPointsPanel from "../components/MemberPointsPanel";
-import AdminPageTabs from "../components/AdminPageTabs";
 import AdminPagination from "../components/AdminPagination";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import { formatCurrency, formatDate } from "@shared-domain/format";
@@ -120,7 +119,7 @@ function DetailSection({ title, children, right = null }) {
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-3">
-        <h4 className="text-sm font-black text-slate-900">{title}</h4>
+        <h4 className="text-sm font-bold text-slate-900">{title}</h4>
         {right}
       </div>
       {children}
@@ -442,15 +441,7 @@ function AdminMembersPage() {
       summaryCards={summaryCards}
       title="회원"
     >
-      {/* R1 IA 개편: 탈퇴 사유(저빈도 통계)를 사이드바 메뉴 대신 회원 메뉴의 탭으로 */}
-      <AdminPageTabs
-        activeKey="members"
-        tabs={[
-          { key: "members", label: "회원 목록" },
-          { key: "withdrawal", label: "탈퇴 사유", hint: "설문 통계", to: "/admin/withdrawal-reasons" },
-        ]}
-      />
-
+      {/* 회원 목록 ↔ 탈퇴 사유 탭은 AdminShell 상단 탭(lib/adminMenu.js)이 그린다 */}
       <section className="card space-y-4">
         <div className="flex flex-wrap items-end gap-3">
           <label className="min-w-[240px] flex-1">
@@ -524,7 +515,7 @@ function AdminMembersPage() {
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1040px] text-sm">
               <thead>
-                <tr className="border-b border-slate-100 text-left text-xs font-black uppercase tracking-wide text-slate-500">
+                <tr className="border-b border-slate-100 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
                   <th className="px-4 py-3">회원</th>
                   <th className="px-4 py-3">이메일</th>
                   <th className="px-4 py-3">연락처</th>
@@ -551,7 +542,7 @@ function AdminMembersPage() {
                   >
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1.5">
-                        <p className="font-black text-slate-900">{member.display_name || member.name || "이름 없음"}</p>
+                        <p className="font-bold text-slate-900">{member.display_name || member.name || "이름 없음"}</p>
                         {/* 정상 회원은 배지 생략(노이즈 방지), 차단·탈퇴만 강조 */}
                         {member.account_status && member.account_status !== "active" && MEMBER_STATUS_BADGE[member.account_status] ? (
                           <span
@@ -636,16 +627,16 @@ function AdminMembersPage() {
           <>
             <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-5">
               <div>
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Member Detail</p>
-                <h3 className="mt-1 text-2xl font-black text-slate-950">
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">Member Detail</p>
+                <h3 className="mt-1 text-2xl font-bold text-slate-950">
                   {detailMember?.display_name || detailMember?.name || "회원 상세"}
                   {detailMember?.is_blocked ? (
-                    <span className="ml-2 inline-flex items-center rounded-md bg-red-100 px-2 py-0.5 text-xs font-black text-red-700">
+                    <span className="ml-2 inline-flex items-center rounded-md bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700">
                       차단됨
                     </span>
                   ) : null}
                   {detailMember?.is_staff ? (
-                    <span className="ml-2 inline-flex items-center rounded-md bg-indigo-100 px-2 py-0.5 text-xs font-black text-indigo-700">
+                    <span className="ml-2 inline-flex items-center rounded-md bg-indigo-100 px-2 py-0.5 text-xs font-bold text-indigo-700">
                       운영진
                     </span>
                   ) : null}
@@ -794,19 +785,19 @@ function AdminMembersPage() {
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                   <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                     <p className="text-xs font-bold text-slate-500">가입일</p>
-                    <p className="mt-1 font-black text-slate-950">{formatDate(detailMember?.joined_at)}</p>
+                    <p className="mt-1 font-bold text-slate-950">{formatDate(detailMember?.joined_at)}</p>
                   </div>
                   <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                     <p className="text-xs font-bold text-slate-500">누적 구매</p>
-                    <p className="mt-1 font-black text-slate-950">{formatCurrency(detailMember?.purchase_amount)}</p>
+                    <p className="mt-1 font-bold text-slate-950">{formatCurrency(detailMember?.purchase_amount)}</p>
                   </div>
                   <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                     <p className="text-xs font-bold text-slate-500">누적 판매</p>
-                    <p className="mt-1 font-black text-slate-950">{formatCurrency(detailMember?.sale_amount)}</p>
+                    <p className="mt-1 font-bold text-slate-950">{formatCurrency(detailMember?.sale_amount)}</p>
                   </div>
                   <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                     <p className="text-xs font-bold text-slate-500">정산 예정/완료</p>
-                    <p className="mt-1 font-black text-slate-950">{formatCurrency(detailMember?.net_settlement_amount)}</p>
+                    <p className="mt-1 font-bold text-slate-950">{formatCurrency(detailMember?.net_settlement_amount)}</p>
                   </div>
                 </div>
 
@@ -854,7 +845,7 @@ function AdminMembersPage() {
                       <div className="space-y-2">
                         {shippingAddresses.map((address) => (
                           <div className="rounded-xl border border-slate-200 p-4 text-sm" key={address.id}>
-                            <p className="font-black text-slate-900">
+                            <p className="font-bold text-slate-900">
                               {address.label}
                               {address.is_default ? <span className="ml-2 rounded bg-slate-900 px-2 py-0.5 text-xs text-white">기본</span> : null}
                             </p>
@@ -877,7 +868,7 @@ function AdminMembersPage() {
                       <div className="space-y-2">
                         {settlementAccounts.map((account) => (
                           <div className="rounded-xl border border-slate-200 p-4 text-sm" key={account.id}>
-                            <p className="font-black text-slate-900">
+                            <p className="font-bold text-slate-900">
                               {account.bank_name}
                               {account.is_default ? <span className="ml-2 rounded bg-slate-900 px-2 py-0.5 text-xs text-white">기본</span> : null}
                             </p>
@@ -907,8 +898,8 @@ function AdminMembersPage() {
                         <div className="rounded-xl border border-slate-200 p-4" key={`${pickup.source}-${pickup.id}`}>
                           <div className="flex flex-wrap items-start justify-between gap-2">
                             <div>
-                              <p className="font-mono text-xs font-black text-slate-500">{pickup.reference_number}</p>
-                              <p className="mt-1 font-black text-slate-950">
+                              <p className="font-mono text-xs font-bold text-slate-500">{pickup.reference_number}</p>
+                              <p className="mt-1 font-bold text-slate-950">
                                 {pickup.source === "shipment" ? "기존 수거" : "수거 요청"} · 교재 {formatCount(pickup.item_count, "권")}
                               </p>
                             </div>
@@ -944,8 +935,8 @@ function AdminMembersPage() {
                         <div className="rounded-xl border border-slate-200 p-4" key={order.id}>
                           <div className="flex flex-wrap items-start justify-between gap-2">
                             <div>
-                              <p className="font-mono text-xs font-black text-slate-500">{order.order_number}</p>
-                              <p className="mt-1 font-black text-slate-950">{formatCurrency(order.total_amount)}</p>
+                              <p className="font-mono text-xs font-bold text-slate-500">{order.order_number}</p>
+                              <p className="mt-1 font-bold text-slate-950">{formatCurrency(order.total_amount)}</p>
                             </div>
                             <span className={`rounded-md px-2 py-1 text-xs font-bold ${getStatusBadgeClass(order.status)}`}>
                               {getOrderStatusLabel(order.status)}
@@ -982,8 +973,8 @@ function AdminMembersPage() {
                         <div className="rounded-xl border border-slate-200 p-4" key={settlement.id}>
                           <div className="flex flex-wrap items-start justify-between gap-2">
                             <div>
-                              <p className="font-mono text-xs font-black text-slate-500">{settlement.order_number}</p>
-                              <p className="mt-1 font-black text-slate-950">
+                              <p className="font-mono text-xs font-bold text-slate-500">{settlement.order_number}</p>
+                              <p className="mt-1 font-bold text-slate-950">
                                 {settlement.book_title}
                                 {settlement.book_option ? <span className="text-slate-400"> · {settlement.book_option}</span> : null}
                               </p>
@@ -995,15 +986,15 @@ function AdminMembersPage() {
                           <div className="mt-3 grid gap-2 text-sm sm:grid-cols-3">
                             <p className="rounded-lg bg-slate-50 px-3 py-2">
                               <span className="block text-xs font-bold text-slate-400">판매가</span>
-                              <span className="font-black text-slate-900">{formatCurrency(settlement.sale_amount)}</span>
+                              <span className="font-bold text-slate-900">{formatCurrency(settlement.sale_amount)}</span>
                             </p>
                             <p className="rounded-lg bg-slate-50 px-3 py-2">
                               <span className="block text-xs font-bold text-slate-400">수수료</span>
-                              <span className="font-black text-slate-900">{formatCurrency(settlement.fee_amount)}</span>
+                              <span className="font-bold text-slate-900">{formatCurrency(settlement.fee_amount)}</span>
                             </p>
                             <p className="rounded-lg bg-slate-50 px-3 py-2">
                               <span className="block text-xs font-bold text-slate-400">정산금액</span>
-                              <span className="font-black text-slate-900">{formatCurrency(settlement.net_amount)}</span>
+                              <span className="font-bold text-slate-900">{formatCurrency(settlement.net_amount)}</span>
                             </p>
                           </div>
                         </div>
