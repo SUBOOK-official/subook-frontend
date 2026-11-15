@@ -37,11 +37,12 @@ export default function AdminDashboardPage() {
 
   const values = TASKS.map((task) => counts[task.countKey]);
   const allLoaded = values.every((value) => value != null);
-  const total = allLoaded ? values.reduce((sum, value) => sum + value, 0) : null;
+  // 주문·신청·원장처럼 단위가 달라 건수를 더하지 않고, 대기 건이 있는 업무 종류 수를 센다.
+  const pendingKinds = allLoaded ? values.filter((value) => value > 0).length : null;
   let headline = <>처리할 일을 확인하고 있어요</>;
   if (counts.error && !allLoaded) headline = <>업무 건수를 불러오지 못했어요</>;
-  else if (total === 0) headline = <>지금 처리할 일이 없어요</>;
-  else if (total != null) headline = <>지금 처리할 일이 <span className="text-blue-600">{total.toLocaleString("ko-KR")}건</span> 있어요</>;
+  else if (pendingKinds === 0) headline = <>지금 처리할 일이 없어요</>;
+  else if (pendingKinds != null) headline = <>처리할 업무가 <span className="text-blue-600">{pendingKinds}가지</span> 있어요</>;
 
   return (
     <AdminShell

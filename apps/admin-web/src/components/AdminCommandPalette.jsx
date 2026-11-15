@@ -49,12 +49,12 @@ export default function AdminCommandPalette({ open, onClose }) {
   useFocusTrap(dialogRef, open);
 
   useEffect(() => {
-    if (!open) return undefined;
+    if (!open) return;
     setQuery("");
     setCursor(0);
-    // 포털 렌더 직후 포커스
-    const frame = requestAnimationFrame(() => inputRef.current?.focus());
-    return () => cancelAnimationFrame(frame);
+    // 포털은 같은 커밋에서 그려지므로 바로 포커스한다.
+    // (requestAnimationFrame은 창이 가려져 있으면 실행되지 않아 입력이 유실된다)
+    inputRef.current?.focus();
   }, [open]);
 
   // open이 바뀔 때도 다시 계산해야 최근 방문 목록이 최신이다.
