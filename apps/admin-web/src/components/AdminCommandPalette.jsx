@@ -32,11 +32,18 @@ function buildSections(query) {
 }
 
 /**
- * 통합 검색 (Ctrl+K 또는 /).
+ * 통합 검색 (Ctrl+K).
  * - 메뉴·탭·화면 안 기능을 이름·찾기 낱말·초성으로 찾아 바로 이동한다.
  * - 주문번호·이름·연락처 등을 입력하면 각 목록 화면의 검색 결과로 바로 이동한다.
+ *
+ * 열릴 때마다 안쪽 대화상자를 새로 마운트한다 — 이전 검색어가 남아 새 입력 앞에 붙는 일을 막는다.
  */
 export default function AdminCommandPalette({ open, onClose }) {
+  if (!open || typeof document === "undefined") return null;
+  return <CommandPaletteDialog onClose={onClose} />;
+}
+
+function CommandPaletteDialog({ onClose }) {
   const navigate = useNavigate();
   const dialogRef = useRef(null);
   const inputRef = useRef(null);
@@ -45,28 +52,22 @@ export default function AdminCommandPalette({ open, onClose }) {
   const [query, setQuery] = useState("");
   const [cursor, setCursor] = useState(0);
 
-  useBodyScrollLock(open);
-  useFocusTrap(dialogRef, open);
+  useBodyScrollLock(true);
+  useFocusTrap(dialogRef, true);
 
   useEffect(() => {
-    if (!open) return;
-    setQuery("");
-    setCursor(0);
     // 포털은 같은 커밋에서 그려지므로 바로 포커스한다.
     // (requestAnimationFrame은 창이 가려져 있으면 실행되지 않아 입력이 유실된다)
     inputRef.current?.focus();
-  }, [open]);
+  }, []);
 
-  // open이 바뀔 때도 다시 계산해야 최근 방문 목록이 최신이다.
-  const sections = useMemo(() => (open ? buildSections(query) : []), [open, query]);
+  const sections = useMemo(() => buildSections(query), [query]);
   const flat = useMemo(() => sections.flatMap((section) => section.items), [sections]);
   const activeIndex = Math.min(cursor, Math.max(flat.length - 1, 0));
 
   useEffect(() => {
     listRef.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
   }, [activeIndex, sections]);
-
-  if (!open || typeof document === "undefined") return null;
 
   const go = (item) => {
     if (!item) return;
