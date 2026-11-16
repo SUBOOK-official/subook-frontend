@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AdminDialog from "../components/AdminDialog";
 import AdminShell from "../components/AdminShell";
+import { PlusIcon } from "../components/icons";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import RichTextEditor from "../components/RichTextEditor";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
@@ -251,21 +252,26 @@ function AdminFaqsPage() {
   };
 
   return (
-    <AdminShell activeModule="faqs" description="자주 묻는 질문 — 사이트의 /faq에 즉시 반영됩니다" title="FAQ 관리">
-      <div className="flex items-center justify-between mb-4">
-        <p className="text-sm text-slate-500">
-          전체 {faqs.length}건 · 게시 {faqs.filter((f) => f.is_published).length}건
-          <span className="ml-2 text-slate-400">
-            {isReorderSaving ? <BusyText>순서 저장 중...</BusyText> : "카드를 드래그해서 노출 순서를 바꿀 수 있어요"}
-          </span>
-        </p>
-        <button className="btn-primary !w-auto !px-4 !py-2 text-sm" onClick={openNew} type="button">
-          + FAQ 추가
+    <AdminShell
+      actions={
+        <button className="btn-primary !w-auto gap-1.5 !px-4 !py-2.5" onClick={openNew} type="button">
+          <PlusIcon size={16} />
+          FAQ 추가
         </button>
-      </div>
+      }
+      activeModule="faqs"
+      description="자주 묻는 질문 — 사이트의 /faq에 즉시 반영됩니다"
+      title="FAQ 관리"
+    >
+      <p className="text-sm text-slate-500">
+        총 <strong className="font-bold tabular-nums text-slate-900">{faqs.length}</strong>건
+        <span className="ml-2 text-slate-400">
+          게시 {faqs.filter((f) => f.is_published).length}건 · {isReorderSaving ? <BusyText>순서 저장 중...</BusyText> : "카드를 끌어서 노출 순서를 바꿀 수 있어요"}
+        </span>
+      </p>
 
       {errorMessage ? (
-        <p className="mb-3 rounded-lg bg-rose-50 border border-rose-200 text-sm text-rose-700 px-4 py-3">
+        <p className="notice-error" role="alert">
           {errorMessage}
         </p>
       ) : null}
@@ -273,7 +279,7 @@ function AdminFaqsPage() {
       {isLoading ? (
         <p className="text-sm text-slate-400 py-8 text-center"><InlineLoading /></p>
       ) : faqs.length === 0 ? (
-        <p className="text-sm text-slate-400 py-12 text-center">등록된 FAQ가 없습니다.</p>
+        <p className="rounded-2xl border border-slate-200 bg-white px-5 py-14 text-center text-sm font-semibold text-slate-700">아직 등록한 FAQ가 없어요</p>
       ) : (
         <div className={`space-y-2 ${dragState ? "select-none cursor-grabbing" : ""}`}>
           {faqs.map((row, index) => (

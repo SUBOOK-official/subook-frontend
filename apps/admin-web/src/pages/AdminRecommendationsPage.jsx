@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import AdminDialog from "../components/AdminDialog";
 import AdminShell from "../components/AdminShell";
+import AdminViewTabs from "../components/AdminViewTabs";
 import CuratedProductPicker from "../components/CuratedProductPicker";
 import { supabase } from "@shared-supabase/adminSupabaseClient";
 import { addRecommendations, listRecommendations, saveRecommendation } from "@shared-supabase/recommendationsClient";
@@ -9,8 +10,8 @@ import { getCuratedProductDetails } from "@shared-supabase/curatedContentClient"
 import { productStatusLabel } from "@shared-domain/status";
 import { getThumbnailImageUrl } from "@shared-domain/storageImage";
 
-const button = "rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold disabled:opacity-50";
-const primary = "shrink-0 rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white disabled:opacity-50";
+const button = "inline-flex items-center justify-center rounded-[12px] bg-[rgba(2,32,71,0.05)] px-3.5 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-[rgba(0,27,55,0.1)] disabled:cursor-not-allowed disabled:opacity-50";
+const primary = "shrink-0 inline-flex items-center justify-center rounded-[12px] bg-brand px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-soft disabled:cursor-not-allowed disabled:opacity-50";
 
 function RecommendationList({ placement }) {
   const isHero = placement === "hero";
@@ -101,8 +102,8 @@ function RecommendationList({ placement }) {
         {error && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
         <p className="font-bold">{details[editor.product_id]?.title ?? `상품 #${editor.product_id}`}</p>
         <fieldset disabled={busy} className="space-y-5">
-          <label className="block text-sm font-semibold">노출 순서<input className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" type="number" min="0" max="9999" required value={editor.sort_order} onChange={(event) => setEditor({ ...editor, sort_order: event.target.value === "" ? "" : Number(event.target.value) })} /></label>
-          {isHero && <label className="block text-sm font-semibold">배너 소개 문구 (20자 이내)<input className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" maxLength={20} placeholder="비워두면 AI 문구 사용" value={editor.headline} onChange={(event) => setEditor({ ...editor, headline: event.target.value })} /></label>}
+          <label className="block text-sm font-semibold">노출 순서<input className="mt-1 w-full rounded-[12px] border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition-colors hover:border-slate-300 focus:border-brand focus:ring-2 focus:ring-brand/15" type="number" min="0" max="9999" required value={editor.sort_order} onChange={(event) => setEditor({ ...editor, sort_order: event.target.value === "" ? "" : Number(event.target.value) })} /></label>
+          {isHero && <label className="block text-sm font-semibold">배너 소개 문구 (20자 이내)<input className="mt-1 w-full rounded-[12px] border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition-colors hover:border-slate-300 focus:border-brand focus:ring-2 focus:ring-brand/15" maxLength={20} placeholder="비워두면 AI 문구 사용" value={editor.headline} onChange={(event) => setEditor({ ...editor, headline: event.target.value })} /></label>}
           <label className="flex items-center gap-2 text-sm font-bold"><input type="checkbox" checked={editor.is_enabled} onChange={(event) => setEditor({ ...editor, is_enabled: event.target.checked })} />노출 사용</label>
         </fieldset>
       </form>}
@@ -114,9 +115,7 @@ export default function AdminRecommendationsPage() {
   const [params, setParams] = useSearchParams();
   const placement = params.get("tab") === "hero" ? "hero" : "recommended";
   return <AdminShell activeModule="recommendations" title="추천 교재·홈 배너 관리" description="홈페이지 추천순과 상단 배너 교재를 각각 관리합니다.">
-    <div className="mb-5 flex gap-2" role="group" aria-label="설정 대상">
-      {[["recommended", "추천순"], ["hero", "홈 배너"]].map(([value, label]) => <button key={value} className={placement === value ? primary : button} aria-pressed={placement === value} onClick={() => setParams(value === "hero" ? { tab: value } : {})}>{label}</button>)}
-    </div>
+    <AdminViewTabs activeKey={placement} label="설정 대상" onSelect={(value) => setParams(value === "hero" ? { tab: value } : {})} tabs={[{ key: "recommended", label: "추천순" }, { key: "hero", label: "홈 배너" }]} />
     <RecommendationList key={placement} placement={placement} />
   </AdminShell>;
 }

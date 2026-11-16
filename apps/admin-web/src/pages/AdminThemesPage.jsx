@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import AdminShell from "../components/AdminShell";
+import AdminViewTabs from "../components/AdminViewTabs";
 import AdminDialog from "../components/AdminDialog";
 import CuratedProductPicker from "../components/CuratedProductPicker";
 import { supabase } from "@shared-supabase/adminSupabaseClient";
@@ -10,9 +11,9 @@ import { preparePromotionImage } from "../lib/promotionImage";
 import { BRAND_OPTIONS, BOOK_TYPE_OPTIONS, SUBJECT_OPTIONS } from "../lib/productCategories";
 import { STOREFRONT_FEATURED_YEARS } from "@shared-domain/storefrontYears";
 import { normalizeThemeFilterContext, THEME_FILTER_FIELDS, themeFilterContextLabels } from "@shared-domain/themeFilters";
-const input = "mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white";
-const button = "rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold disabled:opacity-50";
-const primary = "rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white disabled:opacity-50";
+const input = "mt-1 w-full rounded-[12px] border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition-colors hover:border-slate-300 focus:border-brand focus:ring-2 focus:ring-brand/15";
+const button = "inline-flex items-center justify-center rounded-[12px] bg-[rgba(2,32,71,0.05)] px-3.5 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-[rgba(0,27,55,0.1)] disabled:cursor-not-allowed disabled:opacity-50";
+const primary = "inline-flex items-center justify-center rounded-[12px] bg-brand px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-soft disabled:cursor-not-allowed disabled:opacity-50";
 const contextOptions = { brands: BRAND_OPTIONS, types: BOOK_TYPE_OPTIONS, years: STOREFRONT_FEATURED_YEARS.map(String), subject: SUBJECT_OPTIONS };
 
 export default function AdminThemesPage() {
@@ -88,11 +89,11 @@ export default function AdminThemesPage() {
     finally { setBusy(false); }
   }
   return <AdminShell activeModule="themes" title="테마관 관리" description="관의 소개와 고정 조건, 구매자에게 보여줄 교재를 관리합니다.">
-    <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-      <div className="flex flex-wrap gap-2" role="group" aria-label="테마 노출 필터">{[["all", "전체"], ["enabled", "노출 중"], ["disabled", "비노출"]].map(([value, label]) => <button type="button" key={value} className={filter === value ? primary : button} aria-pressed={filter === value} onClick={() => setFilter(value)}>{label}</button>)}</div>
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <AdminViewTabs activeKey={filter} label="테마 노출" onSelect={setFilter} tabs={[{ key: "all", label: "전체" }, { key: "enabled", label: "노출 중" }, { key: "disabled", label: "비노출" }]} />
       <div className="flex gap-2"><button className={button} disabled={busy || loading} onClick={load}>새로고침</button><button className={primary} disabled={busy} onClick={() => edit(null)}>새 테마관</button></div>
     </div>
-    <p className="mb-5 text-sm text-slate-500">순서가 작은 테마부터 홈에 표시합니다. 정사각형 아이콘과 테마명, 포함할 교재를 등록해주세요.</p>
+    <p className="text-sm text-slate-500">순서가 작은 테마부터 홈에 표시합니다. 정사각형 아이콘과 테마명, 포함할 교재를 등록해주세요.</p>
     {notice && <p role="status" className="mb-4 rounded-xl bg-slate-100 p-3 text-sm">{notice}</p>}
     {!editor && error && <p role="alert" className="mb-4 rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
     {loading ? <p className="py-10 text-center text-slate-500">목록을 불러오는 중입니다.</p> : <div className="grid gap-4 xl:grid-cols-2">

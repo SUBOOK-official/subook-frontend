@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import AdminShell from "../components/AdminShell";
+import AdminViewTabs from "../components/AdminViewTabs";
 import AdminDialog from "../components/AdminDialog";
 import { formatImageBytes, preparePromotionImage } from "../lib/promotionImage";
 import { supabase } from "@shared-supabase/adminSupabaseClient";
 import { deletePromotion, listPromotions, savePromotion, uploadPromotionImage } from "@shared-supabase/sitePromotionsClient";
 import { fromKstInput, isPromotionUrl, PROMOTION_PLACEMENTS, promotionStatus, toKstInput } from "@shared-domain/sitePromotions";
 
-const inputClass = "mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white";
-const buttonClass = "rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold disabled:opacity-50";
-const primaryClass = "rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white disabled:opacity-50";
+const inputClass = "mt-1 w-full rounded-[12px] border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition-colors hover:border-slate-300 focus:border-brand focus:ring-2 focus:ring-brand/15";
+const buttonClass = "inline-flex items-center justify-center rounded-[12px] bg-[rgba(2,32,71,0.05)] px-3.5 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-[rgba(0,27,55,0.1)] disabled:cursor-not-allowed disabled:opacity-50";
+const primaryClass = "inline-flex items-center justify-center rounded-[12px] bg-brand px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-soft disabled:cursor-not-allowed disabled:opacity-50";
 const previewUrl = (url) => isPromotionUrl(url) ? (url.startsWith("/") ? `https://subook.kr${url}` : url) : undefined;
 const scheduleLabel = (value, end = false) => toKstInput(value, end).replace("T", " ");
 
@@ -101,19 +102,20 @@ function AdminPromotionsPage() {
 
   return (
     <AdminShell activeModule="promotions" title="배너·팝업 관리" description="고객 홈에 보여줄 이미지와 연결 주소, 노출 기간을 관리합니다.">
-      <div className="mb-5"><Link className={buttonClass} to="/admin/recommendations?tab=hero">홈 배너 교재 설정</Link></div>
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap gap-2" role="group" aria-label="노출 위치 필터">
-          {Object.entries({ all: "전체", ...PROMOTION_PLACEMENTS }).map(([value, label]) => (
-            <button key={value} type="button" className={filter === value ? primaryClass : buttonClass} aria-pressed={filter === value} onClick={() => setFilter(value)}>{label}</button>
-          ))}
-        </div>
-        <div className="flex gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <AdminViewTabs
+          activeKey={filter}
+          label="노출 위치"
+          onSelect={setFilter}
+          tabs={Object.entries({ all: "전체", ...PROMOTION_PLACEMENTS }).map(([key, label]) => ({ key, label }))}
+        />
+        <div className="flex flex-wrap gap-2">
+          <Link className={buttonClass} to="/admin/recommendations?tab=hero">홈 배너 교재 설정</Link>
           <button type="button" className={buttonClass} onClick={load} disabled={loading || blocked}>새로고침</button>
           <button type="button" className={primaryClass} onClick={() => openEditor()} disabled={blocked}>새 배너·팝업</button>
         </div>
       </div>
-      <p className="mb-5 text-sm text-slate-500">순서가 작은 항목부터 표시합니다. 모든 일시는 한국시간이며, 팝업은 닫으면 해당 브라우저 세션 동안 다시 표시하지 않습니다.</p>
+      <p className="text-sm text-slate-500">순서가 작은 항목부터 표시합니다. 모든 일시는 한국시간이며, 팝업은 닫으면 해당 브라우저 세션 동안 다시 표시하지 않습니다.</p>
       {message && <p className="mb-4 rounded-xl bg-slate-100 p-3 text-sm" role="status">{message}</p>}
       {error && <p className="mb-4 rounded-xl bg-rose-50 p-3 text-sm text-rose-700" role="alert">{error}</p>}
       {loading ? <p className="py-10 text-center text-slate-500">목록을 불러오는 중입니다.</p> : visibleRows.length === 0 ? (

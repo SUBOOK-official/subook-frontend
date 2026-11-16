@@ -6,7 +6,7 @@ import RichTextEditor from "../components/RichTextEditor";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { formatDate } from "@shared-domain/format";
 import { looksLikeRichHtml, plainTextToHtml, richTextToPlain } from "@shared-domain/richText";
-import { PinIcon } from "../components/icons";
+import { PinIcon, PlusIcon } from "../components/icons";
 import { BusyText, InlineLoading } from "../components/Loading";
 
 // 레거시 plain text 본문은 에디터용 HTML로 변환해서 연다 (FAQ와 동일 패턴)
@@ -164,28 +164,27 @@ function AdminNoticesPage() {
     <AdminShell
       activeModule="notices"
       description="게시한 공지는 고객 사이트 하단 푸터의 '공지사항' 링크(/notices)에 노출 · 핀 공지는 목록 상단 고정"
-      title="공지사항 관리"
-    >
-      <div className="flex items-center justify-between mb-4">
-        <p className="text-sm text-slate-500">
-          전체 {notices.length}건 · 게시 {notices.filter((n) => n.is_published).length}건 · 핀 {notices.filter((n) => n.is_pinned && n.is_published).length}건
+      actions={
+        <>
           {/* subook.kr은 아직 구 사이트(식스샵) — 정식 도메인 전환 후 subook.kr/notices로 교체 */}
-          <a
-            className="ml-3 font-semibold text-blue-600 hover:underline"
-            href="https://subook.kr/notices"
-            rel="noreferrer"
-            target="_blank"
-          >
+          <a className="btn-secondary !px-3.5 !py-2.5 text-[13px]" href="https://subook.kr/notices" rel="noreferrer" target="_blank">
             사이트에서 보기 ↗
           </a>
-        </p>
-        <button className="btn-primary !w-auto !px-4 !py-2 text-sm" onClick={openNew} type="button">
-          + 공지 추가
-        </button>
-      </div>
+          <button className="btn-primary !w-auto gap-1.5 !px-4 !py-2.5" onClick={openNew} type="button">
+            <PlusIcon size={16} />
+            공지 추가
+          </button>
+        </>
+      }
+      title="공지사항 관리"
+    >
+      <p className="text-sm text-slate-500">
+        총 <strong className="font-bold tabular-nums text-slate-900">{notices.length}</strong>건
+        <span className="ml-2 text-slate-400">게시 {notices.filter((n) => n.is_published).length}건 · 핀 {notices.filter((n) => n.is_pinned && n.is_published).length}건</span>
+      </p>
 
       {errorMessage ? (
-        <p className="mb-3 rounded-lg bg-rose-50 border border-rose-200 text-sm text-rose-700 px-4 py-3">
+        <p className="notice-error" role="alert">
           {errorMessage}
         </p>
       ) : null}
@@ -193,7 +192,7 @@ function AdminNoticesPage() {
       {isLoading ? (
         <p className="text-sm text-slate-400 py-8 text-center"><InlineLoading /></p>
       ) : notices.length === 0 ? (
-        <p className="text-sm text-slate-400 py-12 text-center">등록된 공지가 없습니다.</p>
+        <p className="rounded-2xl border border-slate-200 bg-white px-5 py-14 text-center text-sm font-semibold text-slate-700">아직 등록한 공지가 없어요</p>
       ) : (
         <div className="space-y-2">
           {notices.map((row) => {
