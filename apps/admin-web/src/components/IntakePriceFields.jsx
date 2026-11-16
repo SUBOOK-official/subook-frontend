@@ -1,7 +1,7 @@
 import { formatCurrency } from '@shared-domain/format';
 import { intakeDiscountError } from '../lib/intakePricing';
 
-const input = 'mt-1 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm';
+const input = 'mt-1 w-full min-w-0 rounded-[10px] border border-slate-200 bg-white px-3 py-2.5 text-sm';
 export default function IntakePriceFields({ item, onChange, batch = false }) {
   const type = item.discount_type || 'none';
   const error = intakeDiscountError(item);

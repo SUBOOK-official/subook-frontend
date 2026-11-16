@@ -111,7 +111,7 @@ function NotificationResultModal({
         <div className="mt-5 flex items-center justify-end gap-2">
           {hasFailures && onRetry ? (
             <button
-              className="rounded-md bg-rose-600 px-4 py-2 text-sm font-bold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+              className="btn-danger !px-4 !py-2"
               disabled={busy}
               onClick={onRetry}
               type="button"
@@ -124,7 +124,7 @@ function NotificationResultModal({
             </button>
           ) : null}
           <button
-            className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            className="btn-secondary !px-4 !py-2"
             disabled={busy}
             onClick={onClose}
             type="button"

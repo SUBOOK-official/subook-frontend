@@ -217,7 +217,7 @@ function OrderRefundAccount({ order }) {
 
   return (
     <div>
-      <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">환불 계좌</h4>
+      <h4 className="text-xs font-bold text-slate-500 mb-2">환불 계좌</h4>
       <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm space-y-1">
         {hasAccount && (
           <>
@@ -1669,7 +1669,7 @@ function AdminOrdersPage() {
       {/* 결제 정보 — paid_at은 2026-07-13부터 트리거 기록(무통장 입금확인·PG 승인 공통).
           그 이전 무통장 주문은 시각이 없어 결제수단만 표시된다. */}
       <div>
-        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">결제 정보</h4>
+        <h4 className="text-xs font-bold text-slate-500 mb-2">결제 정보</h4>
         <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm space-y-1">
           <p className="font-semibold">
             {PAYMENT_METHOD_LABEL[selectedOrder.payment_method] ?? selectedOrder.payment_method ?? "-"}
@@ -1701,7 +1701,7 @@ function AdminOrdersPage() {
 
       {/* 배송지 */}
       <div>
-        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">배송지</h4>
+        <h4 className="text-xs font-bold text-slate-500 mb-2">배송지</h4>
         <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm space-y-1">
           <p className="font-semibold">{selectedOrder.shipping_recipient_name} · {selectedOrder.shipping_recipient_phone}</p>
           <p className="text-slate-600">
@@ -1716,7 +1716,7 @@ function AdminOrdersPage() {
       {/* 송장 정보 */}
       {selectedOrder.tracking_number && (
         <div>
-          <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">배송 추적</h4>
+          <h4 className="text-xs font-bold text-slate-500 mb-2">배송 추적</h4>
           <p className="text-sm flex items-center gap-2">
             <span>
               {selectedOrder.tracking_carrier ?? "CJ대한통운"} · {selectedOrder.tracking_number}
@@ -1740,7 +1740,7 @@ function AdminOrdersPage() {
         selectedOrder.refund_request_resolved_at ? (
           <div className="rounded-lg bg-slate-50 px-4 py-3">
             <div className="flex items-center justify-between">
-              <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+              <h4 className="text-xs font-bold text-slate-500">
                 환불 신청 이력 — {Number(selectedOrder.refunded_amount ?? 0) > 0 ? "부분환불 처리됨" : "반려됨"}
               </h4>
               <span className="text-xs text-slate-500">
@@ -1756,7 +1756,7 @@ function AdminOrdersPage() {
         ) : (
         <div className="rounded-lg border-l-4 border-rose-500 bg-rose-50 px-4 py-3">
           <div className="flex items-center justify-between">
-            <h4 className="text-xs font-bold text-rose-700 uppercase tracking-wider">
+            <h4 className="text-xs font-bold text-rose-700">
               환불 신청 접수
             </h4>
             <span className="text-xs text-rose-600">
@@ -1786,7 +1786,7 @@ function AdminOrdersPage() {
       {selectedOrder.status === "refunded" && (
         <div className="rounded-lg bg-slate-50 px-4 py-3">
           <div className="flex items-center justify-between">
-            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+            <h4 className="text-xs font-bold text-slate-500">
               환불 완료
             </h4>
             <span className="text-xs text-slate-500">
@@ -1824,7 +1824,7 @@ function AdminOrdersPage() {
         }
         return (
           <div>
-            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">반품 수거·환불 후 재고 처리</h4>
+            <h4 className="text-xs font-bold text-slate-500 mb-2">반품 수거·환불 후 재고 처리</h4>
             <div className="rounded-lg bg-slate-50 px-3 py-2.5 text-sm space-y-2">
               {heldItems.length > 0 && (
                 <div className="space-y-2">
@@ -3078,7 +3078,7 @@ function AdminOrdersPage() {
                 </p>
               </div>
               <button
-                className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                className="rounded-[10px] border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                 disabled={isDeliveryTraceLoading}
                 onClick={() => fetchDeliveryTrace(deliveryTrace.invcNo)}
                 type="button"

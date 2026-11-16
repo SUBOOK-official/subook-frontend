@@ -54,7 +54,7 @@ function InspectionImageUploader({ bookId, disabled, onUploaded }) {
           multiple
           disabled={disabled || busy}
           onChange={handleFileChange}
-          className="block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-slate-700 file:px-3 file:py-1 file:text-xs file:font-bold file:text-white file:cursor-pointer disabled:opacity-50"
+          className="block w-full rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-slate-700 file:px-3 file:py-1 file:text-xs file:font-bold file:text-white file:cursor-pointer disabled:opacity-50"
         />
         {busy ? (
           <span className="text-xs font-bold text-slate-500 whitespace-nowrap">

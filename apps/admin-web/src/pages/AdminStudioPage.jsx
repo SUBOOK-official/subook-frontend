@@ -427,7 +427,7 @@ function AdminStudioPage() {
                 어떻게 처리할까요?
               </p>
               <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                <p className="text-[11px] font-bold text-slate-500">
                   이번에 선택한 파일
                 </p>
                 <ul className="mt-2 space-y-1 text-sm font-semibold text-slate-700">

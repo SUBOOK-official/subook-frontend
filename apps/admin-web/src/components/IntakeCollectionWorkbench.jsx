@@ -15,9 +15,9 @@ import { COVER_BUCKET, DETAIL_BUCKET, uploadImageToBucket } from '../lib/adminIm
 import { prepareStudioImagePayload, requestStudioGeneration, studioResultToFile } from '../lib/studioClient';
 import { requestCoverScan } from '../lib/coverScanClient';
 
-const secondary = 'rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold disabled:opacity-40';
+const secondary = 'rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-sm font-semibold disabled:opacity-40';
 const primary = 'rounded-lg bg-blue-700 px-5 py-3 text-sm font-bold text-white disabled:opacity-40';
-const inputClass = 'mt-1 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm';
+const inputClass = 'mt-1 w-full min-w-0 rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-sm';
 const meaningful = intakeGroupHasContent;
 const groupName = (group, index) => group.title || `교재 ${index + 1}`;
 async function accessToken() {

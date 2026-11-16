@@ -1647,7 +1647,7 @@ function AdminProductRegisterForm() {
                 value={custSearch}
                 onChange={(e) => { setCustSearch(e.target.value); setCustPage(0); }}
                 placeholder={isIntake ? "예: 나유찬 / 5678 / PU-2608-0005" : "예: 나유찬 / 010-1234-5678 / PU-2608-0005"}
-                className="mt-3 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                className="mt-3 w-full rounded-[10px] border border-slate-200 px-3 py-2 text-sm"
               />
               <div className="mt-3 max-h-[32rem] space-y-2 overflow-y-auto">
                 {custLoading ? (
@@ -1735,7 +1735,7 @@ function AdminProductRegisterForm() {
                   })
                 )}
               </div>
-              {custHasMore && !custSearch.trim() ? <button type="button" disabled={custLoading} onClick={() => setCustPage((page) => page + 1)} className="mt-3 w-full rounded-lg border border-slate-300 py-2 text-sm font-semibold disabled:opacity-50">최근 입고 더 보기</button> : null}
+              {custHasMore && !custSearch.trim() ? <button type="button" disabled={custLoading} onClick={() => setCustPage((page) => page + 1)} className="mt-3 w-full rounded-[10px] border border-slate-200 py-2 text-sm font-semibold disabled:opacity-50">최근 입고 더 보기</button> : null}
             </section>
 
             {isIntake ? null : (
@@ -1810,7 +1810,7 @@ function AdminProductRegisterForm() {
                     type="text"
                     value={newCust.seller_name}
                     onChange={(e) => setNewCust((f) => ({ ...f, seller_name: e.target.value }))}
-                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    className="mt-1 w-full rounded-[10px] border border-slate-200 px-3 py-2 text-sm"
                   />
                 </label>
                 <label className="block">
@@ -1820,7 +1820,7 @@ function AdminProductRegisterForm() {
                     value={newCust.seller_phone}
                     onChange={(e) => setNewCust((f) => ({ ...f, seller_phone: e.target.value }))}
                     placeholder="010-0000-0000"
-                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    className="mt-1 w-full rounded-[10px] border border-slate-200 px-3 py-2 text-sm"
                   />
                 </label>
                 <label className="block">
@@ -1829,7 +1829,7 @@ function AdminProductRegisterForm() {
                     type="date"
                     value={newCust.pickup_date}
                     onChange={(e) => setNewCust((f) => ({ ...f, pickup_date: e.target.value }))}
-                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    className="mt-1 w-full rounded-[10px] border border-slate-200 px-3 py-2 text-sm"
                   />
                 </label>
                 <label className="block">
@@ -1838,7 +1838,7 @@ function AdminProductRegisterForm() {
                     required
                     value={newCust.fee_policy}
                     onChange={(e) => setNewCust((f) => ({ ...f, fee_policy: e.target.value }))}
-                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    className="mt-1 w-full rounded-[10px] border border-slate-200 px-3 py-2 text-sm"
                   >
                     <option value="">접수 시점을 확인하고 선택하세요</option>
                     <option value="new">인상 후 신규 접수 (1만원 이상 {PICKUP_FEE_POLICY.standardPercent}% / 미만 {PICKUP_FEE_POLICY.lowPricePercent}%)</option>
@@ -1967,7 +1967,7 @@ function AdminProductRegisterForm() {
                   value={prodSearch}
                   onChange={(e) => setProdSearch(e.target.value)}
                   placeholder="교재 키워드 검색 (예: 서바이벌 물리)"
-                  className="mt-3 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  className="mt-3 w-full rounded-[10px] border border-slate-200 px-3 py-2 text-sm"
                 />
                 <div className="mt-3 max-h-[28rem] space-y-2 overflow-y-auto">
                   {prodLoading ? (
@@ -2025,7 +2025,7 @@ function AdminProductRegisterForm() {
                         type="button"
                         disabled={prodLoadingMore}
                         onClick={loadMoreProducts}
-                        className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-center text-xs font-bold text-slate-600 hover:border-slate-900 hover:bg-slate-50 disabled:opacity-60"
+                        className="w-full rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-center text-xs font-bold text-slate-600 hover:border-slate-900 hover:bg-slate-50 disabled:opacity-60"
                       >
                         {prodLoadingMore ? <BusyText>불러오는 중...</BusyText> : `더 보기 ▾ (${PROD_SEARCH_LIMIT}건씩)`}
                       </button>
@@ -2572,7 +2572,7 @@ function AdminProductRegisterForm() {
                     id={`register-category-${field.key}`}
                     value={categoryRow[field.key]}
                     onChange={(e) => handleRowChange(categoryRow.uid, field.key, e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    className="w-full rounded-[10px] border border-slate-200 px-3 py-2 text-sm"
                   >
                     <option value="">자동 (상품명에서 인식)</option>
                     {field.options.map((opt) => (
@@ -2610,7 +2610,7 @@ function AdminProductRegisterForm() {
                     <input
                       id="register-product-title"
                       autoFocus
-                      className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-900 focus:outline-none disabled:bg-slate-100"
+                      className="mt-1 w-full rounded-[10px] border border-slate-200 px-3 py-2 text-sm focus:border-slate-900 focus:outline-none disabled:bg-slate-100"
                       value={framePanel.titleInput}
                       disabled={titleSaving}
                       aria-invalid={Boolean(framePanel.titleError)}
@@ -2917,7 +2917,7 @@ function AdminProductRegisterForm() {
                 type="button"
                 onClick={() => setFramePanel(null)}
                 disabled={titleSaving}
-                className="rounded-md border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+                className="rounded-[10px] border border-slate-200 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
               >
                 취소
               </button>

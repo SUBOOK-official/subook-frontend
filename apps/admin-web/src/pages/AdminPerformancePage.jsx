@@ -161,8 +161,8 @@ export default function AdminPerformancePage() {
         </div>
       </div>
       <form className="mt-4 flex flex-wrap items-end gap-2" onSubmit={(event) => { event.preventDefault(); const values = new FormData(event.currentTarget); selectRange({ from: values.get("from"), to: values.get("to") }); }}>
-        <label className="min-w-0 text-xs font-semibold text-slate-500">시작일<input required name="from" aria-label="시작일" type="date" min="2000-01-01" max={koreaToday()} value={draft.from} onChange={(event) => setDraft((currentDraft) => ({ ...currentDraft, from: event.target.value }))} className="mt-1 block max-w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800" /></label>
-        <label className="min-w-0 text-xs font-semibold text-slate-500">종료일<input required name="to" aria-label="종료일" type="date" min="2000-01-01" max={koreaToday()} value={draft.to} onChange={(event) => setDraft((currentDraft) => ({ ...currentDraft, to: event.target.value }))} className="mt-1 block max-w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800" /></label>
+        <label className="min-w-0 text-xs font-semibold text-slate-500">시작일<input required name="from" aria-label="시작일" type="date" min="2000-01-01" max={koreaToday()} value={draft.from} onChange={(event) => setDraft((currentDraft) => ({ ...currentDraft, from: event.target.value }))} className="mt-1 block max-w-full rounded-[10px] border border-slate-200 px-3 py-2 text-sm text-slate-800" /></label>
+        <label className="min-w-0 text-xs font-semibold text-slate-500">종료일<input required name="to" aria-label="종료일" type="date" min="2000-01-01" max={koreaToday()} value={draft.to} onChange={(event) => setDraft((currentDraft) => ({ ...currentDraft, to: event.target.value }))} className="mt-1 block max-w-full rounded-[10px] border border-slate-200 px-3 py-2 text-sm text-slate-800" /></label>
         <button className={buttonClass} type="submit">조회</button>
         <p className="pb-2 text-xs text-slate-500 sm:ml-auto">한국시간 · 최대 366일</p>
       </form>

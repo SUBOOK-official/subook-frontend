@@ -18,8 +18,8 @@ import {
 import { performanceRange } from "@shared-domain/performanceMetrics";
 
 const button =
-  "rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold disabled:opacity-40";
-const input = "rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm";
+  "rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-sm font-semibold disabled:opacity-40";
+const input = "rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-sm";
 const tabs = {
   ...metaKinds,
   media: "이미지·영상",

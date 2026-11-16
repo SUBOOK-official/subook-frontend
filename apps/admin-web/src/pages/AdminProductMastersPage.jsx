@@ -1005,7 +1005,7 @@ function AdminProductMastersPage() {
             </div>
           ) : (
             <table className="admin-product-table w-full text-sm">
-              <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500">
+              <thead className="bg-slate-50 text-xs font-bold text-slate-500">
                 <tr>
                   <th className="w-10 px-2 py-3 text-left">
                     <input
@@ -1142,7 +1142,7 @@ function AdminProductMastersPage() {
                     <td className="px-3 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1.5">
                         <button
-                          className="whitespace-nowrap rounded-md border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:border-slate-500 hover:bg-slate-50"
+                          className="whitespace-nowrap rounded-[10px] border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:border-slate-500 hover:bg-slate-50"
                           onClick={() => setEditTarget(product)}
                           type="button"
                         >
@@ -1150,7 +1150,7 @@ function AdminProductMastersPage() {
                         </button>
                         {(product.is_listed ?? (product.status !== "hidden")) ? (
                           <button
-                            className="whitespace-nowrap rounded-md border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:border-slate-500 hover:bg-slate-50 disabled:opacity-50"
+                            className="whitespace-nowrap rounded-[10px] border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:border-slate-500 hover:bg-slate-50 disabled:opacity-50"
                             disabled={busyId === product.id}
                             onClick={() => handleProductVisibility(product, false)}
                             title="상품을 내리고 재입고 후에도 숨김을 유지합니다"
@@ -1249,7 +1249,7 @@ function AdminProductMastersPage() {
                 ) : null}
                 {detailProduct && appPackage ? (
                   <button
-                    className="whitespace-nowrap rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-slate-500 hover:bg-slate-50 disabled:opacity-50"
+                    className="whitespace-nowrap rounded-[10px] border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-slate-500 hover:bg-slate-50 disabled:opacity-50"
                     disabled={appPackageBusy}
                     onClick={handleAppPackageToggle}
                     title="결제 확인 시 일성월심 앱 코드를 발급해 알림톡으로 보내는 상품"
@@ -1259,7 +1259,7 @@ function AdminProductMastersPage() {
                   </button>
                 ) : null}
                 <button
-                  className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-slate-500 hover:bg-slate-50"
+                  className="rounded-[10px] border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-slate-500 hover:bg-slate-50"
                   onClick={() => setEditTarget(detailTarget)}
                   type="button"
                 >
@@ -1288,7 +1288,7 @@ function AdminProductMastersPage() {
                 // 좁은 화면에서 셀 텍스트가 한 글자씩 쪼개지지 않도록 nowrap + 가로 스크롤로 처리
                 <div className="overflow-x-auto">
                 <table className="w-full min-w-[56rem] text-sm">
-                  <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500">
+                  <thead className="bg-slate-50 text-xs font-bold text-slate-500">
                     <tr className="whitespace-nowrap">
                       <th className="px-3 py-2 text-left">셀러</th>
                       <th className="px-3 py-2 text-left">옵션</th>
@@ -1439,7 +1439,7 @@ function AdminProductMastersPage() {
                           {book.status === "on_sale" ? (
                             <div className="flex justify-end gap-2">
                               <button
-                                className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-bold text-slate-700 hover:border-slate-400 hover:bg-slate-50 disabled:opacity-50"
+                                className="rounded-[10px] border border-slate-200 px-2.5 py-1 text-xs font-bold text-slate-700 hover:border-slate-400 hover:bg-slate-50 disabled:opacity-50"
                                 disabled={bookBusyId != null || book.picking_pending}
                                 onClick={() => handleBookSold(book)}
                                 title={book.picking_pending ? "주문이 진행 중인 교재는 주문 화면에서 처리해 주세요." : "이 권만 수동으로 판매완료 처리합니다"}
@@ -1552,14 +1552,14 @@ function AdminProductMastersPage() {
           </div>
           <div className="flex items-center gap-2 text-sm">
             <input
-              className="rounded-md border border-slate-300 px-3 py-2"
+              className="rounded-[10px] border border-slate-200 px-3 py-2"
               onChange={(e) => setExportRange((r) => ({ ...r, from: e.target.value }))}
               type="date"
               value={exportRange.from}
             />
             <span className="text-slate-400">~</span>
             <input
-              className="rounded-md border border-slate-300 px-3 py-2"
+              className="rounded-[10px] border border-slate-200 px-3 py-2"
               onChange={(e) => setExportRange((r) => ({ ...r, to: e.target.value }))}
               type="date"
               value={exportRange.to}
@@ -1571,7 +1571,7 @@ function AdminProductMastersPage() {
               수거신청자(셀러) 필터
             </label>
             <input
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className="w-full rounded-[10px] border border-slate-200 px-3 py-2 text-sm"
               id="export-seller"
               onChange={(e) => setExportSeller(e.target.value)}
               placeholder="이름 또는 전화번호 일부 — 비우면 전체"

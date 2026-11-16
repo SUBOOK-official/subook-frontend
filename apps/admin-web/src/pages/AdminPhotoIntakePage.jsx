@@ -740,7 +740,7 @@ function AdminPhotoIntakePage() {
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-[11px] font-bold uppercase tracking-wide text-indigo-600">
+                    <p className="text-[11px] font-bold text-indigo-600">
                       지금 스캔할 책{currentQueuePos >= 0 ? ` — 큐 ${currentQueuePos + 1}/${workQueue.length}` : ""}
                     </p>
                     <h2 className="mt-0.5 text-lg font-bold text-slate-900">{current.title}</h2>

@@ -156,15 +156,15 @@ function AdminWithdrawalReasonsPage() {
           {/* 요약 카드 */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div className="card p-4">
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">기간 내 응답</p>
+              <p className="text-xs font-bold text-slate-500">기간 내 응답</p>
               <p className="mt-1 text-2xl font-bold text-slate-950">{categoryStats.total}건</p>
             </div>
             <div className="card p-4">
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">누적 전체</p>
+              <p className="text-xs font-bold text-slate-500">누적 전체</p>
               <p className="mt-1 text-2xl font-bold text-slate-950">{rows.length}건</p>
             </div>
             <div className="card p-4">
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">최다 사유</p>
+              <p className="text-xs font-bold text-slate-500">최다 사유</p>
               <p className="mt-1 text-sm font-bold text-slate-800 leading-snug">
                 {topCategory ? topCategory.label : "-"}
               </p>

@@ -69,7 +69,7 @@ function RichTextEditor({ minHeightClass = "min-h-40", onChange, placeholder = "
   };
 
   return (
-    <div className="rounded-lg border border-slate-300 focus-within:border-slate-500">
+    <div className="rounded-[10px] border border-slate-200 focus-within:border-slate-500">
       <div className="flex flex-wrap items-center gap-1 border-b border-slate-200 bg-slate-50 px-2 py-1.5 rounded-t-lg">
         {TOOLBAR_BUTTONS.map((button) => (
           <button

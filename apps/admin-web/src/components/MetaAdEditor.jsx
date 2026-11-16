@@ -8,9 +8,9 @@ import { useBodyScrollLock } from "@shared-domain/useBodyScrollLock";
 import { useFocusTrap } from "@shared-domain/useFocusTrap";
 
 const inputClass =
-  "mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm disabled:bg-slate-100";
+  "mt-1 w-full rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-sm disabled:bg-slate-100";
 const buttonClass =
-  "rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold disabled:opacity-40";
+  "rounded-[10px] border border-slate-200 px-4 py-2 text-sm font-semibold disabled:opacity-40";
 function Field({ label, children, hint }) {
   return (
     <label className="block text-sm font-semibold text-slate-700">

@@ -97,8 +97,8 @@ export default function IntakeCamera({ onCapture, disabled, label }) {
     </div>
     {error ? <p role="alert" className="mt-3 text-sm text-rose-700">{error}</p> : null}
     <div className="mt-3 flex gap-2">
-      {devices.length ? <select aria-label="촬영 카메라" value={deviceId} onChange={(event) => { setDeviceId(event.target.value); connect(event.target.value); }} disabled={connecting} className="min-w-0 flex-1 rounded-lg border border-slate-300 p-2 text-sm">{devices.map((device,index) => <option key={device.deviceId} value={device.deviceId}>{device.label || `카메라 ${index+1}`}</option>)}</select> : null}
-      <button type="button" onClick={() => setRotation((angle) => (angle + 90) % 360)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">90° 회전</button>
+      {devices.length ? <select aria-label="촬영 카메라" value={deviceId} onChange={(event) => { setDeviceId(event.target.value); connect(event.target.value); }} disabled={connecting} className="min-w-0 flex-1 rounded-[10px] border border-slate-200 p-2 text-sm">{devices.map((device,index) => <option key={device.deviceId} value={device.deviceId}>{device.label || `카메라 ${index+1}`}</option>)}</select> : null}
+      <button type="button" onClick={() => setRotation((angle) => (angle + 90) % 360)} className="rounded-[10px] border border-slate-200 px-3 py-2 text-sm">90° 회전</button>
     </div>
     <button type="button" onClick={capture} disabled={!connected || disabled || saving} className="mt-3 w-full rounded-lg bg-blue-700 px-4 py-3 font-bold text-white disabled:opacity-40">{saving ? '사진 저장 중…' : label} <span className="ml-2 text-xs font-normal">Space</span></button>
     <label className={`mt-3 block cursor-pointer text-center text-sm text-slate-600 underline ${disabled || saving ? 'opacity-40' : ''}`}>사진 파일 선택<input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" disabled={disabled || saving} onChange={async (event) => {

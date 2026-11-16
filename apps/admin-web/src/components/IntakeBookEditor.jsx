@@ -11,8 +11,8 @@ import { SUBJECT_DETAIL_GROUPS } from '../lib/intakeCatalog';
 import { MAX_DETAIL_PHOTOS } from '../lib/adminImageUpload';
 import { intakeBookCount, isIntakeBatch, resolveIntakeVariant } from '../lib/intakeWorkbench';
 
-const inputClass = 'mt-1 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm disabled:bg-slate-100';
-const secondary = 'rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold disabled:opacity-40';
+const inputClass = 'mt-1 w-full min-w-0 rounded-[10px] border border-slate-200 bg-white px-3 py-2.5 text-sm disabled:bg-slate-100';
+const secondary = 'rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-sm font-semibold disabled:opacity-40';
 const cardClass = 'min-w-0 space-y-4 rounded-xl border border-slate-200 bg-white p-4';
 
 function Field({ label, children }) {

@@ -3,8 +3,8 @@ import { bookConditionLabel } from '@shared-domain/status';
 import { formatCurrency } from '@shared-domain/format';
 import { appendIntakeVariants, createIntakeRange, intakeBookCount, newIntakeVariant, optionKey, resolveIntakeVariant } from '../lib/intakeWorkbench';
 
-const input = 'w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm';
-const button = 'rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold';
+const input = 'w-full min-w-0 rounded-[10px] border border-slate-200 bg-white px-2 py-2 text-sm';
+const button = 'rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-sm font-semibold';
 const grades = Object.entries(bookConditionLabel).filter(([grade]) => grade !== 'DISCARD');
 
 export default function IntakeBatchOptions({ item, onChange, phase }) {

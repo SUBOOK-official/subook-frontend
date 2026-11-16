@@ -27,7 +27,7 @@ function PickupBoxSelects({ codes, onChange, disabled = false }) {
     <p className="text-xs text-slate-600">{PICKUP_BOX_GUIDE}</p>
     {codes.map((code, index) => <label className="block text-xs font-bold text-slate-700" key={index}>
       박스 {index + 1} 규격
-      <select className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" disabled={disabled} value={code} onChange={(event) => {
+      <select className="mt-1 w-full rounded-[10px] border border-slate-200 px-3 py-2 text-sm" disabled={disabled} value={code} onChange={(event) => {
         const next = [...codes]; next[index] = event.target.value; onChange(next);
       }}>
         <option value="">규격 선택</option>
@@ -161,7 +161,7 @@ function PickupDetailModal({ request, onClose }) {
     >
       <div className="space-y-6 px-6 py-5">
         <section>
-          <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">수령인 · 수거지</h3>
+          <h3 className="mb-2 text-xs font-bold text-slate-500">수령인 · 수거지</h3>
           <dl className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
             <PickupDetailRow label="이름" value={request.pickup_recipient_name} />
             <PickupDetailRow label="연락처" value={request.pickup_recipient_phone} mono />
@@ -176,7 +176,7 @@ function PickupDetailModal({ request, onClose }) {
         </section>
 
         <section>
-          <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">수거 정보</h3>
+          <h3 className="mb-2 text-xs font-bold text-slate-500">수거 정보</h3>
           <dl className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
             <PickupDetailRow
               label="희망 수거일"
@@ -197,7 +197,7 @@ function PickupDetailModal({ request, onClose }) {
         </section>
 
         <section>
-          <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">
+          <h3 className="mb-2 text-xs font-bold text-slate-500">
             품목 {items.length > 0 ? `(${items.length})` : ""}
           </h3>
           {items.length > 0 ? (
@@ -223,7 +223,7 @@ function PickupDetailModal({ request, onClose }) {
 
         {request.tracking_number ? (
           <section>
-            <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">배송</h3>
+            <h3 className="mb-2 text-xs font-bold text-slate-500">배송</h3>
             <dl className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
               {boxWaybills.length > 1 ? (
                 boxWaybills.map((waybill) => (
@@ -1835,7 +1835,7 @@ function AdminPickupRequestsPage() {
               <label className="block">
                 <span className="text-xs font-bold text-slate-700">박스 개수</span>
                 <input
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  className="mt-1 w-full rounded-[10px] border border-slate-200 px-3 py-2 text-sm"
                   disabled={reregisteringId !== null}
                   inputMode="numeric"
                   min="1"
@@ -1856,7 +1856,7 @@ function AdminPickupRequestsPage() {
               <label className="block">
                 <span className="text-xs font-bold text-slate-700">수거 예정일</span>
                 <input
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  className="mt-1 w-full rounded-[10px] border border-slate-200 px-3 py-2 text-sm"
                   disabled={reregisteringId !== null}
                   onChange={(event) =>
                     setReregisterModal((prev) =>

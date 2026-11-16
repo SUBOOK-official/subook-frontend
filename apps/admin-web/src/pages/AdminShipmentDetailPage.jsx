@@ -1576,7 +1576,7 @@ function AdminShipmentDetailPage() {
                       {/* 공개 정보(메타·사진·정가) 편집은 상품 수정 모달로 통합 (2026-07-19) */}
                       <div className="mt-3 flex flex-wrap gap-2">
                         <button
-                          className="inline-flex rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+                          className="inline-flex rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
                           disabled={
                             isRowBusy ||
                             openingProductEditId === book.id ||
@@ -1687,22 +1687,22 @@ function AdminShipmentDetailPage() {
                             type="checkbox"
                           />
                         </th>
-                        <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
+                        <th className="px-4 py-3 text-left text-xs font-bold text-slate-500">
                           책 정보
                         </th>
-                        <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
+                        <th className="px-4 py-3 text-left text-xs font-bold text-slate-500">
                           현재 상태
                         </th>
-                        <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
+                        <th className="px-4 py-3 text-left text-xs font-bold text-slate-500">
                           현재 판매가
                         </th>
-                        <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
+                        <th className="px-4 py-3 text-left text-xs font-bold text-slate-500">
                           판매가 수정
                         </th>
-                        <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
+                        <th className="px-4 py-3 text-left text-xs font-bold text-slate-500">
                           상태 변경
                         </th>
-                        <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
+                        <th className="px-4 py-3 text-left text-xs font-bold text-slate-500">
                           관리
                         </th>
                       </tr>
@@ -1784,7 +1784,7 @@ function AdminShipmentDetailPage() {
                                 <div className="flex flex-col gap-2">
                                   {/* 공개 정보 편집은 상품 수정 모달로 통합 (2026-07-19) */}
                                   <button
-                                    className="inline-flex items-center justify-center whitespace-nowrap rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+                                    className="inline-flex items-center justify-center whitespace-nowrap rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
                                     disabled={
                                       isRowBusy ||
                                       openingProductEditId === book.id ||

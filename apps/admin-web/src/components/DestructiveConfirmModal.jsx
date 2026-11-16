@@ -105,7 +105,7 @@ function DestructiveConfirmModal({
               </div>
             ) : null}
             <textarea
-              className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-rose-500 focus:outline-none"
+              className="mt-2 w-full rounded-[10px] border border-slate-200 px-3 py-2 text-sm focus:border-rose-500 focus:outline-none"
               disabled={busy}
               id={reasonId}
               onChange={(event) => setReason(event.target.value)}
@@ -119,7 +119,7 @@ function DestructiveConfirmModal({
 
         <div className="mt-5 flex items-center justify-end gap-2">
           <button
-            className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            className="btn-secondary !px-4 !py-2"
             disabled={busy}
             onClick={onCancel}
             type="button"
@@ -127,7 +127,7 @@ function DestructiveConfirmModal({
             {cancelLabel}
           </button>
           <button
-            className="rounded-md bg-rose-600 px-4 py-2 text-sm font-bold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="btn-danger !px-4 !py-2"
             disabled={!canConfirm}
             onClick={handleConfirm}
             type="button"

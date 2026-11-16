@@ -31,7 +31,7 @@ export default function OrderItemGroupList({ items }) {
   return (
     <div>
       <div className="mb-2 flex flex-wrap items-center gap-2">
-        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">주문 상품</h4>
+        <h4 className="text-xs font-bold text-slate-500">주문 상품</h4>
         <span className="rounded-full bg-slate-900 px-2 py-0.5 text-[11px] font-bold text-white tabular-nums">
           총 {summary.bookCount}권 · {summary.titleCount}종
         </span>

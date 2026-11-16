@@ -12,8 +12,8 @@ import { prepareStudioImagePayload, requestStudioGeneration, studioResultToFile 
 import { requestCoverScan } from '../lib/coverScanClient';
 import { blankIntake, INTAKE_STEPS, intakeError, intakePayload, intakeBatchVariants, intakeBookCount, isIntakeBatch, resolveIntakeVariant, restoreIntake, suggestIntakeOption, updateIntake } from '../lib/intakeWorkbench';
 
-const inputClass = 'mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm disabled:bg-slate-100';
-const secondary = 'rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold disabled:opacity-40';
+const inputClass = 'mt-1 w-full rounded-[10px] border border-slate-200 bg-white px-3 py-2.5 text-sm disabled:bg-slate-100';
+const secondary = 'rounded-[10px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold disabled:opacity-40';
 const primary = 'rounded-lg bg-blue-700 px-5 py-3 text-sm font-bold text-white disabled:opacity-40';
 function Field({ label, children }) { return <label className="block text-sm font-semibold text-slate-700">{label}{children}</label>; }
 function SelectField({ label, value, options, onChange }) {

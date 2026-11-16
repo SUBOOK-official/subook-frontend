@@ -95,7 +95,7 @@ export default function AdminIntegrationsPage() {
           </p>
           <input
             aria-label="연동 업무 검색"
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            className="rounded-[10px] border border-slate-200 px-3 py-2 text-sm"
             placeholder="예: 광고, 환불, 수거"
             value={search}
             onChange={(event) => setSearch(event.target.value)}

@@ -100,7 +100,7 @@ function BulkPriceDeltaModal({ open, books, selectedIds, busy = false, onCancel,
           </span>
           <input
             autoComplete="off"
-            className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:outline-none"
+            className="mt-2 w-full rounded-[10px] border border-slate-200 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:outline-none"
             disabled={busy}
             inputMode="decimal"
             onChange={(event) => setPercentInput(event.target.value)}
@@ -144,7 +144,7 @@ function BulkPriceDeltaModal({ open, books, selectedIds, busy = false, onCancel,
 
         <div className="mt-5 flex items-center justify-end gap-2">
           <button
-            className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-[10px] border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
             disabled={busy}
             onClick={onCancel}
             type="button"

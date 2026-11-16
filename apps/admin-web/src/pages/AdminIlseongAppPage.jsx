@@ -188,7 +188,7 @@ export default function AdminIlseongAppPage() {
             <label className="flex flex-col gap-1 text-sm text-slate-700">
               환불 시 앱 이용
               <select
-                className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                className="rounded-[10px] border border-slate-200 px-3 py-2 text-sm"
                 disabled={busy}
                 onChange={(event) => setForm((prev) => ({ ...prev, refundPolicy: event.target.value }))}
                 value={form.refundPolicy}
@@ -201,7 +201,7 @@ export default function AdminIlseongAppPage() {
             <label className="flex flex-col gap-1 text-sm text-slate-700">
               앱 스토어 링크(출시 후 입력, 알림톡에는 넣지 않음)
               <input
-                className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                className="rounded-[10px] border border-slate-200 px-3 py-2 text-sm"
                 disabled={busy}
                 onChange={(event) => setForm((prev) => ({ ...prev, appDownloadUrl: event.target.value }))}
                 placeholder="https://"
@@ -277,12 +277,12 @@ export default function AdminIlseongAppPage() {
           <form className="flex flex-wrap gap-2" onSubmit={lookupOrder}>
             <input
               aria-label="주문번호"
-              className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className="min-w-0 flex-1 rounded-[10px] border border-slate-200 px-3 py-2 text-sm"
               onChange={(event) => setOrderNumber(event.target.value)}
               placeholder="주문번호 (예: ORD-2611-0001)"
               value={orderNumber}
             />
-            <button className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-800 disabled:opacity-50" disabled={busy} type="submit">
+            <button className="rounded-[10px] border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-800 disabled:opacity-50" disabled={busy} type="submit">
               조회
             </button>
           </form>
@@ -293,14 +293,14 @@ export default function AdminIlseongAppPage() {
                   <strong className="text-slate-950">{orderDetail.order.order_number}</strong> · 주문 {orderDetail.order.status} · 결제 {orderDetail.order.payment_status}
                 </span>
                 <span className="flex flex-wrap gap-2">
-                  <button className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold disabled:opacity-50" disabled={busy || !configured} onClick={() => orderAction("refresh", {}, "앱 서버 상태를 다시 읽었습니다.")} type="button">
+                  <button className="rounded-[10px] border border-slate-200 px-3 py-1.5 text-xs font-semibold disabled:opacity-50" disabled={busy || !configured} onClick={() => orderAction("refresh", {}, "앱 서버 상태를 다시 읽었습니다.")} type="button">
                     앱 등록 여부 다시 읽기
                   </button>
-                  <button className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold disabled:opacity-50" disabled={busy} onClick={() => orderAction("retry", {}, "지금 다시 처리하도록 대기열에 올렸습니다.")} type="button">
+                  <button className="rounded-[10px] border border-slate-200 px-3 py-1.5 text-xs font-semibold disabled:opacity-50" disabled={busy} onClick={() => orderAction("retry", {}, "지금 다시 처리하도록 대기열에 올렸습니다.")} type="button">
                     지금 다시 처리
                   </button>
                   <button
-                    className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold disabled:opacity-50"
+                    className="rounded-[10px] border border-slate-200 px-3 py-1.5 text-xs font-semibold disabled:opacity-50"
                     disabled={busy}
                     onClick={() => {
                       if (window.confirm("이 주문의 앱 코드 알림톡을 다시 보냅니다. 진행할까요?")) orderAction("resend", {}, "알림톡을 다시 보냈습니다.");
@@ -324,7 +324,7 @@ export default function AdminIlseongAppPage() {
                       <span className="text-xs text-slate-500">알림 {formatDateTime(line.notified_at)}</span>
                       {line.status === "issued" && !line.revoke_requested_at ? (
                         <button
-                          className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold disabled:opacity-50"
+                          className="rounded-[10px] border border-slate-200 px-3 py-1.5 text-xs font-semibold disabled:opacity-50"
                           disabled={busy || !configured}
                           onClick={() => {
                             if (window.confirm("이 코드를 못 쓰게 하고 새 코드를 발급해 다시 보냅니다. 진행할까요?")) {

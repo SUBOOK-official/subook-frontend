@@ -5,7 +5,7 @@ import { productStatusLabel } from "@shared-domain/status";
 import { getThumbnailImageUrl } from "@shared-domain/storageImage";
 
 const pageSize = 30;
-const button = "rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold disabled:opacity-50";
+const button = "rounded-[10px] border border-slate-200 px-3 py-2 text-sm font-semibold disabled:opacity-50";
 
 export default function CuratedProductPicker({ selectedIds = [], onAdd, disabled = false }) {
   const inputId = useId();
@@ -51,7 +51,7 @@ export default function CuratedProductPicker({ selectedIds = [], onAdd, disabled
   return <section className="rounded-xl border border-slate-200 bg-white p-4" aria-label="추가할 교재 목록">
     <label htmlFor={inputId} className="mb-2 block text-sm font-bold">교재 목록에서 추가</label>
     <div className="flex gap-2">
-      <input id={inputId} className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="교재명·강사·브랜드·과목·상품번호 검색" value={query} disabled={disabled}
+      <input id={inputId} className="min-w-0 flex-1 rounded-[10px] border border-slate-200 px-3 py-2 text-sm" placeholder="교재명·강사·브랜드·과목·상품번호 검색" value={query} disabled={disabled}
         onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); search(); } }} />
       <button type="button" className={button} disabled={disabled} onClick={search}>검색</button>
       {request.search && <button type="button" className={button} disabled={disabled} onClick={() => { setQuery(""); setChecked([]); setRequest({ search: "", page: 1 }); }}>전체</button>}
