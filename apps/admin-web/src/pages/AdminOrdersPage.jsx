@@ -2,6 +2,8 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { Link } from "react-router-dom";
 import { useAdminListState } from "../lib/useAdminListState";
 import AdminSavedViews from "../components/AdminSavedViews";
+import AdminViewTabs from "../components/AdminViewTabs";
+import AdminFilterPopover from "../components/AdminFilterPopover";
 import AdminEntityTimeline from "../components/AdminEntityTimeline";
 import AdminDialog from "../components/AdminDialog";
 import AdminReturnRefundDialog from "../components/AdminReturnRefundDialog";
@@ -10,6 +12,7 @@ import RefundRequestItems from "../components/RefundRequestItems";
 import AdminShell from "../components/AdminShell";
 import AdminFulfillmentWorkbench from "../components/AdminFulfillmentWorkbench";
 import { createAdminJobRecorder } from "../lib/adminJobRecorder";
+import { kstDateString } from "../lib/adminDateTime";
 import AdminPagination from "../components/AdminPagination";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import StatusBadge from "@shared-domain/StatusBadge";
@@ -25,7 +28,7 @@ import {
   notifyShippingStarted,
 } from "../lib/adminNotification";
 import { CjWaybillFormPrintModal } from "../components/CjWaybillFormLabel";
-import { AlertTriangleIcon, CheckIcon } from "../components/icons";
+import { AlertTriangleIcon, CheckIcon, SearchIcon } from "../components/icons";
 import { downloadSalesSheetXlsx } from "../lib/salesSheetExport";
 import { BusyText, InlineLoading, LoadingOverlay } from "../components/Loading";
 import OrderItemGroupList from "../components/OrderItemGroupList";
@@ -58,6 +61,23 @@ const ORDER_STATUS_OPTIONS = [
   { value: "cancelled", label: "주문취소" },
   { value: "refunded", label: "환불" },
 ];
+
+// 업무 보기 탭 — 운영자가 처리할 묶음. view는 list_admin_work_orders의 p_view, status는 p_statuses.
+// tone: 건수가 있을 때 강조색 (work=처리할 일, danger=환불)
+const ORDER_VIEW_TABS = [
+  { key: "all", label: "전체", view: "", status: "" },
+  { key: "pending", label: "입금 확인", view: "", status: "pending", tone: "work" },
+  { key: "fulfillment", label: "출고 대기", view: "fulfillment", status: "", tone: "work" },
+  { key: "shipping", label: "배송중", view: "", status: "shipping" },
+  { key: "refunds", label: "환불·반품", view: "refunds", status: "", tone: "danger" },
+  { key: "returns", label: "회수 진행", view: "returns", status: "" },
+  { key: "restock", label: "재고 보류", view: "restock", status: "" },
+];
+
+// 필터 버튼에 넣는 짧은 날짜 — "2026-11-09" → "11.09" (비어 있으면 빈칸)
+function formatShortDate(value) {
+  return value ? `${value.slice(5, 7)}.${value.slice(8, 10)}` : "";
+}
 
 const CARRIER_OPTIONS = [
   "CJ대한통운",
@@ -114,32 +134,32 @@ const NEXT_STATUS_ACTIONS = {
   pending: [
     // 입금확인은 무통장 주문에만 노출 — PG 주문은 결제 성공 시 자동 전이되므로 수동 확인 없음.
     { action: "confirm_payment", label: "입금확인", style: "btn-primary", bankTransferOnly: true },
-    { status: "cancelled", label: "주문취소", style: "btn-danger" },
+    { status: "cancelled", label: "주문취소", style: "btn-danger-weak" },
   ],
   // 레거시(폐지 전 paid에 남은 주문 전용) — 신규 주문은 이 상태를 거치지 않는다.
   paid: [
     { status: "preparing", label: "상품 준비 중", style: "btn-primary" },
-    { action: "refund", label: "반품·환불", style: "btn-danger" },
+    { action: "refund", label: "반품·환불", style: "btn-danger-weak" },
   ],
   preparing: [
     // CJ 송장 출력: 채번+예약접수(cj-delivery) 자동 처리 후 표준 라벨 인쇄, 배송중 전환.
     { action: "cj_delivery", label: "CJ 송장 출력", style: "btn-primary" },
     // 수동 송장입력(다른 택배/직접 발번 대비 fallback).
     { status: "shipping", label: "송장 직접입력", style: "btn-secondary", requiresTracking: true },
-    { action: "refund", label: "반품·환불", style: "btn-danger" },
+    { action: "refund", label: "반품·환불", style: "btn-danger-weak" },
   ],
   shipping: [
     // 이미 발급된 운송장 라벨을 다시 열어 재인쇄 (채번/접수 없이 라우팅 재조회만).
     { action: "cj_reprint", label: "송장 재출력", style: "btn-secondary" },
     { status: "delivered", label: "배송완료", style: "btn-primary" },
-    { action: "refund", label: "반품·환불", style: "btn-danger" },
+    { action: "refund", label: "반품·환불", style: "btn-danger-weak" },
   ],
   delivered: [
     { action: "cj_reprint", label: "송장 재출력", style: "btn-secondary" },
-    { action: "refund", label: "반품·환불", style: "btn-danger" },
+    { action: "refund", label: "반품·환불", style: "btn-danger-weak" },
   ],
   confirmed: [
-    { action: "refund", label: "반품·환불", style: "btn-danger" },
+    { action: "refund", label: "반품·환불", style: "btn-danger-weak" },
   ],
   // 취소 주문 복원 (2026-08-31) — 입금 확인이 늦어 24시간 자동취소된 무통장 주문을 되살린다.
   //   결제·환불 이력이 남은 취소 주문(레거시)은 제외(unpaidOnly) — 되살리면 PG·입금 정합이 깨진다.
@@ -1432,12 +1452,6 @@ function AdminOrdersPage() {
     URL.revokeObjectURL(url);
   };
 
-  // 송장 입력 대기 = 상품 준비 중 (+ 폐지 전 레거시 paid)
-  const awaitingTrackingCount = useMemo(
-    () => orders.filter((o) => o.status === "preparing" || o.status === "paid").length,
-    [orders],
-  );
-
   // 주문 상세 — 클릭한 주문 행 바로 아래에서 펼쳐진다.
   // (예전엔 표 아래 별도 카드로 떠서 상세를 볼 때마다 페이지 맨 밑까지 스크롤해야 했다.)
   const renderOrderDetail = (selectedOrder) => (
@@ -1473,6 +1487,125 @@ function AdminOrdersPage() {
           </p>
         </div>
         <StatusBadge status={selectedOrder.status} type="order" />
+      </div>
+
+      {/* 처리 버튼 — 상세 맨 위에 둔다 (예전엔 긴 상세의 맨 아래에 있어 매번 스크롤해야 했다) */}
+      <div className="border-b border-slate-100 pb-4">
+        <div className="flex flex-wrap items-center gap-2">
+          {getOrderActions(selectedOrder).map((action) => {
+            if (action.requiresTracking) {
+              return (
+                <button
+                  className={`${action.style} !w-auto !px-4 !py-2 text-sm`}
+                  key={action.status}
+                  onClick={() => openTrackingModal(selectedOrder)}
+                  type="button"
+                >
+                  {action.label}
+                </button>
+              );
+            }
+
+            if (action.action === "refund") {
+              return (
+                <button
+                  className={`${action.style} !w-auto !px-4 !py-2 text-sm`}
+                  disabled={busyOrderId === selectedOrder.id}
+                  key="refund"
+                  onClick={() => handleRefund(selectedOrder.id)}
+                  type="button"
+                >
+                  {busyOrderId === selectedOrder.id ? <BusyText>처리 중...</BusyText> : action.label}
+                </button>
+              );
+            }
+
+            if (action.action === "confirm_payment") {
+              return (
+                <button
+                  className={`${action.style} !w-auto !px-4 !py-2 text-sm`}
+                  disabled={busyOrderId === selectedOrder.id}
+                  key="confirm_payment"
+                  onClick={() => openPaymentModal(selectedOrder)}
+                  type="button"
+                >
+                  {action.label}
+                </button>
+              );
+            }
+
+            if (action.action === "restore") {
+              return (
+                <button
+                  className={`${action.style} !w-auto !px-4 !py-2 text-sm`}
+                  disabled={busyOrderId === selectedOrder.id}
+                  key="restore"
+                  onClick={() => openRestoreModal(selectedOrder)}
+                  type="button"
+                >
+                  {action.label}
+                </button>
+              );
+            }
+
+            if (action.action === "cj_delivery") {
+              return (
+                <button
+                  className={`${action.style} !w-auto !px-4 !py-2 text-sm`}
+                  disabled={busyOrderId === selectedOrder.id}
+                  key="cj_delivery"
+                  onClick={() => handleCjDelivery(selectedOrder.id)}
+                  type="button"
+                >
+                  {busyOrderId === selectedOrder.id ? <BusyText>발급 중...</BusyText> : action.label}
+                </button>
+              );
+            }
+
+            if (action.action === "cj_reprint") {
+              return (
+                <button
+                  className={`${action.style} !w-auto !px-4 !py-2 text-sm`}
+                  disabled={busyOrderId === selectedOrder.id}
+                  key="cj_reprint"
+                  onClick={() => handleCjReprint(selectedOrder.id)}
+                  type="button"
+                >
+                  {busyOrderId === selectedOrder.id ? <BusyText>불러오는 중...</BusyText> : action.label}
+                </button>
+              );
+            }
+
+            return (
+              <button
+                className={`${action.style} !w-auto !px-4 !py-2 text-sm`}
+                disabled={busyOrderId === selectedOrder.id}
+                key={action.status}
+                onClick={() => handleUpdateStatus(selectedOrder.id, action.status)}
+                type="button"
+              >
+                {busyOrderId === selectedOrder.id ? <BusyText>처리 중...</BusyText> : action.label}
+              </button>
+            );
+          })}
+
+          {selectedOrder.status === "confirmed" ? (
+            <button
+              className="btn-secondary !w-auto !px-4 !py-2 text-sm"
+              disabled={busyOrderId === selectedOrder.id}
+              onClick={() => handleRunSettlement(selectedOrder.id)}
+              type="button"
+            >
+              {busyOrderId === selectedOrder.id ? <BusyText>처리 중...</BusyText> : "정산 생성(수동)"}
+            </button>
+          ) : null}
+
+          <Link className="btn-secondary !w-auto !px-4 !py-2 text-sm" to={`/admin/cs?order=${selectedOrder.id}`}>문의 기록</Link>
+          {getOrderActions(selectedOrder).length === 0 &&
+            selectedOrder.status !== "confirmed" && (
+              <p className="text-xs text-slate-400">현재 상태에서 가능한 작업이 없습니다.</p>
+            )}
+        </div>
       </div>
 
       {/* 주문 상품 */}
@@ -1773,284 +1906,212 @@ function AdminOrdersPage() {
         );
       })()}
 
-      {/* 상태 변경 액션 */}
-      <div>
-        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">상태 변경</h4>
-        <div className="flex flex-wrap gap-2 items-end">
-          {getOrderActions(selectedOrder).map((action) => {
-            if (action.requiresTracking) {
-              return (
-                <button
-                  className="btn-primary !w-auto !px-4 !py-2 text-sm"
-                  key={action.status}
-                  onClick={() => openTrackingModal(selectedOrder)}
-                  type="button"
-                >
-                  송장입력
-                </button>
-              );
-            }
-
-            if (action.action === "refund") {
-              return (
-                <button
-                  className={`${action.style} !w-auto !px-4 !py-2 text-sm`}
-                  disabled={busyOrderId === selectedOrder.id}
-                  key="refund"
-                  onClick={() => handleRefund(selectedOrder.id)}
-                  type="button"
-                >
-                  {busyOrderId === selectedOrder.id ? <BusyText>처리 중...</BusyText> : action.label}
-                </button>
-              );
-            }
-
-            if (action.action === "confirm_payment") {
-              return (
-                <button
-                  className={`${action.style} !w-auto !px-4 !py-2 text-sm`}
-                  disabled={busyOrderId === selectedOrder.id}
-                  key="confirm_payment"
-                  onClick={() => openPaymentModal(selectedOrder)}
-                  type="button"
-                >
-                  {action.label}
-                </button>
-              );
-            }
-
-            if (action.action === "restore") {
-              return (
-                <button
-                  className={`${action.style} !w-auto !px-4 !py-2 text-sm`}
-                  disabled={busyOrderId === selectedOrder.id}
-                  key="restore"
-                  onClick={() => openRestoreModal(selectedOrder)}
-                  type="button"
-                >
-                  {action.label}
-                </button>
-              );
-            }
-
-            if (action.action === "cj_delivery") {
-              return (
-                <button
-                  className={`${action.style} !w-auto !px-4 !py-2 text-sm`}
-                  disabled={busyOrderId === selectedOrder.id}
-                  key="cj_delivery"
-                  onClick={() => handleCjDelivery(selectedOrder.id)}
-                  type="button"
-                >
-                  {busyOrderId === selectedOrder.id ? <BusyText>발급 중...</BusyText> : action.label}
-                </button>
-              );
-            }
-
-            if (action.action === "cj_reprint") {
-              return (
-                <button
-                  className={`${action.style} !w-auto !px-4 !py-2 text-sm`}
-                  disabled={busyOrderId === selectedOrder.id}
-                  key="cj_reprint"
-                  onClick={() => handleCjReprint(selectedOrder.id)}
-                  type="button"
-                >
-                  {busyOrderId === selectedOrder.id ? <BusyText>불러오는 중...</BusyText> : action.label}
-                </button>
-              );
-            }
-
-            return (
-              <button
-                className={`${action.style} !w-auto !px-4 !py-2 text-sm`}
-                disabled={busyOrderId === selectedOrder.id}
-                key={action.status}
-                onClick={() => handleUpdateStatus(selectedOrder.id, action.status)}
-                type="button"
-              >
-                {busyOrderId === selectedOrder.id ? <BusyText>처리 중...</BusyText> : action.label}
-              </button>
-            );
-          })}
-
-          {selectedOrder.status === "confirmed" ? (
-            <button
-              className="btn-secondary !w-auto !px-4 !py-2 text-sm"
-              disabled={busyOrderId === selectedOrder.id}
-              onClick={() => handleRunSettlement(selectedOrder.id)}
-              type="button"
-            >
-              {busyOrderId === selectedOrder.id ? <BusyText>처리 중...</BusyText> : "정산 생성(수동)"}
-            </button>
-          ) : null}
-
-          <Link className="btn-secondary !w-auto !px-4 !py-2 text-sm" to={`/admin/cs?order=${selectedOrder.id}`}>문의 기록</Link>
-          {getOrderActions(selectedOrder).length === 0 &&
-            selectedOrder.status !== "confirmed" && (
-              <p className="text-xs text-slate-400">현재 상태에서 가능한 작업이 없습니다.</p>
-            )}
-        </div>
-      </div>
       <AdminEntityTimeline entity="orders" id={selectedOrder.id} milestones={[{ label: "주문 접수", at: selectedOrder.created_at }, { label: "결제 확인", at: selectedOrder.paid_at || selectedOrder.pg_approved_at }, { label: "환불 신청", at: selectedOrder.refund_requested_at }, { label: "반품 회수", at: selectedOrder.return_recovered_at }, { label: "구매 확정", at: selectedOrder.confirmed_at }]} />
     </div>
   );
 
-  const summaryCards = summary
-    ? [
-        { label: "전체 주문", value: summary.total_count ?? 0 },
-        { label: "입금대기", value: summary.pending_count ?? 0, hint: "확인 필요" },
+  // 업무 보기 탭 — 주소(view·status)와 1:1로 대응한다. 건수는 get_admin_order_summary 기준.
+  const activeViewTab = (list.view
+    ? ORDER_VIEW_TABS.find((tab) => tab.view === list.view)
+    : ORDER_VIEW_TABS.find((tab) => !tab.view && tab.status === list.status)) ?? ORDER_VIEW_TABS[0];
+  const viewCounts = summary
+    ? {
+        all: summary.total_count,
+        pending: summary.pending_count,
         // paid 단계 폐지 — 결제 확인 주문은 preparing으로 직행. (paid_count는 레거시 잔여분)
-        { label: "준비 중/배송중", value: (summary.preparing_count ?? 0) + (summary.paid_count ?? 0) + (summary.shipping_count ?? 0), hint: "처리 필요" },
-        { label: "구매확정", value: summary.confirmed_count ?? 0 },
-        // 구매자가 환불 신청한 주문 — refunded 처리 전까지 큐에 남음. 0이면 표시 생략.
-        ...((summary.refund_pending_count ?? 0) > 0
-          ? [{ label: "환불 신청", value: summary.refund_pending_count, hint: "처리 필요", tone: "warning", to: "/admin/orders?view=refunds" }]
-          : []),
-      ]
-    : [];
+        fulfillment: (summary.preparing_count ?? 0) + (summary.paid_count ?? 0),
+        shipping: summary.shipping_count,
+        refunds: summary.refund_pending_count,
+      }
+    : {};
+  const viewTabs = ORDER_VIEW_TABS.map((tab) => ({ ...tab, count: viewCounts[tab.key] }));
+  const selectViewTab = (key) => {
+    const tab = ORDER_VIEW_TABS.find((entry) => entry.key === key);
+    if (tab) updateList({ view: tab.view, status: tab.status, detail: "" });
+  };
+
+  const hasDateFilter = Boolean(fromDate || toDate);
+  const dateFilterLabel = hasDateFilter ? `${formatShortDate(fromDate)} ~ ${formatShortDate(toDate)}` : "";
+  const statusFilterLabel = statusFilters.length === 1
+    ? ORDER_STATUS_OPTIONS.find((option) => option.value === statusFilters[0])?.label ?? "1개"
+    : statusFilters.length > 1 ? `${statusFilters.length}개` : "";
+  // 탭이 정한 상태(예: 입금 확인 = 입금대기)는 추가 필터로 치지 않는다.
+  const hasListFilters = Boolean(search || hasDateFilter || list.user || list.order || list.status !== activeViewTab.status);
+  const resetListFilters = () =>
+    updateList({ q: "", from: "", to: "", user: "", order: "", detail: "", view: activeViewTab.view, status: activeViewTab.status });
+  const applyDatePreset = (days) =>
+    updateList(days === null ? { from: "", to: "" } : { from: kstDateString(-days), to: kstDateString(0) });
 
   return (
     <AdminShell
+      actions={
+        <>
+          <button
+            className="btn-secondary !w-auto !px-4 !py-2.5 text-sm"
+            onClick={() => setCsvModalOpen(true)}
+            title="주문번호·택배사·송장번호가 담긴 CSV 파일로 여러 주문을 한꺼번에 배송중 처리합니다"
+            type="button"
+          >
+            CSV 송장 입력
+          </button>
+          <button
+            className="btn-primary !w-auto !px-4 !py-2.5 text-sm"
+            disabled={bulkProcessing || deliveryPlanLoading}
+            onClick={() => openDeliveryPlan([], { smart: true })}
+            title="검색·기간·선택과 관계없이 전체 배송준비 주문을 모아 합배송합니다"
+            type="button"
+          >
+            {deliveryPlanLoading && smartDeliveryPlan ? <BusyText>출고 대상 확인 중...</BusyText> : "스마트 운송장 출력"}
+          </button>
+        </>
+      }
       activeModule="orders"
       description="주문 목록, 입금 확인, 송장 입력, 배송 상태 관리"
-      summaryCards={summaryCards}
       title="주문 관리"
     >
-      <AdminSavedViews presets={[{ name: "출고 대기", search: "view=fulfillment" }, { name: "환불·반품", search: "view=refunds" }, { name: "회수 진행", search: "view=returns" }, { name: "재고 보류", search: "view=restock" }]} />
-      {list.view === "fulfillment" && !isLoading && !loadError ? <AdminFulfillmentWorkbench orders={orders} selectedIds={selectedIds} /> : null}
-      {loadError ? <div role="alert" className="notice-error">{loadError} <button type="button" className="underline" onClick={() => void loadOrders()}>다시 조회</button></div> : null}
-      {/* 필터 영역 — 운영툴이라 label·preset 명시 */}
-      <div className="card p-4 space-y-3">
-        <div className="flex flex-wrap gap-3 items-end">
-          <label className="flex-1 min-w-[220px]">
-            <span className="block text-xs font-semibold text-slate-600 mb-1.5">검색어</span>
-            <input
-              className="input-base !w-full"
-              onChange={(e) => {
-                setSearch(e.target.value);
+      <AdminViewTabs activeKey={activeViewTab.key} onSelect={selectViewTab} tabs={viewTabs} />
 
-              }}
+      {/* 검색·기간·상태 — 한 줄 필터. 판매내역 엑셀은 이 조건 그대로 내려받는다 */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="relative min-w-[220px] flex-1">
+            <span className="sr-only">주문 검색</span>
+            <SearchIcon className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+            <input
+              className="h-10 w-full rounded-[10px] border border-slate-200 bg-white pl-10 pr-3 text-base text-slate-900 outline-none transition-colors placeholder:text-slate-400 hover:border-slate-300 focus:border-brand focus:ring-2 focus:ring-brand/15 sm:text-[15px]"
+              onChange={(e) => setSearch(e.target.value)}
               placeholder="주문번호, 구매자, 수령인, 책 제목"
               type="search"
               value={search}
             />
           </label>
-          <label>
-            <span className="block text-xs font-semibold text-slate-600 mb-1.5">시작일</span>
-            <input
-              className="input-base !w-auto"
-              onChange={(e) => {
-                setFromDate(e.target.value);
 
-              }}
-              type="date"
-              value={fromDate}
-            />
-          </label>
-          <span className="pb-3 text-slate-400 text-sm">~</span>
-          <label>
-            <span className="block text-xs font-semibold text-slate-600 mb-1.5">종료일</span>
-            <input
-              className="input-base !w-auto"
-              onChange={(e) => {
-                setToDate(e.target.value);
+          <AdminFilterPopover active={hasDateFilter} label="기간" valueLabel={dateFilterLabel}>
+            {({ close }) => (
+              <div className="space-y-3">
+                <div className="grid grid-cols-4 gap-1.5">
+                  {[
+                    { label: "오늘", days: 0 },
+                    { label: "7일", days: 7 },
+                    { label: "30일", days: 30 },
+                    { label: "전체", days: null },
+                  ].map((preset) => (
+                    <button
+                      className="rounded-lg bg-slate-100 px-2 py-2 text-[13px] font-semibold text-slate-600 transition-colors hover:bg-slate-200"
+                      key={preset.label}
+                      onClick={() => {
+                        applyDatePreset(preset.days);
+                        close();
+                      }}
+                      type="button"
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="text-xs font-semibold text-slate-500">
+                    시작일
+                    <input
+                      className="input-base !px-2.5 !py-2 !text-sm"
+                      onChange={(e) => setFromDate(e.target.value)}
+                      type="date"
+                      value={fromDate}
+                    />
+                  </label>
+                  <label className="text-xs font-semibold text-slate-500">
+                    종료일
+                    <input
+                      className="input-base !px-2.5 !py-2 !text-sm"
+                      onChange={(e) => setToDate(e.target.value)}
+                      type="date"
+                      value={toDate}
+                    />
+                  </label>
+                </div>
+              </div>
+            )}
+          </AdminFilterPopover>
 
-              }}
-              type="date"
-              value={toDate}
-            />
-          </label>
-          {/* 빠른 기간 preset — 운영자 반복 작업 줄이기 위해 */}
-          <div className="flex flex-wrap gap-1 pb-1">
-            {[
-              { label: "오늘", days: 0 },
-              { label: "7일", days: 7 },
-              { label: "30일", days: 30 },
-              { label: "전체", days: null },
-            ].map((preset) => (
-              <button
-                className="text-xs font-semibold text-slate-600 border border-slate-200 rounded-md px-2.5 py-1.5 hover:border-slate-400"
-                key={preset.label}
-                onClick={() => {
-                  if (preset.days === null) {
-                    setFromDate("");
-                    setToDate("");
-                  } else {
-                    const today = new Date();
-                    const from = new Date(today.getTime() - preset.days * 86400000);
-                    setFromDate(from.toISOString().slice(0, 10));
-                    setToDate(today.toISOString().slice(0, 10));
-                  }
+          <AdminFilterPopover active={statusFilters.length > 0} label="상태" valueLabel={statusFilterLabel}>
+            <div>
+              {ORDER_STATUS_OPTIONS.map((opt) => (
+                <label
+                  className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  key={opt.value}
+                >
+                  <input
+                    checked={statusFilters.includes(opt.value)}
+                    className="h-4 w-4"
+                    onChange={() => handleStatusFilterToggle(opt.value)}
+                    type="checkbox"
+                  />
+                  {opt.label}
+                </label>
+              ))}
+              {statusFilters.length > 0 ? (
+                <button
+                  className="mt-1 w-full rounded-lg px-2 py-2 text-left text-[13px] font-semibold text-slate-500 hover:bg-slate-50"
+                  onClick={() => setStatusFilters([])}
+                  type="button"
+                >
+                  선택 해제
+                </button>
+              ) : null}
+            </div>
+          </AdminFilterPopover>
 
-                }}
-                type="button"
-              >
-                {preset.label}
-              </button>
-            ))}
-          </div>
-          {/* 판매내역 엑셀 — 운영 구글시트 "판매내역" 탭과 동일 열 구조 (현재 필터 반영) */}
-          <div className="ml-auto pb-1 flex flex-wrap gap-2">
+          {hasListFilters ? (
             <button
-              className="btn-primary !w-auto !px-4 !py-2 text-sm"
-              disabled={bulkProcessing || deliveryPlanLoading}
-              onClick={() => openDeliveryPlan([], { smart: true })}
-              title="검색·기간·선택과 관계없이 전체 배송준비 주문을 모아 합배송합니다"
-              type="button"
-            >
-              {deliveryPlanLoading && smartDeliveryPlan ? <BusyText>출고 대상 확인 중...</BusyText> : "스마트 운송장 출력"}
-            </button>
-            <button
-              className="btn-secondary !w-auto !px-4 !py-2 text-sm"
-              disabled={isSalesExporting}
-              onClick={handleSalesExport}
-              title="현재 검색·상태·기간 필터 그대로, 운영 구글시트(판매내역 탭) 양식으로 다운로드"
-              type="button"
-            >
-              {isSalesExporting ? <BusyText>생성 중...</BusyText> : "판매내역 엑셀"}
-            </button>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap gap-1.5">
-          {ORDER_STATUS_OPTIONS.map((opt) => (
-            <button
-              className={`rounded-lg px-3 py-1.5 text-xs font-semibold border transition ${
-                statusFilters.includes(opt.value)
-                  ? "bg-slate-950 text-white border-slate-950"
-                  : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"
-              }`}
-              key={opt.value}
-              onClick={() => handleStatusFilterToggle(opt.value)}
-              type="button"
-            >
-              {opt.label}
-            </button>
-          ))}
-          {statusFilters.length > 0 && (
-            <button
-              className="text-xs text-slate-400 underline ml-1"
-              onClick={() => {
-                setStatusFilters([]);
-
-              }}
+              className="h-10 px-1.5 text-sm font-semibold text-slate-500 hover:text-slate-800"
+              onClick={resetListFilters}
               type="button"
             >
               초기화
             </button>
-          )}
+          ) : null}
+
+          <button
+            className="btn-secondary ml-auto !w-auto !rounded-[10px] !px-3.5 !py-2.5 text-sm"
+            disabled={isSalesExporting}
+            onClick={handleSalesExport}
+            title="현재 검색·상태·기간 필터 그대로, 운영 구글시트(판매내역 탭) 양식으로 다운로드"
+            type="button"
+          >
+            {isSalesExporting ? <BusyText>생성 중...</BusyText> : "판매내역 엑셀"}
+          </button>
+        </div>
+
+        {/* 회원·문의 화면에서 넘어와 특정 회원/주문만 걸러 보는 중임을 알린다 (예전엔 표시가 없었다) */}
+        {list.user || list.order ? (
+          <p className="mt-3 flex flex-wrap items-center gap-2 text-[13px]">
+            <span className="rounded-full bg-blue-50 px-2.5 py-1 font-semibold text-blue-600">
+              {list.order ? "지정한 주문 1건만 보는 중" : "회원 한 명의 주문만 보는 중"}
+            </span>
+            <button
+              className="font-semibold text-slate-500 underline hover:text-slate-800"
+              onClick={() => updateList({ user: "", order: "", detail: "" })}
+              type="button"
+            >
+              전체 주문 보기
+            </button>
+          </p>
+        ) : null}
+
+        <div className="mt-3 empty:hidden">
+          <AdminSavedViews canSave={hasListFilters} customOnly />
         </div>
       </div>
 
-      {/* 일괄 액션 바 — 선택 시에만 표시 */}
+      {loadError ? <div role="alert" className="notice-error">{loadError} <button type="button" className="underline" onClick={() => void loadOrders()}>다시 조회</button></div> : null}
+      {list.view === "fulfillment" && !isLoading && !loadError ? <AdminFulfillmentWorkbench orders={orders} selectedIds={selectedIds} /> : null}
+
+      {/* 일괄 작업 바 — 주문을 선택했을 때만 화면 위쪽에 붙어 따라온다 */}
       {selectedIds.size > 0 ? (
-        <div className="sticky top-0 z-30 -mx-1 mb-3 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 shadow-sm flex flex-wrap items-center gap-3">
-          <span className="text-sm font-bold text-amber-900">
-            {selectedIds.size}건 선택됨
-          </span>
+        <div className="sticky top-2 z-30 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl bg-slate-900 px-4 py-3 text-white shadow-lg">
+          <span className="text-sm font-bold tabular-nums">{selectedIds.size}건 선택</span>
           <button
-            className="text-xs text-amber-700 underline hover:text-amber-900"
+            className="text-[13px] font-semibold text-slate-300 underline hover:text-white"
             onClick={() => setSelectedIds(new Set())}
             type="button"
           >
@@ -2063,13 +2124,13 @@ function AdminOrdersPage() {
               selectedCjTargets.length,
               selectedCjReprintTargets.length,
             ) && (
-            <span className="text-xs text-amber-700">
+            <span className="text-xs text-slate-300">
               입금확인=무통장·입금대기 / 송장출력=상품 준비 중 / 재출력=운송장 있는 주문만 대상입니다
             </span>
           )}
           {selectedBulkConfirmTargets.length > 0 && (
             <button
-              className="text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-md px-3 py-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
+              className="rounded-lg bg-brand px-3.5 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-brand-soft disabled:cursor-not-allowed disabled:opacity-60"
               disabled={bulkProcessing}
               onClick={() => setBulkConfirmOpen(true)}
               type="button"
@@ -2080,7 +2141,7 @@ function AdminOrdersPage() {
           {/* CJ 송장 일괄 출력 — 발급 후 한 번의 인쇄 작업으로 N장 (배송 건수 늘어난 뒤 핵심 동선) */}
           {selectedCjTargets.length > 0 && (
             <button
-              className="text-xs font-semibold text-white bg-brand hover:bg-brand-soft rounded-md px-3 py-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
+              className="rounded-lg bg-brand px-3.5 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-brand-soft disabled:cursor-not-allowed disabled:opacity-60"
               disabled={bulkProcessing}
               onClick={() => openDeliveryPlan(selectedCjTargets.map((order) => order.id))}
               type="button"
@@ -2093,7 +2154,7 @@ function AdminOrdersPage() {
           {/* 재출력 — 채번·접수·상태변경·알림톡 없이 라벨만 다시 뽑으므로 확인 단계 없이 바로 실행 */}
           {selectedCjReprintTargets.length > 0 && (
             <button
-              className="text-xs font-semibold text-slate-700 border border-slate-300 bg-white hover:border-slate-500 rounded-md px-3 py-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
+              className="rounded-lg bg-white/10 px-3.5 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-60"
               disabled={bulkProcessing}
               onClick={() => handleBulkCj({ reprint: true })}
               type="button"
@@ -2106,7 +2167,7 @@ function AdminOrdersPage() {
           {selectedBulkConfirmTargets.length === 0
             && selectedCjTargets.length === 0
             && selectedCjReprintTargets.length === 0 && (
-            <span className="text-xs text-amber-700">
+            <span className="text-xs text-slate-300">
               선택한 주문에 가능한 일괄 작업이 없습니다
             </span>
           )}
@@ -2114,22 +2175,35 @@ function AdminOrdersPage() {
       ) : null}
 
       {/* 주문 목록 */}
-      <div className="card">
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+        <p className="px-5 py-3.5 text-sm text-slate-500">
+          {isLoading ? (
+            "불러오는 중"
+          ) : (
+            <>
+              총 <strong className="font-bold tabular-nums text-slate-900">{totalCount.toLocaleString("ko-KR")}</strong>건
+            </>
+          )}
+        </p>
         {isLoading ? (
-          <div className="p-8 text-center text-sm text-slate-400"><InlineLoading /></div>
+          <div className="border-t border-slate-100 p-10 text-center text-sm text-slate-400"><InlineLoading /></div>
         ) : orders.length === 0 ? (
-          <div className="p-8 text-center text-sm text-slate-400">
-            주문이 없습니다.
-            <p className="mt-1 text-xs text-slate-400">
-              권한 문제가 의심되면 시스템 관리자에게 문의해 주세요.
+          <div className="border-t border-slate-100 px-5 py-14 text-center">
+            <p className="text-sm font-semibold text-slate-700">
+              {hasListFilters || activeViewTab.key !== "all" ? "조건에 맞는 주문이 없어요" : "아직 주문이 없어요"}
             </p>
+            {hasListFilters ? (
+              <button className="btn-secondary mt-4 !w-auto !px-4 !py-2 text-sm" onClick={resetListFilters} type="button">
+                검색·필터 초기화
+              </button>
+            ) : null}
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="admin-orders-table w-full min-w-[64rem] text-sm">
               <thead>
-                <tr className="border-b border-slate-100 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">
-                  <th className="px-2 py-3 w-10">
+                <tr className="border-y border-slate-100 bg-slate-50 text-left text-[13px] font-semibold text-slate-500">
+                  <th className="py-3 pl-5 pr-2 w-10">
                     <input
                       aria-label={`현재 페이지 ${orders.length}주문 전체 선택`}
                       checked={orders.length > 0 && selectedIds.size === orders.length}
@@ -2165,7 +2239,7 @@ function AdminOrdersPage() {
                         : hasPendingRefundRequest
                           ? "bg-rose-50"
                           : selectedIds.has(order.id)
-                            ? "bg-amber-50"
+                            ? "bg-blue-50/60"
                             : "hover:bg-slate-50"
                     }`}
                     onClick={() => {
@@ -2182,7 +2256,7 @@ function AdminOrdersPage() {
                     }}
                     tabIndex={0}
                   >
-                    <td className="px-2 py-3" onClick={(event) => event.stopPropagation()}>
+                    <td className="py-3 pl-5 pr-2" onClick={(event) => event.stopPropagation()}>
                       <input
                         aria-label={`${order.order_number} 선택`}
                         checked={selectedIds.has(order.id)}
@@ -2190,7 +2264,7 @@ function AdminOrdersPage() {
                         type="checkbox"
                       />
                     </td>
-                    <td className="px-3 py-3 font-mono text-xs font-bold whitespace-nowrap">
+                    <td className="px-3 py-3 text-[13px] font-semibold tabular-nums whitespace-nowrap text-slate-900">
                       <div className="flex items-center gap-1.5">
                         {order.order_number}
                         {hasPendingRefundRequest && (
@@ -2302,30 +2376,16 @@ function AdminOrdersPage() {
             </table>
           </div>
         )}
-        <AdminPagination
-          currentPage={currentPage}
-          isLoading={isLoading}
-          onPageChange={setCurrentPage}
-          pageSize={PAGE_SIZE}
-          totalCount={totalCount}
-        />
-      </div>
-
-      {/* 상품 준비 중 건 CSV 일괄 송장 입력 안내 */}
-      {!isLoading && awaitingTrackingCount > 0 && (
-        <div className="card p-4 flex items-center justify-between">
-          <span className="text-sm text-slate-600">
-            상품 준비 중 <strong className="text-blue-600">{awaitingTrackingCount}건</strong> 송장 입력 대기 중
-          </span>
-          <button
-            className="btn-secondary !w-auto !px-4 !py-2 text-sm"
-            onClick={() => setCsvModalOpen(true)}
-            type="button"
-          >
-            CSV 일괄 송장 입력
-          </button>
+        <div className="border-t border-slate-100 px-5 pb-4 pt-2 empty:hidden">
+          <AdminPagination
+            currentPage={currentPage}
+            isLoading={isLoading}
+            onPageChange={setCurrentPage}
+            pageSize={PAGE_SIZE}
+            totalCount={totalCount}
+          />
         </div>
-      )}
+      </div>
 
       {/* 주문 복원 모달 — 자동취소된 미결제 주문을 입금대기로 되돌린다 (2026-08-31) */}
       <AdminDialog

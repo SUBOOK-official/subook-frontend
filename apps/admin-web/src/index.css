@@ -98,6 +98,11 @@ button:focus-visible,
     @apply inline-flex items-center justify-center rounded-[12px] bg-rose-500 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-50;
   }
 
+  /* 목록·상세 안의 취소·환불 진입 버튼 — 채운 빨강(.btn-danger)은 최종 확인 버튼에만 쓴다 */
+  .btn-danger-weak {
+    @apply inline-flex items-center justify-center rounded-[12px] bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-600 transition-colors hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
   .notice-error {
     @apply rounded-xl bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700;
   }
@@ -127,6 +132,15 @@ button:focus-visible,
   .admin-kbd {
     @apply inline-flex h-5 min-w-5 items-center justify-center rounded border border-slate-200 bg-white px-1 font-sans text-[11px] font-semibold text-slate-400;
   }
+}
+
+/* 모바일에서 가로로 미는 칩 줄 — 스크롤바 숨김 */
+.admin-no-scrollbar {
+  scrollbar-width: none;
+}
+
+.admin-no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
 
 /* 사이드바·검색 결과처럼 좁은 영역의 스크롤바는 얇게 */
