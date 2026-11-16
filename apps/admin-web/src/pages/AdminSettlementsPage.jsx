@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AdminShell from "../components/AdminShell";
 import AdminDialog from "../components/AdminDialog";
-import AdminPageTabs from "../components/AdminPageTabs";
+import AdminViewTabs from "../components/AdminViewTabs";
 import AdminPagination from "../components/AdminPagination";
 import JeonilSettlementSection from "../components/JeonilSettlementSection";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
@@ -13,6 +13,7 @@ import { formatCurrency, formatDate } from "@shared-domain/format";
 import { completeSettlementPayouts, fetchAdminSettlementRows } from "@shared-supabase/adminSettlementClient";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import { BusyText, InlineLoading, LoadingOverlay } from "../components/Loading";
+import { SearchIcon } from "../components/icons";
 
 const PAGE_SIZE = 25;
 // 승인 폐지 전 approved도 아직 지급하지 않은 정산이다.
@@ -332,54 +333,70 @@ function AdminSettlementsPage() {
   return (
     <AdminShell activeModule="settlements" title="정산"
       actions={
-        <button className="btn-secondary !w-auto !px-3 !py-2 text-xs" type="button"
-          disabled={actionsDisabled} onClick={() => { setDetailKey(null); void loadSettlements(); }}>새로고침</button>
-      }
-    >
-      <p className="text-xs font-bold text-slate-500">일반 셀러 정산</p>
-      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        {summaryCards.map((card, index) => <div className={`card !p-4 ${index === 0 ? "col-span-2 sm:col-span-1" : ""}`} key={card.label}>
-          <dt className="text-xs font-semibold text-slate-500">{card.label}</dt>
-          <dd className="mt-1 text-2xl font-bold tabular-nums text-slate-950">{card.value}</dd>
-          <dd className="mt-1 text-xs text-slate-500">{isLoading ? "불러오는 중" : loadError ? "조회 실패" : card.hint}</dd>
-        </div>)}
-      </dl>
-      <AdminPageTabs activeKey={statusFilter} onSelect={changeTab} tabs={[
-        { key: "payable", label: "미지급" }, { key: "completed", label: "지급 완료" },
-      ]} />
-      <JeonilSettlementSection status={statusFilter} refreshKey={refreshKey} />
-      <h2 className="font-bold text-slate-900">일반 셀러 정산</h2>
-
-      <section className="card space-y-4">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <label className="min-w-0 flex-1 sm:max-w-md">
-            <span className="mb-1.5 block text-xs font-semibold text-slate-600">셀러·교재 검색</span>
-            <input className="input-base !w-full" type="search" value={search} disabled={actionsDisabled}
-              placeholder="셀러명, 연락처, 교재명, 주문번호"
-              onChange={(event) => { setSearch(event.target.value); setSelectedKeys([]); setCurrentPage(1); }} />
-          </label>
+        <>
           {isPayable ? (
-            <button className="btn-secondary !w-auto !px-4 !py-2 text-sm" type="button"
+            <button className="btn-secondary !px-3.5 !py-2.5 text-[13px]" type="button"
               disabled={actionsDisabled || !exportGroups.length} onClick={() => setPayoutExportConfirmOpen(true)}>
               {selectedGroups.length ? "선택 이체 목록 엑셀" : "이체 목록 엑셀"}
             </button>
           ) : null}
-        </div>
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
-          <p className="text-sm font-semibold text-slate-600">
-            {isLoading ? "불러오는 중" : loadError ? "목록을 다시 불러와 주세요." : `${filteredGroups.length}개 지급 내역`}
-            {!isLoading && selectedGroups.length > 0 ? <span className="ml-3 font-bold text-slate-950">선택 {selectedGroups.length}개 · {formatCurrency(selectedAmount)}</span> : null}
-          </p>
-          {isPayable ? (
-            <button className="btn-primary !w-auto !px-4 !py-2 text-sm" type="button"
-              disabled={actionsDisabled || !selectedGroups.length} onClick={() => requestCompletion(selectedGroups)}>
-              선택 지급 완료{selectedGroups.length ? ` (${selectedGroups.length})` : ""}
-            </button>
-          ) : null}
-        </div>
-      </section>
+          <button className="btn-secondary !px-3.5 !py-2.5 text-[13px]" type="button"
+            disabled={actionsDisabled} onClick={() => { setDetailKey(null); void loadSettlements(); }}>새로고침</button>
+        </>
+      }
+    >
+      {/* 2026-11-16: 다른 목록 화면과 같은 틀 — 보기 탭 → 요약 → 한 줄 검색 → 목록, 선택하면 위에 처리 바 */}
+      <AdminViewTabs activeKey={statusFilter} label="정산 보기" onSelect={changeTab} tabs={[
+        { key: "payable", label: "미지급" }, { key: "completed", label: "지급 완료" },
+      ]} />
 
-      <section className="card !p-0 overflow-hidden">
+      <JeonilSettlementSection status={statusFilter} refreshKey={refreshKey} />
+
+      <h2 className="pt-1 text-[15px] font-bold text-slate-900">일반 셀러 정산</h2>
+      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {summaryCards.map((card, index) => <div className={`min-w-0 rounded-2xl border border-slate-200 bg-white px-5 py-4 ${index === 0 ? "col-span-2 sm:col-span-1" : ""}`} key={card.label}>
+          <dt className="text-[13px] font-medium text-slate-500">{card.label}</dt>
+          <dd className="mt-1 text-[22px] font-bold tabular-nums tracking-tight text-slate-900">{card.value}</dd>
+          <dd className="mt-0.5 text-xs text-slate-400">{isLoading ? "불러오는 중" : loadError ? "조회 실패" : card.hint}</dd>
+        </div>)}
+      </dl>
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="relative min-w-[220px] flex-1">
+            <span className="sr-only">셀러·교재 검색</span>
+            <SearchIcon className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+            <input
+              className="h-10 w-full rounded-[10px] border border-slate-200 bg-white pl-10 pr-3 text-base text-slate-900 outline-none transition-colors placeholder:text-slate-400 hover:border-slate-300 focus:border-brand focus:ring-2 focus:ring-brand/15 disabled:bg-slate-50 sm:text-[15px]"
+              type="search" value={search} disabled={actionsDisabled}
+              placeholder="셀러명, 연락처, 교재명, 주문번호"
+              onChange={(event) => { setSearch(event.target.value); setSelectedKeys([]); setCurrentPage(1); }} />
+          </label>
+          <span className="ml-auto pl-1 text-sm text-slate-500">
+            {isLoading ? "불러오는 중" : loadError ? "목록을 다시 불러와 주세요" : (
+              <>총 <strong className="font-bold tabular-nums text-slate-900">{filteredGroups.length.toLocaleString("ko-KR")}</strong>개 지급 내역</>
+            )}
+          </span>
+        </div>
+      </div>
+
+      {/* 선택한 셀러 지급 처리 — 고르면 위에 붙어 따라온다 */}
+      {isPayable && !isLoading && selectedGroups.length > 0 ? (
+        <div className="sticky top-2 z-30 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl bg-slate-900 px-4 py-3 text-white shadow-lg">
+          <span className="text-sm font-bold tabular-nums">{selectedGroups.length}개 선택 · {formatCurrency(selectedAmount)}</span>
+          <button className="text-[13px] font-semibold text-slate-300 underline hover:text-white" type="button"
+            disabled={actionsDisabled} onClick={() => setSelectedKeys([])}>
+            선택 해제
+          </button>
+          <div className="flex-1" />
+          <button className="rounded-lg bg-brand px-3.5 py-1.5 text-[13px] font-semibold text-white transition-colors hover:bg-brand-soft disabled:opacity-50" type="button"
+            disabled={actionsDisabled} onClick={() => requestCompletion(selectedGroups)}>
+            선택 지급 완료
+          </button>
+        </div>
+      ) : null}
+
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
         {isLoading ? (
           <div className="px-6 py-16 text-center text-sm text-slate-500"><InlineLoading label="셀러별 정산금액을 불러오는 중..." /></div>
         ) : loadError ? (
@@ -389,12 +406,12 @@ function AdminSettlementsPage() {
           </div>
         ) : filteredGroups.length === 0 ? (
           <div className="px-6 py-16 text-center">
-            <p className="font-bold text-slate-800">{search ? "검색 결과가 없습니다." : isPayable ? "미지급 정산이 없습니다." : "지급 완료 내역이 없습니다."}</p>
+            <p className="text-sm font-semibold text-slate-700">{search ? "조건에 맞는 정산이 없어요" : isPayable ? "지급할 정산이 없어요" : "지급 완료 내역이 없어요"}</p>
             {search ? <button className="mt-3 text-sm font-semibold text-slate-600 underline" type="button" onClick={() => { setSearch(""); setCurrentPage(1); }}>검색 초기화</button> : null}
           </div>
         ) : (
           <>
-            <div className="flex items-center gap-4 border-b border-slate-200 bg-slate-50 px-5 py-3 text-xs font-bold text-slate-500">
+            <div className="flex items-center gap-4 border-b border-slate-100 bg-slate-50 px-5 py-3 text-[13px] font-semibold text-slate-500">
               {isPayable ? <input type="checkbox" aria-label="현재 페이지 전체 선택" checked={allVisibleSelected}
                 disabled={actionsDisabled || !eligibleVisibleGroups.length} onChange={toggleVisible} /> : null}
               <div className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_6rem_9rem]">
@@ -457,7 +474,7 @@ function AdminSettlementsPage() {
           {isPayable && detail.items.some((item) => !item.seller_user_id && item.shipment_id) ? (
             <div className="flex flex-wrap gap-2">
               {[...new Map(detail.items.filter((item) => !item.seller_user_id && item.shipment_id).map((item) => [item.shipment_id, item])).values()].map((item) => (
-                <button className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600" key={item.shipment_id} type="button"
+                <button className="btn-secondary !px-3 !py-1.5 text-xs" key={item.shipment_id} type="button"
                   onClick={() => setAccountModal({ shipmentId: item.shipment_id, sellerName: detail.seller_name, bankName: item.bank_name ?? "", accountNumber: "", accountHolder: item.account_holder ?? detail.seller_name })}>
                   수거 #{item.shipment_id} 계좌 {item.bank_name ? "수정" : "등록"}
                 </button>

@@ -79,7 +79,7 @@ export default function JeonilSettlementSection({ status, refreshKey }) {
     }
   };
 
-  return <section className="rounded-2xl border border-indigo-200 bg-white p-5 sm:p-6" aria-label="전일학원 모의고사 정산">
+  return <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6" aria-label="전일학원 모의고사 정산">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div><div className="flex flex-wrap items-center gap-2"><h2 className="font-bold text-slate-950">전일학원 모의고사</h2><span className="rounded-md bg-indigo-50 px-2 py-1 text-xs font-bold text-indigo-700">별도 정산</span></div>
         <p className="mt-2 text-sm text-slate-500">전일학원 원장님 지급 · 수수료 {JEONIL_SETTLEMENT_FEE_PERCENT}%</p>
