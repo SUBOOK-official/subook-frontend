@@ -28,3 +28,9 @@ export function couponAvailability(coupon, now = Date.now()) {
   if (coupon.total_quantity != null && Number(coupon.issued_count) >= Number(coupon.total_quantity)) return "발급 소진";
   return "발급 가능";
 }
+
+// 한국시간 기준 날짜(YYYY-MM-DD). offsetDays=-7 이면 7일 전.
+// new Date().toISOString().slice(0, 10)은 UTC 날짜라 한국시간 오전 9시 전에는 어제가 나온다.
+export function kstDateString(offsetDays = 0, now = Date.now()) {
+  return new Date(now + KST_OFFSET_MS + offsetDays * 86400000).toISOString().slice(0, 10);
+}

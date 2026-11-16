@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { kstDateString } from "../lib/adminDateTime";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import AdminShell from "../components/AdminShell";
 import { createAdminDraftStore, REGISTER_DRAFT_PREFIX } from "../lib/adminDraftStore";
@@ -62,8 +63,9 @@ function nextUid() {
   return `u${Date.now().toString(36)}-${uidCounter.toString(36)}`;
 }
 
+// 한국시간 기준 오늘 — UTC 날짜를 쓰면 오전 9시 전에는 어제가 기본값으로 들어간다.
 function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+  return kstDateString();
 }
 
 function blankNewRow() {
