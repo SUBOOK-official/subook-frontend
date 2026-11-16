@@ -542,7 +542,8 @@ function AdminProductRegisterForm() {
       } else {
         const rows = Array.isArray(data) ? data : [];
         setCustResults((previous) => q || custPage === 0 ? rows : [...previous, ...rows]);
-        setCustHasMore(!q && rows.length === 30);
+        // 맨 위에 고정되는 자체 매입 묶음은 쪽수 계산에서 뺀다
+        setCustHasMore(!q && rows.filter((row) => !row.is_direct_purchase).length === 30);
       }
       setCustLoading(false);
     }, 250);
@@ -901,6 +902,7 @@ function AdminProductRegisterForm() {
         seller_phone: row.seller_phone,
         pickup_date: row.target_date,
         status: row.status,
+        is_direct_purchase: Boolean(row.is_direct_purchase),
       });
       setStep("list");
       return;
@@ -1551,6 +1553,11 @@ function AdminProductRegisterForm() {
         navigate("/admin/register", { replace: true });
         return;
       }
+      if (shipment?.is_direct_purchase) {
+        // 대량 수거분은 같은 묶음에 계속 등록한다 — 고객 선택으로 돌아가지 않는다
+        chooseShipment({ ...shipment });
+        return;
+      }
       chooseShipment(null);
       setStep("customer");
       return;
@@ -1582,7 +1589,7 @@ function AdminProductRegisterForm() {
         {shipment ? (
           <div className="ml-auto flex items-center gap-3">
             <span className="rounded-full bg-slate-900 px-3 py-1 text-sm font-bold text-white">
-              고객: {shipment.seller_name} 님
+              {shipment.is_direct_purchase ? shipment.seller_name : `고객: ${shipment.seller_name} 님`}
             </span>
             {canChangeCustomer ? (
               <button
@@ -1632,7 +1639,7 @@ function AdminProductRegisterForm() {
               <h2 className="text-lg font-bold text-slate-900">최근 입고 · 등록할 수거 건</h2>
               <p className="mt-1 text-sm text-slate-500">
                 {isIntake
-                  ? "도착한 상자의 수거 건을 고르세요. 이름·전화번호 끝 4자리·수거신청 번호로 찾을 수 있습니다."
+                  ? "자체 수거 교재는 맨 위 '수북 자체 매입'을, 판매자가 보낸 상자는 해당 수거 건을 고르세요. 이름·전화번호 끝 4자리·수거신청 번호로 찾을 수 있습니다."
                   : "최근 입고·검수 중인 수거 건입니다. 이름·전화번호·수거신청 번호로도 검색할 수 있습니다."}
               </p>
               <input
@@ -1656,6 +1663,32 @@ function AdminProductRegisterForm() {
                 ) : (
                   custResults.map((c) => {
                     const isRequest = c.kind === "pickup_request";
+                    // 수북 자체 매입 묶음 — 판매자가 없는 자체 수거·매입 교재. 팔려도 정산이 생기지 않는다.
+                    if (c.is_direct_purchase) {
+                      return (
+                        <button
+                          key={`${c.kind}-${c.ref_id}`}
+                          type="button"
+                          disabled={creatingCust}
+                          onClick={() => selectCustomer(c)}
+                          className="flex w-full items-center justify-between rounded-lg border border-blue-200 bg-blue-50/70 px-4 py-3 text-left hover:border-blue-500 disabled:opacity-50"
+                        >
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="font-bold text-slate-900">{c.seller_name}</span>
+                              <span className="rounded bg-blue-600 px-1.5 py-0.5 text-[11px] font-bold text-white">자체 수거</span>
+                            </div>
+                            <p className="mt-0.5 text-xs text-slate-600">
+                              판매자 없이 수북이 직접 수거·매입한 교재 (학원 대량 수거분 등)
+                            </p>
+                            <p className="mt-0.5 text-xs font-semibold text-slate-600">
+                              등록 {Number(c.book_count ?? 0).toLocaleString("ko-KR")}권
+                            </p>
+                          </div>
+                          <span className="shrink-0 pl-3 text-xs font-semibold text-blue-600">선택 →</span>
+                        </button>
+                      );
+                    }
                     return (
                       <button
                         key={`${c.kind}-${c.ref_id}`}
