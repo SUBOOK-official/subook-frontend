@@ -194,7 +194,7 @@ export default function ProductScreen({ route, navigation }) {
       checkout(false);
       return;
     }
-    // 비회원은 로그인 화면으로: 카카오·구글·이메일 로그인 또는 비회원 구매를 고른다.
+    // 비회원은 로그인 화면으로: 카카오·구글·이메일로 로그인하거나 가입한 뒤 주문한다(비회원 구매는 끝났다).
     navigation.navigate(LOGIN_SCREEN, { checkout: { items, guestMode: false } });
   };
 

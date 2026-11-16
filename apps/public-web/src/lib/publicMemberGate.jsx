@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import PublicMemberGateDialog from "../components/PublicMemberGateDialog";
 import { usePublicAuth } from "../contexts/PublicAuthContext";
 import { trackEvent, trackLoginGateShown } from "./analytics";
+import { GUEST_CHECKOUT_OPEN } from "./guestOrder";
 import { createMemberGateRedirectState } from "./publicMemberGateUtils";
 import { setPendingMemberAction } from "./pendingMemberAction";
 
@@ -49,8 +50,9 @@ function usePublicMemberGate() {
           ...(pendingItemCount != null ? { itemCount: pendingItemCount } : {}),
         });
       }
+      // 비회원 구매 종료(GUEST_CHECKOUT_OPEN=false): 바로구매도 로그인·회원가입으로만 이어진다.
       setGuestOrderItems(
-        nextActionType === "buyNow" && Array.isArray(pendingAction?.orderItems)
+        GUEST_CHECKOUT_OPEN && nextActionType === "buyNow" && Array.isArray(pendingAction?.orderItems)
           ? pendingAction.orderItems
           : null,
       );

@@ -55,6 +55,7 @@ import {
   createPgCheckoutSession,
 } from "../lib/cart";
 import {
+  GUEST_CHECKOUT_OPEN,
   createGuestOrder,
   createGuestPgCheckoutSession,
   stashGuestOrderRef,
@@ -760,7 +761,8 @@ function PublicOrderPage() {
   // 비회원(게스트) 주문 모드 (2026-08-03) — 로그인 게이트의 "비회원으로 주문하기"로만
   // 진입한다(state 플래그). 플래그 없이 비로그인으로 들어오면 기존대로 로그인으로 보낸다.
   // 로그인 상태면 플래그가 있어도 회원 주문으로 진행한다.
-  const isGuestMode = Boolean(location.state?.guestMode);
+  // 비회원 구매 종료(GUEST_CHECKOUT_OPEN=false) 뒤로는 플래그가 있어도 게스트 모드가 되지 않는다.
+  const isGuestMode = GUEST_CHECKOUT_OPEN && Boolean(location.state?.guestMode);
   const isGuestCheckout = isGuestMode && !isAuthenticated;
   // 진입 시점의 cart snapshot을 보관하고, 서버에서 fresh 가격/판매상태를 받아 덮어쓴다.
   // create_order RPC는 어차피 서버 가격으로 결제하므로, 표시 금액과 실제 결제 금액의

@@ -9,6 +9,12 @@ import { isSupabaseConfigured, supabase } from "@shared-supabase/publicSupabaseC
 // 결제창을 열기 직전 주문번호+휴대폰을 sessionStorage에 보관했다가 완료 페이지에서 읽는다.
 const GUEST_ORDER_REF_STORAGE_KEY = "subook.public.guest-order-ref.v1";
 
+// 비회원 구매 종료 (2026-11-17): 주문은 회원만 할 수 있다. 로그인 관문에서 "비회원으로 주문하기"를
+// 내지 않고, 주문 페이지도 게스트 모드로 들어가지 않는다. 서버에서도 주문 생성 RPC의 anon 실행 권한을 거뒀다
+// (backend migration revoke_guest_order_creation). 이미 받은 비회원 주문의 조회·취소는 그대로 된다.
+// 다시 열려면 이 값을 true로 바꾸고 그 권한을 되돌린다.
+const GUEST_CHECKOUT_OPEN = false;
+
 function normalizePhoneDigits(phone) {
   return String(phone ?? "").replace(/\D/g, "");
 }
@@ -136,6 +142,7 @@ function clearGuestOrderRef() {
 }
 
 export {
+  GUEST_CHECKOUT_OPEN,
   clearGuestOrderRef,
   createGuestOrder,
   createGuestPgCheckoutSession,
