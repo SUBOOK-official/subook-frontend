@@ -1,4 +1,3 @@
-import { GUEST_CHECKOUT_OPEN } from "../lib/guestOrder";
 import { useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { APP_MESSAGE, normalizeAppNextPath } from "@shared-domain/appBridge";
@@ -10,8 +9,7 @@ function readCheckout(context) {
   const items = Array.isArray(checkout?.items)
     ? checkout.items.filter((item) => item && item.bookId !== undefined && item.bookId !== null)
     : [];
-  // 비회원 구매 종료: 앱이 게스트 플래그를 보내도 회원 주문으로만 연다(주문 페이지가 로그인으로 보낸다)
-  return { items, guestMode: GUEST_CHECKOUT_OPEN && Boolean(checkout?.guestMode) };
+  return { items, guestMode: Boolean(checkout?.guestMode) };
 }
 
 // 수북 앱이 웹 화면을 열 때 쓰는 진입 경로(/app/*). 일반 브라우저에서는 홈으로 보낸다.

@@ -61,7 +61,7 @@ export default function LoginScreen({ route, navigation }) {
       <Image source={logoSource} style={styles.logo} contentFit="contain" accessibilityLabel="수북" />
       <Txt bold style={styles.headline}>수북에서 오늘의 공부를 이어가세요.</Txt>
 
-      {/* 비회원 구매는 2026-11-17에 끝났다. 구매하다 들어와도 로그인·회원가입으로만 이어진다(웹 로그인 관문과 같다) */}
+      {/* 구매하다 들어온 경우: 카카오 → 비회원 구매 → Google 순(웹 로그인 관문과 같은 위계) */}
       <View style={styles.buttons}>
         {PROVIDERS.map((item) => <View key={item.provider} style={styles.buttonGroup}>
           <Pressable accessibilityRole="button" accessibilityState={{ busy: busy === item.provider, disabled: Boolean(busy) }}
@@ -72,6 +72,11 @@ export default function LoginScreen({ route, navigation }) {
               <Txt bold style={styles.providerLabel}>{item.label}</Txt>
             </>}
           </Pressable>
+          {checkout && item.provider === "kakao" ? <Pressable accessibilityRole="button" disabled={Boolean(busy)}
+            onPress={() => navigation.replace("Web", { path: "/app/checkout", title: "주문하기", checkout: { ...checkout, guestMode: true } })}
+            style={({ pressed }) => [styles.provider, styles.guest, pressed && { backgroundColor: colors.secondary }]}>
+            <Txt bold style={styles.guestLabel}>비회원으로 구매하기</Txt>
+          </Pressable> : null}
         </View>)}
       </View>
 
@@ -96,6 +101,8 @@ const styles = StyleSheet.create({
   provider: { height: 52, borderRadius: radius.lg, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10 },
   kakao: { backgroundColor: colors.kakao },
   outlined: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+  guest: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.primary },
+  guestLabel: { fontSize: 16, color: colors.primary },
   providerLabel: { fontSize: 16, color: colors.text },
   emailLink: { alignSelf: "center", marginTop: 22, paddingVertical: 10, paddingHorizontal: 12 },
   emailText: { fontSize: 15, color: colors.textSecondary, textDecorationLine: "underline" },
