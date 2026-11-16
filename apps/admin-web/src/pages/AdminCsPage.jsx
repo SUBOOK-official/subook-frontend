@@ -6,7 +6,9 @@ import AdminDialog from "../components/AdminDialog";
 import AdminPagination from "../components/AdminPagination";
 import AdminQueryState from "../components/AdminQueryState";
 import AdminEntityTimeline from "../components/AdminEntityTimeline";
-import { useAdminListState } from "../lib/useAdminListState";
+import { useAdminListState, useDebouncedSearch } from "../lib/useAdminListState";
+import AdminViewTabs from "../components/AdminViewTabs";
+import { PlusIcon, SearchIcon } from "../components/icons";
 import { useAdminOperations } from "../lib/useAdminOperations";
 import { toKstInput } from "../lib/adminDateTime";
 
@@ -16,6 +18,7 @@ const blank = { title: "", customer_name: "", contact: "", member_user_id: "", o
 export default function AdminCsPage() {
   const [list, update] = useAdminListState({ q: "", status: "", page: 1, case: "", order: "", pickup: "" });
   const result = useAdminOperations("cases", { ...list, id: list.case });
+  const [searchInput, setSearchInput] = useDebouncedSearch(list.q, (q) => update({ q, case: "" }));
   const [editor, setEditor] = useState(null);
   const [original, setOriginal] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -28,11 +31,19 @@ export default function AdminCsPage() {
     catch (failure) { setError(failure.message); }
     finally { setBusy(false); }
   }
-  return <AdminShell title="문의 작업함" activeModule="cs" actions={<button type="button" className="btn-primary !w-auto !py-2" onClick={() => edit(null)}>+ 문의 등록</button>}>
-    <div className="card flex flex-wrap gap-3">
-      <input aria-label="문의 검색" placeholder="제목·고객·연락처·담당자 검색" className="input-base !mt-0 flex-1 min-w-48" value={list.q} onChange={(e) => update({ q: e.target.value, case: "" })} />
-      <select aria-label="문의 상태" className="input-base !mt-0 !w-auto" value={list.status} onChange={(e) => update({ status: e.target.value, case: "" })}><option value="">전체 상태</option>{Object.entries(STATUS).map(([key, value]) => <option key={key} value={key}>{value}</option>)}</select>
-      <button type="button" className="btn-secondary !py-2" onClick={() => { update({ q: "", status: "", case: "", order: "", pickup: "" }); result.refresh(); }}>초기화</button>
+  return <AdminShell title="문의 작업함" activeModule="cs" actions={<button type="button" className="btn-primary !w-auto gap-1.5 !px-4 !py-2.5" onClick={() => edit(null)}><PlusIcon size={16} />문의 등록</button>}>
+    {/* 2026-11-16: 다른 목록 화면과 같은 틀 — 상태 탭 → 한 줄 검색 → 목록 */}
+    <AdminViewTabs activeKey={list.status} label="문의 상태" onSelect={(key) => update({ status: key, case: "" })} tabs={[{ key: "", label: "전체" }, ...Object.entries(STATUS).map(([key, label]) => ({ key, label }))]} />
+    <div className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="relative min-w-[220px] flex-1">
+          <span className="sr-only">문의 검색</span>
+          <SearchIcon className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+          <input className="h-10 w-full rounded-[10px] border border-slate-200 bg-white pl-10 pr-3 text-base text-slate-900 outline-none transition-colors placeholder:text-slate-400 hover:border-slate-300 focus:border-brand focus:ring-2 focus:ring-brand/15 sm:text-[15px]" placeholder="제목, 고객, 연락처, 담당자" type="search" value={searchInput} onChange={(e) => setSearchInput(e.target.value)} />
+        </label>
+        {list.q || list.status || list.order || list.pickup ? <button type="button" className="h-10 px-2 text-[13px] font-semibold text-slate-500 hover:text-slate-800" onClick={() => { setSearchInput(""); update({ q: "", status: "", case: "", order: "", pickup: "" }); }}>초기화</button> : null}
+        <span className="ml-auto pl-1 text-sm text-slate-500">총 <strong className="font-bold tabular-nums text-slate-900">{Number(result.data?.total_count || 0).toLocaleString("ko-KR")}</strong>건</span>
+      </div>
     </div>
     {list.order || list.pickup ? <p className="text-sm text-slate-500">{list.order ? `주문 #${list.order}` : `수거 #${list.pickup}`}에 연결된 문의 · 새 문의에도 이 대상이 연결됩니다.</p> : null}
     <AdminQueryState loading={result.loading} error={result.error} onRetry={result.refresh} empty={!result.data?.items?.length}>

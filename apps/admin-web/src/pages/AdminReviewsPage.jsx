@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import AdminShell from "../components/AdminShell";
+import AdminViewTabs from "../components/AdminViewTabs";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import { StarIcon } from "../components/icons";
 import { InlineLoading } from "../components/Loading";
@@ -109,31 +110,23 @@ function AdminReviewsPage() {
       description="신규 구매확정 후기와 식스샵 이전 후기 — subook.kr 모든 상품 상세에 공통으로 보입니다"
       title="후기 관리"
     >
-      <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
-        <div className="flex items-center gap-1">
-          {FILTERS.map((item) => (
-            <button
-              className={`px-3 py-1.5 rounded-lg text-sm border ${
-                filter === item.key
-                  ? "bg-slate-900 text-white border-slate-900"
-                  : "border-slate-200 text-slate-600 hover:bg-slate-50"
-              }`}
-              key={item.key}
-              onClick={() => {
-                setFilter(item.key);
-                setPage(0);
-              }}
-              type="button"
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-        <p className="text-sm text-slate-500">전체 {total}건</p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <AdminViewTabs
+          activeKey={filter}
+          label="후기 보기"
+          onSelect={(key) => {
+            setFilter(key);
+            setPage(0);
+          }}
+          tabs={FILTERS.map((item) => ({ key: item.key, label: item.label }))}
+        />
+        <p className="text-sm text-slate-500">
+          총 <strong className="font-bold tabular-nums text-slate-900">{Number(total || 0).toLocaleString("ko-KR")}</strong>건
+        </p>
       </div>
 
       {errorMessage ? (
-        <p className="mb-3 rounded-lg bg-rose-50 border border-rose-200 text-sm text-rose-700 px-4 py-3">
+        <p className="notice-error" role="alert">
           {errorMessage}
         </p>
       ) : null}
@@ -143,13 +136,13 @@ function AdminReviewsPage() {
           <InlineLoading />
         </p>
       ) : rows.length === 0 ? (
-        <p className="text-sm text-slate-400 py-12 text-center">등록된 후기가 없습니다.</p>
+        <p className="rounded-2xl border border-slate-200 bg-white px-5 py-14 text-center text-sm font-semibold text-slate-700">조건에 맞는 후기가 없어요</p>
       ) : (
         <div className="space-y-2">
           {rows.map((row) => (
             <div
-              className={`rounded-xl border bg-white p-4 flex items-start gap-4 ${
-                row.is_hidden ? "border-amber-200 bg-amber-50/40" : "border-slate-200"
+              className={`flex items-start gap-4 rounded-2xl border p-4 sm:p-5 ${
+                row.is_hidden ? "border-slate-200 bg-slate-50" : "border-slate-200 bg-white"
               }`}
               key={row.id}
             >

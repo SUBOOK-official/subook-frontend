@@ -158,9 +158,9 @@ function AdminEventSubscriptionsPage() {
           { label: "오늘 신청 (조회한 명단)", value: summary.today },
           { label: "회원 신청 (조회한 명단)", value: summary.members },
         ].map((card) => (
-          <div className="card" key={card.label}>
-            <p className="text-xs font-semibold text-slate-500">{card.label}</p>
-            <p className="mt-1 text-2xl font-bold text-slate-900">{isLoading ? "—" : `${card.value.toLocaleString()}명`}</p>
+          <div className="min-w-0 rounded-2xl border border-slate-200 bg-white px-5 py-4" key={card.label}>
+            <p className="text-[13px] font-medium text-slate-500">{card.label}</p>
+            <p className="mt-1 text-[22px] font-bold tabular-nums tracking-tight text-slate-900">{isLoading ? "—" : `${card.value.toLocaleString()}명`}</p>
           </div>
         ))}
       </section>
@@ -176,7 +176,7 @@ function AdminEventSubscriptionsPage() {
                 <span className="w-24 shrink-0 text-slate-600">{date.slice(5)}</span>
                 <div className="h-4 flex-1 rounded bg-slate-100">
                   <div
-                    className="h-4 rounded bg-slate-900"
+                    className="h-4 rounded bg-brand"
                     style={{ width: `${Math.max(4, Math.round((value / dailyTrend.max) * 100))}%` }}
                   />
                 </div>
@@ -190,7 +190,7 @@ function AdminEventSubscriptionsPage() {
       <section className="card space-y-4">
         <div className="flex items-center justify-end">
           <button
-            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100"
+            className="btn-secondary !px-3.5 !py-2 text-[13px]"
             disabled={isLoading || rows.length === 0}
             onClick={handleCsvDownload}
             type="button"
@@ -206,9 +206,9 @@ function AdminEventSubscriptionsPage() {
             <table className="min-w-full divide-y divide-slate-200 text-sm">
               <thead className="bg-slate-50">
                 <tr>
-                  <th className="px-3 py-2 text-left font-semibold text-slate-600">신청 시각</th>
-                  <th className="px-3 py-2 text-left font-semibold text-slate-600">전화번호</th>
-                  <th className="px-3 py-2 text-left font-semibold text-slate-600">회원 여부</th>
+                  <th className="px-4 py-3 text-left text-[13px] font-semibold text-slate-500">신청 시각</th>
+                  <th className="px-4 py-3 text-left text-[13px] font-semibold text-slate-500">전화번호</th>
+                  <th className="px-4 py-3 text-left text-[13px] font-semibold text-slate-500">회원 여부</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">

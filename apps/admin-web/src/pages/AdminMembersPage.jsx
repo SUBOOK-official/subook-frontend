@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { useAdminListState } from "../lib/useAdminListState";
+import { useAdminListState, useDebouncedSearch } from "../lib/useAdminListState";
+import AdminViewTabs from "../components/AdminViewTabs";
+import { SearchIcon } from "../components/icons";
 import AdminDialog from "../components/AdminDialog";
 import AdminShell from "../components/AdminShell";
 import MemberPointsPanel from "../components/MemberPointsPanel";
@@ -133,7 +135,7 @@ function AdminMembersPage() {
   const search = list.q;
   const statusFilter = list.status;
   const currentPage = list.page;
-  const setSearch = (q) => updateList({ q });
+  const [searchInput, setSearchInput] = useDebouncedSearch(list.q, (q) => updateList({ q }));
   const setStatusFilter = (status) => updateList({ status });
   const setCurrentPage = (page) => updateList({ page }, { replace: false });
   const detailRequestRef = useRef(0);
@@ -405,27 +407,17 @@ function AdminMembersPage() {
     });
   };
 
-  const summaryCards = [
-    {
-      label: "전체 회원",
-      value: formatCount(summary.member_count),
-      hint: `검색 결과 ${formatCount(totalCount)}`,
-    },
-    {
-      label: "최근 30일 가입",
-      value: formatCount(summary.new_member_count_30d),
-    },
-    {
-      label: "누적 구매액",
-      value: formatCurrency(summary.purchase_amount ?? 0),
-      hint: formatCount(summary.order_count, "건 주문"),
-    },
-    {
-      label: "누적 판매액",
-      value: formatCurrency(summary.sale_amount ?? 0),
-      hint: formatCount(summary.pickup_count, "건 수거"),
-    },
-  ];
+  const viewTabs = MEMBER_STATUS_FILTERS.map((option) => ({
+    key: option.key,
+    label: option.label,
+    count: typeof summary?.[option.summaryKey] === "number" ? summary[option.summaryKey] : undefined,
+    tone: option.key === "withdrawal_pending" ? "work" : undefined,
+  }));
+  const hasListFilters = Boolean(search.trim()) || statusFilter !== "all";
+  const resetListFilters = () => {
+    setSearchInput("");
+    updateList({ q: "", status: "all" });
+  };
 
   const detailMember = memberDetail?.member ?? selectedMember;
   const shippingAddresses = asArray(memberDetail?.shipping_addresses);
@@ -438,84 +430,53 @@ function AdminMembersPage() {
     <AdminShell
       activeModule="members"
       description="회원 프로필과 수거, 주문, 정산 이력을 한 화면에서 확인합니다."
-      summaryCards={summaryCards}
       title="회원"
     >
       {/* 회원 목록 ↔ 탈퇴 사유 탭은 AdminShell 상단 탭(lib/adminMenu.js)이 그린다 */}
-      <section className="card space-y-4">
-        <div className="flex flex-wrap items-end gap-3">
-          <label className="min-w-[240px] flex-1">
-            <span className="text-xs font-bold text-slate-500">회원 검색</span>
-            <input
-              className="input-base"
-              onChange={(event) => {
-                setSearch(event.target.value);
+      {/* 상태 탭 — RPC 레벨 필터라 페이지네이션·건수가 정확하다. 건수는 현재 검색 집합 기준. */}
+      <AdminViewTabs activeKey={statusFilter} label="회원 상태" onSelect={setStatusFilter} tabs={viewTabs} />
 
-              }}
-              placeholder="이름, 이메일, 연락처로 검색"
+      <div className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="relative min-w-[220px] flex-1">
+            <span className="sr-only">회원 검색</span>
+            <SearchIcon className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+            <input
+              className="h-10 w-full rounded-[10px] border border-slate-200 bg-white pl-10 pr-3 text-base text-slate-900 outline-none transition-colors placeholder:text-slate-400 hover:border-slate-300 focus:border-brand focus:ring-2 focus:ring-brand/15 sm:text-[15px]"
+              onChange={(event) => setSearchInput(event.target.value)}
+              placeholder="이름, 이메일, 연락처"
               type="search"
-              value={search}
+              value={searchInput}
             />
           </label>
-          <button
-            className="btn-secondary !w-auto !px-4 !py-3 text-sm"
-            onClick={() => {
-              setSearch("");
-              setStatusFilter("all");
-
-            }}
-            type="button"
-          >
-            초기화
-          </button>
+          {hasListFilters ? (
+            <button
+              className="h-10 px-2 text-[13px] font-semibold text-slate-500 hover:text-slate-800"
+              onClick={resetListFilters}
+              type="button"
+            >
+              초기화
+            </button>
+          ) : null}
+          <span className="ml-auto pl-1 text-sm text-slate-500">
+            총 <strong className="font-bold tabular-nums text-slate-900">{totalCount.toLocaleString("ko-KR")}</strong>명
+            {typeof summary?.new_member_count_30d === "number" ? (
+              <span className="ml-2 text-slate-400">최근 30일 가입 {formatCount(summary.new_member_count_30d, "명")}</span>
+            ) : null}
+          </span>
         </div>
+      </div>
 
-        {/* 상태 필터 — RPC 레벨 필터라 페이지네이션·카운트 정확. 카운트는 현재 검색 집합 기준. */}
-        <div className="flex flex-wrap gap-2" role="group" aria-label="회원 상태 필터">
-          {MEMBER_STATUS_FILTERS.map((option) => {
-            const isActive = statusFilter === option.key;
-            const count = summary?.[option.summaryKey];
-            return (
-              <button
-                aria-pressed={isActive}
-                className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
-                  isActive
-                    ? "bg-slate-900 text-white"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                }`}
-                key={option.key}
-                onClick={() => {
-                  setStatusFilter(option.key);
-
-                }}
-                type="button"
-              >
-                {option.label}
-                {typeof count === "number" ? (
-                  <span className={isActive ? "ml-1 text-slate-300" : "ml-1 text-slate-400"}>
-                    {formatCount(count)}
-                  </span>
-                ) : null}
-              </button>
-            );
-          })}
-        </div>
-
-        <p className="text-sm font-semibold text-slate-500">
-          총 {totalCount.toLocaleString("ko-KR")}명 중 {members.length.toLocaleString("ko-KR")}명 표시
-        </p>
-      </section>
-
-      <section className="card p-0">
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
         {isLoading ? (
-          <div className="p-8 text-center text-sm font-semibold text-slate-400"><InlineLoading label="회원 목록을 불러오는 중..." /></div>
+          <div className="p-10 text-center text-sm text-slate-400"><InlineLoading label="회원 목록을 불러오는 중..." /></div>
         ) : members.length === 0 ? (
-          <div className="p-8 text-center text-sm font-semibold text-slate-400">조건에 맞는 회원이 없습니다.</div>
+          <div className="px-5 py-14 text-center text-sm font-semibold text-slate-700">조건에 맞는 회원이 없어요</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1040px] text-sm">
               <thead>
-                <tr className="border-b border-slate-100 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
+                <tr className="border-b border-slate-100 bg-slate-50 text-left text-[13px] font-semibold text-slate-500">
                   <th className="px-4 py-3">회원</th>
                   <th className="px-4 py-3">이메일</th>
                   <th className="px-4 py-3">연락처</th>
@@ -627,7 +588,6 @@ function AdminMembersPage() {
           <>
             <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-5">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">Member Detail</p>
                 <h3 className="mt-1 text-2xl font-bold text-slate-950">
                   {detailMember?.display_name || detailMember?.name || "회원 상세"}
                   {detailMember?.is_blocked ? (
@@ -676,7 +636,7 @@ function AdminMembersPage() {
                 ) : null}
                 {detailMember?.is_blocked ? (
                   <button
-                    className="!w-auto rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+                    className="!w-auto rounded-[10px] border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
                     onClick={() => handleUnblockMember(detailMember)}
                     type="button"
                   >

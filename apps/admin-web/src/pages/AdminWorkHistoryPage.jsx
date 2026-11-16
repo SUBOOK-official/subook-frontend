@@ -3,7 +3,9 @@ import AdminShell from "../components/AdminShell";
 import AdminQueryState from "../components/AdminQueryState";
 import AdminPagination from "../components/AdminPagination";
 import { useAdminOperations } from "../lib/useAdminOperations";
-import { useAdminListState } from "../lib/useAdminListState";
+import { useAdminListState, useDebouncedSearch } from "../lib/useAdminListState";
+import AdminViewTabs from "../components/AdminViewTabs";
+import { SearchIcon } from "../components/icons";
 import { toKstInput } from "../lib/adminDateTime";
 import { historyActionLabel, historyDetailLabel, historySearchTerm } from "../lib/adminHistoryLabels";
 
@@ -20,9 +22,20 @@ export default function AdminWorkHistoryPage() {
   const [list, update] = useAdminListState({ tab: "jobs", q: "", entity: "", status: "", page: 1 });
   const jobs = list.tab !== "history";
   const result = useAdminOperations(jobs ? "jobs" : "history", { ...list, q: jobs ? list.q : historySearchTerm(list.q) });
-  return <AdminShell title="작업·변경 이력" activeModule="work-history" actions={<button type="button" className="btn-secondary !py-2 text-xs" onClick={result.refresh}>새로고침</button>}>
-    <nav className="flex gap-2 border-b border-slate-200" aria-label="이력 종류">{[["jobs","대량 작업 결과"],["history","변경 이력"]].map(([tab,label]) => <button type="button" key={tab} className={`border-b-2 px-4 py-3 text-sm font-bold ${list.tab === tab ? "border-brand text-brand" : "border-transparent text-slate-500"}`} onClick={() => update({ tab, status: "", entity: "", q: "" })}>{label}</button>)}</nav>
-    <div className="card flex flex-wrap gap-3"><input aria-label="이력 검색" className="input-base !mt-0 min-w-48 flex-1" placeholder={jobs ? "작업 이름 검색" : "대상 ID·변경 항목 검색"} value={list.q} onChange={(e) => update({ q: e.target.value })} />{jobs ? <select aria-label="작업 상태" className="input-base !mt-0 !w-auto" value={list.status} onChange={(e) => update({ status: e.target.value })}><option value="">모든 상태</option>{Object.entries(STATUS).map(([k,v]) => <option key={k} value={k}>{v}</option>)}</select> : <select aria-label="변경 대상" className="input-base !mt-0 !w-auto" value={list.entity} onChange={(e) => update({ entity: e.target.value })}><option value="">모든 대상</option>{Object.entries(ENTITIES).map(([k,v]) => <option key={k} value={k}>{v}</option>)}</select>}</div>
+  const [searchInput, setSearchInput] = useDebouncedSearch(list.q, (q) => update({ q }));
+  return <AdminShell title="작업·변경 이력" activeModule="work-history" actions={<button type="button" className="btn-secondary !px-3.5 !py-2.5 text-[13px]" onClick={result.refresh}>새로고침</button>}>
+    <AdminViewTabs activeKey={jobs ? "jobs" : "history"} label="이력 종류" onSelect={(tab) => update({ tab, status: "", entity: "", q: "" })} tabs={[{ key: "jobs", label: "대량 작업 결과" }, { key: "history", label: "변경 이력" }]} />
+    <div className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="relative min-w-[220px] flex-1">
+          <span className="sr-only">이력 검색</span>
+          <SearchIcon className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+          <input className="h-10 w-full rounded-[10px] border border-slate-200 bg-white pl-10 pr-3 text-base text-slate-900 outline-none transition-colors placeholder:text-slate-400 hover:border-slate-300 focus:border-brand focus:ring-2 focus:ring-brand/15 sm:text-[15px]" placeholder={jobs ? "작업 이름" : "대상 ID, 변경 항목"} type="search" value={searchInput} onChange={(e) => setSearchInput(e.target.value)} />
+        </label>
+        {jobs ? <select aria-label="작업 상태" className="h-10 rounded-[10px] border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 outline-none hover:border-slate-300 focus:border-brand" value={list.status} onChange={(e) => update({ status: e.target.value })}><option value="">모든 상태</option>{Object.entries(STATUS).map(([k,v]) => <option key={k} value={k}>{v}</option>)}</select> : <select aria-label="변경 대상" className="h-10 rounded-[10px] border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 outline-none hover:border-slate-300 focus:border-brand" value={list.entity} onChange={(e) => update({ entity: e.target.value })}><option value="">모든 대상</option>{Object.entries(ENTITIES).map(([k,v]) => <option key={k} value={k}>{v}</option>)}</select>}
+        <span className="ml-auto pl-1 text-sm text-slate-500">총 <strong className="font-bold tabular-nums text-slate-900">{Number(result.data?.total_count || 0).toLocaleString("ko-KR")}</strong>건</span>
+      </div>
+    </div>
     <AdminQueryState loading={result.loading} error={result.error} onRetry={result.refresh} empty={!result.data?.items?.length}>
       <div className="space-y-2">{result.data?.items.map((row) => <article key={row.id} className="card">
         <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-sm font-semibold">{jobs ? row.label : `${ENTITIES[row.entity_type] || row.entity_type} #${row.entity_id} · ${historyActionLabel(row.action)}`}</h2><time className="text-xs text-slate-400">{toKstInput(row.updated_at || row.created_at).replace("T", " ")} KST</time></div>

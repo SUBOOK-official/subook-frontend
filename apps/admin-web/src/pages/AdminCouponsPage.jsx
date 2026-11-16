@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import AdminShell from "../components/AdminShell";
 import AdminDialog from "../components/AdminDialog";
 import { toKstInput, fromKstInput, couponAvailability } from "../lib/adminDateTime";
 import AdminPagination from "../components/AdminPagination";
-import { useAdminListState } from "../lib/useAdminListState";
+import { useAdminListState, useDebouncedSearch } from "../lib/useAdminListState";
+import AdminViewTabs from "../components/AdminViewTabs";
+import AdminFilterPopover from "../components/AdminFilterPopover";
 import { saveCouponTags } from "@shared-supabase/adminOperationsClient";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 
@@ -11,7 +13,7 @@ import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseCl
 import { formatCurrency } from "@shared-domain/format";
 import { SUBJECT_OPTIONS } from "@shared-domain/bookSubjects";
 import { couponScopeLabel } from "@shared-domain/coupons";
-import { CloseIcon } from "../components/icons";
+import { CloseIcon, PlusIcon, SearchIcon } from "../components/icons";
 import { BusyText, InlineLoading } from "../components/Loading";
 import { BRAND_OPTIONS } from "../lib/productCategories";
 
@@ -129,11 +131,14 @@ function describeValidity(coupon) {
   return `${from} ~ ${until}`;
 }
 
+// 목록 위 업무 탭 — 쿠폰 발급 상태
+const AVAILABILITY_LABELS = { available: "발급 가능", scheduled: "예정", expired: "만료", exhausted: "발급 소진", inactive: "비활성" };
+
 function AdminCouponsPage() {
   const [coupons, setCoupons] = useState([]);
   const [list, updateList] = useAdminListState({ q: "", active: "", category: "", availability: "", page: 1 });
   const search = list.q, onlyActive = list.active === "1";
-  const setSearch = (q) => updateList({ q });
+  const [searchInput, setSearchInput] = useDebouncedSearch(list.q, (q) => updateList({ q }));
   const setOnlyActive = (active) => updateList({ active: active ? "1" : "" });
   const [tagEditor, setTagEditor] = useState(null);
   const [tagBusy, setTagBusy] = useState(false);
@@ -461,68 +466,92 @@ function AdminCouponsPage() {
     });
   };
 
-  const filteredSummary = useMemo(() => {
-    const total = coupons.length;
-    const active = coupons.filter((c) => c.is_active).length;
-    return { total, active, inactive: total - active };
-  }, [coupons]);
+  // 업무 탭 = 발급 상태 (?availability=). 분류·운영 켜짐은 필터 하나에 모았다.
+  const viewTabs = [{ key: "", label: "전체" }, ...Object.entries(AVAILABILITY_LABELS).map(([key, label]) => ({ key, label }))];
+  const categoryFilterLabel = [CATEGORIES[list.category], onlyActive ? "운영 켜짐만" : ""].filter(Boolean).join(" · ");
+  const hasListFilters = Boolean(search.trim() || list.category || onlyActive);
+  const resetListFilters = () => {
+    setSearchInput("");
+    updateList({ q: "", category: "", active: "" });
+  };
 
   return (
     <AdminShell
       actions={
-        <button
-          className="rounded-md bg-brand px-3 py-2 text-xs font-bold text-white hover:bg-brand-soft"
-          onClick={openCreate}
-          type="button"
-        >
-          + 새 쿠폰
+        <button className="btn-primary !w-auto gap-1.5 !px-4 !py-2.5" onClick={openCreate} type="button">
+          <PlusIcon size={16} />
+          새 쿠폰
         </button>
       }
       activeModule="coupons"
       description="쿠폰 템플릿을 정의합니다. 발급(특정 회원/전체)과 회원 보유 쿠폰함은 다음 단계에서 추가됩니다."
       title="쿠폰 관리"
     >
-      <div className="space-y-6">
+      <div className="space-y-4">
+        <AdminViewTabs activeKey={list.availability} label="쿠폰 발급 상태" onSelect={(key) => updateList({ availability: key })} tabs={viewTabs} />
 
-        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-white p-4 text-sm">
-          <input
-            type="search"
-            placeholder="쿠폰 이름·코드·캠페인 검색"
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-            }}
-            className="w-64 rounded-md border border-slate-300 px-3 py-2"
-          />
-          <label className="flex items-center gap-2 text-slate-600">
-            <input
-              type="checkbox"
-              checked={onlyActive}
-              onChange={(e) => {
-                setOnlyActive(e.target.checked);
-                }}
-            />
-            운영 켜짐만 보기
-          </label>
-          <select aria-label="쿠폰 분류" className="input-base !mt-0 !w-auto" value={list.category} onChange={(e) => updateList({ category: e.target.value })}><option value="">모든 분류</option>{Object.entries(CATEGORIES).map(([key,label]) => <option key={key} value={key}>{label}</option>)}</select>
-          <select aria-label="쿠폰 발급 상태" className="input-base !mt-0 !w-auto" value={list.availability} onChange={(e) => updateList({ availability: e.target.value })}><option value="">모든 발급 상태</option>{Object.entries({ available: "발급 가능", scheduled: "예정", expired: "만료", exhausted: "발급 소진", inactive: "비활성" }).map(([key,label]) => <option key={key} value={key}>{label}</option>)}</select>
-          <span className="ml-auto text-xs text-slate-500">
-            현재 페이지 {filteredSummary.total} · 운영 켜짐 {filteredSummary.active} · 비활성 {filteredSummary.inactive}
-          </span>
+        <div className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="relative min-w-[220px] flex-1">
+              <span className="sr-only">쿠폰 검색</span>
+              <SearchIcon className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+              <input
+                className="h-10 w-full rounded-[10px] border border-slate-200 bg-white pl-10 pr-3 text-base text-slate-900 outline-none transition-colors placeholder:text-slate-400 hover:border-slate-300 focus:border-brand focus:ring-2 focus:ring-brand/15 sm:text-[15px]"
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder="쿠폰 이름, 코드, 캠페인"
+                type="search"
+                value={searchInput}
+              />
+            </label>
+
+            <AdminFilterPopover active={Boolean(categoryFilterLabel)} label="분류" valueLabel={categoryFilterLabel}>
+              <div className="space-y-3">
+                <label className="block">
+                  <span className="text-[13px] font-semibold text-slate-600">쿠폰 분류</span>
+                  <select
+                    className="mt-1 h-10 w-full rounded-[10px] border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none hover:border-slate-300 focus:border-brand"
+                    onChange={(e) => updateList({ category: e.target.value })}
+                    value={list.category}
+                  >
+                    <option value="">전체</option>
+                    {Object.entries(CATEGORIES).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+                  </select>
+                </label>
+                <label className="flex items-center gap-2 text-sm text-slate-700">
+                  <input checked={onlyActive} onChange={(e) => setOnlyActive(e.target.checked)} type="checkbox" />
+                  운영 켜짐만 보기
+                </label>
+              </div>
+            </AdminFilterPopover>
+
+            {hasListFilters ? (
+              <button
+                className="h-10 px-2 text-[13px] font-semibold text-slate-500 hover:text-slate-800"
+                onClick={resetListFilters}
+                type="button"
+              >
+                초기화
+              </button>
+            ) : null}
+
+            <span className="ml-auto pl-1 text-sm text-slate-500">
+              총 <strong className="font-bold tabular-nums text-slate-900">{totalCount.toLocaleString("ko-KR")}</strong>개
+            </span>
+          </div>
         </div>
 
-        <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
           {isLoading ? (
-            <div className="p-8 text-center text-sm text-slate-400"><InlineLoading /></div>
+            <div className="p-10 text-center text-sm text-slate-400"><InlineLoading /></div>
           ) : coupons.length === 0 ? (
-            <div className="p-8 text-center text-sm text-slate-400">
-              {search ? "검색 결과가 없습니다." : "등록된 쿠폰이 없습니다. 우측 상단에서 새로 만들어보세요."}
+            <div className="px-5 py-14 text-center text-sm font-semibold text-slate-700">
+              {hasListFilters || list.availability ? "조건에 맞는 쿠폰이 없어요" : "아직 만든 쿠폰이 없어요"}
             </div>
           ) : (
             // 컬럼이 많아 셀이 눌리면 한글이 한 글자씩 쪼개지므로 min-w + 가로 스크롤로 처리
             <div className="overflow-x-auto">
             <table className="w-full min-w-[68rem] text-sm">
-              <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500">
+              <thead className="border-b border-slate-100 bg-slate-50 text-[13px] font-semibold text-slate-500">
                 <tr className="whitespace-nowrap">
                   <th className="px-4 py-3 text-left">쿠폰 이름</th>
                   <th className="px-4 py-3 text-left">할인</th>
@@ -531,7 +560,7 @@ function AdminCouponsPage() {
                   <th className="px-4 py-3 text-left">발급</th>
                   <th className="px-4 py-3 text-left">발급 수</th>
                   <th className="px-4 py-3 text-left">상태</th>
-                  <th className="px-4 py-3 text-right">액션</th>
+                  <th className="px-4 py-3" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -573,7 +602,7 @@ function AdminCouponsPage() {
                       <button
                         type="button"
                         disabled={!coupon.is_active}
-                        className="mr-2 text-xs font-bold text-indigo-600 hover:text-indigo-800 disabled:opacity-40"
+                        className="mr-3 rounded-lg bg-blue-50 px-3 py-1.5 text-[13px] font-semibold text-brand transition-colors hover:bg-blue-100 disabled:opacity-40"
                         onClick={() => openIssue(coupon)}
                         title={coupon.is_active ? undefined : "비활성 쿠폰은 발급할 수 없습니다"}
                       >
@@ -581,14 +610,14 @@ function AdminCouponsPage() {
                       </button>
                       <button
                         type="button"
-                        className="mr-2 text-xs font-bold text-emerald-700 hover:text-emerald-900"
+                        className="mr-3 text-[13px] font-semibold text-slate-500 hover:text-slate-900"
                         onClick={() => openHistory(coupon)}
                       >
                         이력
                       </button>
                       <button
                         type="button"
-                        className="mr-2 text-xs font-bold text-slate-700 hover:text-slate-900"
+                        className="mr-3 text-[13px] font-semibold text-slate-500 hover:text-slate-900"
                         onClick={() => openEdit(coupon)}
                       >
                         수정
@@ -596,7 +625,7 @@ function AdminCouponsPage() {
                       <button
                         type="button"
                         disabled={busyId === coupon.id}
-                        className="mr-2 text-xs font-bold text-amber-700 hover:text-amber-900 disabled:opacity-40"
+                        className="mr-3 text-[13px] font-semibold text-slate-500 hover:text-slate-900 disabled:opacity-40"
                         onClick={() => handleToggleActive(coupon)}
                       >
                         {coupon.is_active ? "비활성화" : "활성화"}
@@ -604,7 +633,7 @@ function AdminCouponsPage() {
                       <button
                         type="button"
                         disabled={busyId === coupon.id}
-                        className="text-xs font-bold text-rose-600 hover:text-rose-800 disabled:opacity-40"
+                        className="text-[13px] font-semibold text-rose-500 hover:text-rose-700 disabled:opacity-40"
                         onClick={() => handleDelete(coupon)}
                       >
                         삭제
@@ -646,7 +675,7 @@ function AdminCouponsPage() {
                   value={form.title}
                   onChange={handleField("title")}
                   placeholder="예: 신규가입 5천원 할인"
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                  className="mt-1 w-full rounded-[10px] border border-slate-200 px-3 py-2"
                 />
               </label>
 
@@ -656,7 +685,7 @@ function AdminCouponsPage() {
                   rows={2}
                   value={form.description}
                   onChange={handleField("description")}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                  className="mt-1 w-full rounded-[10px] border border-slate-200 px-3 py-2"
                 />
               </label>
 
@@ -665,7 +694,7 @@ function AdminCouponsPage() {
                 <select
                   value={form.discount_type}
                   onChange={handleField("discount_type")}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                  className="mt-1 w-full rounded-[10px] border border-slate-200 px-3 py-2"
                 >
                   <option value="fixed">정액 할인 (원)</option>
                   <option value="percentage">정률 할인 (%)</option>
@@ -686,7 +715,7 @@ function AdminCouponsPage() {
                   disabled={form.discount_type === "free_shipping"}
                   value={form.discount_value}
                   onChange={handleField("discount_value")}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 disabled:bg-slate-100"
+                  className="mt-1 w-full rounded-[10px] border border-slate-200 px-3 py-2 disabled:bg-slate-100"
                 />
               </label>
 
@@ -702,7 +731,7 @@ function AdminCouponsPage() {
                     value={form.max_discount_amount}
                     onChange={handleField("max_discount_amount")}
                     placeholder="예: 5000 — 정률 쿠폰은 반드시 상한 필요"
-                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                    className="mt-1 w-full rounded-[10px] border border-slate-200 px-3 py-2"
                   />
                   {/* 정률 + max_discount 빈칸 + 전체 발급 조합은 회사가 망할 수 있음.
                       저장 시점에 입력하지 않으면 차단. */}
@@ -725,7 +754,7 @@ function AdminCouponsPage() {
                   value={form.budget_cap_amount}
                   onChange={handleField("budget_cap_amount")}
                   placeholder="예: 5000000 — 누적 할인이 이 금액 초과 시 쿠폰 자동 비활성"
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                  className="mt-1 w-full rounded-[10px] border border-slate-200 px-3 py-2"
                 />
                 <p className="mt-1 text-xs text-slate-500">
                   비워두면 무제한. 정률·전체 발급 쿠폰일수록 cap 권장.
@@ -739,7 +768,7 @@ function AdminCouponsPage() {
                   min="0"
                   value={form.min_order_amount}
                   onChange={handleField("min_order_amount")}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                  className="mt-1 w-full rounded-[10px] border border-slate-200 px-3 py-2"
                 />
               </label>
 
@@ -748,7 +777,7 @@ function AdminCouponsPage() {
                 <select
                   value={form.scope_brand}
                   onChange={handleField("scope_brand")}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                  className="mt-1 w-full rounded-[10px] border border-slate-200 px-3 py-2"
                 >
                   <option value="">전체 브랜드 (제한 없음)</option>
                   {BRAND_OPTIONS.map((brand) => (
@@ -764,7 +793,7 @@ function AdminCouponsPage() {
                 <select
                   value={form.scope_subject}
                   onChange={handleField("scope_subject")}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                  className="mt-1 w-full rounded-[10px] border border-slate-200 px-3 py-2"
                 >
                   <option value="">전체 과목 (제한 없음)</option>
                   {SUBJECT_OPTIONS.map((subject) => (
@@ -783,7 +812,7 @@ function AdminCouponsPage() {
                 <select
                   value={form.issuance_type}
                   onChange={handleField("issuance_type")}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                  className="mt-1 w-full rounded-[10px] border border-slate-200 px-3 py-2"
                 >
                   <option value="admin_assigned">어드민 발급 (특정 회원/전체)</option>
                   <option value="code">코드 입력 (회원이 코드 입력)</option>
@@ -800,7 +829,7 @@ function AdminCouponsPage() {
                     value={form.code}
                     onChange={handleField("code")}
                     placeholder="예: WELCOME2026"
-                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-mono"
+                    className="mt-1 w-full rounded-[10px] border border-slate-200 px-3 py-2 font-mono"
                   />
                 </label>
               ) : null}
@@ -811,7 +840,7 @@ function AdminCouponsPage() {
                 <select
                   value={form.validity_mode}
                   onChange={handleField("validity_mode")}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                  className="mt-1 w-full rounded-[10px] border border-slate-200 px-3 py-2"
                 >
                   <option value="unlimited">시작일로부터 무기한으로 설정</option>
                   <option value="range">시작일과 종료일 설정</option>
@@ -827,7 +856,7 @@ function AdminCouponsPage() {
                   type="datetime-local"
                   value={form.valid_from}
                   onChange={handleField("valid_from")}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                  className="mt-1 w-full rounded-[10px] border border-slate-200 px-3 py-2"
                 />
                 <p className="mt-1 text-xs text-slate-500">비워두면 즉시 발급/사용 가능</p>
               </label>
@@ -840,7 +869,7 @@ function AdminCouponsPage() {
                     type="datetime-local"
                     value={form.valid_until}
                     onChange={handleField("valid_until")}
-                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                    className="mt-1 w-full rounded-[10px] border border-slate-200 px-3 py-2"
                   />
                   <p className="mt-1 text-xs text-slate-500">이 시각 이후 발급·사용 불가</p>
                 </label>
@@ -856,7 +885,7 @@ function AdminCouponsPage() {
                     value={form.valid_days}
                     onChange={handleField("valid_days")}
                     placeholder="예: 30 — 받은 날부터 30일간 사용 가능"
-                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                    className="mt-1 w-full rounded-[10px] border border-slate-200 px-3 py-2"
                   />
                   <p className="mt-1 text-xs text-slate-500">
                     회원마다 쿠폰을 받은 시점 + N일이 만료일이 됩니다
@@ -872,7 +901,7 @@ function AdminCouponsPage() {
                   value={form.usage_limit_per_user}
                   onChange={handleField("usage_limit_per_user")}
                   placeholder="비워두면 무제한"
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                  className="mt-1 w-full rounded-[10px] border border-slate-200 px-3 py-2"
                 />
               </label>
 
@@ -884,7 +913,7 @@ function AdminCouponsPage() {
                   value={form.total_quantity}
                   onChange={handleField("total_quantity")}
                   placeholder="비워두면 무제한"
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                  className="mt-1 w-full rounded-[10px] border border-slate-200 px-3 py-2"
                 />
               </label>
 
@@ -913,7 +942,7 @@ function AdminCouponsPage() {
             <footer className="mt-6 flex items-center justify-end gap-2">
               <button
                 type="button"
-                className="rounded-md border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+                className="btn-secondary !px-4 !py-2"
                 onClick={closeForm}
               >
                 취소
@@ -921,7 +950,7 @@ function AdminCouponsPage() {
               <button
                 type="submit"
                 disabled={isSaving}
-                className="rounded-md bg-brand px-4 py-2 text-sm font-bold text-white hover:bg-brand-soft disabled:opacity-50"
+                className="btn-primary !w-auto !px-4 !py-2"
               >
                 {isSaving ? <BusyText>저장 중...</BusyText> : form.id ? "수정 저장" : "쿠폰 생성"}
               </button>
@@ -982,7 +1011,7 @@ function AdminCouponsPage() {
                 value={issueSearch}
                 onChange={(e) => setIssueSearch(e.target.value)}
                 placeholder="이름/이메일/전화번호로 검색"
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                className="mt-1 w-full rounded-[10px] border border-slate-200 px-3 py-2"
               />
             </div>
 
@@ -1025,7 +1054,7 @@ function AdminCouponsPage() {
                 type="button"
                 disabled={isIssuing}
                 onClick={closeIssue}
-                className="rounded-md border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+                className="btn-secondary !px-4 !py-2"
               >
                 닫기
               </button>
@@ -1087,7 +1116,7 @@ function AdminCouponsPage() {
                 <div className="p-8 text-center text-sm text-slate-400">아직 발급되지 않았습니다.</div>
               ) : (
                 <table className="w-full text-sm">
-                  <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500">
+                  <thead className="border-b border-slate-100 bg-slate-50 text-[13px] font-semibold text-slate-500">
                     <tr>
                       <th className="px-3 py-2 text-left">회원</th>
                       <th className="px-3 py-2 text-left">발급일</th>
@@ -1138,7 +1167,7 @@ function AdminCouponsPage() {
               <button
                 type="button"
                 onClick={closeHistory}
-                className="rounded-md border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+                className="btn-secondary !px-4 !py-2"
               >
                 닫기
               </button>

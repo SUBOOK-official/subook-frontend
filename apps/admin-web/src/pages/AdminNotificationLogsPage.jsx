@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { useAdminListState } from "../lib/useAdminListState";
+import { useAdminListState, useDebouncedSearch } from "../lib/useAdminListState";
+import AdminViewTabs from "../components/AdminViewTabs";
+import AdminFilterPopover from "../components/AdminFilterPopover";
+import { SearchIcon } from "../components/icons";
 import AdminShell from "../components/AdminShell";
 import { kstDateBounds } from "../lib/adminDateTime";
 import AdminPagination from "../components/AdminPagination";
@@ -69,6 +72,15 @@ function AdminNotificationLogsPage() {
   const setTypeFilter = (type) => updateList({ type });
   const setFromDate = (from) => updateList({ from });
   const setToDate = (to) => updateList({ to });
+  const [searchInput, setSearchInput] = useDebouncedSearch(list.q, (q) => updateList({ q }));
+  // 한 줄 필터의 버튼에 보여 줄 현재 조건
+  const typeFilterLabel = [TYPE_LABELS[typeFilter], list.ref ? `주문 ID ${list.ref}` : ""].filter(Boolean).join(" · ");
+  const dateFilterLabel = fromDate || toDate ? `${fromDate ? fromDate.slice(5).replace("-", ".") : ""} ~ ${toDate ? toDate.slice(5).replace("-", ".") : ""}` : "";
+  const hasListFilters = Boolean(list.q || typeFilter || list.ref || fromDate || toDate);
+  const resetListFilters = () => {
+    setSearchInput("");
+    updateList({ type: "", from: "", to: "", q: "", ref: "" });
+  };
   const setCurrentPage = (page) => updateList({ page }, { replace: false });
   const [isLoading, setIsLoading] = useState(true);
   const [toast, setToast] = useState(null);
@@ -179,105 +191,120 @@ function AdminNotificationLogsPage() {
       ) : null}
 
       {loadError ? <div role="alert" className="notice-error">{loadError} <button onClick={loadLogs} className="underline">다시 조회</button></div> : null}
-      <section className="card space-y-4">
-        <div className="flex flex-wrap gap-3"><label className="flex-1"><span className="label">수신자</span><input className="input-base" placeholder="이름·전화번호" value={list.q} onChange={(e) => updateList({ q: e.target.value })} /></label><label><span className="label">주문 ID</span><input className="input-base" type="number" min="1" placeholder="주문 상세의 ID" value={list.ref} onChange={(e) => updateList({ ref: e.target.value })} /></label><button className="btn-ghost !w-auto self-end" onClick={() => updateList({ status: "", type: "", from: "", to: "", q: "", ref: "" })}>초기화</button></div>
-        <div className="flex flex-wrap items-end gap-3">
-          <div>
-            <span className="label">상태</span>
-            <div className="mt-1 flex flex-wrap gap-2">
-              {STATUS_FILTERS.map((option) => (
-                <button
-                  aria-pressed={statusFilter === option.value}
-                  className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
-                    statusFilter === option.value
-                      ? "bg-slate-950 text-white"
-                      : "border border-slate-300 bg-white text-slate-600 hover:bg-slate-100"
-                  }`}
-                  key={option.value || "all"}
-                  onClick={() => {
-                    setStatusFilter(option.value);
-                  }}
-                  type="button"
+      {/* 2026-11-16: 다른 목록 화면과 같은 틀 — 상태 탭 → 한 줄 필터(검색·유형·기간) → 목록 */}
+      <AdminViewTabs
+        activeKey={statusFilter}
+        label="발송 상태"
+        onSelect={setStatusFilter}
+        tabs={STATUS_FILTERS.map((option) => ({ key: option.value, label: option.label }))}
+      />
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="relative min-w-[220px] flex-1">
+            <span className="sr-only">수신자 검색</span>
+            <SearchIcon className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+            <input
+              className="h-10 w-full rounded-[10px] border border-slate-200 bg-white pl-10 pr-3 text-base text-slate-900 outline-none transition-colors placeholder:text-slate-400 hover:border-slate-300 focus:border-brand focus:ring-2 focus:ring-brand/15 sm:text-[15px]"
+              onChange={(event) => setSearchInput(event.target.value)}
+              placeholder="수신자 이름, 전화번호"
+              type="search"
+              value={searchInput}
+            />
+          </label>
+
+          <AdminFilterPopover active={Boolean(typeFilterLabel)} label="유형" valueLabel={typeFilterLabel}>
+            <div className="space-y-3">
+              <label className="block">
+                <span className="text-[13px] font-semibold text-slate-600">알림 유형</span>
+                <select
+                  className="mt-1 h-10 w-full rounded-[10px] border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none hover:border-slate-300 focus:border-brand"
+                  onChange={(event) => setTypeFilter(event.target.value)}
+                  value={typeFilter}
                 >
-                  {option.label}
-                </button>
-              ))}
+                  <option value="">전체</option>
+                  {Object.entries(TYPE_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className="text-[13px] font-semibold text-slate-600">주문 ID</span>
+                <input
+                  className="mt-1 h-10 w-full rounded-[10px] border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none hover:border-slate-300 focus:border-brand"
+                  min="1"
+                  onChange={(event) => updateList({ ref: event.target.value })}
+                  placeholder="주문 상세의 ID"
+                  type="number"
+                  value={list.ref}
+                />
+              </label>
             </div>
-          </div>
-          <label className="block">
-            <span className="label">유형</span>
-            <select
-              className="input-base !mt-1 !block !w-44 !py-2 text-sm"
-              onChange={(event) => {
-                setTypeFilter(event.target.value);
-              }}
-              value={typeFilter}
-            >
-              <option value="">전체</option>
-              {Object.entries(TYPE_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block">
-            <span className="label">시작일</span>
-            <input
-              className="input-base !mt-1 !py-2 text-sm"
-              onChange={(event) => {
-                setFromDate(event.target.value);
-              }}
-              type="date"
-              value={fromDate}
-            />
-          </label>
-          <label className="block">
-            <span className="label">종료일</span>
-            <input
-              className="input-base !mt-1 !py-2 text-sm"
-              onChange={(event) => {
-                setToDate(event.target.value);
-              }}
-              type="date"
-              value={toDate}
-            />
-          </label>
+          </AdminFilterPopover>
+
+          <AdminFilterPopover active={Boolean(dateFilterLabel)} label="기간" valueLabel={dateFilterLabel}>
+            <div className="space-y-3">
+              <label className="block">
+                <span className="text-[13px] font-semibold text-slate-600">시작일</span>
+                <input
+                  className="mt-1 h-10 w-full rounded-[10px] border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none hover:border-slate-300 focus:border-brand"
+                  onChange={(event) => setFromDate(event.target.value)}
+                  type="date"
+                  value={fromDate}
+                />
+              </label>
+              <label className="block">
+                <span className="text-[13px] font-semibold text-slate-600">종료일</span>
+                <input
+                  className="mt-1 h-10 w-full rounded-[10px] border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none hover:border-slate-300 focus:border-brand"
+                  onChange={(event) => setToDate(event.target.value)}
+                  type="date"
+                  value={toDate}
+                />
+              </label>
+            </div>
+          </AdminFilterPopover>
+
+          {hasListFilters ? (
+            <button className="h-10 px-2 text-[13px] font-semibold text-slate-500 hover:text-slate-800" onClick={resetListFilters} type="button">
+              초기화
+            </button>
+          ) : null}
+
           <button
-            className="btn-secondary !w-auto !px-4 !py-2.5 text-sm"
+            className="h-10 px-2 text-[13px] font-semibold text-slate-500 hover:text-slate-800 disabled:opacity-50"
             disabled={isLoading}
             onClick={() => void loadLogs()}
             type="button"
           >
             새로고침
           </button>
-        </div>
-        <p className="text-xs font-semibold text-slate-500">
-          총 {totalCount.toLocaleString("ko-KR")}건
-          {failedCount > 0 ? (
-            <span className="ml-2 font-bold text-rose-600">이 페이지 실패 {failedCount}건</span>
-          ) : null}
-        </p>
-      </section>
 
-      <section className="card p-0">
+          <span className="ml-auto pl-1 text-sm text-slate-500">
+            총 <strong className="font-bold tabular-nums text-slate-900">{totalCount.toLocaleString("ko-KR")}</strong>건
+            {failedCount > 0 ? <span className="ml-2 font-semibold text-rose-500">이 페이지 실패 {failedCount}건</span> : null}
+          </span>
+        </div>
+      </div>
+
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
         {isLoading ? (
-          <p className="py-10 text-center text-sm font-semibold text-slate-400"><InlineLoading /></p>
+          <p className="py-10 text-center text-sm text-slate-400"><InlineLoading /></p>
         ) : rows.length === 0 ? (
-          <p className="py-10 text-center text-sm font-semibold text-slate-400">
-            조건에 맞는 발송 이력이 없습니다.
+          <p className="px-5 py-14 text-center text-sm font-semibold text-slate-700">
+            조건에 맞는 발송 이력이 없어요
           </p>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-200 text-sm">
               <thead className="bg-slate-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-500">시각</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-500">유형</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-500">수신자</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-500">상태</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-500">내용</th>
-                  <th className="px-4 py-3 text-right text-xs font-bold text-slate-500">작업</th>
+                  <th className="px-4 py-3 text-left text-[13px] font-semibold text-slate-500">시각</th>
+                  <th className="px-4 py-3 text-left text-[13px] font-semibold text-slate-500">유형</th>
+                  <th className="px-4 py-3 text-left text-[13px] font-semibold text-slate-500">수신자</th>
+                  <th className="px-4 py-3 text-left text-[13px] font-semibold text-slate-500">상태</th>
+                  <th className="px-4 py-3 text-left text-[13px] font-semibold text-slate-500">내용</th>
+                  <th className="px-4 py-3 text-right text-[13px] font-semibold text-slate-500">작업</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
