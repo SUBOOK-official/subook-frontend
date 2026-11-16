@@ -866,6 +866,17 @@ function PublicOrderPage() {
     setTimeout(() => setToast(null), 3000);
   }, []);
 
+  // 일성월심 학습지(앱 패키지)는 회원만 살 수 있다(2026-11-17). 비회원 주문으로 들어왔으면 로그인으로 보낸다.
+  // 상품 페이지의 로그인 관문이 먼저 막지만, 수북 앱·열어 둔 옛 화면처럼 다른 길로 들어온 경우를 여기서 받는다.
+  // 서버도 막는다(create_guest_order·create_guest_pg_checkout_session).
+  useEffect(() => {
+    if (!isGuestCheckout || !hasAppPackage) return;
+    navigate("/login", {
+      replace: true,
+      state: { from: { pathname: "/cart" }, notice: "일성월심 학습지는 회원만 구매할 수 있어요. 로그인 후 주문해 주세요." },
+    });
+  }, [isGuestCheckout, hasAppPackage, navigate]);
+
   // ── GA4 계측 공용 ───────────────────────────────────────────────────────────
   // 결제 여정 이벤트에 항상 얹는 컨텍스트: 회원/비회원 구분 + 토스 심사 모드 세션 여부.
   const checkoutContext = useCallback(

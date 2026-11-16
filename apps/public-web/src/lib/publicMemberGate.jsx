@@ -49,8 +49,10 @@ function usePublicMemberGate() {
           ...(pendingItemCount != null ? { itemCount: pendingItemCount } : {}),
         });
       }
+      // 회원 전용 상품(일성월심 학습지 = 앱 패키지, 2026-11-17)은 비회원 주문을 내지 않는다.
+      // 호출부가 pendingAction.memberOnly로 알린다. 서버도 막는다(create_guest_order 등).
       setGuestOrderItems(
-        nextActionType === "buyNow" && Array.isArray(pendingAction?.orderItems)
+        nextActionType === "buyNow" && Array.isArray(pendingAction?.orderItems) && !pendingAction?.memberOnly
           ? pendingAction.orderItems
           : null,
       );

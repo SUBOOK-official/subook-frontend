@@ -1691,6 +1691,8 @@ function PublicProductDetailPage() {
         type: "buyNow",
         productId: product?.id ?? null,
         orderItems,
+        // 일성월심 학습지(앱 패키지)는 회원만 살 수 있다: 로그인 관문에서 비회원 주문을 내지 않는다
+        memberOnly: isAppPackage,
       })
     )
       return;
