@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { useAdminListState } from "../lib/useAdminListState";
+import { useAdminListState, useDebouncedSearch } from "../lib/useAdminListState";
 import AdminSavedViews from "../components/AdminSavedViews";
+import AdminViewTabs from "../components/AdminViewTabs";
+import AdminFilterPopover from "../components/AdminFilterPopover";
 import AdminDialog from "../components/AdminDialog";
 import AdminShell from "../components/AdminShell";
 import { createAdminJobRecorder } from "../lib/adminJobRecorder";
@@ -13,7 +15,7 @@ import { formatCurrency, formatDate } from "@shared-domain/format";
 import { productStatusLabel as STATUS_LABEL } from "@shared-domain/status";
 import StatusBadge from "@shared-domain/StatusBadge";
 import { ILSEONG_APP_PRODUCT_CODE } from "@shared-domain/ilseongApp";
-import { CloseIcon } from "../components/icons";
+import { CloseIcon, PlusIcon, SearchIcon } from "../components/icons";
 import { downloadInventoryAuditXlsx } from "../lib/inventoryAuditExport";
 import { COVER_BUCKET, uploadImageToBucket } from "../lib/adminImageUpload";
 import { BusyText, InlineLoading, LoadingOverlay } from "../components/Loading";
@@ -71,6 +73,25 @@ const INVENTORY_ISSUES = [
   { key: "missing_cover", label: "표지 없음", hint: "판매중 재고가 있는데 상품 표지가 없음", fix: "'수정'에서 표지 등록" },
 ];
 
+// 목록 위 업무 탭 (2026-11-16) — 상태 카드 4개와 재고 점검 줄을 한 줄로 합쳤다.
+// 전체·판매중·품절·숨김은 ?status=, 점검 필요는 ?issue= 와 1:1로 맞는다.
+const PRODUCT_VIEW_TABS = [
+  { key: "all", label: "전체", status: "" },
+  { key: "selling", label: "판매중", status: "selling" },
+  { key: "sold_out", label: "품절", status: "sold_out" },
+  { key: "hidden", label: "숨김", status: "hidden" },
+  { key: "issues", label: "점검 필요", tone: "danger" },
+];
+
+const CATEGORY_FILTERS = [
+  { key: "brand", label: "브랜드", options: BRAND_OPTIONS },
+  { key: "subject", label: "과목", options: SUBJECT_OPTIONS },
+  { key: "book_type", label: "유형", options: BOOK_TYPE_OPTIONS },
+];
+
+const BULK_BAR_BUTTON =
+  "rounded-lg bg-white/10 px-3 py-1.5 text-[13px] font-semibold text-white transition-colors hover:bg-white/20 disabled:opacity-50";
+
 // 목록 행에 붙일 점검 배지 — 0건 항목은 뺀다
 function productIssueBadges(issues) {
   if (!issues) return [];
@@ -110,7 +131,7 @@ function AdminProductMastersPage() {
   const currentPage = list.page;
   const setCurrentPage = (page) => updateList({ page }, { replace: false });
   const search = list.q;
-  const setSearch = (q) => updateList({ q });
+  const [searchInput, setSearchInput] = useDebouncedSearch(list.q, (q) => updateList({ q }));
   const filters = useMemo(() => ({ brand: list.brand, subject: list.subject, book_type: list.book_type, status: list.status, issue: list.issue }), [list.brand, list.subject, list.book_type, list.status, list.issue]);
   const setFilters = (value) => updateList(typeof value === "function" ? value(filters) : value);
   const sortKey = list.sort;
@@ -727,7 +748,22 @@ function AdminProductMastersPage() {
     !search.trim() && !filters.brand && !filters.subject && !filters.book_type && !filters.status && !filters.issue;
   const activeIssue = INVENTORY_ISSUES.find((issue) => issue.key === filters.issue) ?? null;
 
-  const productCount = products.length;
+  // 업무 탭 — 점검 항목을 보고 있으면 '점검 필요', 아니면 상태 탭
+  const activeViewKey = filters.issue ? "issues" : PRODUCT_VIEW_TABS.some((tab) => tab.status === filters.status) ? filters.status || "all" : "all";
+  const viewTabs = PRODUCT_VIEW_TABS.map((tab) => ({
+    ...tab,
+    count: tab.key === "issues" ? issueSummary?.any?.products : tab.key === "all" ? summary.total : summary[tab.key],
+  }));
+  const selectViewTab = (key) => {
+    if (key === "issues") updateList({ status: "", issue: filters.issue || "any" });
+    else updateList({ status: PRODUCT_VIEW_TABS.find((tab) => tab.key === key)?.status ?? "", issue: "" });
+  };
+  const categoryLabel = [filters.brand, filters.subject, filters.book_type].filter(Boolean).join(" · ");
+  const hasListFilters = Boolean(search.trim() || categoryLabel);
+  const resetListFilters = () => {
+    setSearchInput("");
+    updateList({ q: "", brand: "", subject: "", book_type: "" });
+  };
   const detailProduct = detailData?.product ?? null;
   const detailBooks = useMemo(() => detailData?.books ?? [], [detailData]);
 
@@ -737,18 +773,16 @@ function AdminProductMastersPage() {
         <>
           {/* R2: 재고 전수조사 엑셀 — 등록일 범위 선택 다이얼로그로 진입 (2026-07-22) */}
           <button
-            className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+            className="btn-secondary !px-3.5 !py-2.5 text-[13px]"
             disabled={isInventoryExporting}
             onClick={() => setExportDialogOpen(true)}
             type="button"
           >
             {isInventoryExporting ? <BusyText>생성 중...</BusyText> : "재고 엑셀"}
           </button>
-          <Link
-            className="rounded-md bg-brand px-3 py-2 text-xs font-bold text-white hover:bg-brand-soft"
-            to="/admin/register"
-          >
-            + 상품 등록
+          <Link className="btn-primary !w-auto gap-1.5 !px-4 !py-2.5" to="/admin/register">
+            <PlusIcon size={16} />
+            상품 등록
           </Link>
         </>
       }
@@ -756,95 +790,55 @@ function AdminProductMastersPage() {
       description="상품 공개 설정과 재고를 관리합니다. 공개 상품은 구매 가능한 재고가 없으면 품절, 재입고되면 판매중으로 전환됩니다."
       title="상품 재고"
     >
-      <div className="space-y-6">
+      <div className="space-y-4">
+        <AdminViewTabs activeKey={activeViewKey} label="상품 보기" onSelect={selectViewTab} tabs={viewTabs} />
 
-        {/* 통계 카드 */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {[
-            { key: "", label: "전체", value: summary.total, badge: "bg-slate-100 text-slate-800" },
-            { key: "selling", label: "판매중", value: summary.selling, badge: "bg-emerald-100 text-emerald-800" },
-            { key: "sold_out", label: "품절", value: summary.sold_out, badge: "bg-amber-100 text-amber-800" },
-            { key: "hidden", label: "숨김", value: summary.hidden, badge: "bg-slate-200 text-slate-500" },
-          ].map((card) => {
-            const isActive = filters.status === card.key && (card.key !== "" || !filters.status);
-            return (
-              <button
-                key={card.key || "all"}
-                type="button"
-                aria-pressed={isActive}
-                onClick={() => {
-                  setFilters((f) => ({ ...f, status: card.key }));
-
-                }}
-                className={`rounded-md border px-4 py-3 text-left transition ${
-                  isActive
-                    ? "border-slate-900 bg-slate-900 text-white"
-                    : "border-slate-200 bg-white hover:border-slate-400"
-                }`}
-              >
-                <div className="text-xs font-bold uppercase tracking-wide">
-                  {card.label}
-                </div>
-                <div className="mt-1 text-2xl font-bold">{card.value ?? 0}</div>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* 재고 점검 (2026-09-15) — 항목을 누르면 해당 상품만 목록에 남는다 */}
-        {issueSummary ? (
-          <div className="rounded-lg border border-slate-200 bg-white p-4">
+        {/* 점검 필요 탭 (2026-09-15 재고 점검) — 항목을 누르면 해당 상품만 목록에 남는다 */}
+        {activeViewKey === "issues" && issueSummary ? (
+          <div className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="mr-1 text-xs font-bold text-slate-700">재고 점검</span>
               <button
-                className={`rounded-full border px-3 py-1 text-xs font-bold transition ${
+                aria-pressed={filters.issue === "any"}
+                className={`inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[13px] font-semibold transition-colors ${
                   filters.issue === "any"
-                    ? "border-slate-900 bg-slate-900 text-white"
-                    : "border-slate-300 bg-white text-slate-700 hover:border-slate-500"
+                    ? "border-brand bg-blue-50 text-brand"
+                    : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
                 }`}
-                onClick={() => {
-                  setFilters((f) => ({ ...f, issue: f.issue === "any" ? "" : "any" }));
-
-                }}
+                onClick={() => setFilters((f) => ({ ...f, issue: "any" }))}
                 title="아래 항목 중 하나라도 해당하는 상품"
                 type="button"
               >
-                전체 {issueSummary.any?.products ?? 0}종
+                전체
+                <span className="tabular-nums">{issueSummary.any?.products ?? 0}종</span>
               </button>
               {INVENTORY_ISSUES.map((issue) => {
                 const counts = issueSummary[issue.key] ?? {};
-                const products = Number(counts.products ?? 0);
+                const issueProducts = Number(counts.products ?? 0);
                 const books = counts.books;
                 const pendingBooks = Number(counts.pending_books ?? 0);
                 const isActive = filters.issue === issue.key;
                 return (
                   <button
-                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold transition disabled:cursor-default ${
+                    aria-pressed={isActive}
+                    className={`inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[13px] font-semibold transition-colors disabled:cursor-default ${
                       isActive
-                        ? "border-amber-600 bg-amber-600 text-white"
-                        : products > 0
-                          ? "border-amber-300 bg-amber-50 text-amber-800 hover:border-amber-500"
-                          : "border-slate-200 bg-slate-50 text-slate-400"
+                        ? "border-brand bg-blue-50 text-brand"
+                        : issueProducts > 0
+                          ? "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                          : "border-slate-100 bg-slate-50 text-slate-300"
                     }`}
-                    disabled={products === 0 && !isActive}
+                    disabled={issueProducts === 0 && !isActive}
                     key={issue.key}
-                    onClick={() => {
-                      setFilters((f) => ({ ...f, issue: f.issue === issue.key ? "" : issue.key }));
-
-                    }}
+                    onClick={() => setFilters((f) => ({ ...f, issue: issue.key }))}
                     title={issue.hint}
                     type="button"
                   >
                     {issue.label}
                     <span className="tabular-nums">
-                      {books != null ? `${books}권 · ${products}종` : `${products}종`}
+                      {books != null ? `${books}권 · ${issueProducts}종` : `${issueProducts}종`}
                     </span>
                     {pendingBooks > 0 ? (
-                      <span
-                        className={`rounded-full px-1.5 py-0.5 text-[10px] ${
-                          isActive ? "bg-white/20 text-white" : "bg-rose-100 text-rose-700"
-                        }`}
-                      >
+                      <span className="rounded-full bg-rose-50 px-1.5 py-0.5 text-[11px] font-bold text-rose-600">
                         출고 대기 {pendingBooks}권
                       </span>
                     ) : null}
@@ -852,140 +846,103 @@ function AdminProductMastersPage() {
                 );
               })}
             </div>
-            {activeIssue ? (
-              <p className="mt-2 text-xs text-slate-500">
-                {activeIssue.hint} · {activeIssue.fix}
-              </p>
-            ) : filters.issue === "any" ? (
-              <p className="mt-2 text-xs text-slate-500">점검 항목 중 하나라도 해당하는 상품입니다.</p>
-            ) : null}
+            <p className="mt-2.5 text-[13px] text-slate-500">
+              {activeIssue ? `${activeIssue.hint} · ${activeIssue.fix}` : "점검 항목 중 하나라도 해당하는 상품이에요."}
+            </p>
           </div>
         ) : null}
 
-        {/* 검색 + 필터 */}
-        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-white p-4 text-sm">
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
+        {/* 검색·분류·정렬 — 한 줄 필터 */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="relative min-w-[220px] flex-1">
+              <span className="sr-only">상품 검색</span>
+              <SearchIcon className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+              <input
+                className="h-10 w-full rounded-[10px] border border-slate-200 bg-white pl-10 pr-3 text-base text-slate-900 outline-none transition-colors placeholder:text-slate-400 hover:border-slate-300 focus:border-brand focus:ring-2 focus:ring-brand/15 sm:text-[15px]"
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder="상품명, 강사명, 옵션, 일련번호"
+                type="search"
+                value={searchInput}
+              />
+            </label>
 
-            }}
-            placeholder="상품명, 강사명, 옵션, 일련번호로 검색"
-            className="w-72 rounded-md border border-slate-300 px-3 py-2"
-          />
-          <select
-            aria-label="상품 상태"
-            value={filters.status}
-            onChange={(e) => {
-              setFilters((f) => ({ ...f, status: e.target.value }));
+            <AdminFilterPopover active={Boolean(categoryLabel)} label="분류" valueLabel={categoryLabel}>
+              <div className="space-y-3">
+                {CATEGORY_FILTERS.map((category) => (
+                  <label className="block" key={category.key}>
+                    <span className="text-[13px] font-semibold text-slate-600">{category.label}</span>
+                    <select
+                      className="mt-1 h-10 w-full rounded-[10px] border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none hover:border-slate-300 focus:border-brand"
+                      onChange={(e) => setFilters((f) => ({ ...f, [category.key]: e.target.value }))}
+                      value={filters[category.key]}
+                    >
+                      <option value="">전체</option>
+                      {category.options.map((option) => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                  </label>
+                ))}
+              </div>
+            </AdminFilterPopover>
 
-            }}
-            className="rounded-md border border-slate-300 px-3 py-2"
-          >
-            <option value="">전체 상태</option>
-            {Object.keys(STATUS_BADGE).map((status) => (
-              <option key={status} value={status}>{STATUS_LABEL[status]}</option>
-            ))}
-          </select>
-          <select
-            value={filters.brand}
-            onChange={(e) => {
-              setFilters((f) => ({ ...f, brand: e.target.value }));
+            <select
+              aria-label="정렬"
+              className="h-10 rounded-[10px] border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 outline-none hover:border-slate-300 focus:border-brand"
+              onChange={(e) => setSortKey(e.target.value)}
+              value={sortKey}
+            >
+              <option value="updated">최근 수정순</option>
+              <option value="created">최신 등록순</option>
+            </select>
 
-            }}
-            className="rounded-md border border-slate-300 px-3 py-2"
-          >
-            <option value="">전체 브랜드</option>
-            {BRAND_OPTIONS.map((b) => (
-              <option key={b} value={b}>{b}</option>
-            ))}
-          </select>
-          <select
-            value={filters.subject}
-            onChange={(e) => {
-              setFilters((f) => ({ ...f, subject: e.target.value }));
+            {hasListFilters ? (
+              <button
+                className="h-10 px-2 text-[13px] font-semibold text-slate-500 hover:text-slate-800"
+                onClick={resetListFilters}
+                type="button"
+              >
+                초기화
+              </button>
+            ) : null}
 
-            }}
-            className="rounded-md border border-slate-300 px-3 py-2"
-          >
-            <option value="">전체 과목</option>
-            {SUBJECT_OPTIONS.map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-          <select
-            value={filters.book_type}
-            onChange={(e) => {
-              setFilters((f) => ({ ...f, book_type: e.target.value }));
-
-            }}
-            className="rounded-md border border-slate-300 px-3 py-2"
-          >
-            <option value="">전체 타입</option>
-            {BOOK_TYPE_OPTIONS.map((t) => (
-              <option key={t} value={t}>{t}</option>
-            ))}
-          </select>
-          <select
-            value={sortKey}
-            onChange={(e) => {
-              setSortKey(e.target.value);
-
-            }}
-            className="rounded-md border border-slate-300 px-3 py-2"
-          >
-            <option value="updated">최근 수정순</option>
-            <option value="created">최신 등록순</option>
-          </select>
-          <span className="ml-auto text-xs text-slate-500">{productCount}개 표시</span>
+            <span className="ml-auto pl-1 text-sm text-slate-500">
+              총 <strong className="font-bold tabular-nums text-slate-900">{totalCount.toLocaleString("ko-KR")}</strong>종
+            </span>
+          </div>
         </div>
 
-        {/* 일괄 액션 바 (선택 시 표시) */}
+        {/* 선택한 상품 일괄 처리 — 고르면 위에 붙어 따라온다 */}
         {selectedIds.size > 0 ? (
-          <div className="sticky top-0 z-30 mb-3 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 shadow-sm flex flex-wrap items-center gap-3">
-            <span className="text-sm font-bold text-amber-900">{selectedIds.size}개 상품 선택됨</span>
+          <div className="sticky top-2 z-30 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl bg-slate-900 px-4 py-3 text-white shadow-lg">
+            <span className="text-sm font-bold tabular-nums">{selectedIds.size}개 선택</span>
             <button
-              className="text-xs text-amber-700 underline hover:text-amber-900"
+              className="text-[13px] font-semibold text-slate-300 underline hover:text-white"
               onClick={() => setSelectedIds(new Set())}
               type="button"
             >
               선택 해제
             </button>
             <div className="flex-1" />
-            <button
-              className="text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-md px-3 py-1.5 disabled:opacity-60"
-              disabled={bulkProcessing}
-              onClick={() => handleBulkProductAction("selling")}
-              type="button"
-            >
-              일괄 공개
+            <button className={BULK_BAR_BUTTON} disabled={bulkProcessing} onClick={() => handleBulkProductAction("selling")} type="button">
+              공개
             </button>
-            <button
-              className="text-xs font-semibold text-white bg-slate-600 hover:bg-slate-700 rounded-md px-3 py-1.5 disabled:opacity-60"
-              disabled={bulkProcessing}
-              onClick={() => handleBulkProductAction("hidden")}
-              type="button"
-            >
-              일괄 숨김
+            <button className={BULK_BAR_BUTTON} disabled={bulkProcessing} onClick={() => handleBulkProductAction("hidden")} type="button">
+              숨김
             </button>
-            <button
-              className="text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-md px-3 py-1.5 disabled:opacity-60"
-              disabled={bulkProcessing}
-              onClick={() => handleBulkProductAction("cover_studio")}
-              type="button"
-            >
+            <button className={BULK_BAR_BUTTON} disabled={bulkProcessing} onClick={() => handleBulkProductAction("cover_studio")} type="button">
               {bulkStudioProgress
                 ? `AI 변환 중 ${bulkStudioProgress.done}/${bulkStudioProgress.total}`
                 : "표지 AI 변환"}
             </button>
             <button
-              className="text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-md px-3 py-1.5 disabled:opacity-60"
+              className="rounded-lg bg-rose-500/25 px-3 py-1.5 text-[13px] font-semibold text-rose-100 transition-colors hover:bg-rose-500/40 disabled:opacity-50"
               disabled={bulkProcessing}
               onClick={() => handleBulkProductAction("delete")}
               type="button"
             >
-              {bulkProcessing ? <BusyText>처리 중...</BusyText> : "일괄 삭제"}
+              {bulkProcessing ? <BusyText>처리 중...</BusyText> : "삭제"}
             </button>
           </div>
         ) : null}
@@ -1037,16 +994,14 @@ function AdminProductMastersPage() {
           </div>
         ) : null}
 
-        <AdminSavedViews presets={[{ name: "판매중", search: "status=selling" }, { name: "위치 미지정", search: "issue=missing_location" }, { name: "사진 없음", search: "issue=missing_detail_photo" }]} />
+        <AdminSavedViews canSave={hasListFilters} customOnly />
         {/* 상품 그리드 (테이블) */}
-        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
           {isLoading ? (
-            <div className="p-8 text-center text-sm text-slate-400"><InlineLoading /></div>
+            <div className="p-10 text-center text-sm text-slate-400"><InlineLoading /></div>
           ) : products.length === 0 ? (
-            <div className="p-12 text-center text-sm text-slate-400">
-              {filterEmpty
-                ? "등록된 상품이 없습니다. 식스샵 마이그레이션 또는 검수 흐름에서 자동 생성됩니다."
-                : "검색 결과가 없습니다."}
+            <div className="px-5 py-14 text-center text-sm font-semibold text-slate-700">
+              {filterEmpty ? "아직 등록된 상품이 없어요" : "조건에 맞는 상품이 없어요"}
             </div>
           ) : (
             <table className="admin-product-table w-full text-sm">
