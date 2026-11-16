@@ -301,8 +301,11 @@ function canReregisterCjPickup(pickupRequest) {
 // 취소 가능 조건 — admin_bulk_cancel_pickup_requests RPC가 실제로 처리하는 범위와 동일.
 // (기존에는 선택 자체가 CJ 접수 가능 행으로 제한돼, 운송장이 발급된 pickup_scheduled 건을
 //  화면에서 영영 취소할 수 없는 버그가 있었다 — 2026-07-06 수거 사이클 검토에서 수정)
+// 2026-11-16: 수거중(picking_up)도 취소를 시도할 수 있다 — 서버(cj-pickup.js)가 CJ 예약 취소에
+// 성공했을 때만 취소하므로, 기사님이 이미 가져간 박스는 CJ가 거부해 취소되지 않는다.
+// 'DB만 취소' 폴백(admin_bulk_cancel_pickup_requests)은 여전히 대기·수거접수 전용이다.
 function canCancelPickup(pickupRequest) {
-  return ["pending", "pickup_scheduled"].includes(pickupRequest.status);
+  return ["pending", "pickup_scheduled", "picking_up"].includes(pickupRequest.status);
 }
 
 // 취소된 요청에 아직 살아있는(CJ 취소 안 된) CJ 예약 박스 수.
@@ -1137,6 +1140,7 @@ function AdminPickupRequestsPage() {
             error: result.error || "알 수 없는 오류",
           })),
           // 이미 취소된 요청의 CJ 정리(cleanup) 실패에는 DB 폴백이 무의미 — 활성 요청만 대상.
+          // 수거중(picking_up)은 폴백 대상이 아니다 — CJ가 거부했다면 박스가 실제로 이동 중일 수 있다.
           dbFallbackIds: cleanup
             ? []
             : failedResults
@@ -1191,13 +1195,14 @@ function AdminPickupRequestsPage() {
     if (!isSupabaseConfigured || !supabase) return;
 
     setDestructiveModal({
-      title: `수거 일괄 취소 — ${targetIds.length}건`,
+      title: `수거 취소 — ${targetIds.length}건`,
       description:
-        `선택한 ${targetIds.length}건의 수거 요청을 일괄 취소합니다.\n\n` +
+        `선택한 ${targetIds.length}건의 수거 요청을 취소합니다.\n\n` +
         `・CJ에 접수된 건(운송장 발급)은 CJ측 수거 예약도 함께 취소합니다.\n` +
         `・기사님이 이미 스캔했거나 운송장이 출력된 박스는 CJ가 취소를 거부합니다 —\n` +
         `  해당 건은 취소되지 않고 거부 사유가 표시됩니다.\n` +
-        `・아직 수거 전(접수 대기·수거접수) 상태만 취소됩니다.\n\n` +
+        `・입고 전(대기·수거접수·수거중) 신청만 취소할 수 있습니다. 수거중인 건은\n` +
+        `  기사님이 아직 가져가지 않은 경우에만 CJ가 취소를 받아 줍니다.\n\n` +
         `이 작업은 되돌릴 수 없습니다.`,
       confirmPhrase: "취소",
       reasonRequired: true,
@@ -1435,7 +1440,7 @@ function AdminPickupRequestsPage() {
               <div className="flex-1" />
               {selectedIds.length > Math.max(selectedEligibleIds.length, selectedCancellableIds.length) ? (
                 <span className="text-xs text-slate-300">
-                  CJ 접수=운송장이 없는 신청 / 취소=수거 시작 전(대기·수거접수) 신청만 대상입니다
+                  CJ 접수=운송장이 없는 신청 / 취소=입고 전 신청만 대상입니다
                 </span>
               ) : null}
               {selectedEligibleIds.length > 0 ? (
