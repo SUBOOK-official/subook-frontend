@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import AdminShell from "../components/AdminShell";
-import { useAdminListState } from "../lib/useAdminListState";
-import AdminSavedViews from "../components/AdminSavedViews";
+import { useAdminListState, useDebouncedSearch } from "../lib/useAdminListState";
+import { kstDateString, toKstInput } from "../lib/adminDateTime";
 import AdminPageTabs from "../components/AdminPageTabs";
+import AdminViewTabs from "../components/AdminViewTabs";
+import AdminFilterPopover from "../components/AdminFilterPopover";
+import AdminPagination from "../components/AdminPagination";
+import { SearchIcon } from "../components/icons";
 import AdminDialog from "../components/AdminDialog";
 import AdminEntityTimeline from "../components/AdminEntityTimeline";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
@@ -33,6 +37,39 @@ function PickupBoxSelects({ codes, onChange, disabled = false }) {
   </div>;
 }
 
+// 업무 보기 탭 — status는 list_admin_work_pickups의 p_statuses(쉼표로 여러 개).
+// tone: 건수가 있을 때 강조 (work = 운영자가 처리할 차례)
+const PICKUP_VIEW_TABS = [
+  { key: "all", label: "전체", status: "" },
+  { key: "pending", label: "접수 대기", status: "pending", tone: "work" },
+  { key: "transit", label: "수거 진행", status: "pickup_scheduled,picking_up" },
+  { key: "arrived", label: "입고", status: "arrived", tone: "work" },
+  { key: "inspecting", label: "검수중", status: "inspecting" },
+  { key: "inspected", label: "검수완료", status: "inspected" },
+];
+
+// 상태 묶음 비교용 — 순서가 달라도 같은 묶음이면 같은 탭으로 본다.
+function statusSetKey(value) {
+  return String(value || "").split(",").filter(Boolean).sort().join(",");
+}
+
+// 필터 버튼에 넣는 짧은 날짜 — "2026-11-09" → "11.09" (비어 있으면 빈칸)
+function formatShortDate(value) {
+  return value ? `${value.slice(5, 7)}.${value.slice(8, 10)}` : "";
+}
+
+// 표 안의 짧은 확인 시각 — "11.16 09:19" (한국시간)
+function formatCompactDateTime(value) {
+  const kst = toKstInput(value);
+  return kst ? `${kst.slice(5, 7)}.${kst.slice(8, 10)} ${kst.slice(11, 16)}` : "";
+}
+
+// 표 안 작업 버튼 — 다음 단계 하나만 파랑, 나머지는 회색
+const ROW_BUTTON = "inline-flex h-8 items-center justify-center whitespace-nowrap rounded-lg px-3 text-[13px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50";
+const ROW_BUTTON_PRIMARY = `${ROW_BUTTON} bg-brand text-white hover:bg-brand-soft`;
+const ROW_BUTTON_SECONDARY = `${ROW_BUTTON} bg-slate-100 text-slate-700 hover:bg-slate-200`;
+const ROW_LINK = "text-[13px] font-semibold text-slate-500 underline-offset-2 hover:text-slate-800 hover:underline disabled:cursor-not-allowed disabled:opacity-50";
+
 const PICKUP_STATUS_OPTIONS = [
   { value: "pending", label: pickupRequestStatusLabel.pending },
   { value: "pickup_scheduled", label: pickupRequestStatusLabel.pickup_scheduled },
@@ -43,26 +80,6 @@ const PICKUP_STATUS_OPTIONS = [
   { value: "completed", label: pickupRequestStatusLabel.completed },
   { value: "cancelled", label: pickupRequestStatusLabel.cancelled },
 ];
-
-function buildPageItems(currentPage, totalPages) {
-  const items = [];
-
-  for (let page = 1; page <= totalPages; page += 1) {
-    const isBoundary = page === 1 || page === totalPages;
-    const isNearCurrent = Math.abs(page - currentPage) <= 1;
-
-    if (isBoundary || isNearCurrent) {
-      items.push(page);
-      continue;
-    }
-
-    if (items[items.length - 1] !== "...") {
-      items.push("...");
-    }
-  }
-
-  return items;
-}
 
 function formatDateTime(value) {
   if (!value) {
@@ -317,15 +334,18 @@ function getPendingCjCancelBoxes(pickupRequest) {
   }).length;
 }
 
+// 상품 등록(검수 시작) 진입 조건 — CJ에 접수된 뒤라면 언제든 시작할 수 있다.
+// 택배 추적이 '입고'로 바뀌지 않았어도 책이 실제로 도착했으면 바로 등록을 시작하고,
+// 첫 책이 등록되는 순간 서버 트리거가 수거 신청을 '검수중'으로 넘긴다.
+// (예전의 행별 상태 수동변경을 대체 — 2026-11-16 제거)
+function canStartRegistration(pickupRequest) {
+  return ["pickup_scheduled", "picking_up", "arrived", "inspecting", "inspected"].includes(pickupRequest.status);
+}
+
 // 체크박스 선택 허용 = CJ 접수 대상 ∪ 취소 대상
 function canSelectPickupRow(pickupRequest) {
   return canRegisterCjPickup(pickupRequest) || canCancelPickup(pickupRequest);
 }
-
-// 수동 상태 전환 대상 상태 (cancelled 제외 — 취소는 사유 입력이 있는 기존 흐름 전용)
-const MANUAL_STATUS_OPTIONS = PICKUP_STATUS_OPTIONS.filter(
-  (option) => option.value !== "cancelled",
-);
 
 function buildCjTrackingUrl(trackingNumber) {
   if (!trackingNumber) {
@@ -373,25 +393,30 @@ async function callAdminApi(path, options = {}) {
 // 고객(비회원·식스샵)은 상품 등록 위저드에서 새로 만들 수 있다.
 // ─────────────────────────────────────────────────────────────────────────────
 const INSPECTION_PAGE_SIZE = 30;
-const INSPECTION_STATUS_OPTIONS = [
-  { value: "scheduled", label: shipmentStatusLabel.scheduled ?? "수거예정" },
-  { value: "inspecting", label: shipmentStatusLabel.inspecting ?? "검수중" },
-  { value: "inspected", label: shipmentStatusLabel.inspected ?? "검수완료" },
+// 검수 건 보기 탭 — istatus 주소값과 1:1. 기본은 '진행 중'(수거예정+검수중).
+const INSPECTION_DEFAULT_STATUS = "scheduled,inspecting";
+const INSPECTION_VIEW_TABS = [
+  { key: "active", label: "진행 중", istatus: INSPECTION_DEFAULT_STATUS, tone: "work" },
+  { key: "scheduled", label: shipmentStatusLabel.scheduled ?? "수거예정", istatus: "scheduled" },
+  { key: "inspecting", label: shipmentStatusLabel.inspecting ?? "검수중", istatus: "inspecting" },
+  { key: "inspected", label: shipmentStatusLabel.inspected ?? "검수완료", istatus: "inspected" },
+  { key: "all", label: "전체", istatus: "all" },
 ];
 
 function InspectionWorkbenchSection() {
-  const [list, update] = useAdminListState({ iq: "", istatus: "scheduled,inspecting", ipage: 1 });
-  const [searchInput, setSearchInput] = useState(list.iq);
+  const navigate = useNavigate();
+  const [list, update] = useAdminListState({ iq: "", istatus: INSPECTION_DEFAULT_STATUS, ipage: 1 });
   const appliedSearch = list.iq;
-  const setAppliedSearch = (iq) => update({ iq, ipage: 1 });
+  const [searchInput, setSearchInput] = useDebouncedSearch(list.iq, (iq) => update({ iq, ipage: 1 }));
   const statusFilters = useMemo(() => list.istatus && list.istatus !== "all" ? list.istatus.split(",") : [], [list.istatus]);
-  const setStatusFilters = (value) => update({ istatus: (typeof value === "function" ? value(statusFilters) : value).join(",") || "all", ipage: 1 });
   const page = list.ipage;
   const setPage = (ipage) => update({ ipage }, { replace: false, resetPage: false });
-  useEffect(() => { setSearchInput(list.iq); }, [list.iq]);
+  const activeViewTab =
+    INSPECTION_VIEW_TABS.find((tab) => statusSetKey(tab.istatus) === statusSetKey(list.istatus)) ?? INSPECTION_VIEW_TABS[0];
+
   const [rows, setRows] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
-
+  const [viewCounts, setViewCounts] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState("");
   const requestSeqRef = useRef(0);
@@ -430,128 +455,124 @@ function InspectionWorkbenchSection() {
     };
   }, [appliedSearch, statusFilters, page]);
 
-  const totalPages = Math.max(1, Math.ceil(totalCount / INSPECTION_PAGE_SIZE));
+  // 탭별 건수 — 조회에 실패한 탭은 건수를 비워 둔다.
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) return undefined;
+    let cancelled = false;
+    Promise.all(
+      INSPECTION_VIEW_TABS.map((tab) => {
+        const query = supabase.from("shipments").select("id", { count: "exact", head: true });
+        return tab.istatus === "all" ? query : query.in("status", tab.istatus.split(","));
+      }),
+    ).then((results) => {
+      if (cancelled) return;
+      setViewCounts(
+        Object.fromEntries(INSPECTION_VIEW_TABS.map((tab, index) => [tab.key, results[index].error || results[index].count == null ? undefined : results[index].count])),
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  const toggleStatus = (value) => {
-    setPage(1);
-    setStatusFilters((current) =>
-      current.includes(value) ? current.filter((item) => item !== value) : [...current, value],
-    );
-  };
+  const openShipment = (shipment) =>
+    navigate(`/admin/shipments/${shipment.id}?returnTo=${encodeURIComponent(window.location.pathname + window.location.search)}`);
 
   return (
     <>
-      <section className="card space-y-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="section-title">검수 건 검색</h2>
-            <p className="mt-1 text-sm font-semibold text-slate-500">
-              셀러명 또는 연락처로 검색합니다. 회원 수거신청은 [수거 신청] 탭에서 '상품 등록'을
-              누르면 검수 건으로 전환돼 여기에 나타나요.
-            </p>
-          </div>
-        </div>
+      <AdminViewTabs
+        activeKey={activeViewTab.key}
+        label="검수 건 보기"
+        onSelect={(key) => {
+          const tab = INSPECTION_VIEW_TABS.find((entry) => entry.key === key);
+          if (tab) update({ istatus: tab.istatus, ipage: 1 });
+        }}
+        tabs={INSPECTION_VIEW_TABS.map((tab) => ({ ...tab, count: viewCounts[tab.key] }))}
+      />
 
-        <form
-          className="grid gap-3 xl:grid-cols-[1fr_auto]"
-          onSubmit={(event) => {
-            event.preventDefault();
-            setPage(1);
-            setAppliedSearch(searchInput.trim());
-          }}
-        >
-          <label className="block">
-            <span className="label">검색</span>
-            <input
-              className="input-base"
-              onChange={(event) => setSearchInput(event.target.value)}
-              placeholder="셀러명, 연락처"
-              type="search"
-              value={searchInput}
-            />
-          </label>
-          <div className="flex items-end">
-            <button className="btn-primary !w-auto !px-5" type="submit">
-              검색
-            </button>
-          </div>
-        </form>
+      <div className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
+        <label className="relative block">
+          <span className="sr-only">검수 건 검색</span>
+          <SearchIcon className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+          <input
+            className="h-10 w-full rounded-[10px] border border-slate-200 bg-white pl-10 pr-3 text-base text-slate-900 outline-none transition-colors placeholder:text-slate-400 hover:border-slate-300 focus:border-brand focus:ring-2 focus:ring-brand/15 sm:text-[15px]"
+            onChange={(event) => setSearchInput(event.target.value)}
+            placeholder="셀러명, 연락처"
+            type="search"
+            value={searchInput}
+          />
+        </label>
+      </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-bold text-slate-500">상태</span>
-          {INSPECTION_STATUS_OPTIONS.map((option) => {
-            const isActive = statusFilters.includes(option.value);
-            return (
-              <button
-                aria-pressed={isActive}
-                className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
-                  isActive
-                    ? "bg-slate-950 text-white"
-                    : "border border-slate-300 bg-white text-slate-600 hover:bg-slate-100"
-                }`}
-                key={option.value}
-                onClick={() => toggleStatus(option.value)}
-                type="button"
-              >
-                {option.label}
-              </button>
-            );
-          })}
-        </div>
-      </section>
+      {loadError ? <p className="notice-error">{loadError}</p> : null}
 
-      <section className="card space-y-3">
-        {loadError ? <p className="notice-error">{loadError}</p> : null}
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+        <p className="px-5 py-3.5 text-sm text-slate-500">
+          {isLoading ? (
+            "불러오는 중"
+          ) : (
+            <>
+              총 <strong className="font-bold tabular-nums text-slate-900">{totalCount.toLocaleString("ko-KR")}</strong>건
+            </>
+          )}
+        </p>
         {isLoading ? (
-          <p className="py-8 text-center text-sm font-semibold text-slate-400"><InlineLoading /></p>
+          <div className="border-t border-slate-100 p-10 text-center text-sm text-slate-400"><InlineLoading /></div>
         ) : rows.length === 0 ? (
-          <p className="py-8 text-center text-sm font-semibold text-slate-400">
-            조건에 맞는 검수 건이 없습니다.
+          <p className="border-t border-slate-100 px-5 py-14 text-center text-sm font-semibold text-slate-700">
+            조건에 맞는 검수 건이 없어요
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[56rem] divide-y divide-slate-200 text-sm">
-              <thead className="bg-slate-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-500">#</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-500">셀러</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-500">연락처</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-500">수거일</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-500">상태</th>
-                  <th className="px-4 py-3 text-right text-xs font-bold text-slate-500">책</th>
-                  <th className="px-4 py-3 text-right text-xs font-bold text-slate-500">작업</th>
+            <table className="w-full min-w-[52rem] text-sm">
+              <thead>
+                <tr className="border-y border-slate-100 bg-slate-50 text-left text-[13px] font-semibold text-slate-500">
+                  <th className="py-3 pl-5 pr-3">검수 건</th>
+                  <th className="px-3 py-3">셀러</th>
+                  <th className="px-3 py-3">연락처</th>
+                  <th className="px-3 py-3">수거일</th>
+                  <th className="px-3 py-3">상태</th>
+                  <th className="px-3 py-3 text-right">책</th>
+                  <th className="py-3 pl-3 pr-5" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {rows.map((shipment) => (
-                  <tr className="hover:bg-slate-50" key={shipment.id}>
-                    <td className="px-4 py-3 font-bold text-slate-500">{shipment.id}</td>
-                    <td className="px-4 py-3 font-semibold text-slate-800">
+                  <tr
+                    className="cursor-pointer transition-colors hover:bg-slate-50"
+                    key={shipment.id}
+                    onClick={() => {
+                      if (window.getSelection()?.toString()) return;
+                      openShipment(shipment);
+                    }}
+                  >
+                    <td className="py-3.5 pl-5 pr-3 font-semibold tabular-nums text-slate-500">#{shipment.id}</td>
+                    <td className="px-3 py-3.5 font-semibold text-slate-900">
                       {shipment.seller_name}
                       {/* 연결 상태 — 위저드로 새로 만들면 회원·수거신청 연결이 빠질 수 있어
                           목록에서 눈으로 잡는 그물. unlinked면 셀러가 자기 검수 결과를
                           마이페이지에서 못 본다. */}
-                      <div className="mt-1 flex flex-wrap gap-1">
+                      <div className="mt-1 flex flex-wrap gap-1 empty:hidden">
                         {shipment.member_link_status === "unlinked" ? (
                           <span
-                            className="inline-flex items-center rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-bold text-rose-700"
+                            className="inline-flex items-center rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-600"
                             title={`같은 번호의 회원: ${shipment.member_match_names ?? ""}`}
                           >
                             회원 미연결
                           </span>
                         ) : shipment.member_link_status === "guest" ? (
-                          <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-500">
+                          <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500">
                             비회원
                           </span>
                         ) : null}
                         {shipment.request_number ? (
-                          <span className="inline-flex items-center rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-bold text-indigo-700">
+                          <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-slate-600">
                             {shipment.request_number}
                           </span>
                         ) : null}
                         {shipment.unbridged_request_number ? (
                           <span
-                            className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800"
+                            className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800"
                             title="같은 번호·비슷한 날짜의 수거신청이 아직 이 검수 건에 연결되지 않았습니다."
                           >
                             수거신청 미연결 · {shipment.unbridged_request_number}
@@ -559,17 +580,17 @@ function InspectionWorkbenchSection() {
                         ) : null}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-slate-600">{shipment.seller_phone}</td>
-                    <td className="px-4 py-3 text-slate-600">{formatDate(shipment.pickup_date)}</td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-3.5 tabular-nums text-slate-600">{shipment.seller_phone}</td>
+                    <td className="whitespace-nowrap px-3 py-3.5 text-slate-600">{formatDate(shipment.pickup_date)}</td>
+                    <td className="px-3 py-3.5">
                       <StatusBadge status={shipment.status} type="shipment" />
                     </td>
-                    <td className="px-4 py-3 text-right font-bold text-slate-700">
+                    <td className="px-3 py-3.5 text-right font-semibold tabular-nums text-slate-800">
                       {shipment.book_count ?? 0}권
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="py-3.5 pl-3 pr-5 text-right" onClick={(event) => event.stopPropagation()}>
                       <Link
-                        className="btn-primary !inline-flex !w-auto !px-3 !py-2 text-xs"
+                        className={ROW_BUTTON_SECONDARY}
                         to={`/admin/shipments/${shipment.id}?returnTo=${encodeURIComponent(window.location.pathname + window.location.search)}`}
                       >
                         검수 열기
@@ -581,31 +602,16 @@ function InspectionWorkbenchSection() {
             </table>
           </div>
         )}
-
-        {totalPages > 1 ? (
-          <div className="flex items-center justify-center gap-3 pt-1">
-            <button
-              className="btn-secondary !w-auto !px-3 !py-2 text-xs"
-              disabled={page <= 1}
-              onClick={() => setPage((current) => Math.max(1, current - 1))}
-              type="button"
-            >
-              이전
-            </button>
-            <span className="text-xs font-bold text-slate-500">
-              {page} / {totalPages}
-            </span>
-            <button
-              className="btn-secondary !w-auto !px-3 !py-2 text-xs"
-              disabled={page >= totalPages}
-              onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
-              type="button"
-            >
-              다음
-            </button>
-          </div>
-        ) : null}
-      </section>
+        <div className="border-t border-slate-100 px-5 pb-4 pt-2 empty:hidden">
+          <AdminPagination
+            currentPage={page}
+            isLoading={isLoading}
+            onPageChange={setPage}
+            pageSize={INSPECTION_PAGE_SIZE}
+            totalCount={totalCount}
+          />
+        </div>
+      </div>
     </>
   );
 }
@@ -639,13 +645,13 @@ function AdminPickupRequestsPage() {
   const statusFilters = useMemo(() => list.status ? list.status.split(",") : [], [list.status]);
   const setStatusFilters = (value) => updateList({ status: (typeof value === "function" ? value(statusFilters) : value).join(",") });
   const setCurrentPage = (page) => updateList({ page }, { replace: false });
-  const setAppliedSearch = (q) => updateList({ q });
-  const setAppliedFromDate = (from) => updateList({ from });
-  const setAppliedToDate = (to) => updateList({ to });
-  const [searchInput, setSearchInput] = useState(list.q);
-  const [fromDate, setFromDate] = useState(list.from);
-  const [toDate, setToDate] = useState(list.to);
-  useEffect(() => { setSearchInput(list.q); setFromDate(list.from); setToDate(list.to); }, [list.q, list.from, list.to]);
+  // 검색창은 '적용' 버튼 없이 입력을 멈추면 바로 조회한다.
+  const [searchInput, setSearchInput] = useDebouncedSearch(list.q, (q) => {
+    updateList({ q, request: "" });
+    setSelectedIds([]);
+  });
+  // 업무 탭별 건수 — 조회 전·실패한 탭은 건수를 비워 둔다 (0건으로 보이지 않게).
+  const [viewCounts, setViewCounts] = useState({});
   const [totalCount, setTotalCount] = useState(0);
   const [selectedIds, setSelectedIds] = useState([]);
   const [registeringIds, setRegisteringIds] = useState([]);
@@ -654,9 +660,6 @@ function AdminPickupRequestsPage() {
   // 요청 상세 모달 — 목록엔 안 보이는 현관비번·희망일·메모·이메일·박스수·품목 전체를 본다.
   const [detailModal, setDetailModal] = useState(null);
   const [destructiveModal, setDestructiveModal] = useState(null);
-  // 수동 상태 전환 확인 모달 { pickupRequest, nextStatus } — CJ 미연동 기간 운영용
-  const [statusChangeModal, setStatusChangeModal] = useState(null);
-  const [statusChangingId, setStatusChangingId] = useState(null);
   // 수거요청 → 검수(shipment) 전환 진행 중인 요청 id
   const [startingInspectionId, setStartingInspectionId] = useState(null);
   const navigate = useNavigate();
@@ -681,15 +684,6 @@ function AdminPickupRequestsPage() {
     navigate(`/admin/register?shipmentId=${data.shipment_id}`);
   };
 
-  // 수거신청 병합 — 하나의 물리적 수거가 여러 신청으로 쪼개진 경우에 쓴다.
-  // (예: 멀티박스 송장이 일부만 나가 남은 박스를 위해 신청을 새로 만든 경우)
-  // 병합하면 어느 신청에서 '상품 등록'을 눌러도 원본의 검수 건으로 모이고,
-  // 셀러 마이페이지에도 원본 한 건으로만 보인다.
-  const [mergeModal, setMergeModal] = useState(null);
-  const [mergeCandidates, setMergeCandidates] = useState([]);
-  const [mergeLoading, setMergeLoading] = useState(false);
-  const [mergingId, setMergingId] = useState(null);
-
   // CJ 재접수 — { pickupRequest, boxCount, desiredPickupDate } / 실행 중이면 reregisteringId
   const [reregisterModal, setReregisterModal] = useState(null);
   const [boxTypeModal, setBoxTypeModal] = useState(null);
@@ -702,16 +696,6 @@ function AdminPickupRequestsPage() {
   // 수거 취소(CJ CnclBook) 실패 모달 — { successCount, failures, dbFallbackIds, reason }
   // dbFallbackIds가 있으면 "DB만 취소" 폴백 버튼 노출 (CJ측 예약 부재가 확인된 경우 전용)
   const [cancelFailureModal, setCancelFailureModal] = useState(null);
-
-  const totalPages = useMemo(
-    () => Math.max(1, Math.ceil(totalCount / PAGE_SIZE)),
-    [totalCount],
-  );
-
-  const pageItems = useMemo(
-    () => buildPageItems(currentPage, totalPages),
-    [currentPage, totalPages],
-  );
 
   const eligiblePickupIds = useMemo(
     () => pickupRequests.filter(canRegisterCjPickup).map((pickupRequest) => pickupRequest.id),
@@ -743,35 +727,27 @@ function AdminPickupRequestsPage() {
     selectablePickupIds.length > 0 &&
     selectablePickupIds.every((id) => selectedIds.includes(id));
 
-  const statusSummary = useMemo(
-    () =>
-      pickupRequests.reduce((accumulator, pickupRequest) => {
-        accumulator[pickupRequest.status] = (accumulator[pickupRequest.status] || 0) + 1;
-        return accumulator;
-      }, {}),
-    [pickupRequests],
-  );
-
-  const summaryCards = [
-    { label: "전체 수거 요청", value: `${totalCount}건` },
-    { label: "CJ 접수 대기", value: `${eligiblePickupIds.length}건`, hint: "현재 페이지 기준" },
-    {
-      label: "수거 진행",
-      value: `${(statusSummary.pickup_scheduled || 0) + (statusSummary.picking_up || 0)}건`,
-      hint: "접수/수거중",
-    },
-    {
-      label: "입고 이후",
-      value: `${(statusSummary.arrived || 0) + (statusSummary.inspecting || 0) + (statusSummary.inspected || 0)}건`,
-      hint: "현재 페이지 기준",
-    },
-  ];
+  const loadViewCounts = useCallback(async () => {
+    if (!isSupabaseConfigured || !supabase) return;
+    const results = await Promise.all(
+      PICKUP_VIEW_TABS.map((tab) => {
+        const query = supabase.from("pickup_requests").select("id", { count: "exact", head: true });
+        return tab.status ? query.in("status", tab.status.split(",")) : query;
+      }),
+    );
+    setViewCounts(
+      Object.fromEntries(PICKUP_VIEW_TABS.map((tab, index) => [tab.key, results[index].error || results[index].count == null ? undefined : results[index].count])),
+    );
+  }, []);
 
   const loadPickupRequests = useCallback(async () => {
     if (!isSupabaseConfigured || !supabase) {
       setIsLoading(false);
       return;
     }
+
+    // 접수·취소 뒤에도 탭 건수가 맞도록 목록을 읽을 때마다 함께 갱신한다.
+    void loadViewCounts();
 
     const requestId = requestIdRef.current + 1;
     requestIdRef.current = requestId;
@@ -806,69 +782,11 @@ function AdminPickupRequestsPage() {
     if (list.request && rows[0]) setDetailModal(rows[0]);
     setTotalCount(rows[0]?.total_count ?? 0);
     setIsLoading(false);
-  }, [appliedFromDate, appliedSearch, appliedToDate, currentPage, statusFilters, list.user, list.request]);
+  }, [appliedFromDate, appliedSearch, appliedToDate, currentPage, statusFilters, list.user, list.request, loadViewCounts]);
 
   useEffect(() => {
     void loadPickupRequests();
   }, [loadPickupRequests]);
-
-  const openMergeModal = async (pickupRequest) => {
-    setMergeModal(pickupRequest);
-    setMergeCandidates([]);
-    setMergeLoading(true);
-    // 같은 번호로 접수된 다른 신청을 후보로 — 병합은 같은 회원 것끼리만 허용된다(RPC 가드).
-    const { data, error: rpcError } = await supabase.rpc("list_admin_pickup_requests", {
-      p_search: pickupRequest.pickup_recipient_phone,
-      p_statuses: null,
-      p_from_date: null,
-      p_to_date: null,
-      p_limit: 50,
-      p_offset: 0,
-    });
-    setMergeLoading(false);
-    if (rpcError) {
-      setError(rpcError.message || "병합 대상을 불러오지 못했습니다.");
-      return;
-    }
-    setMergeCandidates(
-      (Array.isArray(data) ? data : []).filter(
-        (row) =>
-          row.id !== pickupRequest.id &&
-          row.merged_into_id === null &&
-          row.status !== "cancelled" &&
-          row.user_id === pickupRequest.user_id,
-      ),
-    );
-  };
-
-  const handleMerge = async (targetId) => {
-    if (!mergeModal) return;
-    setMergingId(targetId);
-    const { error: rpcError } = await supabase.rpc("admin_merge_pickup_requests", {
-      p_source_id: mergeModal.id,
-      p_target_id: targetId,
-    });
-    setMergingId(null);
-    if (rpcError) {
-      setError(rpcError.message || "병합에 실패했습니다.");
-      return;
-    }
-    setMergeModal(null);
-    setError("");
-    await loadPickupRequests();
-  };
-
-  const handleUnmerge = async (pickupRequest) => {
-    const { error: rpcError } = await supabase.rpc("admin_unmerge_pickup_request", {
-      p_pickup_request_id: pickupRequest.id,
-    });
-    if (rpcError) {
-      setError(rpcError.message || "병합 해제에 실패했습니다.");
-      return;
-    }
-    setError("");
-    await loadPickupRequests();
-  };
 
   useEffect(
     () => () => {
@@ -881,22 +799,34 @@ function AdminPickupRequestsPage() {
     setSelectedIds((currentIds) => currentIds.filter((id) => selectablePickupIds.includes(id)));
   }, [selectablePickupIds]);
 
-  const handleSearchSubmit = (event) => {
-    event.preventDefault();
-    updateList({ q: searchInput.trim(), from: fromDate, to: toDate, request: "" });
-
+  // 업무 탭 — 주소의 status와 1:1 ('수거 진행'처럼 여러 상태를 묶은 탭도 있다).
+  const activeViewTab =
+    PICKUP_VIEW_TABS.find((tab) => statusSetKey(tab.status) === statusSetKey(list.status)) ?? PICKUP_VIEW_TABS[0];
+  const viewTabs = PICKUP_VIEW_TABS.map((tab) => ({ ...tab, count: viewCounts[tab.key] }));
+  const selectViewTab = (key) => {
+    const tab = PICKUP_VIEW_TABS.find((entry) => entry.key === key);
+    if (!tab) return;
+    updateList({ status: tab.status, request: "" });
     setSelectedIds([]);
   };
 
-  const handleFilterReset = () => {
+  const hasDateFilter = Boolean(appliedFromDate || appliedToDate);
+  const dateFilterLabel = hasDateFilter ? `${formatShortDate(appliedFromDate)} ~ ${formatShortDate(appliedToDate)}` : "";
+  const statusFilterLabel = statusFilters.length === 1
+    ? pickupRequestStatusLabel[statusFilters[0]] ?? "1개"
+    : statusFilters.length > 1 ? `${statusFilters.length}개` : "";
+  // 탭이 정한 상태(예: 접수 대기 = 대기)는 추가 필터로 치지 않는다.
+  const hasListFilters = Boolean(
+    appliedSearch || hasDateFilter || list.user || list.request
+      || statusSetKey(list.status) !== statusSetKey(activeViewTab.status),
+  );
+  const resetListFilters = () => {
     setSearchInput("");
-    setAppliedSearch("");
-    setStatusFilters([]);
-    setFromDate("");
-    setToDate("");
-    setAppliedFromDate("");
-    setAppliedToDate("");
-
+    updateList({ q: "", from: "", to: "", user: "", request: "", status: activeViewTab.status });
+    setSelectedIds([]);
+  };
+  const applyDateRange = (values) => {
+    updateList(values);
     setSelectedIds([]);
   };
 
@@ -924,33 +854,6 @@ function AdminPickupRequestsPage() {
 
   const handleToggleAllEligible = () => {
     setSelectedIds(allSelectableSelected ? [] : selectablePickupIds);
-  };
-
-  // 수동 상태 전환 (CJ 미연동 기간 운영용) — admin_update_pickup_status RPC.
-  // 알림톡은 발송하지 않는다 (셀러 안내는 운영자 재량).
-  const performManualStatusChange = async () => {
-    if (!statusChangeModal) return;
-    const { pickupRequest, nextStatus } = statusChangeModal;
-
-    setError("");
-    setNotice("");
-    setStatusChangingId(pickupRequest.id);
-    try {
-      const { error: rpcError } = await supabase.rpc("admin_update_pickup_status", {
-        p_id: pickupRequest.id,
-        p_status: nextStatus,
-      });
-      if (rpcError) throw rpcError;
-      setNotice(
-        `${pickupRequest.request_number} 상태를 '${pickupRequestStatusLabel[nextStatus] ?? nextStatus}'(으)로 변경했습니다. (알림톡 미발송)`,
-      );
-      setStatusChangeModal(null);
-      await loadPickupRequests();
-    } catch (apiError) {
-      setError(apiError instanceof Error ? apiError.message : "상태 변경에 실패했습니다.");
-    } finally {
-      setStatusChangingId(null);
-    }
   };
 
   const handleRegisterPickups = (targetIds) => {
@@ -1358,7 +1261,6 @@ function AdminPickupRequestsPage() {
     <AdminShell
       activeModule="pickups"
       description="수거 신청 접수부터 검수·등록까지 — 셀러 물건이 판매로 가는 전 과정"
-      summaryCards={activeTab === "requests" ? summaryCards : []}
       title="수거·검수"
     >
       {!isSupabaseConfigured ? (
@@ -1370,7 +1272,6 @@ function AdminPickupRequestsPage() {
       {error ? <p className="notice-error whitespace-pre-line">{error}</p> : null}
       {notice ? <p className="notice-success whitespace-pre-line">{notice}</p> : null}
 
-      <AdminSavedViews presets={[{ name: "접수 대기", search: "status=pending" }, { name: "검수 작업", search: "tab=inspection" }]} />
       <AdminPageTabs
         activeKey={activeTab}
         onSelect={handleSelectTab}
@@ -1383,621 +1284,506 @@ function AdminPickupRequestsPage() {
       {activeTab === "inspection" ? <InspectionWorkbenchSection /> : null}
 
       {activeTab === "requests" ? (
-      <>
-      <section className="card space-y-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="section-title">수거 요청 필터</h2>
-            <p className="mt-1 text-sm font-semibold text-slate-500">
-              요청번호, 판매자명, 연락처, 운송장으로 검색합니다.
-            </p>
-          </div>
-          <button
-            className="btn-secondary !w-auto !px-4 !py-2.5 text-sm"
-            disabled={isLoading}
-            onClick={() => void loadPickupRequests()}
-            type="button"
-          >
-            새로고침
-          </button>
-        </div>
+        <>
+          <AdminViewTabs activeKey={activeViewTab.key} onSelect={selectViewTab} tabs={viewTabs} />
 
-        <form className="grid gap-3 xl:grid-cols-[1fr_180px_180px_auto]" onSubmit={handleSearchSubmit}>
-          <label className="block">
-            <span className="label">검색</span>
-            <input
-              className="input-base !mt-0 !py-2.5 text-sm"
-              onChange={(event) => setSearchInput(event.target.value)}
-              placeholder="예: PU-2604 / 홍길동 / 0101234 / 운송장"
-              type="search"
-              value={searchInput}
-            />
-          </label>
+          {/* 검색·기간·상태 — 한 줄 필터 */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="relative min-w-[220px] flex-1">
+                <span className="sr-only">수거 신청 검색</span>
+                <SearchIcon className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                <input
+                  className="h-10 w-full rounded-[10px] border border-slate-200 bg-white pl-10 pr-3 text-base text-slate-900 outline-none transition-colors placeholder:text-slate-400 hover:border-slate-300 focus:border-brand focus:ring-2 focus:ring-brand/15 sm:text-[15px]"
+                  onChange={(event) => setSearchInput(event.target.value)}
+                  placeholder="요청번호, 판매자, 연락처, 운송장"
+                  type="search"
+                  value={searchInput}
+                />
+              </label>
 
-          <label className="block">
-            <span className="label">요청 시작일</span>
-            <input
-              className="input-base !mt-0 !py-2.5 text-sm"
-              onChange={(event) => setFromDate(event.target.value)}
-              type="date"
-              value={fromDate}
-            />
-          </label>
+              <AdminFilterPopover active={hasDateFilter} label="신청일" valueLabel={dateFilterLabel}>
+                {({ close }) => (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {[
+                        { label: "오늘", days: 0 },
+                        { label: "7일", days: 7 },
+                        { label: "30일", days: 30 },
+                        { label: "전체", days: null },
+                      ].map((preset) => (
+                        <button
+                          className="rounded-lg bg-slate-100 px-2 py-2 text-[13px] font-semibold text-slate-600 transition-colors hover:bg-slate-200"
+                          key={preset.label}
+                          onClick={() => {
+                            applyDateRange(
+                              preset.days === null
+                                ? { from: "", to: "" }
+                                : { from: kstDateString(-preset.days), to: kstDateString(0) },
+                            );
+                            close();
+                          }}
+                          type="button"
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <label className="text-xs font-semibold text-slate-500">
+                        시작일
+                        <input
+                          className="input-base !px-2.5 !py-2 !text-sm"
+                          onChange={(event) => applyDateRange({ from: event.target.value })}
+                          type="date"
+                          value={appliedFromDate}
+                        />
+                      </label>
+                      <label className="text-xs font-semibold text-slate-500">
+                        종료일
+                        <input
+                          className="input-base !px-2.5 !py-2 !text-sm"
+                          onChange={(event) => applyDateRange({ to: event.target.value })}
+                          type="date"
+                          value={appliedToDate}
+                        />
+                      </label>
+                    </div>
+                  </div>
+                )}
+              </AdminFilterPopover>
 
-          <label className="block">
-            <span className="label">요청 종료일</span>
-            <input
-              className="input-base !mt-0 !py-2.5 text-sm"
-              onChange={(event) => setToDate(event.target.value)}
-              type="date"
-              value={toDate}
-            />
-          </label>
+              <AdminFilterPopover active={statusFilters.length > 0} label="상태" valueLabel={statusFilterLabel}>
+                <div>
+                  {PICKUP_STATUS_OPTIONS.map((option) => (
+                    <label
+                      className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                      key={option.value}
+                    >
+                      <input
+                        checked={statusFilters.includes(option.value)}
+                        className="h-4 w-4"
+                        onChange={() => handleStatusToggle(option.value)}
+                        type="checkbox"
+                      />
+                      {option.label}
+                    </label>
+                  ))}
+                  {statusFilters.length > 0 ? (
+                    <button
+                      className="mt-1 w-full rounded-lg px-2 py-2 text-left text-[13px] font-semibold text-slate-500 hover:bg-slate-50"
+                      onClick={() => {
+                        setStatusFilters([]);
+                        setSelectedIds([]);
+                      }}
+                      type="button"
+                    >
+                      선택 해제
+                    </button>
+                  ) : null}
+                </div>
+              </AdminFilterPopover>
 
-          <div className="flex items-end gap-2">
-            <button className="btn-primary !w-auto !px-4 !py-2.5 text-sm" type="submit">
-              적용
-            </button>
-            <button
-              className="btn-secondary !w-auto !px-4 !py-2.5 text-sm"
-              onClick={handleFilterReset}
-              type="button"
-            >
-              초기화
-            </button>
-          </div>
-        </form>
-
-        <div className="flex flex-wrap gap-2">
-          {PICKUP_STATUS_OPTIONS.map((option) => {
-            const isActive = statusFilters.includes(option.value);
-
-            return (
-              <button
-                className={`rounded-lg border px-3 py-2 text-xs font-bold transition ${
-                  isActive
-                    ? "border-slate-950 bg-slate-950 text-white"
-                    : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
-                }`}
-                key={option.value}
-                onClick={() => handleStatusToggle(option.value)}
-                type="button"
-              >
-                {option.label}
-              </button>
-            );
-          })}
-        </div>
-      </section>
-
-      <section className="card space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="section-title">CJ 수거 접수</h2>
-            <p className="mt-1 text-sm font-semibold text-slate-500">
-              CJ 접수는 운송장이 없는 요청만, 취소는 수거 시작 전(대기·수거접수) 요청만 대상입니다.
-              접수 성공 시 판매자에게 수거 접수 알림톡을 보냅니다.
-              CJ 연동 전에는 각 행의 &lsquo;상태변경&rsquo;으로 검수중 등 다음 단계로 직접 전환할 수 있습니다.
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <button
-              className="btn-primary !w-auto !px-4 !py-2.5 text-sm"
-              disabled={selectedEligibleIds.length === 0 || registeringIds.length > 0}
-              onClick={() => void handleRegisterPickups(selectedEligibleIds)}
-              type="button"
-            >
-              {registeringIds.length > 0
-                ? <BusyText>CJ 접수 중...</BusyText>
-                : `선택 ${selectedEligibleIds.length}건 CJ 접수`}
-            </button>
-            <button
-              className="!w-auto !px-4 !py-2.5 text-sm rounded-lg border border-rose-300 text-rose-700 font-bold hover:bg-rose-50 disabled:opacity-60 disabled:cursor-not-allowed"
-              disabled={selectedCancellableIds.length === 0 || registeringIds.length > 0}
-              onClick={() => void handleBulkCancelPickups(selectedCancellableIds)}
-              type="button"
-            >
-              선택 {selectedCancellableIds.length}건 취소
-            </button>
-          </div>
-        </div>
-
-        <div className="overflow-x-auto rounded-xl border border-slate-200">
-          <table className="w-full min-w-[64rem] divide-y divide-slate-200 text-sm">
-            <thead className="bg-slate-50">
-              <tr>
-                <th className="w-12 px-4 py-3 text-left">
-                  <input
-                    checked={allSelectableSelected}
-                    disabled={selectablePickupIds.length === 0 || registeringIds.length > 0}
-                    onChange={handleToggleAllEligible}
-                    type="checkbox"
-                  />
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
-                  요청
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
-                  판매자
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
-                  교재
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
-                  상태
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
-                  운송장
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
-                  CJ 상태
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
-                  작업
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 bg-white">
-              {isLoading ? (
-                <tr>
-                  <td className="px-4 py-8 text-center text-sm font-semibold text-slate-500" colSpan={8}>
-                    <InlineLoading />
-                  </td>
-                </tr>
-              ) : null}
-
-              {!isLoading && pickupRequests.length === 0 ? (
-                <tr>
-                  <td className="px-4 py-8 text-center text-sm font-semibold text-slate-500" colSpan={8}>
-                    수거 요청이 없습니다.
-                    <p className="mt-1 text-xs font-normal text-slate-400">
-                      권한 문제가 의심되면 시스템 관리자에게 문의해 주세요.
-                    </p>
-                  </td>
-                </tr>
-              ) : null}
-
-              {!isLoading
-                ? pickupRequests.map((pickupRequest) => {
-                    const isEligible = canRegisterCjPickup(pickupRequest);
-                    const isSelectable = canSelectPickupRow(pickupRequest);
-                    const isSelected = selectedIds.includes(pickupRequest.id);
-                    const isRegistering = registeringIds.includes(pickupRequest.id);
-                    const trackingUrl = buildCjTrackingUrl(pickupRequest.tracking_number);
-                    const boxProgress = getBoxWaybillProgress(pickupRequest);
-
-                    return (
-                      <tr className="align-top transition hover:bg-slate-50" key={pickupRequest.id}>
-                        <td className="px-4 py-4">
-                          <input
-                            checked={isSelected}
-                            disabled={!isSelectable || isRegistering || registeringIds.length > 0}
-                            onChange={() => handleToggleSelection(pickupRequest)}
-                            type="checkbox"
-                          />
-                        </td>
-                        <td className="px-4 py-4">
-                          <p className="font-mono text-xs font-bold text-slate-900">
-                            {pickupRequest.request_number}
-                          </p>
-                          <p className="mt-1 text-xs font-semibold text-slate-500">
-                            {formatDate(pickupRequest.created_at)}
-                          </p>
-                          {/* 병합 상태 — 한 수거가 여러 신청으로 쪼개진 경우(박스 누락 재접수 등).
-                              병합된 신청은 셀러 마이페이지에서 원본 하나로 합쳐 보인다. */}
-                          {pickupRequest.merged_into_id ? (
-                            <span className="mt-1.5 inline-flex items-center rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-bold text-slate-700">
-                              {pickupRequest.merged_into_request_number} 에 병합됨
-                            </span>
-                          ) : pickupRequest.merged_child_count > 0 ? (
-                            <span className="mt-1.5 inline-flex items-center rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-bold text-indigo-800">
-                              +{pickupRequest.merged_child_count}건 병합
-                            </span>
-                          ) : null}
-                          {pickupRequest.bridged_shipment_id ? (
-                            <p className="mt-1 text-[11px] font-semibold text-slate-400">
-                              검수 #{pickupRequest.bridged_shipment_id} · {pickupRequest.bridged_book_count}권
-                            </p>
-                          ) : null}
-                        </td>
-                        <td className="min-w-[260px] px-4 py-4">
-                          <p className="font-bold text-slate-900">
-                            {pickupRequest.pickup_recipient_name}
-                          </p>
-                          <p className="mt-1 text-xs font-semibold text-slate-500">
-                            {pickupRequest.pickup_recipient_phone}
-                          </p>
-                          <p className="mt-2 max-w-sm text-xs font-medium leading-relaxed text-slate-500">
-                            {formatAddress(pickupRequest)}
-                          </p>
-                          {/* 접수 전 신뢰 신호 — 허위/시험 신청 선별용 (대기 상태에서만) */}
-                          {pickupRequest.status === "pending" ? (
-                            <div className="mt-2 flex flex-wrap gap-1">
-                              {pickupRequest.phone_verified ? (
-                                <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-800">
-                                  번호 인증됨
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-bold text-rose-700">
-                                  번호 미인증
-                                </span>
-                              )}
-                              {(pickupRequest.prior_pickup_count ?? 0) > 0 ? (
-                                <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600">
-                                  수거 {pickupRequest.prior_pickup_count}회
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800">
-                                  첫 수거
-                                </span>
-                              )}
-                              {getMemberDays(pickupRequest.member_since) !== null &&
-                              getMemberDays(pickupRequest.member_since) <= 7 ? (
-                                <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800">
-                                  가입 {getMemberDays(pickupRequest.member_since) === 0 ? "오늘" : `${getMemberDays(pickupRequest.member_since)}일차`}
-                                </span>
-                              ) : null}
-                              {(pickupRequest.duplicate_pending_count ?? 0) > 0 ? (
-                                <span className="inline-flex items-center rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-bold text-rose-700">
-                                  중복 대기 {pickupRequest.duplicate_pending_count}건
-                                </span>
-                              ) : null}
-                            </div>
-                          ) : null}
-                        </td>
-                        <td className="min-w-[220px] px-4 py-4">
-                          <p className="font-semibold text-slate-700">
-                            {getPickupItemSummary(pickupRequest)}
-                          </p>
-                          <p className="mt-1 text-xs text-slate-400">
-                            총 {pickupRequest.item_count ?? 0}권
-                          </p>
-                          <p className="mt-1 text-xs text-slate-500">
-                            {pickupRequest.box_type_codes?.map((code, index) => `${index + 1}: ${PICKUP_BOX_TYPES.find((type) => type.code === code)?.name || "미확인"}`).join(" · ") || "박스 규격 미확인"}
-                          </p>
-                          {canRegisterCjPickup(pickupRequest) && boxProgress.registered === 0 && (
-                            <button className="mt-1 text-xs font-semibold text-blue-700" type="button" onClick={() => setBoxTypeModal({ pickupRequest, codes: resizePickupBoxTypes(pickupRequest.box_type_codes, pickupRequest.box_count) })}>박스 규격 설정</button>
-                          )}
-                        </td>
-                        <td className="px-4 py-4">
-                          <StatusBadge status={pickupRequest.status} type="pickupRequest" />
-                        </td>
-                        <td className="min-w-[160px] px-4 py-4">
-                          {pickupRequest.tracking_number ? (
-                            <div>
-                              <p className="font-mono text-xs font-bold text-slate-900">
-                                {pickupRequest.tracking_number}
-                              </p>
-                              <p className="mt-1 text-xs font-semibold text-slate-500">
-                                {pickupRequest.tracking_carrier || "CJ대한통운"}
-                              </p>
-                              {boxProgress.totalBoxes > 1 ? (
-                                <p
-                                  className={`mt-1 text-xs font-bold ${
-                                    boxProgress.missing > 0 ? "text-amber-700" : "text-slate-500"
-                                  }`}
-                                >
-                                  송장 {boxProgress.registered}/{boxProgress.totalBoxes}박스
-                                  {/* 취소된 요청은 미접수가 당연하므로 재접수 유도 문구를 숨긴다 */}
-                                  {boxProgress.missing > 0 && pickupRequest.status !== "cancelled"
-                                    ? " · 미접수 있음"
-                                    : ""}
-                                </p>
-                              ) : null}
-                              {trackingUrl ? (
-                                <a
-                                  className="mt-1 inline-flex text-xs font-bold text-brand hover:underline"
-                                  href={trackingUrl}
-                                  rel="noreferrer"
-                                  target="_blank"
-                                >
-                                  CJ 페이지
-                                </a>
-                              ) : null}
-                            </div>
-                          ) : (
-                            <span className="text-xs font-semibold text-slate-400">미발급</span>
-                          )}
-                        </td>
-                        <td className="min-w-[190px] px-4 py-4">
-                          <p className="text-xs font-bold text-slate-700">
-                            {pickupRequest.cj_tracking_status || "조회 전"}
-                          </p>
-                          <p className="mt-1 text-xs text-slate-400">
-                            {pickupRequest.cj_tracking_last_checked_at
-                              ? formatDateTime(pickupRequest.cj_tracking_last_checked_at)
-                              : "최근 조회 없음"}
-                          </p>
-                        </td>
-                        <td className="min-w-[190px] px-4 py-4">
-                          <div className="flex flex-wrap gap-2">
-                            <button
-                              className="btn-secondary !w-auto !px-3 !py-2 text-xs"
-                              onClick={() => setDetailModal(pickupRequest)}
-                              type="button"
-                            >
-                              상세
-                            </button>
-                            {isEligible ? (
-                              <button
-                                className="btn-primary !w-auto !px-3 !py-2 text-xs"
-                                disabled={isRegistering || registeringIds.length > 0}
-                                onClick={() => void handleRegisterPickups([pickupRequest.id])}
-                                type="button"
-                              >
-                                {isRegistering ? <BusyText>접수 중...</BusyText> : "CJ 수거 접수"}
-                              </button>
-                            ) : null}
-
-                            {/* 재포장·박스 수 변경 등으로 다시 접수해야 할 때 (기존 예약 취소 후 재접수) */}
-                            {canReregisterCjPickup(pickupRequest) ? (
-                              <button
-                                className="btn-secondary !w-auto !px-3 !py-2 text-xs"
-                                disabled={reregisteringId !== null || registeringIds.length > 0}
-                                onClick={() => openReregisterModal(pickupRequest)}
-                                type="button"
-                              >
-                                {reregisteringId === pickupRequest.id ? (
-                                  <BusyText>재접수 중...</BusyText>
-                                ) : (
-                                  "CJ 재접수"
-                                )}
-                              </button>
-                            ) : null}
-
-                            {boxProgress.registered > 0 ? (
-                              <button
-                                className="btn-secondary !w-auto !px-3 !py-2 text-xs"
-                                disabled={trackingLookupId === pickupRequest.id}
-                                onClick={() => void handleTrackingLookup(pickupRequest)}
-                                type="button"
-                              >
-                                {trackingLookupId === pickupRequest.id ? <BusyText>조회 중...</BusyText> : "추적 조회"}
-                              </button>
-                            ) : null}
-
-                            {/* 입고 이후 단계에서만 — 이 수거요청의 책을 등록 위저드로 (신청↔검수 브리지) */}
-                            {["arrived", "inspecting", "inspected"].includes(pickupRequest.status) ? (
-                              <button
-                                className="!w-auto rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60"
-                                disabled={startingInspectionId !== null}
-                                onClick={() => void handleStartInspection(pickupRequest)}
-                                type="button"
-                              >
-                                {startingInspectionId === pickupRequest.id ? <BusyText>전환 중...</BusyText> : "상품 등록"}
-                              </button>
-                            ) : null}
-
-                            {/* 다른 신청과 같은 수거인 경우 묶기 (박스 누락 재접수 등) */}
-                            {pickupRequest.status !== "cancelled" && pickupRequest.user_id ? (
-                              pickupRequest.merged_into_id ? (
-                                <button
-                                  className="btn-secondary !w-auto !px-3 !py-2 text-xs"
-                                  onClick={() => void handleUnmerge(pickupRequest)}
-                                  type="button"
-                                >
-                                  병합 해제
-                                </button>
-                              ) : (
-                                <button
-                                  className="btn-secondary !w-auto !px-3 !py-2 text-xs"
-                                  onClick={() => void openMergeModal(pickupRequest)}
-                                  type="button"
-                                >
-                                  다른 신청과 병합
-                                </button>
-                              )
-                            ) : null}
-
-                            {/* 수동 상태 전환 — CJ 미연동 기간에도 검수중 등으로 진행 가능 (취소 상태 제외) */}
-                            {pickupRequest.status !== "cancelled" ? (
-                              <select
-                                aria-label={`${pickupRequest.request_number} 상태변경`}
-                                className="rounded-lg border border-slate-300 bg-white px-2 py-2 text-xs font-semibold text-slate-700 disabled:opacity-60"
-                                disabled={statusChangingId === pickupRequest.id || registeringIds.length > 0}
-                                onChange={(event) => {
-                                  const nextStatus = event.target.value;
-                                  if (nextStatus && nextStatus !== pickupRequest.status) {
-                                    setStatusChangeModal({ pickupRequest, nextStatus });
-                                  }
-                                }}
-                                value={pickupRequest.status}
-                              >
-                                {MANUAL_STATUS_OPTIONS.map((option) => (
-                                  <option key={option.value} value={option.value}>
-                                    {option.value === pickupRequest.status
-                                      ? `${option.label} (현재)`
-                                      : option.label}
-                                  </option>
-                                ))}
-                              </select>
-                            ) : null}
-
-                            {/* 취소됐지만 CJ 예약이 남은 건 — CnclBook 연동 전 DB만 취소된 잔존분 정리 */}
-                            {pickupRequest.status === "cancelled" &&
-                            getPendingCjCancelBoxes(pickupRequest) > 0 ? (
-                              <button
-                                className="!w-auto rounded-lg bg-rose-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-rose-700 disabled:opacity-60"
-                                disabled={registeringIds.length > 0}
-                                onClick={() => handleCancelledRowCjCleanup(pickupRequest)}
-                                type="button"
-                              >
-                                {isRegistering ? <BusyText>취소 중...</BusyText> : "CJ 예약 취소"}
-                              </button>
-                            ) : null}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                : null}
-            </tbody>
-          </table>
-        </div>
-
-        {totalPages > 1 ? (
-          <nav className="flex items-center justify-center gap-1 pt-2">
-            <button
-              className="btn-secondary !w-auto !px-3 !py-2 text-xs"
-              disabled={currentPage === 1 || isLoading}
-              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-              type="button"
-            >
-              이전
-            </button>
-
-            {pageItems.map((item, index) =>
-              item === "..." ? (
-                <span className="px-1 text-sm font-bold text-slate-400" key={`ellipsis-${index}`}>
-                  ...
-                </span>
-              ) : (
+              {hasListFilters ? (
                 <button
-                  className={`h-9 min-w-9 rounded-lg px-2 text-sm font-bold ${
-                    item === currentPage
-                      ? "bg-brand text-white"
-                      : "border border-slate-300 bg-white text-slate-700"
-                  }`}
-                  disabled={isLoading}
-                  key={item}
-                  onClick={() => setCurrentPage(item)}
+                  className="h-10 px-1.5 text-sm font-semibold text-slate-500 hover:text-slate-800"
+                  onClick={resetListFilters}
                   type="button"
                 >
-                  {item}
+                  초기화
                 </button>
-              ),
-            )}
+              ) : null}
 
-            <button
-              className="btn-secondary !w-auto !px-3 !py-2 text-xs"
-              disabled={currentPage === totalPages || isLoading}
-              onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
-              type="button"
-            >
-              다음
-            </button>
-          </nav>
-        ) : null}
-      </section>
-      </>
+              <button
+                className="btn-secondary ml-auto !w-auto !rounded-[10px] !px-3.5 !py-2.5 text-sm"
+                disabled={isLoading}
+                onClick={() => void loadPickupRequests()}
+                type="button"
+              >
+                새로고침
+              </button>
+            </div>
+
+            {/* 회원·문의 화면에서 넘어와 특정 회원/신청만 걸러 보는 중임을 알린다 */}
+            {list.user || list.request ? (
+              <p className="mt-3 flex flex-wrap items-center gap-2 text-[13px]">
+                <span className="rounded-full bg-blue-50 px-2.5 py-1 font-semibold text-blue-600">
+                  {list.request ? "지정한 수거 신청 1건만 보는 중" : "회원 한 명의 수거 신청만 보는 중"}
+                </span>
+                <button
+                  className="font-semibold text-slate-500 underline hover:text-slate-800"
+                  onClick={() => updateList({ user: "", request: "" })}
+                  type="button"
+                >
+                  전체 신청 보기
+                </button>
+              </p>
+            ) : null}
+          </div>
+
+          {/* 일괄 작업 바 — 신청을 선택했을 때만 화면 위쪽에 붙어 따라온다 */}
+          {selectedIds.length > 0 ? (
+            <div className="sticky top-2 z-30 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl bg-slate-900 px-4 py-3 text-white shadow-lg">
+              <span className="text-sm font-bold tabular-nums">{selectedIds.length}건 선택</span>
+              <button
+                className="text-[13px] font-semibold text-slate-300 underline hover:text-white"
+                onClick={() => setSelectedIds([])}
+                type="button"
+              >
+                선택 해제
+              </button>
+              <div className="flex-1" />
+              {selectedIds.length > Math.max(selectedEligibleIds.length, selectedCancellableIds.length) ? (
+                <span className="text-xs text-slate-300">
+                  CJ 접수=운송장이 없는 신청 / 취소=수거 시작 전(대기·수거접수) 신청만 대상입니다
+                </span>
+              ) : null}
+              {selectedEligibleIds.length > 0 ? (
+                <button
+                  className="rounded-lg bg-brand px-3.5 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-brand-soft disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={registeringIds.length > 0}
+                  onClick={() => void handleRegisterPickups(selectedEligibleIds)}
+                  type="button"
+                >
+                  {registeringIds.length > 0 ? <BusyText>CJ 접수 중...</BusyText> : `CJ 수거 접수 (${selectedEligibleIds.length}건)`}
+                </button>
+              ) : null}
+              {selectedCancellableIds.length > 0 ? (
+                <button
+                  className="rounded-lg bg-white/10 px-3.5 py-2 text-[13px] font-semibold text-rose-300 transition-colors hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={registeringIds.length > 0}
+                  onClick={() => void handleBulkCancelPickups(selectedCancellableIds)}
+                  type="button"
+                >
+                  수거 취소 ({selectedCancellableIds.length}건)
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+
+          {/* 수거 신청 목록 */}
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+            <p className="px-5 py-3.5 text-sm text-slate-500">
+              {isLoading ? (
+                "불러오는 중"
+              ) : (
+                <>
+                  총 <strong className="font-bold tabular-nums text-slate-900">{totalCount.toLocaleString("ko-KR")}</strong>건
+                </>
+              )}
+            </p>
+            {isLoading ? (
+              <div className="border-t border-slate-100 p-10 text-center text-sm text-slate-400"><InlineLoading /></div>
+            ) : pickupRequests.length === 0 ? (
+              <div className="border-t border-slate-100 px-5 py-14 text-center">
+                <p className="text-sm font-semibold text-slate-700">
+                  {hasListFilters || activeViewTab.key !== "all" ? "조건에 맞는 수거 신청이 없어요" : "아직 수거 신청이 없어요"}
+                </p>
+                {hasListFilters ? (
+                  <button className="btn-secondary mt-4 !w-auto !px-4 !py-2 text-sm" onClick={resetListFilters} type="button">
+                    검색·필터 초기화
+                  </button>
+                ) : null}
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[60rem] text-sm">
+                  <thead>
+                    <tr className="border-y border-slate-100 bg-slate-50 text-left text-[13px] font-semibold text-slate-500">
+                      <th className="w-10 py-3 pl-5 pr-2">
+                        <input
+                          aria-label="접수·취소할 수 있는 신청 전체 선택"
+                          checked={allSelectableSelected}
+                          disabled={selectablePickupIds.length === 0 || registeringIds.length > 0}
+                          onChange={handleToggleAllEligible}
+                          type="checkbox"
+                        />
+                      </th>
+                      <th className="px-3 py-3">신청</th>
+                      <th className="px-3 py-3">판매자</th>
+                      <th className="px-3 py-3">교재·박스</th>
+                      <th className="px-3 py-3">진행</th>
+                      <th className="py-3 pl-3 pr-5">다음 작업</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {pickupRequests.map((pickupRequest) => {
+                      const isEligible = canRegisterCjPickup(pickupRequest);
+                      const isSelectable = canSelectPickupRow(pickupRequest);
+                      const isSelected = selectedIds.includes(pickupRequest.id);
+                      const isRegistering = registeringIds.includes(pickupRequest.id);
+                      const trackingUrl = buildCjTrackingUrl(pickupRequest.tracking_number);
+                      const boxProgress = getBoxWaybillProgress(pickupRequest);
+                      const canRegisterBooks = canStartRegistration(pickupRequest);
+                      const hasArrived = ["arrived", "inspecting", "inspected"].includes(pickupRequest.status);
+                      const canTrack = boxProgress.registered > 0 && !["inspected", "completed", "cancelled"].includes(pickupRequest.status);
+                      const isStartingBooks = startingInspectionId === pickupRequest.id;
+                      const isTracking = trackingLookupId === pickupRequest.id;
+                      const memberDays = getMemberDays(pickupRequest.member_since);
+
+                      return (
+                        <tr
+                          className={`cursor-pointer align-top transition-colors ${isSelected ? "bg-blue-50/60" : "hover:bg-slate-50"}`}
+                          key={pickupRequest.id}
+                          onClick={() => {
+                            // 전화번호·주소를 드래그해 복사할 때는 상세를 열지 않는다
+                            if (window.getSelection()?.toString()) return;
+                            setDetailModal(pickupRequest);
+                          }}
+                        >
+                          <td className="py-4 pl-5 pr-2" onClick={(event) => event.stopPropagation()}>
+                            <input
+                              aria-label={`${pickupRequest.request_number} 선택`}
+                              checked={isSelected}
+                              disabled={!isSelectable || isRegistering || registeringIds.length > 0}
+                              onChange={() => handleToggleSelection(pickupRequest)}
+                              type="checkbox"
+                            />
+                          </td>
+                          <td className="px-3 py-4">
+                            <button
+                              className="whitespace-nowrap text-[13px] font-semibold tabular-nums text-slate-900 underline-offset-2 hover:text-blue-600 hover:underline"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setDetailModal(pickupRequest);
+                              }}
+                              title="상세 보기"
+                              type="button"
+                            >
+                              {pickupRequest.request_number}
+                            </button>
+                            <p className="mt-1 whitespace-nowrap text-xs text-slate-500">
+                              {formatDate(pickupRequest.created_at)}
+                            </p>
+                            {/* 예전에 병합한 신청 표시 — 병합 기능은 2026-11-16 화면에서 내렸고,
+                                이미 병합된 건은 서버가 계속 원본 한 건으로 묶어 처리한다. */}
+                            {pickupRequest.merged_into_id ? (
+                              <span className="mt-1.5 inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+                                {pickupRequest.merged_into_request_number}에 병합됨
+                              </span>
+                            ) : pickupRequest.merged_child_count > 0 ? (
+                              <span className="mt-1.5 inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+                                +{pickupRequest.merged_child_count}건 병합
+                              </span>
+                            ) : null}
+                            {pickupRequest.bridged_shipment_id ? (
+                              <p className="mt-1 whitespace-nowrap text-[11px] text-slate-400">
+                                검수 #{pickupRequest.bridged_shipment_id} · {pickupRequest.bridged_book_count}권
+                              </p>
+                            ) : null}
+                          </td>
+                          <td className="min-w-[230px] px-3 py-4">
+                            <p className="font-semibold text-slate-900">{pickupRequest.pickup_recipient_name}</p>
+                            <p className="mt-0.5 text-xs tabular-nums text-slate-500">{pickupRequest.pickup_recipient_phone}</p>
+                            <p className="mt-1.5 max-w-sm text-xs leading-relaxed text-slate-500">{formatAddress(pickupRequest)}</p>
+                            {/* 접수 전 신뢰 신호 — 허위/시험 신청 선별용 (대기 상태에서만) */}
+                            {pickupRequest.status === "pending" ? (
+                              <div className="mt-2 flex flex-wrap gap-1">
+                                {pickupRequest.phone_verified ? (
+                                  <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                                    번호 인증됨
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-600">
+                                    번호 미인증
+                                  </span>
+                                )}
+                                {(pickupRequest.prior_pickup_count ?? 0) > 0 ? (
+                                  <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+                                    수거 {pickupRequest.prior_pickup_count}회
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                                    첫 수거
+                                  </span>
+                                )}
+                                {memberDays !== null && memberDays <= 7 ? (
+                                  <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                                    가입 {memberDays === 0 ? "오늘" : `${memberDays}일차`}
+                                  </span>
+                                ) : null}
+                                {(pickupRequest.duplicate_pending_count ?? 0) > 0 ? (
+                                  <span className="inline-flex items-center rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-600">
+                                    중복 대기 {pickupRequest.duplicate_pending_count}건
+                                  </span>
+                                ) : null}
+                              </div>
+                            ) : null}
+                          </td>
+                          <td className="min-w-[200px] px-3 py-4">
+                            <p className="font-medium text-slate-800">{getPickupItemSummary(pickupRequest)}</p>
+                            <p className="mt-1 text-xs text-slate-500">
+                              총 {pickupRequest.item_count ?? 0}권 ·{" "}
+                              {pickupRequest.box_type_codes?.map((code, index) => `박스${index + 1} ${PICKUP_BOX_TYPES.find((type) => type.code === code)?.name || "미확인"}`).join(" · ") || "박스 규격 미확인"}
+                            </p>
+                            {isEligible && boxProgress.registered === 0 ? (
+                              <button
+                                className={`mt-1.5 ${ROW_LINK}`}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  setBoxTypeModal({ pickupRequest, codes: resizePickupBoxTypes(pickupRequest.box_type_codes, pickupRequest.box_count) });
+                                }}
+                                type="button"
+                              >
+                                박스 규격 설정
+                              </button>
+                            ) : null}
+                          </td>
+                          <td className="min-w-[200px] px-3 py-4">
+                            <StatusBadge status={pickupRequest.status} type="pickupRequest" />
+                            {pickupRequest.tracking_number ? (
+                              <p className="mt-2 text-xs tabular-nums text-slate-700">
+                                {trackingUrl ? (
+                                  <a
+                                    className="font-semibold underline-offset-2 hover:text-blue-600 hover:underline"
+                                    href={trackingUrl}
+                                    onClick={(event) => event.stopPropagation()}
+                                    rel="noreferrer"
+                                    target="_blank"
+                                    title="CJ대한통운 배송조회 페이지 열기"
+                                  >
+                                    {pickupRequest.tracking_number}
+                                  </a>
+                                ) : (
+                                  pickupRequest.tracking_number
+                                )}
+                                {pickupRequest.tracking_carrier && pickupRequest.tracking_carrier !== "CJ대한통운" ? (
+                                  <span className="text-slate-500"> · {pickupRequest.tracking_carrier}</span>
+                                ) : null}
+                              </p>
+                            ) : null}
+                            {boxProgress.totalBoxes > 1 && pickupRequest.tracking_number ? (
+                              <p className={`mt-0.5 text-xs ${boxProgress.missing > 0 ? "font-semibold text-amber-700" : "text-slate-500"}`}>
+                                송장 {boxProgress.registered}/{boxProgress.totalBoxes}박스
+                                {/* 취소된 요청은 미접수가 당연하므로 재접수 유도 문구를 숨긴다 */}
+                                {boxProgress.missing > 0 && pickupRequest.status !== "cancelled" ? " · 미접수 있음" : ""}
+                              </p>
+                            ) : null}
+                            {pickupRequest.cj_tracking_status ? (
+                              <p className="mt-1 text-xs text-slate-600">{pickupRequest.cj_tracking_status}</p>
+                            ) : null}
+                            {pickupRequest.cj_tracking_last_checked_at ? (
+                              <p className="mt-0.5 text-[11px] text-slate-400">
+                                {formatCompactDateTime(pickupRequest.cj_tracking_last_checked_at)} 확인
+                              </p>
+                            ) : null}
+                          </td>
+                          <td className="min-w-[150px] py-4 pl-3 pr-5" onClick={(event) => event.stopPropagation()}>
+                            {/* 지금 단계에서 할 일 하나만 버튼으로, 예외 처리는 아래 작은 링크로 */}
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {isEligible ? (
+                                <button
+                                  className={ROW_BUTTON_PRIMARY}
+                                  disabled={isRegistering || registeringIds.length > 0}
+                                  onClick={() => void handleRegisterPickups([pickupRequest.id])}
+                                  type="button"
+                                >
+                                  {isRegistering ? <BusyText>접수 중...</BusyText> : "CJ 수거 접수"}
+                                </button>
+                              ) : null}
+
+                              {hasArrived ? (
+                                <button
+                                  className={pickupRequest.status === "arrived" ? ROW_BUTTON_PRIMARY : ROW_BUTTON_SECONDARY}
+                                  disabled={startingInspectionId !== null}
+                                  onClick={() => void handleStartInspection(pickupRequest)}
+                                  type="button"
+                                >
+                                  {isStartingBooks ? <BusyText>여는 중...</BusyText> : "상품 등록"}
+                                </button>
+                              ) : null}
+
+                              {canTrack && !hasArrived ? (
+                                <button
+                                  className={ROW_BUTTON_SECONDARY}
+                                  disabled={isTracking}
+                                  onClick={() => void handleTrackingLookup(pickupRequest)}
+                                  type="button"
+                                >
+                                  {isTracking ? <BusyText>조회 중...</BusyText> : "추적 조회"}
+                                </button>
+                              ) : null}
+
+                              {/* 취소됐지만 CJ 예약이 남은 건 — CnclBook 연동 전 DB만 취소된 잔존분 정리 */}
+                              {pickupRequest.status === "cancelled" && getPendingCjCancelBoxes(pickupRequest) > 0 ? (
+                                <button
+                                  className={`${ROW_BUTTON} bg-rose-50 text-rose-600 hover:bg-rose-100`}
+                                  disabled={registeringIds.length > 0}
+                                  onClick={() => handleCancelledRowCjCleanup(pickupRequest)}
+                                  type="button"
+                                >
+                                  {isRegistering ? <BusyText>취소 중...</BusyText> : "CJ 예약 취소"}
+                                </button>
+                              ) : null}
+                            </div>
+
+                            <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 empty:hidden">
+                              {/* 택배 추적이 입고로 바뀌기 전이라도 책이 도착했으면 바로 등록을 시작한다 */}
+                              {canRegisterBooks && !hasArrived ? (
+                                <button
+                                  className={ROW_LINK}
+                                  disabled={startingInspectionId !== null}
+                                  onClick={() => void handleStartInspection(pickupRequest)}
+                                  title="택배 추적이 아직 입고로 바뀌지 않았어도, 책이 도착했다면 바로 등록을 시작할 수 있습니다"
+                                  type="button"
+                                >
+                                  {isStartingBooks ? "여는 중..." : "도착한 책 등록"}
+                                </button>
+                              ) : null}
+                              {canTrack && hasArrived ? (
+                                <button
+                                  className={ROW_LINK}
+                                  disabled={isTracking}
+                                  onClick={() => void handleTrackingLookup(pickupRequest)}
+                                  type="button"
+                                >
+                                  {isTracking ? "조회 중..." : "추적 조회"}
+                                </button>
+                              ) : null}
+                              {/* 재포장·박스 수 변경 등으로 다시 접수해야 할 때 (기존 예약 취소 후 재접수) */}
+                              {canReregisterCjPickup(pickupRequest) ? (
+                                <button
+                                  className={ROW_LINK}
+                                  disabled={reregisteringId !== null || registeringIds.length > 0}
+                                  onClick={() => openReregisterModal(pickupRequest)}
+                                  type="button"
+                                >
+                                  {reregisteringId === pickupRequest.id ? "재접수 중..." : "CJ 재접수"}
+                                </button>
+                              ) : null}
+                              {canCancelPickup(pickupRequest) ? (
+                                <button
+                                  className={`${ROW_LINK} hover:!text-rose-600`}
+                                  disabled={registeringIds.length > 0}
+                                  onClick={() => handleBulkCancelPickups([pickupRequest.id])}
+                                  type="button"
+                                >
+                                  수거 취소
+                                </button>
+                              ) : null}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <div className="border-t border-slate-100 px-5 pb-4 pt-2 empty:hidden">
+              <AdminPagination
+                currentPage={currentPage}
+                isLoading={isLoading}
+                onPageChange={setCurrentPage}
+                pageSize={PAGE_SIZE}
+                totalCount={totalCount}
+              />
+            </div>
+          </div>
+        </>
       ) : null}
 
       <PickupDetailModal request={detailModal} onClose={() => setDetailModal(null)} />
-
-      {/* 수동 상태 전환 확인 모달 — 입력 없이 확인만 (CJ 미연동 기간 운영용) */}
-      <AdminDialog
-        busy={statusChangeModal ? statusChangingId === statusChangeModal.pickupRequest.id : false}
-        onClose={() => setStatusChangeModal(null)}
-        open={Boolean(statusChangeModal)}
-        size="md"
-        title={statusChangeModal ? `상태변경 — ${statusChangeModal.pickupRequest.request_number}` : ""}
-      >
-        {statusChangeModal ? (
-          <div className="p-6 space-y-4">
-            <p className="text-sm text-slate-700">
-              <strong>{statusChangeModal.pickupRequest.pickup_recipient_name}</strong>님의 수거
-              요청 상태를{" "}
-              <strong>
-                {pickupRequestStatusLabel[statusChangeModal.pickupRequest.status] ??
-                  statusChangeModal.pickupRequest.status}
-              </strong>
-              {" → "}
-              <strong className="text-blue-700">
-                {pickupRequestStatusLabel[statusChangeModal.nextStatus] ?? statusChangeModal.nextStatus}
-              </strong>
-              (으)로 변경합니다.
-            </p>
-            <ul className="rounded-lg bg-slate-50 px-4 py-3 text-xs text-slate-600 space-y-1 list-disc list-inside">
-              <li>판매자 마이페이지의 진행 단계 표시가 즉시 바뀝니다.</li>
-              <li>알림톡은 발송되지 않습니다 — 필요하면 판매자에게 별도로 안내하세요.</li>
-              <li>CJ 접수 없이 진행하는 수동 운영용 기능입니다. (잘못 바꿨다면 같은 방법으로 되돌릴 수 있어요)</li>
-            </ul>
-            <div className="flex gap-2">
-              <button
-                className="btn-ghost flex-1"
-                onClick={() => setStatusChangeModal(null)}
-                type="button"
-              >
-                취소
-              </button>
-              <button
-                className="btn-primary flex-1"
-                disabled={statusChangingId === statusChangeModal.pickupRequest.id}
-                onClick={() => void performManualStatusChange()}
-                type="button"
-              >
-                {statusChangingId === statusChangeModal.pickupRequest.id
-                  ? <BusyText>변경 중...</BusyText>
-                  : "상태 변경"}
-              </button>
-            </div>
-          </div>
-        ) : null}
-      </AdminDialog>
-
-      <AdminDialog
-        busy={mergingId !== null}
-        onClose={() => setMergeModal(null)}
-        open={Boolean(mergeModal)}
-        size="md"
-        title={mergeModal ? `수거신청 병합 — ${mergeModal.request_number}` : ""}
-      >
-        {mergeModal ? (
-          <div className="space-y-4 p-6">
-            <p className="text-sm text-slate-700">
-              <strong>{mergeModal.request_number}</strong>을(를) 아래 신청의 일부로 합칩니다.
-              박스가 나눠 들어와 신청이 둘로 쪼개진 경우에 쓰세요.
-            </p>
-            <ul className="list-inside list-disc space-y-1 rounded-lg bg-slate-50 px-4 py-3 text-xs text-slate-600">
-              <li>병합 후에는 어느 신청에서 [상품 등록]을 눌러도 원본의 검수 건으로 모입니다.</li>
-              <li>판매자 마이페이지에는 원본 신청 하나로만 보이고, 박스 수는 합산됩니다.</li>
-              <li>병합되는 쪽에 책이 0권인 빈 검수 건이 있으면 함께 정리됩니다.</li>
-              <li>같은 회원의 신청끼리만 병합할 수 있습니다.</li>
-            </ul>
-
-            {mergeLoading ? (
-              <p className="py-6 text-center text-sm text-slate-400">
-                <InlineLoading label="병합 대상 조회 중..." />
-              </p>
-            ) : mergeCandidates.length === 0 ? (
-              <p className="py-6 text-center text-sm font-semibold text-slate-400">
-                병합할 수 있는 다른 신청이 없습니다.
-              </p>
-            ) : (
-              <div className="space-y-2">
-                {mergeCandidates.map((candidate) => (
-                  <button
-                    className="flex w-full items-center justify-between rounded-lg border border-slate-200 px-4 py-3 text-left hover:border-slate-900 hover:bg-slate-50 disabled:opacity-50"
-                    disabled={mergingId !== null}
-                    key={candidate.id}
-                    onClick={() => void handleMerge(candidate.id)}
-                    type="button"
-                  >
-                    <div>
-                      <p className="font-mono text-xs font-bold text-slate-900">
-                        {candidate.request_number}
-                      </p>
-                      <p className="mt-1 text-xs font-semibold text-slate-500">
-                        {pickupRequestStatusLabel[candidate.status] ?? candidate.status}
-                        {candidate.desired_pickup_date ? ` · ${candidate.desired_pickup_date}` : ""}
-                        {` · ${candidate.box_count ?? 0}박스`}
-                        {candidate.bridged_book_count > 0 ? ` · 등록 ${candidate.bridged_book_count}권` : ""}
-                      </p>
-                    </div>
-                    <span className="text-xs font-bold text-slate-600">
-                      {mergingId === candidate.id ? <BusyText>병합 중...</BusyText> : "이 신청에 병합 →"}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-
-            <button className="btn-ghost w-full" onClick={() => setMergeModal(null)} type="button">
-              닫기
-            </button>
-          </div>
-        ) : null}
-      </AdminDialog>
 
       {/* CJ 재접수 — 기존 예약 전량 취소 후 새 조건으로 다시 접수 */}
       <AdminDialog busy={savingBoxTypes} onClose={() => setBoxTypeModal(null)} open={Boolean(boxTypeModal)} size="md" title="수거 박스 규격">
@@ -2247,7 +2033,7 @@ function AdminPickupRequestsPage() {
 
       {/* CJ 부분 실패 — 전체 실패 건을 모달로 노출 */}
       <NotificationResultModal
-        failureHeading="아래 수거 요청의 CJ 접수가 실패했습니다. (CJ 연동 전에는 각 행의 '상태변경'으로 수동 진행하세요)"
+        failureHeading="아래 수거 요청의 CJ 접수가 실패했습니다. 사유를 확인한 뒤 다시 접수해 주세요."
         failures={cjFailureModal?.failures ?? []}
         onClose={() => setCjFailureModal(null)}
         onRetry={null}
