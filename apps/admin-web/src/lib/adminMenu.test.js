@@ -4,6 +4,7 @@ import {
   ADMIN_MENU,
   buildAdminCommands,
   buildEntitySearches,
+  getAdminMenu,
   resolveAdminLocation,
   searchAdminCommands,
   toChosung,
@@ -50,6 +51,36 @@ test("상세 화면은 속한 메뉴로 묶이고 메뉴 화면이 아니라고 
   const guide = resolveAdminLocation({ pathname: "/admin/integrations", explicitModule: "integrations" });
   assert.equal(guide.item.key, "meta-ads");
   assert.equal(guide.isMenuRoute, false);
+});
+
+test("교재 등록 담당 계정은 상품 등록 메뉴 하나만 본다", () => {
+  const menu = getAdminMenu("intake");
+  assert.deepEqual(menu.flatMap((group) => group.items.map((item) => item.to)), ["/admin/register"]);
+  assert.equal(menu[0].items[0].tabs, undefined, "상세 사진 촬영·AI 표지 변환 탭은 없다");
+  assert.equal(getAdminMenu("admin"), ADMIN_MENU);
+  assert.equal(getAdminMenu(undefined), ADMIN_MENU);
+
+  const register = resolveAdminLocation({ pathname: "/admin/register", explicitModule: "register", role: "intake" });
+  assert.equal(register.item.key, "register");
+  assert.equal(register.tab, null);
+  assert.equal(register.isMenuRoute, true);
+  // 다른 주소에 있어도(이동 직전) 상품 등록 메뉴로만 본다
+  const elsewhere = resolveAdminLocation({ pathname: "/admin/orders", role: "intake" });
+  assert.equal(elsewhere.item.key, "register");
+  assert.equal(elsewhere.isMenuRoute, false);
+});
+
+test("직원 계정은 사이드바 목록에 넣지 않고 통합 검색으로 찾는다", () => {
+  const sidebarItems = ADMIN_MENU.filter((group) => group.sidebar !== false).flatMap((group) => group.items);
+  assert.equal(sidebarItems.length, 16, "사이드바 메뉴는 한 화면에 들어오는 16개를 유지한다");
+  assert.equal(sidebarItems.some((item) => item.key === "staff"), false);
+  const staff = resolveAdminLocation({ pathname: "/admin/staff" });
+  assert.equal(staff.item.key, "staff");
+  assert.equal(staff.isMenuRoute, true);
+  const commands = buildAdminCommands();
+  for (const word of ["알바", "직원", "권한", "비밀번호"]) {
+    assert.equal(searchAdminCommands(word, commands)[0].to, "/admin/staff", word);
+  }
 });
 
 test("초성 변환", () => {

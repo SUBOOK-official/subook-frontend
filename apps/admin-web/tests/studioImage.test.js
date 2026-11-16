@@ -124,7 +124,7 @@ test("일반 회원은 표지 유료 생성 권한이 없다", async (t) => {
   setEnv(t, { SUPABASE_ADMIN_URL: "https://fixture.supabase.co", SUPABASE_ADMIN_ANON_KEY: "anon" });
   t.mock.method(globalThis, "fetch", async (url) => {
     if (String(url).endsWith("/auth/v1/user")) return new Response(JSON.stringify({ id: "fixture-user" }));
-    if (String(url).endsWith("/rpc/is_admin_user")) return new Response("false");
+    if (String(url).endsWith("/rpc/get_admin_access")) return new Response(JSON.stringify({ role: null }));
     throw new Error("Unexpected paid request");
   });
   assert.equal((await callHandler(input, { authorization: "Bearer fixture-token" })).status, 403);
@@ -134,7 +134,7 @@ test("관리자 표지는 OpenAI만 사용하고 사용자 지정 품질을 무�
   setEnv(t, { SUPABASE_ADMIN_URL: "https://fixture.supabase.co", SUPABASE_ADMIN_ANON_KEY: "anon", OPENAI_API_KEY: "test-key", GEMINI_API_KEY: undefined, GOOGLE_API_KEY: undefined });
   t.mock.method(globalThis, "fetch", async (url, options) => {
     if (String(url).endsWith("/auth/v1/user")) return new Response(JSON.stringify({ id: "fixture-admin" }));
-    if (String(url).endsWith("/rpc/is_admin_user")) return new Response("true");
+    if (String(url).endsWith("/rpc/get_admin_access")) return new Response(JSON.stringify({ role: "admin" }));
     assert.equal(url, "https://api.openai.com/v1/images/edits");
     assert.equal(options.body.get("quality"), "medium");
     return imageResponse();
@@ -142,6 +142,27 @@ test("관리자 표지는 OpenAI만 사용하고 사용자 지정 품질을 무�
   const result = await callHandler({ ...input, quality: "high" }, { authorization: "Bearer fixture-token" });
   assert.equal(result.status, 200);
   assert.equal(result.body.mimeType, "image/jpeg");
+});
+
+test("교재 등록 담당 계정도 표지 변환을 쓸 수 있다", async (t) => {
+  setEnv(t, { SUPABASE_ADMIN_URL: "https://fixture.supabase.co", SUPABASE_ADMIN_ANON_KEY: "anon", OPENAI_API_KEY: "test-key", GEMINI_API_KEY: undefined, GOOGLE_API_KEY: undefined });
+  t.mock.method(globalThis, "fetch", async (url) => {
+    if (String(url).endsWith("/auth/v1/user")) return new Response(JSON.stringify({ id: "fixture-staff" }));
+    if (String(url).endsWith("/rpc/get_admin_access")) return new Response(JSON.stringify({ role: "intake" }));
+    assert.equal(url, "https://api.openai.com/v1/images/edits");
+    return imageResponse();
+  });
+  assert.equal((await callHandler(input, { authorization: "Bearer fixture-token" })).status, 200);
+});
+
+test("권한 조회가 실패하면 표지 변환을 막는다", async (t) => {
+  setEnv(t, { SUPABASE_ADMIN_URL: "https://fixture.supabase.co", SUPABASE_ADMIN_ANON_KEY: "anon", OPENAI_API_KEY: "test-key" });
+  t.mock.method(globalThis, "fetch", async (url) => {
+    if (String(url).endsWith("/auth/v1/user")) return new Response(JSON.stringify({ id: "fixture-user" }));
+    if (String(url).endsWith("/rpc/get_admin_access")) return new Response(JSON.stringify({ message: "boom" }), { status: 500 });
+    throw new Error("Unexpected paid request");
+  });
+  assert.equal((await callHandler(input, { authorization: "Bearer fixture-token" })).status, 403);
 });
 
 test("기존 summary 인증·분기는 OpenAI 키 없이도 동작한다", async (t) => {
@@ -156,7 +177,7 @@ test("기존 summary 인증·분기는 OpenAI 키 없이도 동작한다", async
 });
 
 test("두 저장소의 배포 API와 이미지 헬퍼가 동기화돼 있다", async () => {
-  for (const name of ["admin/book-studio.js", "_lib/studioImage.js"]) {
+  for (const name of ["admin/book-studio.js", "admin/cover-scan.js", "admin/staff-accounts.js", "_lib/studioImage.js", "_lib/staffAccount.js"]) {
     const front = await readFile(new URL(`../api/${name}`, import.meta.url), "utf8");
     const back = await readFile(new URL(`../../../../backend/api/${name}`, import.meta.url), "utf8");
     assert.equal(front, back);

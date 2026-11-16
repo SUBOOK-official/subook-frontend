@@ -1,12 +1,16 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
-import { getAdminAccessState } from "../lib/adminAuth";
+import { getAdminAccessState, INTAKE_HOME_PATH, INTAKE_ROLE } from "../lib/adminAuth";
+import { AdminAccessContext } from "../lib/adminAccess";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 
-function AdminRoute({ children }) {
+// intakeAllowed — 교재 등록 담당 계정도 열 수 있는 화면(상품 등록)에만 붙인다.
+// 등록 담당이 그 밖의 주소로 들어오면 상품 등록 화면으로 돌려보낸다.
+function AdminRoute({ children, intakeAllowed = false }) {
   const [isChecking, setIsChecking] = useState(true);
   const [hasSession, setHasSession] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [role, setRole] = useState(null);
   const [authError, setAuthError] = useState("");
 
   useEffect(() => {
@@ -20,18 +24,20 @@ function AdminRoute({ children }) {
       if (!session) {
         setHasSession(false);
         setIsAdmin(false);
+        setRole(null);
         setAuthError("");
         setIsChecking(false);
         return;
       }
 
-      const { isAdmin: admin, error: accessError } = await getAdminAccessState();
+      const { isAdmin: admin, role: nextRole, error: accessError } = await getAdminAccessState();
       if (!isMounted) {
         return;
       }
 
       setHasSession(true);
       setIsAdmin(admin);
+      setRole(nextRole);
       setAuthError(accessError);
       setIsChecking(false);
     };
@@ -113,7 +119,11 @@ function AdminRoute({ children }) {
     );
   }
 
-  return children;
+  if (role === INTAKE_ROLE && !intakeAllowed) {
+    return <Navigate to={INTAKE_HOME_PATH} replace />;
+  }
+
+  return <AdminAccessContext.Provider value={{ role }}>{children}</AdminAccessContext.Provider>;
 }
 
 export default AdminRoute;

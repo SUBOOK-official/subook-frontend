@@ -268,7 +268,38 @@ export const ADMIN_MENU = [
       },
     ],
   },
+  {
+    // 사이드바 목록에는 넣지 않는다(메뉴가 한 화면에 들어오게) — 사이드바 아래 계정 영역의 링크와
+    // 통합 검색으로 들어간다.
+    key: "settings",
+    label: "설정",
+    sidebar: false,
+    items: [
+      {
+        key: "staff",
+        label: "직원 계정",
+        to: "/admin/staff",
+        icon: "key",
+        keywords: ["알바", "아르바이트", "직원", "등록 담당", "계정 만들기", "아이디", "비밀번호", "권한"],
+      },
+    ],
+  },
 ];
+
+// 교재 등록 담당(알바) 계정에 보여 줄 메뉴 — 상품 등록 하나뿐이다.
+// (상세 사진 촬영·AI 표지 변환 탭은 상품 정보를 고칠 수 있어 열지 않는다)
+export const INTAKE_MENU = [
+  {
+    key: "work",
+    label: null,
+    items: [{ key: "register", label: "상품 등록", to: "/admin/register", icon: "plus" }],
+  },
+];
+
+/** 권한에 맞는 메뉴. role이 "intake"면 상품 등록만, 그 밖에는 전체 메뉴. */
+export function getAdminMenu(role) {
+  return role === "intake" ? INTAKE_MENU : ADMIN_MENU;
+}
 
 // 페이지가 넘기는 activeModule 값 중 메뉴 key와 다른 옛 이름들
 // (integrations = 메타 광고 화면에서만 들어가는 '연동 업무 안내' 화면)
@@ -293,8 +324,14 @@ function pathOf(to) {
  * @returns {{ item: object, tab: object|null, isMenuRoute: boolean }}
  *   isMenuRoute — 메뉴/탭에 직접 걸린 화면이면 true, 상세처럼 한 단계 들어간 화면이면 false
  */
-export function resolveAdminLocation({ pathname, explicitModule } = {}) {
+export function resolveAdminLocation({ pathname, explicitModule, role } = {}) {
   const path = (pathname || "").replace(/\/+$/, "") || "/admin";
+
+  // 등록 담당은 어느 주소에서든 상품 등록 메뉴 하나로 본다 (탭 없음)
+  if (role === "intake") {
+    const item = INTAKE_MENU[0].items[0];
+    return { item, tab: null, isMenuRoute: pathOf(item.to) === path };
+  }
 
   for (const item of allItems) {
     const tab = item.tabs?.find((candidate) => pathOf(candidate.to) === path);

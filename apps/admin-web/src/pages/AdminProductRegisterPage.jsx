@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { kstDateString } from "../lib/adminDateTime";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import AdminShell from "../components/AdminShell";
+import { useAdminAccess } from "../lib/adminAccess";
 import { createAdminDraftStore, REGISTER_DRAFT_PREFIX } from "../lib/adminDraftStore";
 import AdminDialog from "../components/AdminDialog";
 import RegisterSalesHistory from "../components/RegisterSalesHistory";
@@ -324,6 +325,9 @@ function AdminProductRegisterForm() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const shipmentIdParam = params.get("shipmentId");
+  // 교재 등록 담당(알바) 계정 — 새 고객 등록·교재 이름 수정·다른 화면 이동은 보여 주지 않는다.
+  // (서버도 이 계정에는 등록에 필요한 요청만 허용한다 — 화면에서 숨기는 것은 안내용이다)
+  const { isIntake } = useAdminAccess();
 
   // 임시 저장 초안 — 첫 렌더에서 한 번만 읽어 아래 state 초기값으로 흘려보낸다
   const [initialDraft] = useState(() => loadDraft(shipmentIdParam));
@@ -425,11 +429,9 @@ function AdminProductRegisterForm() {
     if (!shipmentIdParam || !isSupabaseConfigured) return undefined;
     let active = true;
     (async () => {
-      const { data, error } = await supabase
-        .from("shipments")
-        .select("id,seller_name,seller_phone,pickup_date,status")
-        .eq("id", shipmentIdParam)
-        .maybeSingle();
+      const { data, error } = await supabase.rpc("admin_get_register_shipment", {
+        p_shipment_id: Number(shipmentIdParam),
+      });
       if (!active) return;
       if (error || !data) {
         showToast("고객(수거) 정보를 불러오지 못했습니다.", "error");
@@ -528,9 +530,11 @@ function AdminProductRegisterForm() {
     let active = true;
     setCustLoading(true);
     const timer = window.setTimeout(async () => {
-      const { data, error } = q
-        ? await supabase.rpc("admin_search_register_targets", { p_search: q, p_limit: 50 })
-        : await supabase.rpc("admin_recent_intake_targets", { p_limit: 30, p_offset: custPage * 30 });
+      const { data, error } = await supabase.rpc("admin_list_register_targets", {
+        p_search: q || null,
+        p_limit: q ? 50 : 30,
+        p_offset: q ? 0 : custPage * 30,
+      });
       if (!active) return;
       if (error) {
         showToast(error.message || "고객 검색에 실패했습니다.", "error");
@@ -550,7 +554,7 @@ function AdminProductRegisterForm() {
 
   // 새 고객 등록 폼 — 같은 번호의 진행 중 수거신청 / 회원 매칭 사전 조회 (디바운스)
   useEffect(() => {
-    if (step !== "customer" || !isSupabaseConfigured) return undefined;
+    if (step !== "customer" || !isSupabaseConfigured || isIntake) return undefined;
     const digits = newCust.seller_phone.replace(/[^0-9]/g, "");
     if (digits.length < 9) {
       setSellerContext(null);
@@ -569,7 +573,7 @@ function AdminProductRegisterForm() {
       active = false;
       window.clearTimeout(timer);
     };
-  }, [newCust.seller_name, newCust.seller_phone, step]);
+  }, [newCust.seller_name, newCust.seller_phone, step, isIntake]);
 
   // 교재 검색 (디바운스, RPC)
   useEffect(() => {
@@ -911,11 +915,9 @@ function AdminProductRegisterForm() {
       showToast(error?.message || "수거신청을 검수 건으로 전환하지 못했습니다.", "error");
       return;
     }
-    const { data: created, error: loadError } = await supabase
-      .from("shipments")
-      .select("id,seller_name,seller_phone,pickup_date,status")
-      .eq("id", data.shipment_id)
-      .maybeSingle();
+    const { data: created, error: loadError } = await supabase.rpc("admin_get_register_shipment", {
+      p_shipment_id: data.shipment_id,
+    });
     setCreatingCust(false);
     if (loadError || !created) {
       showToast("검수 건을 불러오지 못했습니다.", "error");
@@ -1544,6 +1546,15 @@ function AdminProductRegisterForm() {
   const goAfterComplete = () => {
     const sid = completeInfo?.shipmentId;
     setCompleteInfo(null);
+    if (isIntake) {
+      if (shipmentIdParam) {
+        navigate("/admin/register", { replace: true });
+        return;
+      }
+      chooseShipment(null);
+      setStep("customer");
+      return;
+    }
     navigate(sid ? `/admin/shipments/${sid}` : "/admin/products");
   };
 
@@ -1616,17 +1627,19 @@ function AdminProductRegisterForm() {
       <div className="mt-5">
         {/* ── STEP 1: 고객 선택/생성 ─────────────────────────────── */}
         {step === "customer" ? (
-          <div className="grid gap-5 lg:grid-cols-2">
+          <div className={isIntake ? "mx-auto max-w-2xl" : "grid gap-5 lg:grid-cols-2"}>
             <section className="rounded-2xl border border-slate-200 bg-white p-6">
               <h2 className="text-lg font-bold text-slate-900">최근 입고 · 등록할 수거 건</h2>
               <p className="mt-1 text-sm text-slate-500">
-                최근 입고·검수 중인 수거 건입니다. 이름·전화번호·수거신청 번호로도 검색할 수 있습니다.
+                {isIntake
+                  ? "도착한 상자의 수거 건을 고르세요. 이름·전화번호 끝 4자리·수거신청 번호로 찾을 수 있습니다."
+                  : "최근 입고·검수 중인 수거 건입니다. 이름·전화번호·수거신청 번호로도 검색할 수 있습니다."}
               </p>
               <input
                 type="search"
                 value={custSearch}
                 onChange={(e) => { setCustSearch(e.target.value); setCustPage(0); }}
-                placeholder="예: 나유찬 / 010-1234-5678 / PU-2608-0005"
+                placeholder={isIntake ? "예: 나유찬 / 5678 / PU-2608-0005" : "예: 나유찬 / 010-1234-5678 / PU-2608-0005"}
                 className="mt-3 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
               />
               <div className="mt-3 max-h-[32rem] space-y-2 overflow-y-auto">
@@ -1634,7 +1647,11 @@ function AdminProductRegisterForm() {
                   <p className="py-4 text-center text-sm text-slate-400"><InlineLoading label="검색 중..." /></p>
                 ) : custResults.length === 0 ? (
                   <p className="py-4 text-center text-sm text-slate-400">
-                    {custSearch.trim() ? "검색 결과가 없습니다." : "입고·검수 중인 수거 건이 없습니다. 이름이나 신청 번호로 검색하세요."}
+                    {custSearch.trim()
+                      ? isIntake
+                        ? "찾는 수거 건이 없습니다. 목록에 없는 상자는 관리자에게 알려 주세요."
+                        : "검색 결과가 없습니다."
+                      : "입고·검수 중인 수거 건이 없습니다. 이름이나 신청 번호로 검색하세요."}
                   </p>
                 ) : (
                   custResults.map((c) => {
@@ -1661,7 +1678,7 @@ function AdminProductRegisterForm() {
                             >
                               {isRequest ? "수거신청" : "직접입고"}
                             </span>
-                            {c.user_id ? (
+                            {c.user_id || c.is_member ? (
                               <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[11px] font-bold text-emerald-700">
                                 회원
                               </span>
@@ -1688,6 +1705,7 @@ function AdminProductRegisterForm() {
               {custHasMore && !custSearch.trim() ? <button type="button" disabled={custLoading} onClick={() => setCustPage((page) => page + 1)} className="mt-3 w-full rounded-lg border border-slate-300 py-2 text-sm font-semibold disabled:opacity-50">최근 입고 더 보기</button> : null}
             </section>
 
+            {isIntake ? null : (
             <section className="rounded-2xl border border-slate-200 bg-white p-6">
               <h2 className="text-lg font-bold text-slate-900">새 고객 등록</h2>
               <p className="mt-1 text-sm text-slate-500">
@@ -1804,6 +1822,7 @@ function AdminProductRegisterForm() {
                 </button>
               </form>
             </section>
+            )}
           </div>
         ) : null}
 
@@ -2588,13 +2607,15 @@ function AdminProductRegisterForm() {
                 ) : (
                   <div className="flex flex-wrap items-start gap-2">
                     <p className="min-w-0 break-words text-base font-bold text-slate-900">{framePanel.product.title}</p>
-                    <button
-                      type="button"
-                      className="btn-secondary !w-auto shrink-0 !px-2 !py-1 text-xs"
-                      onClick={() => setFramePanel((fp) => ({ ...fp, titleEditing: true, titleInput: fp.product.title ?? "", titleError: "" }))}
-                    >
-                      이름 수정
-                    </button>
+                    {isIntake ? null : (
+                      <button
+                        type="button"
+                        className="btn-secondary !w-auto shrink-0 !px-2 !py-1 text-xs"
+                        onClick={() => setFramePanel((fp) => ({ ...fp, titleEditing: true, titleInput: fp.product.title ?? "", titleError: "" }))}
+                      >
+                        이름 수정
+                      </button>
+                    )}
                   </div>
                 )}
                 <p className="mt-1 text-sm text-slate-500">

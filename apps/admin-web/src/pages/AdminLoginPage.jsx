@@ -1,6 +1,7 @@
 ﻿import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { getAdminAccessState } from "../lib/adminAuth";
+import { getAdminAccessState, homePathForRole } from "../lib/adminAuth";
+import { toLoginEmail } from "../../api/_lib/staffAccount.js";
 import { getSellerLookupOrigin } from "../lib/portalLinks";
 import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseClient";
 import brandLogoImage from "../assets/brand/logo-horizontal.png";
@@ -39,7 +40,7 @@ function AdminLoginPage() {
       }
 
       if (accessState.isAdmin) {
-        navigate("/admin", { replace: true });
+        navigate(homePathForRole(accessState.role), { replace: true });
         return;
       }
 
@@ -67,19 +68,20 @@ function AdminLoginPage() {
     }
 
     if (!form.email.trim() || !form.password) {
-      setError("이메일과 비밀번호를 입력해 주세요.");
+      setError("이메일(또는 아이디)과 비밀번호를 입력해 주세요.");
       return;
     }
 
     setIsLoading(true);
 
+    // 직원(교재 등록 담당) 계정은 "@" 없이 아이디만 입력한다 → 전용 주소로 바꿔 로그인
     const { error: loginError } = await supabase.auth.signInWithPassword({
-      email: form.email.trim(),
+      email: toLoginEmail(form.email),
       password: form.password,
     });
 
     if (loginError) {
-      setError("관리자 로그인에 실패했습니다. 계정 정보를 확인해 주세요.");
+      setError("로그인에 실패했습니다. 계정 정보를 확인해 주세요.");
       setIsLoading(false);
       return;
     }
@@ -99,7 +101,7 @@ function AdminLoginPage() {
     }
 
     setIsLoading(false);
-    navigate("/admin", { replace: true });
+    navigate(homePathForRole(accessState.role), { replace: true });
   };
 
   const handleSendReset = async () => {
@@ -114,6 +116,11 @@ function AdminLoginPage() {
     const email = form.email.trim();
     if (!email) {
       setResetError("비밀번호 재설정 메일을 받으려면 이메일을 입력해 주세요.");
+      return;
+    }
+    // 직원 계정은 메일함이 없다 — 관리자가 직원 계정 화면에서 새로 정해 준다
+    if (!email.includes("@")) {
+      setResetError("아이디로 로그인하는 계정은 관리자에게 비밀번호 변경을 요청해 주세요.");
       return;
     }
 
@@ -155,14 +162,17 @@ function AdminLoginPage() {
         <section className="card animate-rise !p-6 sm:!p-7">
           <form className="space-y-4" onSubmit={handleSubmit}>
             <label className="block">
-              <span className="label">이메일</span>
+              <span className="label">이메일 또는 아이디</span>
               <input
                 className="input-base"
                 name="email"
                 onChange={handleChange}
-                placeholder="이메일"
+                placeholder="이메일 또는 아이디"
+                autoCapitalize="none"
                 autoComplete="username"
-                type="email"
+                inputMode="email"
+                spellCheck={false}
+                type="text"
                 value={form.email}
               />
             </label>

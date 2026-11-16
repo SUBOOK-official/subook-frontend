@@ -30,6 +30,7 @@ const AdminPhotoIntakePage = lazy(() => import("./pages/AdminPhotoIntakePage"));
 const AdminPickupRequestsPage = lazy(() => import("./pages/AdminPickupRequestsPage"));
 const AdminSettlementsPage = lazy(() => import("./pages/AdminSettlementsPage"));
 const AdminShipmentDetailPage = lazy(() => import("./pages/AdminShipmentDetailPage"));
+const AdminStaffAccountsPage = lazy(() => import("./pages/AdminStaffAccountsPage"));
 const AdminStudioPage = lazy(() => import("./pages/AdminStudioPage"));
 const AdminCouponsPage = lazy(() => import("./pages/AdminCouponsPage"));
 const AdminProductMastersPage = lazy(() => import("./pages/AdminProductMastersPage"));
@@ -157,7 +158,7 @@ function App() {
           />
           <Route
             element={
-              <AdminRoute>
+              <AdminRoute intakeAllowed>
                 <AdminProductRegisterPage />
               </AdminRoute>
             }
@@ -268,6 +269,7 @@ function App() {
             path="/admin/notices"
           />
           <Route element={<AdminRoute><AdminPromotionsPage /></AdminRoute>} path="/admin/promotions" />
+          <Route element={<AdminRoute><AdminStaffAccountsPage /></AdminRoute>} path="/admin/staff" />
           <Route element={<AdminRoute><AdminRecommendationsPage /></AdminRoute>} path="/admin/recommendations" />
           <Route element={<AdminRoute><AdminThemesPage /></AdminRoute>} path="/admin/themes" />
           <Route element={<ResetPasswordPage />} path="/auth/reset-password" />

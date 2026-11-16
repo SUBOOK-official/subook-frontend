@@ -1,4 +1,4 @@
-import { ADMIN_MENU, resolveAdminLocation } from "../lib/adminMenu";
+import { ADMIN_MENU, INTAKE_MENU, resolveAdminLocation } from "../lib/adminMenu";
 import {
   BellIcon,
   BookIcon,
@@ -8,6 +8,7 @@ import {
   CoinIcon,
   FileTextIcon,
   HomeIcon,
+  KeyIcon,
   LayoutIcon,
   MegaphoneIcon,
   MessageIcon,
@@ -37,12 +38,19 @@ export const adminMenuIcons = {
   file: FileTextIcon,
   trending: TrendingUpIcon,
   clock: ClockIcon,
+  key: KeyIcon,
 };
 
-export const adminNavigationGroups = ADMIN_MENU.map((group) => ({
-  ...group,
-  items: group.items.map((item) => ({ ...item, icon: adminMenuIcons[item.icon] || HomeIcon })),
-}));
+const withIcons = (menu) =>
+  menu.map((group) => ({
+    ...group,
+    items: group.items.map((item) => ({ ...item, icon: adminMenuIcons[item.icon] || HomeIcon })),
+  }));
+
+// sidebar: false 인 그룹(설정)은 사이드바 목록에서 뺀다 — 계정 영역 링크·통합 검색으로 들어간다.
+export const adminNavigationGroups = withIcons(ADMIN_MENU.filter((group) => group.sidebar !== false));
+// 교재 등록 담당 계정용 — 상품 등록 하나
+export const intakeNavigationGroups = withIcons(INTAKE_MENU);
 
 // 사이드바에서 강조할 메뉴 key
 export function resolveActiveAdminModule({ pathname, explicitModule }) {

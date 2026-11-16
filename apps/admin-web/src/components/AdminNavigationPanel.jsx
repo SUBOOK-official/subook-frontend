@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { adminNavigationGroups } from "./adminNavigation";
+import { adminNavigationGroups, intakeNavigationGroups } from "./adminNavigation";
 
 // 처리 대기 건수 배지. 조회 전(null)·0건은 표시하지 않는다.
 function CountBadge({ count, label }) {
@@ -16,10 +16,12 @@ function CountBadge({ count, label }) {
 
 // 2026-11 개편: 메뉴가 한 화면에 들어오도록 16개로 줄이고, 메뉴 찾기·즐겨찾기·그룹 접기는
 // 통합 검색(Ctrl+K)으로 대체했다. 메뉴 구성은 lib/adminMenu.js 한 곳에서 관리한다.
-export default function AdminNavigationPanel({ active, counts, onNavigate }) {
+// intakeOnly — 교재 등록 담당 계정이면 상품 등록 메뉴만 보여 준다.
+export default function AdminNavigationPanel({ active, counts, onNavigate, intakeOnly = false }) {
+  const groups = intakeOnly ? intakeNavigationGroups : adminNavigationGroups;
   return (
     <nav aria-label="관리자 메뉴" className="space-y-3.5">
-      {adminNavigationGroups.map((group) => (
+      {groups.map((group) => (
         <div key={group.key}>
           {group.label ? (
             <p className="px-3 pb-1 text-xs font-semibold text-slate-400">{group.label}</p>

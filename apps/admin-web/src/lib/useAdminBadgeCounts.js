@@ -63,6 +63,9 @@ function subscribe(listener) {
     }
   };
 }
-export function useAdminBadgeCounts() {
-  return useSyncExternalStore(subscribe, () => snapshot);
+const subscribeNothing = () => () => {};
+const getInitial = () => initial;
+// enabled=false면 아무것도 조회하지 않는다 (교재 등록 담당 계정 — 집계 대상 테이블을 읽을 권한이 없다).
+export function useAdminBadgeCounts(enabled = true) {
+  return useSyncExternalStore(enabled ? subscribe : subscribeNothing, enabled ? () => snapshot : getInitial);
 }

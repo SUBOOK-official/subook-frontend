@@ -8,6 +8,9 @@ import { useAdminBadgeCounts, refreshAdminBadgeCounts } from "../lib/useAdminBad
 import { adminGuides } from "../lib/adminGuides";
 import { resolveAdminLocation } from "../lib/adminMenu";
 import { rememberAdminPage } from "../lib/adminRecentPages";
+import { useAdminAccess } from "../lib/adminAccess";
+import { homePathForRole } from "../lib/adminAuth";
+import { staffIdFromEmail } from "../../api/_lib/staffAccount.js";
 import AdminNavigationPanel from "./AdminNavigationPanel";
 import AdminCommandPalette from "./AdminCommandPalette";
 import AdminGuideModal from "./AdminGuideModal";
@@ -30,6 +33,8 @@ const SUMMARY_TONE_CLASS = {
  * - 메뉴·탭·제목은 lib/adminMenu.js 한 곳에서 정한다. 메뉴에 직접 걸린 화면은 메뉴 이름을
  *   제목으로 쓰고(사이드바와 제목이 항상 같다), 상세처럼 한 단계 들어간 화면만 title prop을 쓴다.
  * - description prop은 받지만 렌더하지 않는다 (회색 설명 배너는 운영자 요청으로 제거).
+ * - 교재 등록 담당(알바) 계정은 상품 등록 메뉴 하나만 보인다. 통합 검색·업무 건수·화면 탭은 띄우지 않는다
+ *   (볼 권한이 없는 데이터라 조회 자체를 하지 않는다).
  */
 function AdminShell({ title, activeModule, actions = null, summaryCards = [], children }) {
   const location = useLocation();
@@ -42,11 +47,12 @@ function AdminShell({ title, activeModule, actions = null, summaryCards = [], ch
   const [accountEmail, setAccountEmail] = useState("");
   const drawerRef = useRef(null);
 
-  const { item, tab, isMenuRoute } = resolveAdminLocation({ pathname: location.pathname, explicitModule: activeModule });
+  const { role, isIntake } = useAdminAccess();
+  const { item, tab, isMenuRoute } = resolveAdminLocation({ pathname: location.pathname, explicitModule: activeModule, role });
   const tabs = item.tabs ?? [];
   const heading = isMenuRoute ? item.title || item.label : title || item.label;
   const guide = adminGuides[activeModule] ?? adminGuides[tab?.key] ?? adminGuides[item.key] ?? null;
-  const rawCounts = useAdminBadgeCounts();
+  const rawCounts = useAdminBadgeCounts(!isIntake);
   const counts = {
     ...rawCounts,
     pickups: rawCounts.pickups == null || rawCounts.inspection == null ? null : rawCounts.pickups + rawCounts.inspection,
@@ -64,6 +70,7 @@ function AdminShell({ title, activeModule, actions = null, summaryCards = [], ch
 
   // 통합 검색 단축키 (Ctrl+K / ⌘K). 입력 중이어도 열린다.
   useEffect(() => {
+    if (isIntake) return undefined;
     const onKey = (event) => {
       if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === "k") {
         event.preventDefault();
@@ -72,14 +79,14 @@ function AdminShell({ title, activeModule, actions = null, summaryCards = [], ch
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [isIntake]);
 
   // 브라우저 탭 이름과 통합 검색의 "최근 방문"
   const menuTo = isMenuRoute ? tab?.to || item.to : "";
   useEffect(() => {
     document.title = `${heading} · 수북 관리자`;
-    if (menuTo) rememberAdminPage(menuTo);
-  }, [heading, menuTo]);
+    if (menuTo && !isIntake) rememberAdminPage(menuTo);
+  }, [heading, menuTo, isIntake]);
 
   useEffect(() => {
     let active = true;
@@ -134,21 +141,35 @@ function AdminShell({ title, activeModule, actions = null, summaryCards = [], ch
   }
 
   const logo = (
-    <Link className="flex items-center gap-2" to="/admin">
+    <Link className="flex items-center gap-2" to={homePathForRole(role)}>
       <img alt="SUBOOK" className="h-[18px] w-auto" src={brandLogoImage} />
-      <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold text-slate-500">관리자</span>
+      <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold text-slate-500">{isIntake ? "교재 등록" : "관리자"}</span>
     </Link>
   );
 
   const account = (
     <div className="border-t border-slate-100 px-4 py-3">
-      <p className="truncate text-[13px] font-medium text-slate-600" title={accountEmail}>{accountEmail || "관리자 계정"}</p>
+      <p className="truncate text-[13px] font-medium text-slate-600" title={isIntake ? undefined : accountEmail}>
+        {isIntake ? staffIdFromEmail(accountEmail) || "등록 담당 계정" : accountEmail || "관리자 계정"}
+      </p>
       <div className="mt-1.5 flex items-center gap-3 text-xs font-semibold text-slate-400">
         <button className="hover:text-slate-700 disabled:opacity-50" disabled={isSigningOut} onClick={signOut} type="button">
           {isSigningOut ? <BusyText size={11}>로그아웃 중</BusyText> : "로그아웃"}
         </button>
-        <span aria-hidden="true" className="h-3 w-px bg-slate-200" />
-        <a className="hover:text-slate-700" href={getSellerLookupOrigin()}>판매자 조회 ↗</a>
+        {isIntake ? null : (
+          <>
+            <span aria-hidden="true" className="h-3 w-px bg-slate-200" />
+            <Link
+              aria-current={item.key === "staff" ? "page" : undefined}
+              className="hover:text-slate-700 aria-[current=page]:text-brand"
+              to="/admin/staff"
+            >
+              직원 계정
+            </Link>
+            <span aria-hidden="true" className="h-3 w-px bg-slate-200" />
+            <a className="hover:text-slate-700" href={getSellerLookupOrigin()}>판매자 조회 ↗</a>
+          </>
+        )}
       </div>
     </div>
   );
@@ -158,20 +179,22 @@ function AdminShell({ title, activeModule, actions = null, summaryCards = [], ch
       {/* 데스크톱 사이드바 */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-slate-200 bg-white lg:flex">
         <div className="px-5 pb-3.5 pt-5">{logo}</div>
-        <div className="px-3 pb-3">
-          <button
-            aria-haspopup="dialog"
-            className="flex h-10 w-full items-center gap-2 rounded-[10px] bg-slate-100 px-3 text-sm text-slate-400 transition-colors hover:bg-slate-200"
-            onClick={() => setIsSearchOpen(true)}
-            type="button"
-          >
-            <SearchIcon size={16} />
-            <span className="flex-1 text-left">메뉴·주문·회원 검색</span>
-            <kbd className="admin-kbd">{SEARCH_SHORTCUT_LABEL}</kbd>
-          </button>
-        </div>
+        {isIntake ? null : (
+          <div className="px-3 pb-3">
+            <button
+              aria-haspopup="dialog"
+              className="flex h-10 w-full items-center gap-2 rounded-[10px] bg-slate-100 px-3 text-sm text-slate-400 transition-colors hover:bg-slate-200"
+              onClick={() => setIsSearchOpen(true)}
+              type="button"
+            >
+              <SearchIcon size={16} />
+              <span className="flex-1 text-left">메뉴·주문·회원 검색</span>
+              <kbd className="admin-kbd">{SEARCH_SHORTCUT_LABEL}</kbd>
+            </button>
+          </div>
+        )}
         <div className="admin-thin-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-3">
-          <AdminNavigationPanel active={item.key} counts={counts} />
+          <AdminNavigationPanel active={item.key} counts={counts} intakeOnly={isIntake} />
         </div>
         {account}
       </aside>
@@ -190,15 +213,19 @@ function AdminShell({ title, activeModule, actions = null, summaryCards = [], ch
             <MenuIcon size={22} />
           </button>
           {logo}
-          <button
-            aria-haspopup="dialog"
-            aria-label="통합 검색 열기"
-            className="flex h-10 w-10 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100"
-            onClick={() => setIsSearchOpen(true)}
-            type="button"
-          >
-            <SearchIcon size={20} />
-          </button>
+          {isIntake ? (
+            <span aria-hidden="true" className="h-10 w-10" />
+          ) : (
+            <button
+              aria-haspopup="dialog"
+              aria-label="통합 검색 열기"
+              className="flex h-10 w-10 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100"
+              onClick={() => setIsSearchOpen(true)}
+              type="button"
+            >
+              <SearchIcon size={20} />
+            </button>
+          )}
         </div>
 
         <main className="mx-auto w-full max-w-[1600px] px-4 pb-16 pt-6 sm:px-6 lg:px-8 lg:pt-9">
@@ -300,14 +327,14 @@ function AdminShell({ title, activeModule, actions = null, summaryCards = [], ch
               </button>
             </div>
             <div className="admin-thin-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-4">
-              <AdminNavigationPanel active={item.key} counts={counts} onNavigate={() => setIsMobileNavOpen(false)} />
+              <AdminNavigationPanel active={item.key} counts={counts} intakeOnly={isIntake} onNavigate={() => setIsMobileNavOpen(false)} />
             </div>
             {account}
           </aside>
         </div>
       ) : null}
 
-      <AdminCommandPalette onClose={() => setIsSearchOpen(false)} open={isSearchOpen} />
+      {isIntake ? null : <AdminCommandPalette onClose={() => setIsSearchOpen(false)} open={isSearchOpen} />}
       <AdminGuideModal guide={guide} onClose={() => setIsGuideOpen(false)} open={isGuideOpen} />
     </div>
   );
