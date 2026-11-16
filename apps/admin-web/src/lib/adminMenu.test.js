@@ -112,3 +112,12 @@ test("입력 형태에 따라 데이터 검색 대상을 고른다", () => {
   assert.deepEqual(byName.slice(0, 2), ["/admin/orders", "/admin/members"]);
   assert.equal(buildEntitySearches("책 제목")[0].to, "/admin/orders?q=%EC%B1%85%20%EC%A0%9C%EB%AA%A9");
 });
+
+test("일성월심 앱 관리는 상품·재고 메뉴의 탭이고, 화면 안 보기는 검색으로도 찾는다", () => {
+  const app = resolveAdminLocation({ pathname: "/admin/ilseong" });
+  assert.equal(app.item.key, "products");
+  assert.equal(app.tab.key, "ilseong-app");
+  assert.equal(app.isMenuRoute, true);
+  const commands = buildAdminCommands();
+  assert.equal(searchAdminCommands("일성월심 교재 코드", commands)[0].to, "/admin/ilseong?view=codes");
+});

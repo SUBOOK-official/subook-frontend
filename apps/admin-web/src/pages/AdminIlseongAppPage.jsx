@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
+import { Navigate } from "react-router-dom";
 import { supabase } from "@shared-supabase/adminSupabaseClient";
 import { ILSEONG_APP_REFUND_POLICIES } from "@shared-domain/ilseongApp";
-import AdminShell from "../components/AdminShell";
 
-// 일성월심 앱 패키지 — 앱 서버 연결 상태, 판매 켜기/끄기, 환불 시 처리 방식,
+// 일성월심 앱 패키지(수북 판매 연결) — 앱 서버 연결 상태, 판매 켜기/끄기, 환불 시 처리 방식,
 // 코드 발급 대기열, 주문별 코드 상태(코드 원문은 가려서만 보여준다).
+// 일성월심 앱 관리 화면(AdminIlseongConsolePage)의 "수북 판매 연결" 보기로 들어간다.
 const LINE_STATUS_LABELS = {
   pending: "발급 대기",
   issued: "등록 전",
@@ -56,7 +57,7 @@ function SectionCard({ title, children, actions = null }) {
   );
 }
 
-export default function AdminIlseongAppPage() {
+export function IlseongSalesPanel() {
   const [overview, setOverview] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -151,7 +152,6 @@ export default function AdminIlseongAppPage() {
   const products = Array.isArray(overview?.products) ? overview.products : [];
 
   return (
-    <AdminShell activeModule="ilseong-app" title="일성월심 앱 패키지">
       <div className="space-y-5">
         {message ? (
           <p
@@ -365,6 +365,10 @@ export default function AdminIlseongAppPage() {
           )}
         </SectionCard>
       </div>
-    </AdminShell>
   );
+}
+
+// 예전 주소(/admin/ilseong-app)로 들어오면 새 화면의 같은 보기로 보낸다.
+export default function AdminIlseongAppPage() {
+  return <Navigate replace to="/admin/ilseong?view=sales" />;
 }

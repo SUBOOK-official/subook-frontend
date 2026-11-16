@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import {
   IlseongApiError,
   createIlseongClient,
+  getIlseongAdminUrl,
   getIlseongConfig,
   isValidRef,
   maskAppCode,
@@ -24,6 +25,7 @@ import {
  *   POST {action:"refresh", orderId}              앱 서버 상태(등록 여부) 다시 읽기
  *   POST {action:"reissue", orderId, lineRef}     등록 전 코드를 새 코드로 바꾸고 다시 보내기
  *   POST {action:"resend", orderId}               알림톡 다시 보내기(중복 허용)
+ *   POST {action:"admin_ticket"}                  앱 관리 화면에 들어갈 1회용 입장권(직원 본인 것, 1분)
  *
  * 코드 원문은 응답에 담지 않는다(주문자·서버만 읽는다).
  */
@@ -76,7 +78,7 @@ async function assertAdmin(accessToken) {
     error.statusCode = 403;
     throw error;
   }
-  return { userId: userResult.user.id };
+  return { userId: userResult.user.id, email: userResult.user.email || null };
 }
 
 function rpcCaller(service) {
@@ -205,12 +207,26 @@ function requireConfigured(config) {
   }
 }
 
-export async function handleAdminAction({ action, body, service, config, notify, userId, clientFactory = createIlseongClient }) {
+export async function handleAdminAction({ action, body, service, config, notify, userId, userEmail = null, clientFactory = createIlseongClient }) {
   const rpc = rpcCaller(service);
 
   if (action === "overview") {
     const overview = await rpc("ilseong_app_admin_overview", {});
-    return { configured: config.configured, ...overview };
+    return { configured: config.configured, adminUrl: getIlseongAdminUrl(config), ...overview };
+  }
+
+  // 앱 관리 화면(앱 서버가 내주는 화면을 수북 관리자 안에 끼워 보여 준다)에 들어갈 1회용 입장권.
+  // 여기까지 온 요청은 관리자임이 확인됐다(assertAdmin). 표는 1분 안에 한 번만 쓸 수 있다.
+  if (action === "admin_ticket") {
+    requireConfigured(config);
+    if (!isValidRef(String(userId || ""))) {
+      const error = new Error("직원 계정을 확인할 수 없습니다.");
+      error.statusCode = 403;
+      throw error;
+    }
+    const client = clientFactory({ baseUrl: config.baseUrl, secret: config.secret });
+    const issued = await client.adminTicket({ staffRef: String(userId), staffName: userEmail });
+    return { ticket: issued?.ticket ?? null, adminUrl: getIlseongAdminUrl(config) };
   }
 
   if (action === "save_settings") {
@@ -353,7 +369,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const result = await handleAdminAction({ action, body, service, config, notify, userId: admin.userId });
+    const result = await handleAdminAction({ action, body, service, config, notify, userId: admin.userId, userEmail: admin.email });
     return res.status(200).json({ success: true, ...result });
   } catch (err) {
     const status = err.statusCode || (err instanceof IlseongApiError ? 502 : 500);

@@ -75,16 +75,22 @@ export const ADMIN_MENU = [
             keywords: ["오래된 재고", "장기 재고", "판매 속도", "소진"],
           },
           {
+            // 일성월심 학습 앱 관리. 화면 안에서 요약·교재 코드·앱 회원·교재 쪽·앱 설정·관리 기록·판매 연결로 나뉜다(?view=)
             key: "ilseong-app",
             label: "일성월심 앱",
-            to: "/admin/ilseong-app",
-            keywords: ["앱 패키지", "코드 발급", "일성월심"],
+            to: "/admin/ilseong",
+            keywords: ["일성월심", "학습 앱", "앱 관리", "앱 패키지", "코드 발급"],
           },
         ],
         shortcuts: [
           { label: "재고 엑셀 내려받기", to: "/admin/products", keywords: ["전수조사", "엑셀", "재고 목록"] },
           { label: "상세 사진 없는 상품", to: "/admin/products?issue=missing_detail_photo", keywords: ["사진 없음"] },
           { label: "보관 위치 없는 상품", to: "/admin/products?issue=missing_location", keywords: ["위치 미지정"] },
+          { label: "일성월심 교재 코드 만들기", to: "/admin/ilseong?view=codes", keywords: ["앱 코드", "코드 만들기", "코드 발급"] },
+          { label: "일성월심 앱 회원", to: "/admin/ilseong?view=users", keywords: ["앱 회원", "학생", "기기 해제"] },
+          { label: "일성월심 교재 쪽 올리기", to: "/admin/ilseong?view=books", keywords: ["교재 쪽", "PDF 올리기", "쪽 이미지"] },
+          { label: "일성월심 앱 설정·공지", to: "/admin/ilseong?view=app-config", keywords: ["앱 공지", "점검", "최소 버전", "캡처 막기"] },
+          { label: "일성월심 수북 판매 연결", to: "/admin/ilseong?view=sales", keywords: ["앱 패키지 판매", "주문별 코드", "판매 켜기"] },
         ],
       },
       {

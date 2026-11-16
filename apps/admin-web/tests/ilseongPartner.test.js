@@ -200,3 +200,56 @@ test("주문 맞추기: 앱 서버에 주문이 아예 없으면(404) 폐기 요
   await syncOrder({ context: { order, lines }, client, rpc, notify: async () => ({ ok: true }) });
   assert.deepEqual(marks, [["501-1"]]);
 });
+
+test("앱 관리 화면 입장권: 서명한 요청으로 직원 본인 것을 받는다", async () => {
+  const seen = [];
+  const fetchImpl = async (url, init) => {
+    seen.push({ url, init });
+    return new Response(JSON.stringify({ ticket: "one-time-ticket", expiresAt: "2026-11-17T00:01:00Z" }), { status: 200 });
+  };
+  const config = getIlseongConfig({ ILSEONG_API_BASE_URL: "https://app.test/", ILSEONG_PARTNER_SECRET: SECRET });
+  const result = await handleAdminAction({
+    action: "admin_ticket",
+    body: {},
+    service: fakeService({}),
+    config,
+    notify: async () => ({ ok: true }),
+    userId: "0b9f6a52-3c1d-4a8e-9f1b-2d3c4e5f6a7b",
+    userEmail: "staff@subook.test",
+    clientFactory: (options) => createIlseongClient({ ...options, fetchImpl }),
+  });
+  assert.deepEqual(result, { ticket: "one-time-ticket", adminUrl: "https://app.test/admin/" });
+  assert.equal(seen.length, 1);
+  assert.equal(seen[0].url, "https://app.test/api/partner/admin-tickets");
+  assert.equal(seen[0].init.method, "POST");
+  assert.deepEqual(JSON.parse(seen[0].init.body.toString("utf8")), {
+    staffRef: "0b9f6a52-3c1d-4a8e-9f1b-2d3c4e5f6a7b",
+    staffName: "staff@subook.test",
+  });
+  assert.equal(seen[0].init.headers["X-Ilseong-Partner"], "subook");
+  assert.match(seen[0].init.headers["X-Ilseong-Signature"], /^[0-9a-f]{64}$/);
+});
+
+test("앱 관리 화면 입장권: 연결 설정이 없거나 직원을 알 수 없으면 앱 서버를 부르지 않는다", async () => {
+  let called = false;
+  const clientFactory = () => { called = true; return { adminTicket: async () => ({ ticket: "x" }) }; };
+  const base = { action: "admin_ticket", body: {}, service: fakeService({}), notify: async () => ({ ok: true }), clientFactory };
+  await assert.rejects(
+    handleAdminAction({ ...base, config: getIlseongConfig({}), userId: "staff-1" }),
+    (err) => err.statusCode === 409 && err.code === "ILSEONG_NOT_CONFIGURED",
+  );
+  const config = getIlseongConfig({ ILSEONG_API_BASE_URL: "https://app.test", ILSEONG_PARTNER_SECRET: SECRET });
+  await assert.rejects(handleAdminAction({ ...base, config, userId: null }), (err) => err.statusCode === 403);
+  assert.equal(called, false);
+});
+
+test("관리 API 요약: 연결돼 있으면 앱 관리 화면 주소를 함께 준다", async () => {
+  const service = fakeService({ ilseong_app_admin_overview: () => ({ counts: {} }) });
+  const on = await handleAdminAction({
+    action: "overview", body: {}, service, notify: async () => ({ ok: true }),
+    config: getIlseongConfig({ ILSEONG_API_BASE_URL: "https://app.test", ILSEONG_PARTNER_SECRET: SECRET }),
+  });
+  assert.equal(on.adminUrl, "https://app.test/admin/");
+  const off = await handleAdminAction({ action: "overview", body: {}, service, notify: async () => ({ ok: true }), config: getIlseongConfig({}) });
+  assert.equal(off.adminUrl, null);
+});
