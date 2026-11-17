@@ -112,16 +112,18 @@ export function createIlseongClient({
   const orderPath = (orderRef) => `/api/partner/orders/${orderRef}`;
 
   return {
-    // 같은 주문 줄은 몇 번을 보내도 같은 코드
-    async issueCodes(orderRef, lines) {
+    // 같은 주문 줄은 몇 번을 보내도 같은 코드.
+    // memberRef = 주문한 수북 회원(orders.user_id). 함께 보내면 그 회원이 수북 계정으로 앱에 로그인했을 때
+    // 코드를 넣지 않아도 교재가 등록된다(앱 저장소 docs/adr/0035). 비회원 주문이면 보내지 않는다.
+    async issueCodes(orderRef, lines, { memberRef = null } = {}) {
       assertRef(orderRef, "orderRef");
       if (!Array.isArray(lines) || lines.length < 1 || lines.length > ILSEONG_MAX_LINES_PER_REQUEST) {
         throw new IlseongApiError("주문 줄은 1–20개여야 합니다.", { code: "INVALID_LINES", retryable: false });
       }
       for (const line of lines) assertRef(line.lineRef, "lineRef");
-      return call("POST", `${orderPath(orderRef)}/codes`, {
-        lines: lines.map((line) => ({ lineRef: line.lineRef, productCode: line.productCode })),
-      });
+      const payload = { lines: lines.map((line) => ({ lineRef: line.lineRef, productCode: line.productCode })) };
+      if (isValidRef(memberRef)) payload.memberRef = memberRef;
+      return call("POST", `${orderPath(orderRef)}/codes`, payload);
     },
     async getOrder(orderRef) {
       assertRef(orderRef, "orderRef");
@@ -193,7 +195,7 @@ export async function syncOrder({ context, client, rpc, notify }) {
       const response = await client.issueCodes(orderRef, part.map((line) => ({
         lineRef: line.line_ref,
         productCode: line.app_product_code,
-      })));
+      })), { memberRef: order.user_id ?? null });
       await rpc("ilseong_app_record_lines", { p_order_id: order.id, p_lines: response?.lines ?? [], p_reissued: false });
       result.issued += Array.isArray(response?.lines) ? response.lines.length : 0;
     }

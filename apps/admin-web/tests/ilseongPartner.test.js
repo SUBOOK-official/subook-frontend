@@ -253,3 +253,42 @@ test("관리 API 요약: 연결돼 있으면 앱 관리 화면 주소를 함께 
   const off = await handleAdminAction({ action: "overview", body: {}, service, notify: async () => ({ ok: true }), config: getIlseongConfig({}) });
   assert.equal(off.adminUrl, null);
 });
+
+test("코드 발급: 주문한 회원을 함께 보낸다(비회원 주문이면 보내지 않는다)", async () => {
+  const bodies = [];
+  const fetchImpl = async (url, init) => {
+    bodies.push(JSON.parse(init.body.toString("utf8")));
+    return new Response(JSON.stringify({ orderRef: "ORD-2611-0009", lines: [] }), { status: 200 });
+  };
+  const client = createIlseongClient({ baseUrl: "https://app.test", secret: SECRET, fetchImpl });
+  const lines = [{ lineRef: "501-1", productCode: "ILSEONG_2028_SET4" }];
+  await client.issueCodes("ORD-2611-0009", lines, { memberRef: "0b9f6a52-3c1d-4a8e-9f1b-2d3c4e5f6a7b" });
+  await client.issueCodes("ORD-2611-0009", lines);
+  await client.issueCodes("ORD-2611-0009", lines, { memberRef: null });
+  await client.issueCodes("ORD-2611-0009", lines, { memberRef: "not a valid ref!" });
+  assert.deepEqual(bodies[0], { lines, memberRef: "0b9f6a52-3c1d-4a8e-9f1b-2d3c4e5f6a7b" });
+  for (const body of bodies.slice(1)) assert.deepEqual(body, { lines });
+});
+
+test("주문 맞추기: 발급할 때 주문의 회원(user_id)을 넘긴다", async () => {
+  const seen = [];
+  const client = {
+    issueCodes: async (orderRef, lines, options) => {
+      seen.push(options);
+      return { orderRef, lines: lines.map((line) => ({ lineRef: line.lineRef, productCode: line.productCode, code: "AAAA-BBBB-CCCC-DDDD", status: "ISSUED" })) };
+    },
+  };
+  const run = async (order) => {
+    let stored = [lineRow({ line_ref: "501-1" })];
+    const rpc = async (name, args) => {
+      if (name === "ilseong_app_record_lines") stored = stored.map((line) => ({ ...line, code: args.p_lines[0].code, status: "issued" }));
+      if (name === "ilseong_app_mark_notified") stored = stored.map((line) => ({ ...line, notified_at: "now" }));
+      if (name === "ilseong_app_order_context") return { order, settings: {}, lines: stored };
+      return null;
+    };
+    await syncOrder({ context: { order, settings: {}, lines: stored }, client, rpc, notify: async () => ({ ok: true }) });
+  };
+  await run({ id: 9, order_number: "ORD-2611-0009", payment_status: "paid", user_id: "0b9f6a52-3c1d-4a8e-9f1b-2d3c4e5f6a7b" });
+  await run({ id: 10, order_number: "ORD-2611-G000000001", payment_status: "paid", user_id: null });
+  assert.deepEqual(seen, [{ memberRef: "0b9f6a52-3c1d-4a8e-9f1b-2d3c4e5f6a7b" }, { memberRef: null }]);
+});
