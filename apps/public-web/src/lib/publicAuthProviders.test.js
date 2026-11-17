@@ -29,7 +29,8 @@ test("isSocialOnlyAccount is true only when providers exist without email", () =
 test("getSocialProviderLabels maps known providers and passes unknown through", () => {
   assert.deepEqual(getSocialProviderLabels(["kakao", "google"]), ["카카오", "Google"]);
   assert.deepEqual(getSocialProviderLabels(["email"]), []);
-  assert.deepEqual(getSocialProviderLabels(["apple"]), ["apple"]);
+  assert.deepEqual(getSocialProviderLabels(["apple"]), ["Apple"]);
+  assert.deepEqual(getSocialProviderLabels(["naver"]), ["naver"]);
 });
 
 test("buildSocialOnlyLoginMessage names the provider and its button", () => {

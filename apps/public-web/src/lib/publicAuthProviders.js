@@ -8,6 +8,7 @@
 const PROVIDER_LABELS = {
   kakao: "카카오",
   google: "Google",
+  apple: "Apple",
   email: "이메일",
 };
 

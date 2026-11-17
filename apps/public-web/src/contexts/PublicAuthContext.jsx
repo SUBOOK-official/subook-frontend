@@ -214,7 +214,9 @@ function PublicAuthProvider({ children }) {
     return result;
   };
 
-  const isOAuthUser = ["kakao", "google"].includes(state.user?.app_metadata?.provider);
+  // apple: 일성월심 앱에서 Apple로 가입한 회원(2026-11-18). 웹에는 아직 Apple 버튼이 없지만, 앱 안 웹 화면에서
+  // 가입을 마칠 때(휴대폰 인증·약관 동의) 카카오·구글과 같은 소셜 가입으로 다룬다.
+  const isOAuthUser = ["kakao", "google", "apple"].includes(state.user?.app_metadata?.provider);
   const isPhoneUser = state.user?.app_metadata?.provider === "phone";
   const needsEmailRegistration = state.hasSession && state.accountRole === "member" && !state.user?.email;
   const needsPhoneVerification = state.hasSession && state.accountRole === "member"
