@@ -4,12 +4,13 @@ import {
   IlseongApiError,
   createIlseongClient,
   getIlseongConfig,
-  maskAppCode,
   sha256Hex,
   signPartnerRequest,
   syncOrder,
 } from "../api/_lib/ilseongPartner.js";
-import { handleAdminAction, runQueue } from "../api/admin/ilseong-app-codes.js";
+import { handleAdminAction, makeNotifier, runQueue } from "../api/admin/ilseong-app-codes.js";
+import { DEFAULT_SOLAPI_TEMPLATE_IDS, getSolapiTemplateId } from "../api/_lib/solapiTemplates.js";
+import { buildInAppTitle, buildMessageBody } from "../api/admin/send-notification.js";
 
 // 기대값은 openssl로 따로 계산했다(같은 코드로 만든 값이 아님):
 //   printf 'subook\n1762671600\nPOST\n/api/partner/orders/ORD-2611-0001/codes\n<sha256(본문)>' | openssl dgst -sha256 -hmac unit-test-secret
@@ -72,11 +73,6 @@ test("설정: 두 환경 변수가 모두 있어야 켜진다", () => {
     { configured: true, baseUrl: "https://api.test", secret: "s" });
 });
 
-test("가림: 관리 화면에는 앞뒤 4자만", () => {
-  assert.equal(maskAppCode("ABCD-EFGH-JKMN-PQRS"), "ABCD-••••-••••-PQRS");
-  assert.equal(maskAppCode(null), null);
-});
-
 function fakeService(handlers) {
   const calls = [];
   return {
@@ -113,6 +109,27 @@ test("관리 API: 연결 설정 없이 판매 켜기는 거부, 끄기는 허용
   assert.equal(service.calls.length, 0);
   const off = await handleAdminAction({ action: "save_settings", body: { salesEnabled: false, refundPolicy: "none" }, service, config: getIlseongConfig({}), notify: async () => ({ ok: true }) });
   assert.equal(off.settings.sales_enabled, false);
+});
+
+test("관리 API: 앱 이용 안내 알림톡 템플릿 번호가 없으면 판매 켜기 거부, 있으면 허용, 끄기는 언제나 허용", async () => {
+  const service = fakeService({
+    ilseong_app_save_settings: (args) => ({ sales_enabled: args.p_sales_enabled }),
+    ilseong_app_admin_overview: () => ({ counts: {} }),
+  });
+  const config = getIlseongConfig({ ILSEONG_API_BASE_URL: "https://app.test", ILSEONG_PARTNER_SECRET: SECRET });
+  const base = { service, config, notify: async () => ({ ok: true }) };
+  await assert.rejects(
+    handleAdminAction({ ...base, action: "save_settings", body: { salesEnabled: true }, guideTemplateId: "" }),
+    (err) => err.statusCode === 409 && err.code === "APP_GUIDE_TEMPLATE_MISSING",
+  );
+  assert.equal(service.calls.length, 0);
+  const on = await handleAdminAction({ ...base, action: "save_settings", body: { salesEnabled: true }, guideTemplateId: "KA01TP-GUIDE" });
+  assert.equal(on.settings.sales_enabled, true);
+  const off = await handleAdminAction({ ...base, action: "save_settings", body: { salesEnabled: false }, guideTemplateId: "" });
+  assert.equal(off.settings.sales_enabled, false);
+  // 요약에 템플릿 번호가 있는지 함께 알려 준다(화면이 판매 켜기를 막고 까닭을 보여 준다)
+  assert.equal((await handleAdminAction({ ...base, action: "overview", body: {}, guideTemplateId: "" })).guideTemplateReady, false);
+  assert.equal((await handleAdminAction({ ...base, action: "overview", body: {}, guideTemplateId: "KA01TP-GUIDE" })).guideTemplateReady, true);
 });
 
 function lineRow(overrides) {
@@ -291,4 +308,113 @@ test("주문 맞추기: 발급할 때 주문의 회원(user_id)을 넘긴다", a
   await run({ id: 9, order_number: "ORD-2611-0009", payment_status: "paid", user_id: "0b9f6a52-3c1d-4a8e-9f1b-2d3c4e5f6a7b" });
   await run({ id: 10, order_number: "ORD-2611-G000000001", payment_status: "paid", user_id: null });
   assert.deepEqual(seen, [{ memberRef: "0b9f6a52-3c1d-4a8e-9f1b-2d3c4e5f6a7b" }, { memberRef: null }]);
+});
+
+// ── 앱 코드는 구매자·관리 화면에 내보내지 않는다(2026-11-18) ──────────────
+const CODE = "AAAA-BBBB-CCCC-DDDD";
+
+function orderContext() {
+  return {
+    order: { id: 9, order_number: "ORD-2611-0009", status: "preparing", payment_status: "paid", recipient_phone: "01000000000", user_id: "member-1" },
+    settings: {},
+    lines: [{ ...lineRow({ line_ref: "501-1", status: "issued", code: CODE, notified_at: "t" }), order_item_id: 501, title: "일성월심 학습지" }],
+  };
+}
+
+test("관리 API 주문 조회: 앱 등록 상태만 주고 코드는 원문도 가린 것도 담지 않는다", async () => {
+  const service = fakeService({ ilseong_app_find_order: () => 9, ilseong_app_order_context: () => orderContext() });
+  const result = await handleAdminAction({
+    action: "order", body: { orderNumber: "ORD-2611-0009" }, service, config: getIlseongConfig({}), notify: async () => ({ ok: true }),
+  });
+  assert.equal(result.lines.length, 1);
+  assert.equal(result.lines[0].status, "issued");
+  assert.equal("code" in result.lines[0], false);
+  assert.equal("code_masked" in result.lines[0], false);
+  const text = JSON.stringify(result);
+  for (const part of CODE.split("-")) assert.equal(text.includes(part), false, `응답에 코드 조각 ${part}`);
+});
+
+test("관리 API: 새 코드로 바꾸기(reissue)는 없어졌다", async () => {
+  let clientMade = false;
+  const service = fakeService({ ilseong_app_order_context: () => orderContext() });
+  await assert.rejects(
+    handleAdminAction({
+      action: "reissue", body: { orderId: 9, lineRef: "501-1" }, service, notify: async () => ({ ok: true }),
+      config: getIlseongConfig({ ILSEONG_API_BASE_URL: "https://app.test", ILSEONG_PARTNER_SECRET: SECRET }),
+      clientFactory: () => { clientMade = true; return {}; },
+    }),
+    (err) => err.statusCode === 400,
+  );
+  assert.equal(clientMade, false);
+  assert.equal(service.calls.length, 0);
+});
+
+test("관리 API 안내 다시 보내기: 중복 허용으로 보내고 알림 기록을 남긴다", async () => {
+  const sent = [];
+  const service = fakeService({ ilseong_app_order_context: () => orderContext(), ilseong_app_mark_notified: () => 1 });
+  const result = await handleAdminAction({
+    action: "resend", body: { orderId: 9 }, service, config: getIlseongConfig({}),
+    notify: async (payload) => { sent.push(payload); return { ok: true }; },
+  });
+  assert.equal(result.notified, true);
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].allowDuplicate, true);
+  assert.equal(JSON.stringify(result).includes("AAAA"), false);
+  assert.deepEqual(service.calls.find((call) => call.name === "ilseong_app_mark_notified").args, { p_order_id: 9, p_line_refs: ["501-1"] });
+});
+
+test("안내 알림 요청: app_guide 타입으로 주문 id만 보낸다(코드를 싣지 않는다)", async () => {
+  const seen = [];
+  const fetchImpl = async (url, init) => {
+    seen.push({ url, init });
+    return new Response(JSON.stringify({ success: true }), { status: 200 });
+  };
+  const notify = makeNotifier({ baseUrl: "https://admin.test", cronSecret: "cron-secret", fetchImpl });
+  const context = orderContext();
+  const result = await notify({ order: context.order, lines: context.lines, allowDuplicate: false });
+  assert.deepEqual(result, { ok: true, deduped: false });
+  assert.equal(seen[0].url, "https://admin.test/api/admin/send-notification");
+  assert.equal(seen[0].init.headers.Authorization, "Bearer cron-secret");
+  assert.deepEqual(JSON.parse(seen[0].init.body), {
+    notificationType: "app_guide",
+    refType: "order",
+    refId: 9,
+    recipientPhone: "01000000000",
+    allowDuplicate: false,
+    templateVariables: {},
+  });
+  assert.equal(seen[0].init.body.includes("AAAA"), false);
+  // 크론 비밀값이 없으면 보내지 않는다
+  const off = await makeNotifier({ baseUrl: "https://admin.test", cronSecret: "", fetchImpl })({ order: context.order });
+  assert.equal(off.ok, false);
+  assert.equal(seen.length, 1);
+});
+
+test("알림톡 템플릿 번호: 환경 변수 JSON이 먼저, 없으면 코드 기본값, 예전 app_code는 없다", () => {
+  assert.equal(getSolapiTemplateId("app_guide", { SOLAPI_TEMPLATE_IDS: '{"app_guide":"KA01TP-ENV"}' }), "KA01TP-ENV");
+  assert.equal(getSolapiTemplateId("app_guide", {}), DEFAULT_SOLAPI_TEMPLATE_IDS.app_guide);
+  assert.equal(getSolapiTemplateId("app_guide", { SOLAPI_TEMPLATE_IDS: "not json" }), DEFAULT_SOLAPI_TEMPLATE_IDS.app_guide);
+  assert.equal(getSolapiTemplateId("order_confirmed", { SOLAPI_TEMPLATE_IDS: '{"order_confirmed":"KA01TP-ORDER"}' }), "KA01TP-ORDER");
+  assert.equal(getSolapiTemplateId("app_code", {}), "");
+  assert.equal("app_code" in DEFAULT_SOLAPI_TEMPLATE_IDS, false);
+});
+
+test("안내 알림 문구: 솔라피에 등록한 템플릿과 같고 코드·앱 받는 주소가 없다", () => {
+  // ALIMTALK_TEMPLATES.md "일성월심 앱 이용 안내" 절의 등록 문안에서 #{orderNumber}만 바꾼 것
+  const expected = [
+    "[수북(SUBOOK) 일성월심 앱 이용 안내]",
+    "안녕하세요, 수북(SUBOOK)입니다.",
+    "주문하신 일성월심 학습지의 앱 이용 방법을 안내드립니다.",
+    "► 주문번호 : ORD-2611-0042",
+    "[이용 방법]",
+    "교재를 구매한 수북(SUBOOK) 계정으로 일성월심 앱에 로그인하면 교재가 자동으로 등록됩니다. 코드를 입력하실 필요가 없습니다.",
+    "※ 앱 이용권은 교재 구매 고객에게 드리는 부가서비스이며, 교재를 반품·환불하면 앱 이용도 함께 끝납니다.",
+  ].join("\n");
+  const body = buildMessageBody("app_guide", { orderNumber: "ORD-2611-0042", appCode: "AAAA-BBBB-CCCC-DDDD" });
+  assert.equal(body, expected);
+  assert.equal(body.includes("AAAA"), false);
+  assert.equal(/https?:\/\//.test(body), false);
+  assert.equal(buildInAppTitle("app_guide", {}), "일성월심 앱에서 교재를 볼 수 있어요");
+  // 예전 타입은 더 만들지 않는다
+  assert.equal(buildMessageBody("app_code", { orderNumber: "ORD-2611-0042", appCode: "AAAA-BBBB-CCCC-DDDD" }), "");
 });

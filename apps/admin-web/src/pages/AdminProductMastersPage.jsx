@@ -688,13 +688,13 @@ function AdminProductMastersPage() {
     await loadProducts();
   };
 
-  // 일성월심 앱 패키지 지정/해제 — 결제 확인 시 주문 줄마다 앱 코드를 받아 알림톡으로 보낸다.
+  // 일성월심 앱 패키지 지정/해제 — 결제가 확인되면 구매한 회원의 앱에 교재가 등록되고 안내 알림톡이 나간다.
   // 판매가 꺼져 있으면 지정과 동시에 숨겨지고, 켜기 전에는 공개할 수 없다(어드민 > 일성월심 앱).
   const handleAppPackageToggle = async () => {
     if (!detailTarget || appPackageBusy || !appPackage) return;
     const next = appPackage.is_app_package !== true;
     if (next && !window.confirm(
-      `이 상품을 일성월심 앱 패키지(${ILSEONG_APP_PRODUCT_CODE})로 지정합니다.\n결제가 확인되면 주문 줄마다 앱 코드가 발급됩니다.${
+      `이 상품을 일성월심 앱 패키지(${ILSEONG_APP_PRODUCT_CODE})로 지정합니다.\n결제가 확인되면 구매한 회원의 일성월심 앱에 교재가 등록됩니다.${
         appPackage.sales_enabled ? "" : "\n앱 패키지 판매가 꺼져 있어 상품이 숨김으로 바뀝니다."
       }`,
     )) return;
@@ -1252,7 +1252,7 @@ function AdminProductMastersPage() {
                     className="whitespace-nowrap rounded-[10px] border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-slate-500 hover:bg-slate-50 disabled:opacity-50"
                     disabled={appPackageBusy}
                     onClick={handleAppPackageToggle}
-                    title="결제 확인 시 일성월심 앱 코드를 발급해 알림톡으로 보내는 상품"
+                    title="결제가 확인되면 구매한 회원의 일성월심 앱에 교재가 등록되는 상품"
                     type="button"
                   >
                     {appPackageBusy ? "처리 중" : appPackage.is_app_package ? "앱 패키지 해제" : "앱 패키지로 지정"}

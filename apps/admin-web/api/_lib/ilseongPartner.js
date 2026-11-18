@@ -138,11 +138,6 @@ export function createIlseongClient({
       }
       return call("POST", `${orderPath(orderRef)}/revoke`, payload);
     },
-    async reissue(orderRef, lineRef) {
-      assertRef(orderRef, "orderRef");
-      assertRef(lineRef, "lineRef");
-      return call("POST", `${orderPath(orderRef)}/lines/${lineRef}/reissue`);
-    },
     // 수북 관리자 직원이 일성월심 앱 관리 화면에 들어갈 때 쓰는 1회용 입장권(1분 안에 한 번만 쓸 수 있다).
     // 직원인지는 부르는 쪽(관리자 API)이 먼저 확인한다. 앱 서버 문서: ilseong-app docs/adr/0034
     async adminTicket({ staffRef, staffName }) {
@@ -164,17 +159,9 @@ export function chunk(list, size = ILSEONG_MAX_LINES_PER_REQUEST) {
   return out;
 }
 
-// 관리 화면에는 코드 원문을 보내지 않는다: 앞 4자·뒤 4자만
-export function maskAppCode(code) {
-  const value = String(code || "");
-  if (!value) return null;
-  const groups = value.split("-");
-  if (groups.length === 4) return `${groups[0]}-••••-••••-${groups[3]}`;
-  return value.length <= 8 ? "••••" : `${value.slice(0, 4)}…${value.slice(-4)}`;
-}
-
 // ── 주문 한 건 맞추기 ─────────────────────────────────────────
 // 줄 상태를 보고 발급 → 폐기 → 알림 순서로 처리한다. 각 단계는 다시 해도 같은 결과(멱등).
+// 앱 코드는 앱 서버와 이 서버 사이의 안쪽 기록이다(구매와 앱 교재 권한을 잇는다). 구매자·관리 화면에는 내보내지 않는다.
 // deps: { client, rpc(name, args) → data, notify({ order, lines, allowDuplicate }) → { ok, error } }
 export async function syncOrder({ context, client, rpc, notify }) {
   const order = context?.order;
@@ -229,7 +216,7 @@ export async function syncOrder({ context, client, rpc, notify }) {
     }
   }
 
-  // 3) 알림톡 — 새로 받은 코드를 다시 읽어 보낸다
+  // 3) 앱 이용 안내 알림톡 — 발급이 끝난 줄이 있으면 주문당 한 번 보낸다(코드는 보내지 않는다)
   const fresh = (toIssue.length > 0 || toRevoke.length > 0)
     ? await rpc("ilseong_app_order_context", { p_order_id: order.id })
     : context;
@@ -241,8 +228,7 @@ export async function syncOrder({ context, client, rpc, notify }) {
       order: fresh.order ?? order,
       settings: fresh.settings ?? context.settings,
       lines: toNotify,
-      // 재발급한 코드는 이미 보낸 알림과 멱등 키가 같으므로 중복 허용으로 보낸다
-      allowDuplicate: toNotify.some((line) => line.reissued_at),
+      allowDuplicate: false,
     });
     if (!sent?.ok) {
       throw new IlseongApiError(`알림톡 발송 실패: ${sent?.error || "알 수 없는 오류"}`, { code: "NOTIFY_FAILED" });
