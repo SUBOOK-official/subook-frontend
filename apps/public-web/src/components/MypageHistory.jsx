@@ -6,8 +6,8 @@ import { pickupBoxLabel } from "@shared-domain/pickupBoxes";
 import { MypageEmptyState, ResponsiveSheet } from "./PublicMypageUi.jsx";
 import { ArrowRightIcon, BookIcon, BoxIcon, ChevronRightIcon, CoinIcon, SearchIcon } from "./icons";
 import { OrderReviewAction, ReviewInviteBanner } from "./MypageReviews";
-import OrderAppCodes from "./OrderAppCodes";
-import { fetchMyOrderAppCodes } from "../lib/ilseongAppCodes";
+import OrderAppAccess from "./OrderAppAccess";
+import { fetchMyOrderAppAccess } from "../lib/ilseongApp";
 import { formatPoints } from "../lib/publicPointsUtils";
 import { canWriteOrderReview } from "../lib/publicReviewsUtils";
 import { KAKAO_CHANNEL_URL } from "../lib/supportChannels";
@@ -260,8 +260,8 @@ function OrderDetailSheet({ order, onClose }) {
           </>
         ) : null}
       </dl>
-      {/* 일성월심 앱 패키지 주문이면 앱 코드 칸(아니면 그리지 않음) */}
-      <OrderAppCodes loadLines={() => fetchMyOrderAppCodes(order.id)} reloadKey={order.id} surface="mypage_order" />
+      {/* 일성월심 앱 패키지 주문이면 앱 안내 칸(아니면 그리지 않음). 앱 코드는 보여 주지 않는다 */}
+      <OrderAppAccess loadAccess={() => fetchMyOrderAppAccess(order.id)} reloadKey={order.id} />
     </ResponsiveSheet>
   );
 }

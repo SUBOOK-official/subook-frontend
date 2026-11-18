@@ -32,8 +32,8 @@ import {
   trackViewItemList,
 } from "../lib/analytics";
 import { useInViewOnce } from "../lib/useInViewOnce";
-import { fetchAppPackageProductIds } from "../lib/ilseongAppCodes";
-import { AppPackageNotice } from "../components/OrderAppCodes";
+import { fetchAppPackageProductIds } from "../lib/ilseongApp";
+import { AppPackageNotice } from "../components/OrderAppAccess";
 import { FREE_SHIPPING_THRESHOLD, SHIPPING_FEE, addToCart } from "../lib/cart";
 import usePublicMemberGate from "../lib/publicMemberGate";
 import {
@@ -856,7 +856,7 @@ function PublicProductDetailPage() {
       cancelled = true;
     };
   }, [productId]);
-  // 일성월심 앱 패키지 상품이면 앱 이용권 안내 한 줄(공개 읽기 표시 테이블)
+  // 일성월심 앱 패키지 상품이면 앱 이용 안내(구매한 계정에만 등록, 환불 시 종료 — 공개 읽기 표시 테이블)
   const [isAppPackage, setIsAppPackage] = useState(false);
   useEffect(() => {
     if (!productId) return undefined;

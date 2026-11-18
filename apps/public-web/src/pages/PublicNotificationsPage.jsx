@@ -20,6 +20,7 @@ import { usePageMeta } from "../lib/usePageMeta";
 import {
   BankIcon,
   BellIcon,
+  BookIcon,
   BoxIcon,
   CardIcon,
   ChevronRightIcon,
@@ -41,6 +42,8 @@ const TYPE_ICONS = {
   order_confirmed: CardIcon,
   shipping_started: TruckIcon,
   delivery_done: MailIcon,
+  // 일성월심 앱 이용 안내(구매한 계정으로 앱에 로그인하면 교재가 등록된다)
+  app_guide: BookIcon,
   restock: BellIcon,
   // 찜한 상품이 품절되는 순간 발송되는 인앱 알림 (DB 트리거) — 재입고 알림 신청 유도.
   wishlist_soldout: HeartOffIcon,
@@ -52,7 +55,7 @@ const CATEGORY_FILTERS = [
   { key: "pickup", label: "수거", types: ["pickup_accepted", "arrived"] },
   { key: "inspection", label: "검수", types: ["inspection_done"] },
   { key: "settlement", label: "정산", types: ["sold", "settlement_done"] },
-  { key: "order", label: "주문", types: ["order_confirmed", "shipping_started", "delivery_done"] },
+  { key: "order", label: "주문", types: ["order_confirmed", "shipping_started", "delivery_done", "app_guide"] },
   { key: "restock", label: "재입고", types: ["restock", "wishlist_soldout"] },
 ];
 

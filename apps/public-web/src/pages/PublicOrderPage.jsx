@@ -77,9 +77,9 @@ import {
 } from "../lib/nicepay";
 import { PG_OVERRIDE } from "../lib/pgReviewMode";
 import { BANK_OPTIONS } from "../lib/publicMypageUtils";
-import { fetchAppPackageProductIds } from "../lib/ilseongAppCodes";
+import { fetchAppPackageProductIds } from "../lib/ilseongApp";
 import { openPostcodeSearch } from "../lib/postcode";
-import { AppPackageNotice } from "../components/OrderAppCodes";
+import { AppPackageNotice } from "../components/OrderAppAccess";
 import "./PublicOrderPage.css";
 
 // 백엔드 create_order가 던지는 영문/시스템 메시지를 사용자 친화 한국어로 매핑.
@@ -779,7 +779,7 @@ function PublicOrderPage() {
   }, [location.key, initialOrderItems, orderItems]);
   const [priceDriftWarning, setPriceDriftWarning] = useState(null);
 
-  // 일성월심 앱 패키지가 담겨 있으면 앱 이용권 안내 한 줄
+  // 일성월심 앱 패키지가 담겨 있으면 앱 이용 안내(구매한 계정에만 등록, 환불 시 종료)
   const orderProductIdsKey = (orderItems || []).map((item) => item.productId).filter(Boolean).join(",");
   const [hasAppPackage, setHasAppPackage] = useState(false);
   useEffect(() => {

@@ -1,0 +1,77 @@
+/* 일성월심 앱 안내 칸 — 운송장 행(public-mypage-purchase-card__tracking)과 같은 결 */
+.order-app-access {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid var(--public-ds-border);
+  border-radius: var(--public-ds-radius);
+  background: var(--public-ds-card);
+}
+
+.order-app-access__title {
+  margin: 0;
+  color: var(--public-ds-text);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.order-app-access__guide {
+  margin: 0;
+  color: var(--public-ds-text);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.order-app-access__state {
+  margin: 0;
+  color: var(--public-ds-text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.order-app-access__state--registered {
+  color: var(--public-ds-success);
+}
+
+.order-app-access__link {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--public-ds-border);
+  border-radius: 6px;
+  background: var(--public-ds-card);
+  color: var(--public-ds-text);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.order-app-access__link:hover {
+  border-color: var(--public-ds-accent);
+  color: var(--public-ds-accent);
+}
+
+.order-app-access__notice,
+.app-package-notice {
+  margin: 0;
+  color: var(--public-ds-text-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.app-package-notice p {
+  margin: 0;
+}
+
+.public-detail-hero__app-notice {
+  margin-top: 8px;
+}
+
+.order-section__app-notice {
+  margin-top: 10px;
+}
