@@ -1,0 +1,294 @@
+import { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { ilseongAdmin, useIlseongData } from "../../lib/ilseongAdmin";
+import { formatCount, formatDate, formatDateTime, platformLabel, providersLabel } from "../../lib/ilseongFormat";
+import { ChevronLeftIcon, SearchIcon } from "../icons";
+import { CodeCard } from "./IlseongCodes";
+import {
+  Badge,
+  EmptyNote,
+  ErrorNote,
+  FIELD_CLASS,
+  Facts,
+  LoadingNote,
+  SMALL_BUTTON,
+  Section,
+  SubjectDot,
+  TABLE_CLASS,
+  TD_CLASS,
+  TH_CLASS,
+  ilseongPath,
+  useIlseongFeedback,
+} from "./IlseongUi";
+
+// 앱 회원 — 앱에 한 번이라도 로그인한 사람. 찾기, 자세히(기기·교재·진도), 기기 해제, 교재 직접 등록.
+// 고객 문의에 답할 때 쓴다. 수북 회원 목록(고객 › 회원)과는 다른 목록이다: 앱 서버가 가진 앱 계정이다.
+
+export default function IlseongUsers({ userId }) {
+  return userId ? <UserDetail key={userId} userId={userId} /> : <UserList />;
+}
+
+function UserList() {
+  const navigate = useNavigate();
+  const [input, setInput] = useState("");
+  const [query, setQuery] = useState("");
+  useEffect(() => {
+    const timer = window.setTimeout(() => setQuery(input.trim()), 250);
+    return () => window.clearTimeout(timer);
+  }, [input]);
+
+  const users = useIlseongData(`/api/admin/users?q=${encodeURIComponent(query)}`, { keepPrevious: true });
+  const list = users.data;
+
+  return (
+    <Section>
+      <label className="relative block">
+        <span className="sr-only">앱 회원 찾기</span>
+        <SearchIcon className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+        <input
+          autoFocus
+          className={`${FIELD_CLASS} !pl-10`}
+          onChange={(event) => setInput(event.target.value)}
+          placeholder="앱 회원 번호 또는 이름"
+          type="search"
+          value={input}
+        />
+      </label>
+      <p className="mt-2 text-[13px] text-slate-400">앱 회원 번호나 이름 일부로 찾아요. 비워 두면 최근에 가입한 50명이 보여요.</p>
+
+      <div className="mt-4">
+        {!list ? <ErrorNote error={users.error} onRetry={() => void users.reload()} /> : null}
+        {users.loading && !list ? <LoadingNote /> : null}
+        {list && list.length === 0 ? <EmptyNote>찾는 회원이 없어요.</EmptyNote> : null}
+        {list && list.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className={`${TABLE_CLASS} min-w-[540px]`}>
+              <thead>
+                <tr>
+                  <th className={TH_CLASS}>번호</th>
+                  <th className={TH_CLASS}>이름</th>
+                  <th className={TH_CLASS}>로그인</th>
+                  <th className={TH_CLASS}>가입한 날</th>
+                  <th className={TH_CLASS} />
+                </tr>
+              </thead>
+              <tbody>
+                {list.map((user) => (
+                  <tr
+                    className="cursor-pointer transition-colors hover:bg-slate-50"
+                    key={user.id}
+                    onClick={() => navigate(ilseongPath("users", user.id))}
+                  >
+                    <td className={`${TD_CLASS} tabular-nums text-slate-400`}>{user.id}</td>
+                    <td className={TD_CLASS}>
+                      {/* 줄 전체를 누를 수 있지만, 키보드로도 들어갈 수 있게 이름은 링크로 둔다 */}
+                      <Link className="font-semibold text-slate-900 hover:underline" onClick={(event) => event.stopPropagation()} to={ilseongPath("users", user.id)}>
+                        {user.name ?? <span className="font-normal text-slate-400">이름 없음</span>}
+                      </Link>
+                    </td>
+                    <td className={`${TD_CLASS} whitespace-nowrap`}>{providersLabel(user.providers)}</td>
+                    <td className={`${TD_CLASS} whitespace-nowrap text-slate-500`}>{formatDate(user.createdAt)}</td>
+                    <td className={`${TD_CLASS} !pr-0 text-right`}>
+                      <span className="inline-flex gap-1.5">
+                        {user.role === "ADMIN" ? <Badge tone="blue">관리자</Badge> : null}
+                        {user.deletedAt ? <Badge tone="red">탈퇴</Badge> : null}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+      </div>
+    </Section>
+  );
+}
+
+function UserDetail({ userId }) {
+  const detail = useIlseongData(`/api/admin/users/${userId}`);
+  const data = detail.data;
+  const reload = () => void detail.reload({ quiet: true });
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <Link className="inline-flex items-center gap-0.5 text-[13px] font-semibold text-slate-500 hover:text-slate-800" to={ilseongPath("users")}>
+          <ChevronLeftIcon size={14} />
+          앱 회원 목록
+        </Link>
+        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+          <h2 className="text-xl font-bold tracking-tight text-slate-900">{data ? (data.user.name ?? "이름 없음") : `${userId}번 회원`}</h2>
+          <span className="text-sm tabular-nums text-slate-400">{userId}번</span>
+          {data?.user.role === "ADMIN" ? <Badge tone="blue">관리자</Badge> : null}
+          {data?.user.deletedAt ? <Badge tone="red">{formatDate(data.user.deletedAt)} 탈퇴</Badge> : null}
+        </div>
+      </div>
+
+      {!data ? <ErrorNote error={detail.error} onRetry={() => void detail.reload()} /> : null}
+      {detail.loading && !data ? <LoadingNote /> : null}
+      {data ? (
+        <>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <Section title="정보">
+              <Facts
+                rows={[
+                  ["로그인", providersLabel(data.user.providers)],
+                  ["가입한 날", formatDate(data.user.createdAt)],
+                  ["마지막 공부", data.lastStudyDate ? formatDate(data.lastStudyDate) : "아직 없음"],
+                  ["공부한 날", `${formatCount(data.studyDays)}일`],
+                  ["크레딧", formatCount(data.creditBalance)],
+                ]}
+              />
+            </Section>
+            <Section sub="가진 교재의 DAY 중 끝낸 수" title="진도">
+              <div className="space-y-3.5">
+                {data.progress.map((subject) => (
+                  <div key={subject.code}>
+                    <div className="flex items-center justify-between gap-2 text-sm">
+                      <span className="text-slate-800"><SubjectDot color={subject.color} />{subject.name}</span>
+                      <span className="tabular-nums text-slate-500">
+                        {subject.ownedBooks === 0 ? "교재 없음" : `${formatCount(subject.completedDays)} / ${formatCount(subject.totalDays)}`}
+                      </span>
+                    </div>
+                    <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-slate-100">
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: subject.totalDays ? `${Math.round((subject.completedDays / subject.totalDays) * 100)}%` : 0,
+                          background: subject.color,
+                        }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Section>
+          </div>
+          <Devices devices={data.devices} onChanged={reload} userId={userId} />
+          <Books detail={data} onChanged={reload} onGranted={detail.setData} userId={userId} />
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * 등록한 교재(구매로 자동 등록된 것, 직접 등록한 것)와 교재 직접 등록.
+ * 앱에는 코드 입력이 없어서, 구매 없이 열어 줄 때(체험·교사용·문의 대응)는 여기서 등록한다(앱 저장소 docs/adr/0036).
+ */
+function Books({ userId, detail, onGranted, onChanged }) {
+  const { confirm, toast } = useIlseongFeedback();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+
+  const grant = async () => {
+    const ok = await confirm({
+      title: "이 회원에게 교재를 등록할까요?",
+      message:
+        "판매 중인 교재가 모두 이 회원의 책장에 등록돼요. 수북에서 구매한 회원은 자동으로 등록되니, 구매 없이 열어 줄 때만 써 주세요.\n등록한 뒤에는 아래 목록에서 다시 거둘 수 있어요.",
+      confirm: "등록",
+    });
+    if (!ok) return;
+    setBusy(true);
+    setError(null);
+    try {
+      onGranted(await ilseongAdmin.request("POST", `/api/admin/users/${userId}/books`));
+      toast("교재를 등록했어요");
+    } catch (requestError) {
+      setError(requestError);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Section
+      right={
+        detail.user.deletedAt ? null : (
+          <button className={`btn-primary !w-auto ${SMALL_BUTTON}`} disabled={busy} onClick={() => void grant()} type="button">
+            교재 직접 등록
+          </button>
+        )
+      }
+      sub="수북에서 구매한 회원은 앱에 로그인하면 자동으로 등록돼요."
+      title="등록한 교재"
+    >
+      <ErrorNote className="mb-3" error={error} />
+      {detail.codes.length === 0 ? (
+        <EmptyNote>등록한 교재가 없어요.</EmptyNote>
+      ) : (
+        <div className="divide-y divide-slate-100">
+          {detail.codes.map((code) => (
+            <div className="py-4 first:pt-0 last:pb-0" key={code.id}>
+              <CodeCard code={code} onChanged={onChanged} />
+            </div>
+          ))}
+        </div>
+      )}
+    </Section>
+  );
+}
+
+function Devices({ userId, devices, onChanged }) {
+  const { confirm, toast } = useIlseongFeedback();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+
+  const unlink = async (device) => {
+    const ok = await confirm({
+      title: `'${device.name}'을 해제할까요?`,
+      message: "그 기기에서는 로그아웃돼요. 필기와 진도는 계정에 남아 있어서, 다시 로그인하면 그대로 보여요.",
+      confirm: "해제",
+      danger: true,
+    });
+    if (!ok) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await ilseongAdmin.request("DELETE", `/api/admin/users/${userId}/devices/${device.id}`);
+      toast("기기를 해제했어요");
+      onChanged();
+    } catch (requestError) {
+      setError(requestError);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Section sub="기기 수를 넘어 새 기기로 로그인하지 못할 때 쓰지 않는 기기를 해제해요." title="로그인한 기기">
+      <ErrorNote className="mb-3" error={error} />
+      {devices.length === 0 ? (
+        <EmptyNote>로그인한 기기가 없어요.</EmptyNote>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className={`${TABLE_CLASS} min-w-[560px]`}>
+            <thead>
+              <tr>
+                <th className={TH_CLASS}>기기</th>
+                <th className={TH_CLASS}>종류</th>
+                <th className={TH_CLASS}>처음 로그인</th>
+                <th className={TH_CLASS}>마지막 사용</th>
+                <th className={TH_CLASS} />
+              </tr>
+            </thead>
+            <tbody>
+              {devices.map((device) => (
+                <tr key={device.id}>
+                  <td className={TD_CLASS}>{device.name}</td>
+                  <td className={`${TD_CLASS} whitespace-nowrap`}>{platformLabel(device.platform)}</td>
+                  <td className={`${TD_CLASS} whitespace-nowrap text-slate-500`}>{formatDate(device.createdAt)}</td>
+                  <td className={`${TD_CLASS} whitespace-nowrap text-slate-500`}>{formatDateTime(device.lastSeenAt)}</td>
+                  <td className={`${TD_CLASS} !pr-0 text-right`}>
+                    <button className={`btn-danger-weak ${SMALL_BUTTON}`} disabled={busy} onClick={() => void unlink(device)} type="button">해제</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Section>
+  );
+}

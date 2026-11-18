@@ -120,4 +120,10 @@ test("일성월심 앱 관리는 상품·재고 메뉴의 탭이고, 화면 안 
   assert.equal(app.isMenuRoute, true);
   const commands = buildAdminCommands();
   assert.equal(searchAdminCommands("일성월심 교재 코드", commands)[0].to, "/admin/ilseong?view=codes");
+  // 옮겨 온 앱 관리 기능을 운영자가 부르는 말로 찾는다
+  assert.equal(searchAdminCommands("기기 해제", commands)[0].to, "/admin/ilseong?view=users");
+  assert.equal(searchAdminCommands("교재 직접 등록", commands)[0].to, "/admin/ilseong?view=users");
+  assert.equal(searchAdminCommands("PDF 올리기", commands)[0].to, "/admin/ilseong?view=books");
+  assert.equal(searchAdminCommands("캡처 막기", commands)[0].to, "/admin/ilseong?view=app-config");
+  assert.equal(searchAdminCommands("앱 관리 기록", commands)[0].to, "/admin/ilseong?view=actions");
 });

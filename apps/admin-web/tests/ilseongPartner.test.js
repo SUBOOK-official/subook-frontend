@@ -218,7 +218,7 @@ test("주문 맞추기: 앱 서버에 주문이 아예 없으면(404) 폐기 요
   assert.deepEqual(marks, [["501-1"]]);
 });
 
-test("앱 관리 화면 입장권: 서명한 요청으로 직원 본인 것을 받는다", async () => {
+test("앱 서버 직원 로그인 입장권: 서명한 요청으로 직원 본인 것을 받는다", async () => {
   const seen = [];
   const fetchImpl = async (url, init) => {
     seen.push({ url, init });
@@ -235,7 +235,8 @@ test("앱 관리 화면 입장권: 서명한 요청으로 직원 본인 것을 �
     userEmail: "staff@subook.test",
     clientFactory: (options) => createIlseongClient({ ...options, fetchImpl }),
   });
-  assert.deepEqual(result, { ticket: "one-time-ticket", adminUrl: "https://app.test/admin/" });
+  // 화면이 부를 앱 서버 주소를 함께 준다(끝의 /는 뗀다)
+  assert.deepEqual(result, { ticket: "one-time-ticket", apiBaseUrl: "https://app.test" });
   assert.equal(seen.length, 1);
   assert.equal(seen[0].url, "https://app.test/api/partner/admin-tickets");
   assert.equal(seen[0].init.method, "POST");
@@ -247,7 +248,7 @@ test("앱 관리 화면 입장권: 서명한 요청으로 직원 본인 것을 �
   assert.match(seen[0].init.headers["X-Ilseong-Signature"], /^[0-9a-f]{64}$/);
 });
 
-test("앱 관리 화면 입장권: 연결 설정이 없거나 직원을 알 수 없으면 앱 서버를 부르지 않는다", async () => {
+test("앱 서버 직원 로그인 입장권: 연결 설정이 없거나 직원을 알 수 없으면 앱 서버를 부르지 않는다", async () => {
   let called = false;
   const clientFactory = () => { called = true; return { adminTicket: async () => ({ ticket: "x" }) }; };
   const base = { action: "admin_ticket", body: {}, service: fakeService({}), notify: async () => ({ ok: true }), clientFactory };
@@ -260,15 +261,15 @@ test("앱 관리 화면 입장권: 연결 설정이 없거나 직원을 알 수 
   assert.equal(called, false);
 });
 
-test("관리 API 요약: 연결돼 있으면 앱 관리 화면 주소를 함께 준다", async () => {
+test("관리 API 요약: 연결돼 있으면 화면이 부를 앱 서버 주소를 함께 준다", async () => {
   const service = fakeService({ ilseong_app_admin_overview: () => ({ counts: {} }) });
   const on = await handleAdminAction({
     action: "overview", body: {}, service, notify: async () => ({ ok: true }),
     config: getIlseongConfig({ ILSEONG_API_BASE_URL: "https://app.test", ILSEONG_PARTNER_SECRET: SECRET }),
   });
-  assert.equal(on.adminUrl, "https://app.test/admin/");
+  assert.equal(on.apiBaseUrl, "https://app.test");
   const off = await handleAdminAction({ action: "overview", body: {}, service, notify: async () => ({ ok: true }), config: getIlseongConfig({}) });
-  assert.equal(off.adminUrl, null);
+  assert.equal(off.apiBaseUrl, null);
 });
 
 test("코드 발급: 주문한 회원을 함께 보낸다(비회원 주문이면 보내지 않는다)", async () => {

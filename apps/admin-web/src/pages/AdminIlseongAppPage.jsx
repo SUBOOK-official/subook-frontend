@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
-import { supabase } from "@shared-supabase/adminSupabaseClient";
 import { ILSEONG_APP_REFUND_POLICIES } from "@shared-domain/ilseongApp";
+import { callIlseongSalesApi as callIlseongApi } from "../lib/ilseongAdmin";
 
 // 일성월심 앱 패키지(수북 판매 연결) — 앱 서버 연결 상태, 판매 켜기/끄기, 환불 시 처리 방식,
 // 앱 등록 대기열, 주문별 앱 등록 상태.
@@ -13,25 +13,6 @@ const LINE_STATUS_LABELS = {
   redeemed: "앱에 등록됨",
   revoked: "사용 종료",
 };
-
-async function callIlseongApi({ method = "POST", payload = null }) {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.access_token) throw new Error("로그인이 필요합니다.");
-  const url = method === "GET" ? "/api/admin/ilseong-app-codes?action=overview" : "/api/admin/ilseong-app-codes";
-  const response = await fetch(url, {
-    method,
-    headers: {
-      Authorization: `Bearer ${session.access_token}`,
-      ...(method === "GET" ? {} : { "Content-Type": "application/json" }),
-    },
-    body: method === "GET" ? undefined : JSON.stringify(payload),
-  });
-  const result = await response.json().catch(() => ({}));
-  if (!response.ok || result?.success === false) {
-    throw new Error(result?.error || `요청에 실패했습니다. (${response.status})`);
-  }
-  return result;
-}
 
 function formatDateTime(value) {
   if (!value) return "-";
