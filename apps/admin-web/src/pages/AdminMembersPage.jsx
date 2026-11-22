@@ -6,6 +6,7 @@ import { SearchIcon } from "../components/icons";
 import AdminDialog from "../components/AdminDialog";
 import AdminShell from "../components/AdminShell";
 import MemberPointsPanel from "../components/MemberPointsPanel";
+import MemberAppSection from "../components/ilseong/MemberAppSection";
 import AdminPagination from "../components/AdminPagination";
 import DestructiveConfirmModal from "../components/DestructiveConfirmModal";
 import { formatCurrency, formatDate } from "@shared-domain/format";
@@ -796,6 +797,9 @@ function AdminMembersPage() {
                     </div>
                   </div>
                 </DetailSection>
+
+                {/* 일성월심 앱: 이 회원의 앱 상태와 앱 교재 미리 등록(앱에 아직 로그인하지 않은 회원도) */}
+                <MemberAppSection memberId={detailMember?.user_id} />
 
                 <div className="grid gap-5 lg:grid-cols-2">
                   <DetailSection title="배송지">

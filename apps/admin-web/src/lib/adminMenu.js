@@ -165,6 +165,7 @@ export const ADMIN_MENU = [
         ],
         shortcuts: [
           { label: "차단한 회원", to: "/admin/members?status=blocked", keywords: ["차단", "어뷰징"] },
+          { label: "일성월심 앱 교재 미리 등록", to: "/admin/members", keywords: ["앱 교재", "미리 등록", "일성월심", "앱 로그인 전"] },
         ],
       },
       {

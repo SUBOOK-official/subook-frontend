@@ -78,6 +78,8 @@ export const platformLabel = (platform) => PLATFORMS[platform] ?? platform;
 const ACTIONS = {
   CODE_BATCH_ISSUE: "코드 만들기",
   USER_GRANT: "교재 직접 등록",
+  MEMBER_PREGRANT: "교재 미리 등록",
+  MEMBER_PREGRANT_CANCEL: "미리 등록 취소",
   CODE_REVOKE: "코드 폐기",
   CODE_BATCH_REVOKE: "묶음 폐기",
   DEVICE_UNLINK: "기기 해제",
@@ -91,16 +93,19 @@ export const actionLabel = (action) => ACTIONS[action] ?? action;
 const TARGET_KINDS = { code: "코드", batch: "묶음", book: "교재" };
 
 /**
- * 관리 기록의 대상("user:12/device:3", "book:5", "app-config") → 보여 줄 말과, 회원이면 그 번호.
- * @returns {{ text: string, userId: number|null }}
+ * 관리 기록의 대상("user:12/device:3", "book:5", "app-config", "member:수북 회원 UUID")
+ * → 보여 줄 말과, 앱 회원이면 그 번호, 수북 회원이면 그 UUID(아직 앱에 로그인하지 않은 회원에게 미리 등록한 기록).
+ * @returns {{ text: string, userId: number|null, memberRef: string|null }}
  */
 export function actionTarget(target) {
   const text = String(target || "");
   const user = /^user:(\d+)/.exec(text);
-  if (user) return { text: `${user[1]}번 회원`, userId: Number(user[1]) };
-  if (text === "app-config") return { text: "앱 설정", userId: null };
+  if (user) return { text: `${user[1]}번 회원`, userId: Number(user[1]), memberRef: null };
+  const member = /^member:([0-9a-f-]{36})$/.exec(text);
+  if (member) return { text: "수북 회원", userId: null, memberRef: member[1] };
+  if (text === "app-config") return { text: "앱 설정", userId: null, memberRef: null };
   const [kind, id] = text.split(":");
-  return { text: TARGET_KINDS[kind] && id ? `${TARGET_KINDS[kind]} ${id}번` : text, userId: null };
+  return { text: TARGET_KINDS[kind] && id ? `${TARGET_KINDS[kind]} ${id}번` : text, userId: null, memberRef: null };
 }
 
 /** 1.0.2 같은 버전을 숫자 묶음으로. 견줄 수 없으면 null. */

@@ -172,7 +172,8 @@ export function UserLink({ userId, children }) {
 }
 
 // ── 확인 창·알림 ─────────────────────────────────────────────
-// confirm({ title, message, confirm, danger }) → 눌렀으면 true. toast("…") → 아래쪽에 잠깐 뜬다.
+// confirm({ title, message, confirm, danger, cancel }) → 눌렀으면 true. toast("…") → 아래쪽에 잠깐 뜬다.
+// cancel은 그만두는 버튼의 글자(기본 "취소"). 하려는 일이 "…취소"일 때는 헷갈리지 않게 "닫기"로 바꿔 쓴다.
 
 const FeedbackContext = createContext(null);
 
@@ -200,7 +201,7 @@ export function IlseongFeedbackProvider({ children }) {
       <AdminDialog
         footer={
           <div className="flex justify-end gap-2">
-            <button className="btn-secondary !px-4 !py-2" onClick={() => close(false)} type="button">취소</button>
+            <button className="btn-secondary !px-4 !py-2" onClick={() => close(false)} type="button">{dialog?.cancel ?? "취소"}</button>
             <button className={`${dialog?.danger ? "btn-danger" : "btn-primary !w-auto"} !px-4 !py-2`} onClick={() => close(true)} type="button">
               {dialog?.confirm}
             </button>

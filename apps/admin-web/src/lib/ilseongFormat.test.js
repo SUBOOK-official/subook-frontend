@@ -47,17 +47,26 @@ test("앱 서버가 주는 값을 운영자가 읽는 말로 바꾼다", () => {
   assert.equal(platformLabel("IOS"), "iPhone·iPad");
   assert.equal(platformLabel("TV"), "TV");
   assert.equal(actionLabel("USER_GRANT"), "교재 직접 등록");
+  assert.equal(actionLabel("MEMBER_PREGRANT"), "교재 미리 등록");
+  assert.equal(actionLabel("MEMBER_PREGRANT_CANCEL"), "미리 등록 취소");
   assert.equal(actionLabel("SOMETHING_NEW"), "SOMETHING_NEW");
 });
 
 test("관리 기록의 대상: 회원이면 그 번호를 함께 준다", () => {
-  assert.deepEqual(actionTarget("user:12/device:3"), { text: "12번 회원", userId: 12 });
-  assert.deepEqual(actionTarget("user:7/code:41"), { text: "7번 회원", userId: 7 });
-  assert.deepEqual(actionTarget("book:5"), { text: "교재 5번", userId: null });
-  assert.deepEqual(actionTarget("batch:9"), { text: "묶음 9번", userId: null });
-  assert.deepEqual(actionTarget("code:33"), { text: "코드 33번", userId: null });
-  assert.deepEqual(actionTarget("app-config"), { text: "앱 설정", userId: null });
-  assert.deepEqual(actionTarget("something"), { text: "something", userId: null });
+  assert.deepEqual(actionTarget("user:12/device:3"), { text: "12번 회원", userId: 12, memberRef: null });
+  assert.deepEqual(actionTarget("user:7/code:41"), { text: "7번 회원", userId: 7, memberRef: null });
+  assert.deepEqual(actionTarget("book:5"), { text: "교재 5번", userId: null, memberRef: null });
+  assert.deepEqual(actionTarget("batch:9"), { text: "묶음 9번", userId: null, memberRef: null });
+  assert.deepEqual(actionTarget("code:33"), { text: "코드 33번", userId: null, memberRef: null });
+  assert.deepEqual(actionTarget("app-config"), { text: "앱 설정", userId: null, memberRef: null });
+  assert.deepEqual(actionTarget("something"), { text: "something", userId: null, memberRef: null });
+  // 아직 앱에 로그인하지 않은 수북 회원에게 미리 등록한 기록: 수북 회원 화면으로 잇는다
+  assert.deepEqual(actionTarget("member:7a2d5b84-0000-4000-8000-0000000000aa"), {
+    text: "수북 회원",
+    userId: null,
+    memberRef: "7a2d5b84-0000-4000-8000-0000000000aa",
+  });
+  assert.equal(actionTarget("member:not-a-uuid").memberRef, null);
 });
 
 test("버전 견주기: 자리마다 숫자로 견준다", () => {

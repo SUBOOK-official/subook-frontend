@@ -23,6 +23,8 @@ import {
 
 // 앱 회원 — 앱에 한 번이라도 로그인한 사람. 찾기, 자세히(기기·교재·진도), 기기 해제, 교재 직접 등록.
 // 고객 문의에 답할 때 쓴다. 수북 회원 목록(고객 › 회원)과는 다른 목록이다: 앱 서버가 가진 앱 계정이다.
+// 앱에 아직 로그인하지 않은 수북 회원은 여기에 없다. 그런 회원에게 교재를 미리 등록하는 일은 수북 회원 상세의
+// 「일성월심 앱」 칸에서 한다(MemberAppSection, 앱 저장소 docs/adr/0038).
 
 export default function IlseongUsers({ userId }) {
   return userId ? <UserDetail key={userId} userId={userId} /> : <UserList />;
@@ -55,6 +57,11 @@ function UserList() {
         />
       </label>
       <p className="mt-2 text-[13px] text-slate-400">앱 회원 번호나 이름 일부로 찾아요. 비워 두면 최근에 가입한 50명이 보여요.</p>
+      <p className="mt-1 text-[13px] text-slate-500">
+        앱에 아직 로그인하지 않은 회원은 여기에 없어요. 그런 회원에게 교재를 미리 등록하려면{" "}
+        <Link className="font-semibold text-brand hover:underline" to="/admin/members">고객 › 회원</Link>에서 회원을 찾아 상세의
+        「일성월심 앱」 칸을 써 주세요.
+      </p>
 
       <div className="mt-4">
         {!list ? <ErrorNote error={users.error} onRetry={() => void users.reload()} /> : null}
@@ -134,6 +141,9 @@ function UserDetail({ userId }) {
               <Facts
                 rows={[
                   ["로그인", providersLabel(data.user.providers)],
+                  ["수북 회원", data.subookMemberRef
+                    ? <Link className="font-semibold text-brand hover:underline" key="member" to={`/admin/members?member=${data.subookMemberRef}`}>회원 화면에서 보기</Link>
+                    : null],
                   ["가입한 날", formatDate(data.user.createdAt)],
                   ["마지막 공부", data.lastStudyDate ? formatDate(data.lastStudyDate) : "아직 없음"],
                   ["공부한 날", `${formatCount(data.studyDays)}일`],
