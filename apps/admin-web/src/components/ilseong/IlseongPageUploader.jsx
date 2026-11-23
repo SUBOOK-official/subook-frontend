@@ -172,6 +172,9 @@ export default function IlseongPageUploader({ book, onBusy, onDone }) {
             {step.pages.length}쪽을 준비했어요. <strong className="font-bold text-slate-900">{book.title}</strong> 교재가 맞는지, 쪽 순서가 맞는지 보고 올려 주세요.
           </p>
           <PageThumbs pages={preview(step.pages)} />
+          {step.pages.some((page) => page.padded) ? (
+            <WarnNote>크기가 B5와 다른 쪽은 흰 여백을 넣어 B5 모양에 맞췄어요. 앱에서는 쪽 가운데에 조금 작게 보여요.</WarnNote>
+          ) : null}
           {step.kind === "uploading" ? (
             <Progress label={`올리는 중 ${step.done}/${step.pages.length}`} ratio={step.done / step.pages.length} />
           ) : (

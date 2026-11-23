@@ -154,6 +154,8 @@ function BookEditor({ book, dayWord, onClose, onSaved, onUploaded }) {
   const [pages, setPages] = useState(toText(book.pageCount));
   const [days, setDays] = useState(book.days.map((day) => ({ dayNo: day.dayNo, label: day.label, start: toText(day.startPage), end: toText(day.endPage) })));
   const [bump, setBump] = useState(false);
+  // 정답과 해설이 시작하는 쪽(그 쪽부터 끝까지가 해설). 비우면 해설이 없는 교재
+  const [answers, setAnswers] = useState(toText(book.answerStartPage));
   // 쪽 이미지를 바꾸거나 올리는 중에는 바깥을 눌러도 닫지 않는다(준비한 쪽을 잃지 않게)
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -180,6 +182,7 @@ function BookEditor({ book, dayWord, onClose, onSaved, onUploaded }) {
         pageCount: toNumber(pages),
         bumpVersion: bump,
         days: days.map((day) => ({ dayNo: day.dayNo, startPage: toNumber(day.start), endPage: toNumber(day.end) })),
+        answerStartPage: toNumber(answers),
       });
       onSaved();
     } catch (requestError) {
@@ -238,6 +241,23 @@ function BookEditor({ book, dayWord, onClose, onSaved, onUploaded }) {
               ) : null}
             </div>
           ))}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-slate-100 pt-3">
+            <span className="w-24 shrink-0 text-sm font-semibold text-slate-600">정답과 해설</span>
+            <input
+              aria-label="정답과 해설이 시작하는 쪽"
+              className={NUMBER_FIELD}
+              inputMode="numeric"
+              onChange={(event) => {
+                setError(null);
+                setAnswers(digits(event.target.value));
+              }}
+              value={answers}
+            />
+            <span className="text-sm text-slate-400">쪽부터 끝까지</span>
+            <span className="basis-full text-[13px] leading-relaxed text-slate-400">
+              해설을 본문 뒤에 이어 붙여 올렸을 때만 적어요. 학생 앱에 '정답과 해설'로 보여요. 해설이 없으면 비워 두세요.
+            </span>
+          </div>
           <ErrorNote error={error} />
         </form>
         <Disclosure sub="개발자가 알려 줄 때만 써요." title="개발자용">

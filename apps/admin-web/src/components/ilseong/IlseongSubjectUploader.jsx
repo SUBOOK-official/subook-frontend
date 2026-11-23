@@ -3,13 +3,14 @@ import AdminDialog from "../AdminDialog";
 import { BusyText } from "../Loading";
 import { ilseongAdmin } from "../../lib/ilseongAdmin";
 import { PagePrepareError, openPageSource } from "../../lib/ilseongPageImages";
-import { defaultLayoutText, layoutDayRanges, layoutPageCount, planSubjectUpload } from "../../lib/ilseongPageLayout";
+import { answerStartOf, defaultLayoutText, layoutDayRanges, layoutPageCount, planLabel, planSubjectUpload, sourcePageOf } from "../../lib/ilseongPageLayout";
 import { putPageWithRetry } from "./IlseongPageUploader";
 import { CheckRow, ErrorNote, FIELD_CLASS, Field, PageThumbs, Progress, WarnNote, useIlseongFeedback } from "./IlseongUi";
 
 /**
  * 한 과목의 모든 교재를 PDF로 한 번에 올린다. PDF는 한 파일이어도, 여러 파일이어도 된다(이름 순서로 잇는다).
  * 교재마다 "도입, 하루 분량 1, 2, …"의 쪽 수를 적으면 그만큼씩 잘라 그 교재에 넣고 하루 분량별 쪽 범위도 함께 정한다.
+ * 해설이 본문 뒤에 붙어 있는 PDF면 교재마다 해설 쪽 수를 적는다. 해설은 그 교재의 뒤쪽으로 들어가고 앱에 "정답과 해설"로 보인다.
  * 올리다 끊기면 끝난 교재는 그대로 두고, 다시 누르면 남은 교재부터 이어서 올린다.
  *
  * words: 이 학습지에서 교재 한 권·하루 분량을 부르는 말({ unit: "주차", day: "Day" }).
@@ -27,6 +28,9 @@ export default function IlseongSubjectUploader({ books, words = { unit: "주차"
   const [reading, setReading] = useState(false);
   const [layouts, setLayouts] = useState(() => weeks.map((book) => defaultLayoutText(book.days.length)));
   const [perWeek, setPerWeek] = useState(!sameShape);
+  // 해설: 교재마다의 쪽 수 글과, 해설이 PDF 어디에 있는지
+  const [answersText, setAnswersText] = useState("");
+  const [answersAtEnd, setAnswersAtEnd] = useState(false);
   const [covers, setCovers] = useState([]);
   const [run, setRun] = useState(null);
   const [doneWeeks, setDoneWeeks] = useState([]);
@@ -100,12 +104,15 @@ export default function IlseongSubjectUploader({ books, words = { unit: "주차"
     void reopen([...picked.current.filter((file) => !names.has(file.name)), ...added]);
   };
 
-  const plan = useMemo(() => planSubjectUpload(weeks, layouts), [weeks, layouts]);
+  const plan = useMemo(
+    () => planSubjectUpload(weeks, layouts, { text: answersText, atEnd: answersAtEnd }),
+    [weeks, layouts, answersText, answersAtEnd],
+  );
   const { plans, parsed, total: planned } = plan;
   const mismatch = source !== null && !plan.problem && planned !== source.total;
   const ready = source !== null && !plan.problem && !mismatch && plans.length > 0;
 
-  // 나눈 결과를 눈으로 확인하도록 주차마다 첫 쪽을 보여 준다
+  // 나눈 결과를 눈으로 확인하도록 주차마다 첫 쪽(해설이 있으면 해설의 첫 쪽도)을 보여 준다
   useEffect(() => {
     if (!ready || !source || !idle) return undefined;
     let stale = false;
@@ -115,6 +122,10 @@ export default function IlseongSubjectUploader({ books, words = { unit: "주차"
         if (stale) break;
         const blob = await source.page(entry.first);
         made.push({ id: entry.book.id, label: entry.book.label, url: URL.createObjectURL(blob) });
+        if (entry.answerPages > 0 && !stale) {
+          const answer = await source.page(entry.answerFirst);
+          made.push({ id: `${entry.book.id}-answers`, label: `${entry.book.label} 해설`, url: URL.createObjectURL(answer) });
+        }
       }
       if (stale || closed.current) {
         made.forEach((cover) => URL.revokeObjectURL(cover.url));
@@ -159,7 +170,7 @@ export default function IlseongSubjectUploader({ books, words = { unit: "주차"
         const { uploadId } = await ilseongAdmin.request("POST", `/api/admin/books/${bookId}/uploads`);
         for (let k = 0; k < entry.pages; k += 1) {
           if (closed.current) return;
-          const blob = await source.page(entry.first + k);
+          const blob = await source.page(sourcePageOf(entry, k + 1));
           await putPageWithRetry(`/api/admin/books/${bookId}/uploads/${uploadId}/pages/${k + 1}`, blob);
           overall += 1;
           if (!closed.current) setRun({ label: entry.book.label, done: k + 1, total: entry.pages, overall: overall / all });
@@ -170,6 +181,7 @@ export default function IlseongSubjectUploader({ books, words = { unit: "주차"
           pageCount: entry.pages,
           bumpVersion: false,
           days: layoutDayRanges(entry.book, entry.layout),
+          answerStartPage: answerStartOf(entry),
         });
         finished.push(entry.book.id);
         if (!closed.current) setDoneWeeks([...finished]);
@@ -260,6 +272,22 @@ export default function IlseongSubjectUploader({ books, words = { unit: "주차"
           </div>
         ) : null}
 
+        <Field label="해설이 PDF에 함께 있으면: 교재마다 해설 쪽 수(없으면 비워 두세요)">
+          <input
+            aria-label="교재마다 해설 쪽 수"
+            className={FIELD_CLASS}
+            disabled={busy}
+            onChange={(event) => setAnswersText(event.target.value)}
+            placeholder="예: 12 (모든 교재가 12쪽) 또는 12, 12, 13, 13, 14, 14, 13, 12 (교재마다)"
+            value={answersText}
+          />
+        </Field>
+        {answersText.trim() !== "" ? (
+          <CheckRow checked={answersAtEnd} disabled={busy} onChange={setAnswersAtEnd}>
+            해설이 PDF 맨 뒤에 모여 있어요. 표시하지 않으면 교재마다 본문 바로 뒤에 그 교재의 해설이 있는 것으로 봐요.
+          </CheckRow>
+        ) : null}
+
         {plan.problem ? <WarnNote>쪽 구성: {plan.problem}.</WarnNote> : null}
         {mismatch ? (
           <WarnNote>
@@ -270,8 +298,8 @@ export default function IlseongSubjectUploader({ books, words = { unit: "주차"
         {ready ? (
           <>
             <p className="text-sm leading-relaxed text-slate-600">
-              이렇게 나눠요. 교재마다 첫 쪽이 그 교재의 첫 쪽이 맞는지 확인해 주세요.{" "}
-              <span className="text-slate-500">{plans.map((entry) => `${entry.book.label} ${entry.first}–${entry.first + entry.pages - 1}쪽`).join(" · ")}</span>
+              이렇게 나눠요. 교재마다 첫 쪽이 그 교재의 첫 쪽이 맞는지{plans.some((entry) => entry.answerPages > 0) ? ", 해설의 첫 쪽이 그 교재 해설의 첫 쪽이 맞는지" : ""} 확인해 주세요.{" "}
+              <span className="text-slate-500">{plans.map(planLabel).join(" · ")}</span>
             </p>
             <PageThumbs
               pages={covers.map((cover) => ({
@@ -285,6 +313,9 @@ export default function IlseongSubjectUploader({ books, words = { unit: "주차"
           </>
         ) : null}
 
+        {source?.padded() ? (
+          <WarnNote>크기가 B5와 다른 쪽은 흰 여백을 넣어 B5 모양에 맞췄어요. 앱에서는 쪽 가운데에 조금 작게 보여요.</WarnNote>
+        ) : null}
         {run ? (
           <Progress label={`${run.label} 올리는 중 ${run.done}/${run.total} · 전체 ${Math.round(run.overall * 100)}%`} ratio={run.overall} />
         ) : null}

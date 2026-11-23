@@ -41,13 +41,31 @@ export function layoutDayRanges(book, layout) {
 }
 
 /**
+ * 교재마다의 해설 쪽 수를 읽는다. 빈 글 → 해설 없음, 숫자 하나 → 모든 교재에 같은 쪽 수, 교재 수만큼 → 교재마다.
+ * @param count 올릴 교재 수
+ */
+export function parseAnswerCounts(text, count) {
+  const parts = String(text || "").split(/[\s,]+/).filter(Boolean);
+  if (parts.length === 0) return Array(count).fill(0);
+  if (parts.some((part) => !/^\d{1,3}$/.test(part))) throw new Error("해설 쪽 수는 숫자만 쉼표로 나눠 적어 주세요");
+  const numbers = parts.map(Number);
+  if (numbers.length === 1) return Array(count).fill(numbers[0]);
+  if (numbers.length !== count) throw new Error(`해설 쪽 수는 숫자 하나(모든 교재에 같게)나 ${count}개(올릴 교재마다 하나씩)를 적어 주세요`);
+  return numbers;
+}
+
+/**
  * 주차별 구성 글을 읽어, 이어 붙인 PDF의 어느 쪽부터가 어느 주차인지 정한다.
+ * 해설이 있으면 교재의 쪽 = 본문 쪽 + 해설 쪽이고, 해설은 본문 바로 뒤에 놓인다(앱 저장소 docs/adr/0045).
  * @param weeks        주차 순서대로 놓은 교재
  * @param layoutTexts  주차마다의 구성 글(빈 글이면 그 주차는 건너뛴다)
- * @returns {{ parsed: {layout: object|null, problem: string|null}[], problem: string|null,
- *            plans: {book: object, layout: object, first: number, pages: number}[], total: number }}
+ * @param answers      { text: 교재마다의 해설 쪽 수 글, atEnd: 해설이 PDF 맨 뒤에 모여 있는가(아니면 교재마다 본문 뒤) }
+ * @returns {{ parsed: {layout: object|null, problem: string|null}[], problem: string|null, total: number,
+ *            plans: {book: object, layout: object, first: number, bodyPages: number,
+ *                    answerFirst: number|null, answerPages: number, pages: number}[] }}
+ *          first = 본문 첫 쪽이 PDF의 몇 쪽인가, answerFirst = 해설 첫 쪽이 PDF의 몇 쪽인가, pages = 그 교재의 쪽 수(본문 + 해설)
  */
-export function planSubjectUpload(weeks, layoutTexts) {
+export function planSubjectUpload(weeks, layoutTexts, answers = { text: "", atEnd: false }) {
   const parsed = weeks.map((book, index) => {
     try {
       return { layout: parseWeekLayout(layoutTexts[index], book.days.length), problem: null };
@@ -55,15 +73,51 @@ export function planSubjectUpload(weeks, layoutTexts) {
       return { layout: null, problem: error instanceof Error ? error.message : "구성을 읽지 못했어요" };
     }
   });
+  const included = parsed.map((entry, index) => ({ entry, index })).filter(({ entry }) => entry.layout);
+  let problem = parsed.find((entry) => entry.problem)?.problem ?? null;
+  let counts = Array(included.length).fill(0);
+  try {
+    counts = parseAnswerCounts(answers.text, included.length);
+  } catch (error) {
+    problem = problem ?? (error instanceof Error ? error.message : "해설 쪽 수를 읽지 못했어요");
+  }
   const plans = [];
   let cursor = 1;
-  parsed.forEach((entry, index) => {
-    if (!entry.layout) return;
-    const pages = layoutPageCount(entry.layout);
-    plans.push({ book: weeks[index], layout: entry.layout, first: cursor, pages });
-    cursor += pages;
+  included.forEach(({ entry, index }, order) => {
+    const bodyPages = layoutPageCount(entry.layout);
+    const answerPages = counts[order];
+    const plan = { book: weeks[index], layout: entry.layout, first: cursor, bodyPages, answerFirst: null, answerPages, pages: bodyPages + answerPages };
+    cursor += bodyPages;
+    if (!answers.atEnd && answerPages > 0) {
+      plan.answerFirst = cursor;
+      cursor += answerPages;
+    }
+    plans.push(plan);
   });
-  return { parsed, problem: parsed.find((entry) => entry.problem)?.problem ?? null, plans, total: cursor - 1 };
+  if (answers.atEnd) {
+    plans.forEach((plan) => {
+      if (plan.answerPages === 0) return;
+      plan.answerFirst = cursor;
+      cursor += plan.answerPages;
+    });
+  }
+  return { parsed, problem, plans, total: cursor - 1 };
+}
+
+/** 교재의 k번째 쪽(1부터)이 이어 붙인 PDF의 몇 쪽인가. 본문 다음에 해설이 온다. */
+export function sourcePageOf(plan, k) {
+  return k <= plan.bodyPages ? plan.first + k - 1 : plan.answerFirst + (k - plan.bodyPages - 1);
+}
+
+/** 해설이 시작하는 쪽(교재 안에서). 해설이 없으면 null. */
+export function answerStartOf(plan) {
+  return plan.answerPages > 0 ? plan.bodyPages + 1 : null;
+}
+
+/** "1주차 1–40쪽 + 해설 41–52쪽"처럼, PDF의 어느 쪽이 어느 교재로 가는지 한 줄로. */
+export function planLabel(plan) {
+  const body = `${plan.book.label} ${plan.first}–${plan.first + plan.bodyPages - 1}쪽`;
+  return plan.answerPages > 0 ? `${body} + 해설 ${plan.answerFirst}–${plan.answerFirst + plan.answerPages - 1}쪽` : body;
 }
 
 /** 교재 목록의 "DAY별 쪽" 칸. 정한 DAY가 없으면 null. */

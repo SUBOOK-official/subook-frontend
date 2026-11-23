@@ -8,8 +8,12 @@ import {
   layoutDayRanges,
   layoutPageCount,
   pageNumbersLabel,
+  answerStartOf,
+  parseAnswerCounts,
   parseWeekLayout,
+  planLabel,
   planSubjectUpload,
+  sourcePageOf,
 } from "./ilseongPageLayout.js";
 
 const days = (count) => Array.from({ length: count }, (_, index) => ({ dayNo: index + 1, startPage: null, endPage: null }));
@@ -108,4 +112,59 @@ test("이어 채우기: 앞 DAY 끝 다음 쪽부터 같은 쪽 수로", () => {
   assert.deepEqual(continueDayRange({ start: "", end: "8" }), { start: "9", end: "9" });
   assert.equal(continueDayRange({ start: "3", end: "" }), null);
   assert.equal(continueDayRange(undefined), null);
+});
+
+const labeled = (week) => ({ ...book(week), label: `${week}주차` });
+
+test("해설 쪽 수: 빈 글은 해설 없음, 숫자 하나는 모든 교재에, 교재 수만큼이면 교재마다", () => {
+  assert.deepEqual(parseAnswerCounts("", 3), [0, 0, 0]);
+  assert.deepEqual(parseAnswerCounts("12", 3), [12, 12, 12]);
+  assert.deepEqual(parseAnswerCounts("12, 13 14", 3), [12, 13, 14]);
+  assert.throws(() => parseAnswerCounts("12, 13", 3), /숫자 하나\(모든 교재에 같게\)나 3개/);
+  assert.throws(() => parseAnswerCounts("열두", 3), /숫자만/);
+});
+
+test("해설이 교재마다 본문 뒤에 있는 PDF: 본문 40쪽 + 해설을 차례로 자른다", () => {
+  const weeks = [labeled(1), labeled(2)];
+  const plan = planSubjectUpload(weeks, [DEFAULT_WEEK_LAYOUT, DEFAULT_WEEK_LAYOUT], { text: "12, 13", atEnd: false });
+  assert.equal(plan.problem, null);
+  assert.equal(plan.total, 40 + 12 + 40 + 13);
+  assert.deepEqual(
+    plan.plans.map((p) => [p.first, p.bodyPages, p.answerFirst, p.answerPages, p.pages]),
+    [[1, 40, 41, 12, 52], [53, 40, 93, 13, 53]],
+  );
+  // 교재의 41쪽(해설 첫 쪽)은 PDF의 41쪽, 2주차의 41쪽은 PDF의 93쪽
+  assert.equal(sourcePageOf(plan.plans[0], 40), 40);
+  assert.equal(sourcePageOf(plan.plans[0], 41), 41);
+  assert.equal(sourcePageOf(plan.plans[1], 1), 53);
+  assert.equal(sourcePageOf(plan.plans[1], 41), 93);
+  assert.equal(sourcePageOf(plan.plans[1], 53), 105);
+  assert.equal(answerStartOf(plan.plans[0]), 41);
+  assert.equal(planLabel(plan.plans[1]), "2주차 53–92쪽 + 해설 93–105쪽");
+});
+
+test("해설이 PDF 맨 뒤에 모여 있으면 본문을 다 자른 뒤에 해설을 교재 순서대로 자른다", () => {
+  const weeks = [labeled(1), labeled(2)];
+  const plan = planSubjectUpload(weeks, [DEFAULT_WEEK_LAYOUT, DEFAULT_WEEK_LAYOUT], { text: "12, 13", atEnd: true });
+  assert.equal(plan.total, 105);
+  assert.deepEqual(
+    plan.plans.map((p) => [p.first, p.answerFirst]),
+    [[1, 81], [41, 93]],
+  );
+  assert.equal(sourcePageOf(plan.plans[0], 41), 81);
+  assert.equal(sourcePageOf(plan.plans[1], 40), 80);
+  assert.equal(sourcePageOf(plan.plans[1], 53), 105);
+});
+
+test("해설이 없으면 전과 같고, 해설 쪽 수가 틀리면 고칠 곳을 알려 준다", () => {
+  const weeks = [labeled(1), labeled(2), labeled(3)];
+  // 2주차는 올리지 않는다(구성 칸이 비었다) → 해설 쪽 수도 올릴 교재 2권만큼
+  const texts = [DEFAULT_WEEK_LAYOUT, "", DEFAULT_WEEK_LAYOUT];
+  const none = planSubjectUpload(weeks, texts);
+  assert.deepEqual(none.plans.map((p) => [p.first, p.pages, p.answerFirst, answerStartOf(p)]), [[1, 40, null, null], [41, 40, null, null]]);
+  assert.equal(planLabel(none.plans[1]), "3주차 41–80쪽");
+  const two = planSubjectUpload(weeks, texts, { text: "12, 14", atEnd: false });
+  assert.deepEqual(two.plans.map((p) => p.pages), [52, 54]);
+  const wrong = planSubjectUpload(weeks, texts, { text: "12, 13, 14", atEnd: false });
+  assert.match(wrong.problem, /2개/);
 });
