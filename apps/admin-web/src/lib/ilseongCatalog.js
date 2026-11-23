@@ -1,4 +1,4 @@
-// 「일성월심 앱」 › 학습지·교재 화면의 계산. 화면 없이 시험할 수 있게 여기에 둔다.
+// 「일성월심 앱」 › 학습지 화면의 계산. 화면 없이 시험할 수 있게 여기에 둔다.
 //
 // 학습지 구성은 앱 서버가 가진다(앱 저장소 docs/adr/0039): 학습지 → 과목 → 교재 → Day.
 // 몇 개인지, 무엇이라 부르는지(과목·주차·Day), 이름을 운영진이 이 화면에서 정한다.
@@ -90,29 +90,10 @@ export function moved(list, index, delta) {
   return next;
 }
 
-/** 학습지 하나의 과목 수·교재 수·쪽이 올라온 교재 수. */
-export function seriesCounts(series) {
-  const books = (series?.subjects ?? []).flatMap((subject) => subject.books);
-  return { subjects: series?.subjects.length ?? 0, books: books.length, withPages: books.filter((book) => book.pageCount).length };
-}
-
-/**
- * 새 교재를 넣을 상품의 기본값: 그 과목의 교재를 하나라도 담은 판매 중인 상품. 과목이 비어 있으면 그 학습지의 교재를 담은 상품.
- * @returns {string[]} 상품 코드
- */
-export function defaultProductsForNewBooks(products, series, subject) {
-  const active = (products || []).filter((product) => product.active);
-  const inSubject = new Set(subject.books.map((book) => book.id));
-  const bySubject = active.filter((product) => product.bookIds.some((id) => inSubject.has(id)));
-  if (bySubject.length > 0 || subject.books.length > 0) return bySubject.map((product) => product.code);
-  const inSeries = new Set(series.subjects.flatMap((entry) => entry.books.map((book) => book.id)));
-  return active.filter((product) => product.bookIds.some((id) => inSeries.has(id))).map((product) => product.code);
-}
-
 /** 교재를 지울 수 없는 까닭. 지울 수 있으면 null. */
 export function bookDeleteBlock(book) {
   if (book.owners > 0) return `회원 ${book.owners.toLocaleString("ko-KR")}명에게 등록된 교재라 지울 수 없어요.`;
-  if (book.sold) return "이 교재가 든 상품이 팔렸거나 미리 등록돼 있어 지울 수 없어요.";
+  if (book.sold) return "이 학습지가 팔렸거나 미리 등록돼 있어 지울 수 없어요.";
   if (book.days.some((day) => day.completed)) return "학생의 학습 기록이 있어 지울 수 없어요.";
   return null;
 }

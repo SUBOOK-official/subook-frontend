@@ -1,16 +1,14 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import AdminDialog from "../AdminDialog";
+import { CheckIcon } from "../icons";
 import { InlineLoading } from "../Loading";
 import { booksLabel } from "../../lib/ilseongFormat";
+import { ilseongPath } from "../../lib/ilseongPaths";
 
 // 「일성월심 앱」 화면들이 함께 쓰는 조각. 색·모서리·글자 크기는 수북 관리자의 다른 화면과 같은 값을 쓴다.
 
-/** 화면 안 보기(?view=)의 주소. id를 주면 그 회원의 상세. */
-export function ilseongPath(view, userId) {
-  if (view === "users" && userId) return `/admin/ilseong?view=users&id=${userId}`;
-  return view ? `/admin/ilseong?view=${view}` : "/admin/ilseong";
-}
+export { ilseongPath };
 
 export function Section({ title, sub, right, children, className = "" }) {
   return (
@@ -62,6 +60,76 @@ export function BookList({ books }) {
         </span>
       ))}
     </span>
+  );
+}
+
+// ── 단계 ─────────────────────────────────────────────────────
+// 학습지 하나를 내는 일은 네 단계를 차례로 밟는다. 지금 할 단계는 펼쳐 두고, 끝난 단계는 한 줄 요약만 보이다가
+// [열기]로 펼친다. 앞 단계를 마쳐야 할 수 있는 단계는 잠가 두고 까닭을 적는다.
+
+const STEP_MARK = {
+  done: "bg-emerald-50 text-emerald-600",
+  current: "bg-brand text-white",
+  todo: "bg-slate-100 text-slate-500",
+  locked: "bg-slate-100 text-slate-400",
+};
+
+/**
+ * @param state   "done" | "current" | "todo" | "locked"
+ * @param summary 접혀 있을 때도 보이는 한 줄(지금 상태)
+ * @param badge   제목 옆에 붙이는 표시(다음 단계로 넘어갔지만 아직 남은 것이 있을 때)
+ * @param open    펼쳐져 있는지. onToggle이 없으면 늘 펼쳐 둔다
+ */
+export function Step({ no, title, state, summary, badge = null, open, onToggle, children }) {
+  const locked = state === "locked";
+  const shown = !locked && (open || !onToggle);
+  return (
+    <section
+      aria-current={state === "current" ? "step" : undefined}
+      className={`min-w-0 rounded-2xl border bg-white ${state === "current" ? "border-brand" : "border-slate-200"}`}
+    >
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-5 py-4">
+        <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm font-bold tabular-nums ${STEP_MARK[state] ?? STEP_MARK.todo}`}>
+          {state === "done" ? <CheckIcon size={15} strokeWidth={2.4} /> : no}
+        </span>
+        <div className="min-w-0 flex-1 basis-[14rem]">
+          <h3 className={`text-base font-bold ${locked ? "text-slate-400" : "text-slate-950"}`}>
+            {title}
+            {state === "done" ? <span className="sr-only"> (끝남)</span> : null}
+          </h3>
+          {summary ? <p className={`mt-0.5 text-sm leading-relaxed ${locked ? "text-slate-400" : "text-slate-500"}`}>{summary}</p> : null}
+        </div>
+        <span className="ml-auto flex flex-wrap items-center justify-end gap-2">
+          {badge}
+          {state === "current" ? <Badge tone="blue">지금 할 일</Badge> : null}
+          {onToggle && !locked ? (
+            <button aria-expanded={shown} className={`btn-secondary ${SMALL_BUTTON}`} onClick={onToggle} type="button">
+              {shown ? "접기" : state === "done" ? "보기·고치기" : "열기"}
+            </button>
+          ) : null}
+        </span>
+      </div>
+      {shown ? <div className="border-t border-slate-100 px-5 py-5">{children}</div> : null}
+    </section>
+  );
+}
+
+/** 평소에는 접어 두는 칸(잘 쓰지 않는 설정). */
+export function Disclosure({ title, sub, children, defaultOpen = false }) {
+  return (
+    <details className="group min-w-0 rounded-2xl border border-slate-200 bg-white" open={defaultOpen}>
+      <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 px-5 py-4 [&::-webkit-details-marker]:hidden">
+        <span className="min-w-0">
+          <span className="block text-base font-bold text-slate-950">{title}</span>
+          {sub ? <span className="mt-0.5 block text-sm leading-relaxed text-slate-500">{sub}</span> : null}
+        </span>
+        <span className={`btn-secondary ${SMALL_BUTTON}`}>
+          <span className="group-open:hidden">열기</span>
+          <span className="hidden group-open:inline">접기</span>
+        </span>
+      </summary>
+      <div className="border-t border-slate-100 px-5 py-5">{children}</div>
+    </details>
   );
 }
 

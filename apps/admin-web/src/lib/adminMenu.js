@@ -77,7 +77,7 @@ export const ADMIN_MENU = [
           },
           {
             // 일성월심 학습 앱 관리(앱 서버의 관리 기능을 이 화면이 직접 부른다).
-            // 화면 안에서 요약·앱 회원·학습지·교재·상품·판매·앱 설정·관리 기록으로 나뉜다(?view=)
+            // 화면 안에서 홈·학습지·학생·문의·앱 설정·기록으로 나뉜다(?view=)
             key: "ilseong-app",
             label: "일성월심 앱",
             to: "/admin/ilseong",
@@ -88,11 +88,11 @@ export const ADMIN_MENU = [
           { label: "재고 엑셀 내려받기", to: "/admin/products", keywords: ["전수조사", "엑셀", "재고 목록"] },
           { label: "상세 사진 없는 상품", to: "/admin/products?issue=missing_detail_photo", keywords: ["사진 없음"] },
           { label: "보관 위치 없는 상품", to: "/admin/products?issue=missing_location", keywords: ["위치 미지정"] },
-          { label: "일성월심 앱 회원", to: "/admin/ilseong?view=users", keywords: ["앱 회원", "학생", "기기 해제", "교재 직접 등록", "교재 권한"] },
-          { label: "일성월심 학습지·교재 구성", to: "/admin/ilseong?view=books", keywords: ["학습지 만들기", "과목 추가", "주차 추가", "교재 추가", "교재 쪽", "PDF 올리기", "쪽 이미지", "크레딧 기준"] },
-          { label: "일성월심 앱 설정·공지", to: "/admin/ilseong?view=app-config", keywords: ["앱 공지", "점검", "최소 버전", "캡처 막기"] },
+          { label: "일성월심 학생·문의", to: "/admin/ilseong?view=users", keywords: ["앱 회원", "학생", "기기 해제", "교재 직접 등록", "교재 권한", "교재가 안 보여요", "주문별 앱 등록", "주문으로 확인"] },
+          { label: "일성월심 학습지", to: "/admin/ilseong?view=books", keywords: ["과목 추가", "주차 추가", "교재 추가", "교재 쪽", "PDF 올리기", "쪽 이미지", "크레딧 기준", "판매 상품 만들기", "사이트 상품", "판매 시작", "판매 중지", "앱 패키지 판매"] },
+          { label: "일성월심 새 학습지 만들기", to: "/admin/ilseong?view=books&series=new", keywords: ["학습지 만들기", "새 학습지", "학습지 내기"] },
+          { label: "일성월심 앱 설정·공지", to: "/admin/ilseong?view=app-config", keywords: ["앱 공지", "점검", "최소 버전", "캡처 막기", "환불 시 앱 이용", "앱 받는 곳"] },
           { label: "일성월심 앱 관리 기록", to: "/admin/ilseong?view=actions", keywords: ["앱 관리 기록", "누가 바꿨는지"] },
-          { label: "일성월심 상품·판매", to: "/admin/ilseong?view=sales", keywords: ["앱 상품", "수북 상품 만들기", "사이트 상품", "앱 패키지 판매", "주문별 앱 등록", "판매 켜기"] },
         ],
       },
       {

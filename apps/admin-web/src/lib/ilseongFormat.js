@@ -105,9 +105,9 @@ const ACTIONS = {
   BOOK_STRUCTURE: "교재 이름·구성",
   BOOK_ORDER: "교재 순서",
   BOOK_DELETE: "교재 지우기",
+  // 예전 기록(앱 상품을 따로 만들던 때, 코드 화면이 있던 때)
   PRODUCT_CREATE: "앱 상품 만들기",
   PRODUCT_UPDATE: "앱 상품 고치기",
-  // 예전 기록(코드 화면이 있던 때)
   CODE_BATCH_ISSUE: "코드 만들기",
   CODE_BATCH_REVOKE: "묶음 폐기",
 };

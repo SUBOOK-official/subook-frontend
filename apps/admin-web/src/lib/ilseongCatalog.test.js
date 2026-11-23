@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import {
   bookDeleteBlock,
   creditRuleText,
-  defaultProductsForNewBooks,
   findBook,
   labelsProblem,
   moved,
@@ -11,7 +10,6 @@ import {
   nextLabels,
   numberedLabel,
   parseLabelLines,
-  seriesCounts,
 } from "./ilseongCatalog.js";
 
 const book = (id, label, extra = {}) => ({ id, label, owners: 0, sold: false, pageCount: null, days: [{ id: id * 10, completed: false }], ...extra });
@@ -62,29 +60,13 @@ test("크레딧 기준을 한 줄로", () => {
   assert.equal(neededPages(1, 10), 1);
 });
 
-test("구성에서 교재를 찾고, 수를 세고, 순서를 옮긴다", () => {
+test("구성에서 교재를 찾고 순서를 옮긴다", () => {
   assert.equal(findBook([ilseong], 3).subject.code, "SCI");
   assert.equal(findBook([ilseong], 99), null);
-  assert.deepEqual(seriesCounts(ilseong), { subjects: 2, books: 3, withPages: 1 });
   assert.deepEqual(moved(["a", "b", "c"], 0, 1), ["b", "a", "c"]);
   assert.deepEqual(moved(["a", "b", "c"], 2, -1), ["a", "c", "b"]);
   assert.equal(moved(["a", "b"], 0, -1), null);
   assert.equal(moved(["a", "b"], 1, 1), null);
-});
-
-test("새 교재를 넣을 상품: 그 과목의 교재를 담은 판매 중인 상품, 과목이 비었으면 학습지 기준", () => {
-  const products = [
-    { code: "SET4", active: true, bookIds: [1, 2, 3] },
-    { code: "SCI_ONLY", active: true, bookIds: [3] },
-    { code: "OLD", active: false, bookIds: [1, 2, 3] },
-    { code: "OTHER", active: true, bookIds: [77] },
-  ];
-  assert.deepEqual(defaultProductsForNewBooks(products, ilseong, ilseong.subjects[0]), ["SET4"]);
-  assert.deepEqual(defaultProductsForNewBooks(products, ilseong, ilseong.subjects[1]), ["SET4", "SCI_ONLY"]);
-  // 새 과목(교재 없음): 그 학습지의 교재를 담은 상품
-  assert.deepEqual(defaultProductsForNewBooks(products, ilseong, { code: "S9", books: [] }), ["SET4", "SCI_ONLY"]);
-  // 교재는 있는데 어느 상품에도 없으면 고르지 않는다(실수로 넓게 열리지 않게)
-  assert.deepEqual(defaultProductsForNewBooks([products[3]], ilseong, ilseong.subjects[0]), []);
 });
 
 test("교재를 지울 수 없는 까닭", () => {

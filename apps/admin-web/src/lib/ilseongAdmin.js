@@ -117,3 +117,34 @@ export function useIlseongData(path, { keepPrevious = false, refreshMs = 0 } = {
     setData,
   };
 }
+
+/**
+ * 수북 쪽 판매 정보: 판매 스위치·환불 설정(settings), 이 앱의 학습지에 이어 둔 수북 상품(products),
+ * 앱 등록을 기다리거나 멈춘 주문(counts, jobs), 앱 서버 연결 여부(configured, guideTemplateReady).
+ * 화면 여러 곳(홈, 학습지, 회원, 앱 설정)이 같은 것을 읽는다.
+ */
+export function useIlseongSales() {
+  const [state, setState] = useState({ data: undefined, error: null, loading: true });
+  const turn = useRef(0);
+
+  const reload = useCallback(async () => {
+    const mine = ++turn.current;
+    try {
+      const data = await callIlseongSalesApi({ method: "GET" });
+      if (mine === turn.current) setState({ data, error: null, loading: false });
+      return data;
+    } catch (error) {
+      if (mine === turn.current) setState((prev) => ({ ...prev, error, loading: false }));
+      return null;
+    }
+  }, []);
+
+  useEffect(() => {
+    void reload();
+    return () => {
+      turn.current += 1;
+    };
+  }, [reload]);
+
+  return { ...state, reload };
+}

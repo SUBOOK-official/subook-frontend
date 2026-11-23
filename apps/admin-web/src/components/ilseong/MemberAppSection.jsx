@@ -25,7 +25,7 @@ const ACTIONS = {
     confirm: {
       title: "이 회원에게 앱 교재를 미리 등록할까요?",
       message:
-        "이 회원이 수북 계정으로 일성월심 앱에 로그인하면 그 상품의 교재가 모두 등록돼요. 수북에서 구매한 회원은 자동으로 등록되니, 구매 없이 열어 줄 때만 써 주세요.\n로그인하기 전까지는 여기서 취소할 수 있어요.",
+        "이 회원이 수북 계정으로 일성월심 앱에 로그인하면 그 학습지의 교재가 모두 등록돼요. 수북에서 구매한 회원은 자동으로 등록되니, 구매 없이 열어 줄 때만 써 주세요.\n로그인하기 전까지는 여기서 취소할 수 있어요.",
       confirm: "미리 등록",
     },
   },
@@ -36,7 +36,7 @@ const ACTIONS = {
     confirm: {
       title: "이 회원에게 앱 교재를 등록할까요?",
       message:
-        "이미 앱을 쓰는 회원이라, 그 상품의 교재가 바로 이 회원의 책장에 등록돼요. 수북에서 구매한 회원은 자동으로 등록되니, 구매 없이 열어 줄 때만 써 주세요.\n등록한 뒤에는 일성월심 앱 › 앱 회원 화면에서 다시 거둘 수 있어요.",
+        "이미 앱을 쓰는 회원이라, 그 학습지의 교재가 바로 이 회원의 책장에 등록돼요. 수북에서 구매한 회원은 자동으로 등록되니, 구매 없이 열어 줄 때만 써 주세요.\n등록한 뒤에는 일성월심 앱 › 학생·문의 화면에서 다시 거둘 수 있어요.",
       confirm: "등록",
     },
   },
@@ -94,7 +94,7 @@ function Panel({ memberId }) {
   const data = app.data;
   const panel = memberAppPanel(login, data);
   const action = panel.action ? ACTIONS[panel.action] : null;
-  // 앱 상품이 여럿이면 어느 상품인지 고른다. 고르는 창: { kind: "pregrant" | "grant" | "cancel" }
+  // 학습지가 여럿이면 어느 학습지인지 고른다(서버는 학습지마다 딸린 상품 코드로 준다). 고르는 창: { kind: "pregrant" | "grant" | "cancel" }
   const choices = memberAppProducts(data);
   const extra = memberAppExtraAction(login, data);
   const [picking, setPicking] = useState(null);
@@ -149,7 +149,7 @@ function Panel({ memberId }) {
           <span className="flex flex-wrap gap-2">
             {extra ? (
               <button className="btn-secondary !w-auto !px-3 !py-1.5 text-xs" disabled={busy} onClick={() => void run(extra)} type="button">
-                다른 상품 등록
+                다른 학습지 등록
               </button>
             ) : null}
             <button
@@ -174,7 +174,7 @@ function Panel({ memberId }) {
           onPick={(code) => void send(picking.kind, code)}
           open
           products={pickList}
-          title={picking.kind === "cancel" ? "어느 상품의 미리 등록을 취소할까요?" : "어느 상품의 교재를 등록할까요?"}
+          title={picking.kind === "cancel" ? "어느 학습지의 미리 등록을 취소할까요?" : "어느 학습지의 교재를 등록할까요?"}
         />
       ) : null}
 
@@ -225,7 +225,7 @@ function Panel({ memberId }) {
 
             {panel.action === "pregrant" ? (
               <p className="mt-3 leading-relaxed text-slate-500">
-                미리 등록해 두면, 이 회원이 수북 계정으로 앱에 로그인할 때 그 상품의 교재가 모두 등록돼요.
+                미리 등록해 두면, 이 회원이 수북 계정으로 앱에 로그인할 때 그 학습지의 교재가 모두 등록돼요.
               </p>
             ) : null}
             {panel.block ? (

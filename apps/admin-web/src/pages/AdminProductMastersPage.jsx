@@ -694,10 +694,10 @@ function AdminProductMastersPage() {
     if (!detailTarget || appPackageBusy || !appPackage) return;
     const next = appPackage.is_app_package !== true;
     if (next) {
-      navigate("/admin/ilseong?view=sales");
+      navigate("/admin/ilseong?view=books");
       return;
     }
-    if (!window.confirm("이 상품을 일성월심 앱 상품에서 뗍니다.\n이 상품을 사도 앱에 교재가 등록되지 않게 됩니다. 이미 결제된 주문의 등록은 그대로입니다.")) return;
+    if (!window.confirm("이 상품을 일성월심 앱 학습지에서 뗍니다.\n이 상품을 사도 앱에 교재가 등록되지 않게 됩니다. 이미 결제된 주문의 등록은 그대로입니다.")) return;
     setAppPackageBusy(true);
     const { data, error } = await supabase.rpc("admin_set_ilseong_app_product", {
       p_product_id: detailTarget.id,
@@ -709,7 +709,7 @@ function AdminProductMastersPage() {
       return;
     }
     setAppPackage(data);
-    showToast("일성월심 앱 상품에서 뗐습니다.", "success");
+    showToast("일성월심 앱 학습지에서 뗐습니다.", "success");
     await openDetail(detailTarget);
     await loadProducts();
   };
@@ -1253,10 +1253,10 @@ function AdminProductMastersPage() {
                     onClick={handleAppPackageToggle}
                     title={appPackage.is_app_package
                       ? "이 상품을 사도 앱에 교재가 등록되지 않게 합니다"
-                      : "일성월심 앱 › 상품·판매에서 이 상품의 번호로 앱 상품에 잇습니다"}
+                      : "일성월심 앱 › 학습지 › 3단계에서 이 상품의 번호로 잇습니다"}
                     type="button"
                   >
-                    {appPackageBusy ? "처리 중" : appPackage.is_app_package ? "앱 상품에서 떼기" : "앱 상품에 잇기"}
+                    {appPackageBusy ? "처리 중" : appPackage.is_app_package ? "앱 학습지에서 떼기" : "앱 학습지에 잇기"}
                   </button>
                 ) : null}
                 <button

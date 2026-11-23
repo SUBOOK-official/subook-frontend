@@ -298,7 +298,7 @@ templateId `KA01TP2611181230053048VITk7GCMRa` · 카테고리 구매 > 구매완
   발송 불가로 명시(https://kakaobusiness.gitbook.io/main/ad/infotalk/audit, 2026-11-18 다시 확인. 솔라피 등록 화면도
   "앱 설치를 유도하는 내용을 포함할 수 없습니다"를 반려 사유로 든다).
 - 앱 받는 곳 주소는 알림톡이 아니라 subook.kr 주문 상세의 「일성월심 앱」 안내 칸에 보인다:
-  어드민 「일성월심 앱 → 수북 판매 연결」의 "앱 받는 곳 주소"(`ilseong_app_settings.app_download_url`)에 넣으면 "앱 받는 곳" 링크가 생긴다.
+  어드민 「일성월심 앱 → 앱 설정 → 환불과 앱 받는 곳」의 "앱 받는 곳 주소"(`ilseong_app_settings.app_download_url`)에 넣으면 "앱 받는 곳" 링크가 생긴다.
 - 문자 대체발송은 다른 알림과 같다(`SOLAPI_ENABLE_SMS_FALLBACK=true`일 때만). 예전 코드 안내는 코드를 못 받으면 앱을 못 써서
   이 타입만 항상 대체발송했지만, 이제 안내를 못 받아도 로그인만 하면 등록되므로 그 예외를 없앴다.
   템플릿 쪽 대체발송 문구(솔라피 ⋮ → 대체발송 설정에서 바꿀 수 있다):
@@ -309,9 +309,12 @@ templateId `KA01TP2611181230053048VITk7GCMRa` · 카테고리 구매 > 구매완
   ```
 - templateId는 [solapiTemplates.js](api/_lib/solapiTemplates.js) `DEFAULT_SOLAPI_TEMPLATE_IDS`에 기본값으로 넣어 둠 →
   **승인되면 env 변경 없이 바로 쓰인다.** (`SOLAPI_TEMPLATE_IDS` JSON에 `app_guide` 키를 넣으면 그 값이 우선.)
-  번호가 비어 있으면 어드민에서 "앱 패키지 판매 켜기"가 거절된다(`APP_GUIDE_TEMPLATE_MISSING`).
+  번호가 비어 있으면 어드민에서 판매 시작(앱 교재 판매 켜기)이 거절된다(`APP_GUIDE_TEMPLATE_MISSING`).
   번호가 있어도 승인 전에 발송되면 솔라피가 거절 → 대기열이 재시도하다 약 20시간 뒤 실패·슬랙 경보.
-  **템플릿 승인 전에는 판매를 켜지 말 것**(솔라피 템플릿 목록에서 "검수진행중" 표시가 사라졌는지 확인). 반려되면 사유 확인 → 사본을 만들어
+  그래서 **꺼져 있던 판매를 켤 때 서버가 솔라피에 검수 상태를 묻는다**([solapiTemplates.js](api/_lib/solapiTemplates.js) `fetchSolapiTemplateStatus`,
+  `GET https://api.solapi.com/kakao/v2/templates/{templateId}`의 `status`). 검수 전·검수 중·반려면 거절한다(`APP_GUIDE_TEMPLATE_NOT_APPROVED`).
+  어드민 「일성월심 앱 → 학습지 → 4단계 판매 시작」도 같은 상태를 미리 읽어 까닭을 보여 준다.
+  상태를 확인하지 못했을 때(솔라피 연결 실패 등)는 막지 않으므로, 처음 켤 때는 솔라피 템플릿 목록에서 "검수진행중" 표시가 사라졌는지도 한 번 본다. 반려되면 사유 확인 → 사본을 만들어
   문안을 고쳐 다시 등록하고, [send-notification.js](api/admin/send-notification.js) `buildMessageBody`의 `app_guide` 문안과
   [tests/ilseongPartner.test.js](tests/ilseongPartner.test.js)의 문안 테스트, templateId 기본값을 같이 맞춘다.
 - 알림 로그(`notification_logs`, 타입 `app_guide`)·사이트 내 알림에는 위 본문이 그대로 남는다(주문번호만 들어 있다).

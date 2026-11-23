@@ -119,8 +119,10 @@ test("일성월심 앱 관리는 상품·재고 메뉴의 탭이고, 화면 안 
   assert.equal(app.tab.key, "ilseong-app");
   assert.equal(app.isMenuRoute, true);
   const commands = buildAdminCommands();
-  assert.equal(searchAdminCommands("학습지 만들기", commands)[0].to, "/admin/ilseong?view=books");
-  assert.equal(searchAdminCommands("수북 상품 만들기", commands)[0].to, "/admin/ilseong?view=sales");
+  assert.equal(searchAdminCommands("학습지 만들기", commands)[0].to, "/admin/ilseong?view=books&series=new");
+  assert.equal(searchAdminCommands("판매 상품 만들기", commands)[0].to, "/admin/ilseong?view=books");
+  assert.equal(searchAdminCommands("판매 시작", commands)[0].to, "/admin/ilseong?view=books");
+  assert.equal(searchAdminCommands("주문으로 확인", commands)[0].to, "/admin/ilseong?view=users");
   assert.equal(commands.some((command) => String(command.to).includes("view=codes")), false);
   // 옮겨 온 앱 관리 기능을 운영자가 부르는 말로 찾는다
   assert.equal(searchAdminCommands("기기 해제", commands)[0].to, "/admin/ilseong?view=users");

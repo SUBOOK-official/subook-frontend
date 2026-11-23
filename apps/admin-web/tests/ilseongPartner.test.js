@@ -101,7 +101,10 @@ test("크론: 연결 설정이 없으면 앱 서버를 부르지 않고 판매�
 });
 
 test("관리 API: 연결 설정 없이 판매 켜기는 거부, 끄기는 허용", async () => {
-  const service = fakeService({ ilseong_app_save_settings: (args) => ({ sales_enabled: args.p_sales_enabled }) });
+  const service = fakeService({
+    ilseong_app_get_settings: () => ({ sales_enabled: true, refund_policy: "revoke_access", app_download_url: null }),
+    ilseong_app_save_settings: (args) => ({ sales_enabled: args.p_sales_enabled }),
+  });
   await assert.rejects(
     handleAdminAction({ action: "save_settings", body: { salesEnabled: true }, service, config: getIlseongConfig({}), notify: async () => ({ ok: true }) }),
     (err) => err.statusCode === 409 && err.code === "ILSEONG_NOT_CONFIGURED",
@@ -113,6 +116,7 @@ test("관리 API: 연결 설정 없이 판매 켜기는 거부, 끄기는 허용
 
 test("관리 API: 앱 이용 안내 알림톡 템플릿 번호가 없으면 판매 켜기 거부, 있으면 허용, 끄기는 언제나 허용", async () => {
   const service = fakeService({
+    ilseong_app_get_settings: () => ({ sales_enabled: false, refund_policy: "revoke_access", app_download_url: null }),
     ilseong_app_save_settings: (args) => ({ sales_enabled: args.p_sales_enabled }),
     ilseong_app_admin_overview: () => ({ counts: {} }),
   });
@@ -130,6 +134,63 @@ test("관리 API: 앱 이용 안내 알림톡 템플릿 번호가 없으면 판�
   // 요약에 템플릿 번호가 있는지 함께 알려 준다(화면이 판매 켜기를 막고 까닭을 보여 준다)
   assert.equal((await handleAdminAction({ ...base, action: "overview", body: {}, guideTemplateId: "" })).guideTemplateReady, false);
   assert.equal((await handleAdminAction({ ...base, action: "overview", body: {}, guideTemplateId: "KA01TP-GUIDE" })).guideTemplateReady, true);
+});
+
+test("관리 API: 안내 알림톡이 카카오 승인 전이면 판매를 켜지 못한다(확인하지 못했을 때는 막지 않는다)", async () => {
+  let enabled = false;
+  const service = fakeService({
+    ilseong_app_get_settings: () => ({ sales_enabled: enabled, refund_policy: "revoke_access", app_download_url: "https://app.test/get" }),
+    ilseong_app_save_settings: (args) => {
+      if (typeof args.p_sales_enabled === "boolean") enabled = args.p_sales_enabled;
+      return { sales_enabled: enabled, refund_policy: args.p_refund_policy, app_download_url: args.p_app_download_url };
+    },
+  });
+  const config = getIlseongConfig({ ILSEONG_API_BASE_URL: "https://app.test", ILSEONG_PARTNER_SECRET: SECRET });
+  const base = { service, config, notify: async () => ({ ok: true }), guideTemplateId: "KA01TP-GUIDE" };
+  const turnOn = (status) => handleAdminAction({ ...base, action: "save_settings", body: { salesEnabled: true }, templateStatus: async () => status });
+
+  for (const status of ["INSPECTING", "PENDING", "REJECTED"]) {
+    await assert.rejects(turnOn(status), (err) => err.statusCode === 409 && err.code === "APP_GUIDE_TEMPLATE_NOT_APPROVED");
+  }
+  assert.equal(enabled, false);
+  assert.equal(service.calls.some((call) => call.name === "ilseong_app_save_settings"), false);
+
+  assert.equal((await turnOn("UNKNOWN")).settings.sales_enabled, true);
+  enabled = false;
+  assert.equal((await turnOn("APPROVED")).settings.sales_enabled, true);
+
+  // 이미 켜져 있으면 검수 상태를 다시 묻지 않는다(다른 설정을 저장할 때 막히지 않게)
+  let asked = 0;
+  await handleAdminAction({ ...base, action: "save_settings", body: { salesEnabled: true }, templateStatus: async () => { asked += 1; return "REJECTED"; } });
+  assert.equal(asked, 0);
+
+  // 화면이 판매 시작 전에 미리 물어볼 수 있다
+  assert.deepEqual(
+    await handleAdminAction({ ...base, action: "guide_template", body: {}, templateStatus: async () => "INSPECTING" }),
+    { guideTemplateReady: true, guideTemplateStatus: "INSPECTING" },
+  );
+  assert.deepEqual(
+    await handleAdminAction({ ...base, action: "guide_template", body: {}, guideTemplateId: "", templateStatus: async () => "APPROVED" }),
+    { guideTemplateReady: false, guideTemplateStatus: "UNKNOWN" },
+  );
+});
+
+test("관리 API: 설정은 보낸 것만 바꾼다(판매 스위치만, 또는 환불 방식·앱 받는 곳 주소만)", async () => {
+  const saved = [];
+  const service = fakeService({
+    ilseong_app_get_settings: () => ({ sales_enabled: true, refund_policy: "revoke_access", app_download_url: "https://app.test/get" }),
+    ilseong_app_save_settings: (args) => { saved.push(args); return { sales_enabled: true }; },
+  });
+  const config = getIlseongConfig({ ILSEONG_API_BASE_URL: "https://app.test", ILSEONG_PARTNER_SECRET: SECRET });
+  const base = { service, config, notify: async () => ({ ok: true }), guideTemplateId: "KA01TP-GUIDE", userId: "u1" };
+
+  // 판매만 끈다: 환불 방식은 그대로(null → DB가 있던 값을 둔다), 앱 받는 곳 주소는 있던 값을 다시 넣는다
+  await handleAdminAction({ ...base, action: "save_settings", body: { salesEnabled: false } });
+  assert.deepEqual(saved.at(-1), { p_sales_enabled: false, p_refund_policy: null, p_app_download_url: "https://app.test/get", p_actor: "u1" });
+
+  // 환불 방식과 주소만 바꾼다: 판매 스위치는 건드리지 않는다. 주소를 비워 보내면 지운다
+  await handleAdminAction({ ...base, action: "save_settings", body: { refundPolicy: "none", appDownloadUrl: null } });
+  assert.deepEqual(saved.at(-1), { p_sales_enabled: null, p_refund_policy: "none", p_app_download_url: null, p_actor: "u1" });
 });
 
 function lineRow(overrides) {

@@ -6,7 +6,6 @@ import {
   CREDIT_RULES,
   SUBJECT_COLORS,
   bookDeleteBlock,
-  defaultProductsForNewBooks,
   labelsProblem,
   moved,
   neededPages,
@@ -14,9 +13,9 @@ import {
   numberedLabel,
   parseLabelLines,
 } from "../../lib/ilseongCatalog";
-import { CheckRow, ErrorNote, FIELD_CLASS, Field, MoveButtons, SMALL_BUTTON, WarnNote, useIlseongFeedback } from "./IlseongUi";
+import { ErrorNote, FIELD_CLASS, Field, MoveButtons, SMALL_BUTTON, WarnNote, useIlseongFeedback } from "./IlseongUi";
 
-// 학습지·교재 화면의 창들: 학습지, 과목, 교재 추가, 교재 이름·Day 구성.
+// 학습지 화면의 창들: 학습지 설정, 과목, 교재 더하기, 교재 이름·하루 분량 구성.
 // 저장하면 앱 서버가 바뀐 뒤의 구성 전체를 돌려준다. 그것을 onSaved(구성)으로 넘긴다.
 
 const digits = (text, max = 5) => text.replace(/\D/g, "").slice(0, max);
@@ -119,7 +118,7 @@ export function SeriesDialog({ series = null, onClose, onSaved }) {
       onClose={onClose}
       open
       size="lg"
-      title={series ? `${series.name} 설정` : "학습지 만들기"}
+      title={series ? `${series.name} 이름·크레딧 설정` : "학습지 만들기"}
     >
       <form className="space-y-6 px-6 py-5" id={formId} onSubmit={submit}>
         <Field label="학습지 이름">
@@ -147,7 +146,7 @@ export function SeriesDialog({ series = null, onClose, onSaved }) {
           <p className="text-[13px] text-slate-500">
             보기: {subjectWord.trim() || "과목"} › {numberedLabel(unitWord, 3)} › {numberedLabel(dayWord, 2)}
           </p>
-          {wordsChanged ? <WarnNote>이미 만든 교재와 {series.dayWord}의 이름은 그대로예요. 바꾸려면 교재마다 [이름·구성]에서 고쳐 주세요.</WarnNote> : null}
+          {wordsChanged ? <WarnNote>이미 만든 교재와 하루 분량의 이름은 그대로예요. 바꾸려면 1단계에서 교재마다 [이름·하루 분량 고치기]를 눌러 주세요.</WarnNote> : null}
         </div>
 
         <div className="space-y-3">
@@ -250,7 +249,7 @@ export function SubjectDialog({ series, subject = null, onClose, onSaved }) {
       onClose={onClose}
       open
       size="md"
-      title={subject ? `${subject.name} 이름·색` : `${series.name}에 ${word} 추가`}
+      title={subject ? `${subject.name} 이름·색` : `${series.name}에 ${word} 더하기`}
     >
       <form className="space-y-5 px-6 py-5" id={formId} onSubmit={submit}>
         <Field label={`${word} 이름`}>
@@ -282,7 +281,7 @@ export function SubjectDialog({ series, subject = null, onClose, onSaved }) {
 
 // ── 교재 추가 ────────────────────────────────────────────────
 
-export function AddBooksDialog({ series, subject, products, onClose, onSaved }) {
+export function AddBooksDialog({ series, subject, onClose, onSaved }) {
   const { toast } = useIlseongFeedback();
   const formId = useId();
   const unit = series.unitWord;
@@ -292,8 +291,6 @@ export function AddBooksDialog({ series, subject, products, onClose, onSaved }) 
   const [names, setNames] = useState(() => nextLabels(existing, unit, 1).join("\n"));
   const [edited, setEdited] = useState(false);
   const [dayCount, setDayCount] = useState(String(subject.books.at(-1)?.days.length || 7));
-  const active = (products ?? []).filter((product) => product.active);
-  const [picked, setPicked] = useState(() => new Set(defaultProductsForNewBooks(products, series, subject)));
   const { saving, error, setError, save } = useSave(onSaved);
 
   const labels = parseLabelLines(names);
@@ -310,11 +307,11 @@ export function AddBooksDialog({ series, subject, products, onClose, onSaved }) 
   const submit = async (event) => {
     event.preventDefault();
     if (problem) return;
-    await save("POST", `/api/admin/subjects/${subject.code}/books`, { labels, dayCount: dayNumber, productCodes: [...picked] },
+    await save("POST", `/api/admin/subjects/${subject.code}/books`, { labels, dayCount: dayNumber },
       `${subject.name}에 교재 ${labels.length}권을 만들었어요`, toast);
   };
 
-  const holders = active.filter((product) => picked.has(product.code)).reduce((sum, product) => sum + (product.holders || 0), 0);
+  const holders = series.product?.holders ?? 0;
 
   return (
     <AdminDialog
@@ -323,14 +320,14 @@ export function AddBooksDialog({ series, subject, products, onClose, onSaved }) 
       onClose={onClose}
       open
       size="lg"
-      title={`${subject.name}에 교재 추가`}
+      title={`${subject.name}에 교재 더하기`}
     >
       <form className="space-y-5 px-6 py-5" id={formId} onSubmit={submit}>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="몇 권 만들까요?">
             <input autoFocus className={`${FIELD_CLASS} tabular-nums`} inputMode="numeric" onChange={(event) => changeCount(event.target.value)} value={count} />
           </Field>
-          <Field label={`한 권에 ${day} 몇 개?`}>
+          <Field label={`한 권에 하루 분량(${day}) 몇 개?`}>
             <input className={`${FIELD_CLASS} tabular-nums`} inputMode="numeric" onChange={(event) => { setError(null); setDayCount(digits(event.target.value, 2)); }} value={dayCount} />
           </Field>
         </div>
@@ -343,36 +340,14 @@ export function AddBooksDialog({ series, subject, products, onClose, onSaved }) 
           />
         </Field>
         <p className="-mt-2 text-[13px] leading-relaxed text-slate-500">
-          앱에 이 이름 그대로 보여요. {day}는 {numberedLabel(day, 1)}부터 {numberedLabel(day, Math.max(dayNumber, 1))}까지 만들어지고, 만든 뒤 [이름·구성]에서 이름을 바꾸거나 더하고 뺄 수 있어요.
+          앱에 이 이름 그대로 보여요. 하루 분량은 {numberedLabel(day, 1)}부터 {numberedLabel(day, Math.max(dayNumber, 1))}까지 만들어지고, 만든 뒤에 이름을 바꾸거나 더하고 뺄 수 있어요.
         </p>
         {problem && labels.length > 0 ? <WarnNote>{problem}</WarnNote> : null}
 
-        {active.length > 0 ? (
-          <div className="space-y-2.5">
-            <p className="text-sm font-semibold text-slate-600">이 교재를 넣을 상품</p>
-            {active.map((product) => (
-              <CheckRow
-                checked={picked.has(product.code)}
-                key={product.code}
-                onChange={(checked) => {
-                  const next = new Set(picked);
-                  if (checked) next.add(product.code);
-                  else next.delete(product.code);
-                  setPicked(next);
-                }}
-              >
-                {product.name}
-                <span className="text-slate-400"> · 가진 회원 {Number(product.holders || 0).toLocaleString("ko-KR")}명</span>
-              </CheckRow>
-            ))}
-            <p className="text-[13px] leading-relaxed text-slate-500">
-              {picked.size === 0
-                ? "상품에 넣지 않으면 아무에게도 열리지 않아요. 나중에 상품·판매에서 넣을 수 있어요."
-                : holders > 0
-                  ? `고른 상품을 이미 가진 회원 ${holders.toLocaleString("ko-KR")}명에게도 바로 열려요. 쪽 이미지를 올리기 전에는 앱에서 '준비 중'으로 보여요.`
-                  : "앞으로 이 상품을 사거나 등록받는 회원에게 함께 열려요."}
-            </p>
-          </div>
+        {holders > 0 ? (
+          <WarnNote>
+            {series.name}의 교재를 이미 가진 학생 {holders.toLocaleString("ko-KR")}명에게도 바로 열려요. PDF를 올리기 전에는 앱에 '준비 중'으로 보여요.
+          </WarnNote>
         ) : null}
         <ErrorNote error={error} />
       </form>
@@ -446,7 +421,7 @@ export function StructureDialog({ series, book, onClose, onSaved }) {
       onClose={onClose}
       open
       size="lg"
-      title={`${book.title} 이름·구성`}
+      title={`${book.title} 이름·하루 분량`}
     >
       <form className="space-y-5 px-6 py-5" id={formId} onSubmit={submit}>
         <Field label="교재 이름">
@@ -465,7 +440,7 @@ export function StructureDialog({ series, book, onClose, onSaved }) {
               }}
               type="button"
             >
-              {day} 추가
+              {day} 더하기
             </button>
           </div>
           <ul className="space-y-1.5">
@@ -508,7 +483,7 @@ export function StructureDialog({ series, book, onClose, onSaved }) {
             ))}
           </ul>
           <p className="text-[13px] leading-relaxed text-slate-500">
-            순서를 바꿔도 칸마다 정해 둔 쪽 범위는 그 칸을 따라가요. 쪽 범위가 앞뒤로 엇갈리면 [쪽 올리기·범위]에서 다시 맞춰 주세요.
+            순서를 바꿔도 칸마다 정해 둔 쪽은 그 칸을 따라가요. 쪽이 앞뒤로 엇갈리면 2단계에서 그 교재의 쪽을 다시 정해 주세요.
           </p>
         </div>
         {block ? <p className="text-[13px] text-slate-500">{block}</p> : null}
