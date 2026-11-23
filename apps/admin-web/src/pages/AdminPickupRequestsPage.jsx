@@ -693,6 +693,41 @@ function AdminPickupRequestsPage() {
   const [savingBoxTypes, setSavingBoxTypes] = useState(false);
   const [reregisteringId, setReregisteringId] = useState(null);
 
+  // 수거 신청 받기/중단 스위치 — 중단하면 사이트의 수거 신청 화면이 안내로 바뀌고 서버도 새 신청을 거절한다.
+  // intake: { paused, changed_at } | null(조회 전·실패 — 이때는 버튼을 숨긴다)
+  const [intake, setIntake] = useState(null);
+  const [intakeConfirm, setIntakeConfirm] = useState(null); // "pause" | "resume" | null
+  const [savingIntake, setSavingIntake] = useState(false);
+  const [intakeError, setIntakeError] = useState("");
+
+  useEffect(() => {
+    if (!isSupabaseConfigured) return undefined;
+    let cancelled = false;
+    supabase.rpc("get_pickup_intake_status").then(({ data, error: rpcError }) => {
+      if (!cancelled && !rpcError && data) setIntake(data);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const saveIntakePaused = async () => {
+    if (!intakeConfirm || savingIntake) return;
+    const nextPaused = intakeConfirm === "pause";
+    setSavingIntake(true);
+    setIntakeError("");
+    const { data, error: rpcError } = await supabase.rpc("admin_set_pickup_intake_paused", { p_paused: nextPaused });
+    setSavingIntake(false);
+    if (rpcError || !data) {
+      setIntakeError(rpcError?.message || "저장하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+      return;
+    }
+    setIntake(data);
+    setIntakeConfirm(null);
+    setError("");
+    setNotice(data.paused ? "수거 신청을 중단했습니다. 사이트의 수거 신청 화면에 중단 안내가 보입니다." : "수거 신청을 다시 받습니다.");
+  };
+
   // 알림톡/RPC 부분 실패를 전체 노출 — 이전엔 setError에 3건만 보여 4건 이후가 사라지는 P0 사고
   const [cjFailureModal, setCjFailureModal] = useState(null);
   const [notificationResult, setNotificationResult] = useState(null);
@@ -1264,6 +1299,20 @@ function AdminPickupRequestsPage() {
 
   return (
     <AdminShell
+      actions={
+        intake && !intake.paused ? (
+          <button
+            className="btn-danger-weak !px-4 !py-2.5"
+            onClick={() => {
+              setIntakeError("");
+              setIntakeConfirm("pause");
+            }}
+            type="button"
+          >
+            수거 신청 중단
+          </button>
+        ) : null
+      }
       activeModule="pickups"
       description="수거 신청 접수부터 검수·등록까지 — 셀러 물건이 판매로 가는 전 과정"
       title="수거·검수"
@@ -1272,6 +1321,28 @@ function AdminPickupRequestsPage() {
         <p className="notice-error">
           Supabase 환경 변수가 설정되지 않아 수거 요청을 불러올 수 없습니다.
         </p>
+      ) : null}
+
+      {/* 수거 신청 중단 중 — 잊고 닫아 두지 않게 화면 맨 위에 계속 보인다 */}
+      {intake?.paused ? (
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 rounded-2xl bg-amber-50 px-4 py-4 sm:px-5" role="status">
+          <div className="min-w-0">
+            <p className="text-[15px] font-bold text-amber-900">수거 신청을 받지 않는 중입니다</p>
+            <p className="mt-0.5 text-[13px] text-amber-800">
+              {formatCompactDateTime(intake.changed_at)}부터 중단 · 사이트의 수거 신청 화면에는 중단 안내가 보입니다.
+            </p>
+          </div>
+          <button
+            className="btn-primary !w-auto !px-4 !py-2.5"
+            onClick={() => {
+              setIntakeError("");
+              setIntakeConfirm("resume");
+            }}
+            type="button"
+          >
+            신청 다시 받기
+          </button>
+        </div>
       ) : null}
 
       {error ? <p className="notice-error whitespace-pre-line">{error}</p> : null}
@@ -1789,6 +1860,42 @@ function AdminPickupRequestsPage() {
       ) : null}
 
       <PickupDetailModal request={detailModal} onClose={() => setDetailModal(null)} />
+
+      {/* 수거 신청 중단·재개 확인 */}
+      <AdminDialog
+        busy={savingIntake}
+        footer={
+          <div className="flex items-center justify-end gap-2">
+            <button className="btn-secondary !px-4 !py-2.5" disabled={savingIntake} onClick={() => setIntakeConfirm(null)} type="button">
+              취소
+            </button>
+            <button
+              className={`${intakeConfirm === "pause" ? "btn-danger" : "btn-primary !w-auto"} !px-4 !py-2.5`}
+              disabled={savingIntake}
+              onClick={saveIntakePaused}
+              type="button"
+            >
+              {savingIntake ? <BusyText>저장 중...</BusyText> : intakeConfirm === "pause" ? "신청 중단" : "신청 다시 받기"}
+            </button>
+          </div>
+        }
+        onClose={() => setIntakeConfirm(null)}
+        open={Boolean(intakeConfirm)}
+        size="sm"
+        title={intakeConfirm === "pause" ? "수거 신청을 중단할까요?" : "수거 신청을 다시 받을까요?"}
+      >
+        <div className="space-y-3 break-keep px-6 py-5 text-sm leading-6 text-slate-700">
+          {intakeConfirm === "pause" ? (
+            <>
+              <p>사이트의 수거 신청 화면이 중단 안내로 바뀌고, 새 신청이 들어오지 않습니다.</p>
+              <p className="text-slate-500">이미 접수된 신청의 CJ 접수·검수·취소는 그대로 할 수 있습니다.</p>
+            </>
+          ) : (
+            <p>사이트의 수거 신청 화면이 다시 열리고, 바로 새 신청이 들어옵니다.</p>
+          )}
+          {intakeError ? <p className="text-rose-700" role="alert">{intakeError}</p> : null}
+        </div>
+      </AdminDialog>
 
       {/* CJ 재접수 — 기존 예약 전량 취소 후 새 조건으로 다시 접수 */}
       <AdminDialog busy={savingBoxTypes} onClose={() => setBoxTypeModal(null)} open={Boolean(boxTypeModal)} size="md" title="수거 박스 규격">

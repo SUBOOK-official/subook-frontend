@@ -27,6 +27,7 @@ import {
   submitPickupRequest,
   verifyPhoneOtp,
 } from "../lib/pickupRequest";
+import { fetchPickupIntakeStatus } from "../lib/pickupIntake";
 import {
   makeOnceGuard,
   trackContactClick,
@@ -1796,12 +1797,103 @@ function CancelConfirmModal({ onConfirm, onCancel }) {
 }
 
 // ─── 메인 페이지 ───
-function PublicPickupRequestPage() {
-  usePageMeta({
-    title: "교재 위탁판매 신청",
-    description:
-      "안 쓰는 수능 교재를 CJ 픽업으로 보내고 검수 후 정산까지. 예상 권수와 박스별 규격을 입력해 수거를 신청하세요.",
-  });
+// 화면을 열 준비가 끝나기 전(신청 받는 중인지 확인 · 로그인 확인)에 보이는 자리
+function PickupPageLoading() {
+  return (
+    <div className="pickup-page">
+      <PublicSiteHeader />
+      <main className="pickup-route">
+        <div className="pickup-shell">
+          <div className="pickup-loading">
+            <span className="pickup-loading__icon">⏳</span>
+            <p>수거 요청 화면을 준비하고 있어요</p>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+// ─── 수거 신청 일시 중단 안내 ───
+// 관리자 화면(수거·검수)에서 신청을 중단하면 신청서 대신 이 화면이 보인다.
+function PickupPaused() {
+  const viewedRef = useRef(false);
+
+  // GA4 중단 안내 노출 — 중단 기간에 돌아간 판매 희망자 규모를 본다(마운트당 1회)
+  useEffect(() => {
+    if (viewedRef.current) return;
+    viewedRef.current = true;
+    trackEvent("pickup_paused_view");
+  }, []);
+
+  return (
+    <div className="pickup-page">
+      <PublicSiteHeader />
+      <main className="pickup-route">
+        <div className="pickup-shell">
+          <section aria-labelledby="pickup-paused-title" className="pickup-paused">
+            <span aria-hidden="true" className="pickup-paused__mark">
+              <i />
+              <i />
+            </span>
+
+            <p className="pickup-paused__badge">일시 중단</p>
+            <h1 className="pickup-paused__title" id="pickup-paused-title">
+              수거 신청을
+              <br />
+              잠시 쉬어갈게요
+            </h1>
+
+            <div className="pickup-paused__body">
+              <p>
+                수능이 끝나고 수거 신청이 한꺼번에 몰렸어요. 먼저 보내주신 교재부터
+                꼼꼼히 검수하고 제때 정산해 드리기 위해 새 신청은 잠시 받지 않아요.
+              </p>
+              <p className="pickup-paused__keep">
+                교재는 버리지 말고 조금만 보관해 주세요. 준비되는 대로 다시 열게요.
+              </p>
+            </div>
+
+            <Link
+              className="pickup-paused__status"
+              onClick={() => trackSelectContent("pickup_paused_cta", "mypage")}
+              to="/mypage#sales"
+            >
+              <span className="pickup-paused__status-text">
+                <span>이미 신청하셨다면</span>
+                <strong>접수된 수거는 그대로 진행돼요</strong>
+              </span>
+              <span className="pickup-paused__status-link">
+                수거 현황 보기
+                <ArrowRightIcon size={16} />
+              </span>
+            </Link>
+
+            <div className="pickup-paused__actions">
+              <Link
+                className="pickup-btn pickup-btn--primary"
+                onClick={() => trackSelectContent("pickup_paused_cta", "sell_guide")}
+                to="/sell"
+              >
+                판매 안내 보기
+              </Link>
+              <Link
+                className="pickup-btn pickup-btn--secondary"
+                onClick={() => trackSelectContent("pickup_paused_cta", "home")}
+                to="/"
+              >
+                홈으로
+              </Link>
+            </div>
+          </section>
+        </div>
+      </main>
+      <PublicFooter />
+    </div>
+  );
+}
+
+function PickupRequestFlow() {
   const location = useLocation();
   const navigate = useNavigate();
   const { isAuthenticated, isLoading, user } = usePublicAuth();
@@ -2091,19 +2183,7 @@ function PublicPickupRequestPage() {
 
   // 인증 체크
   if (isLoading) {
-    return (
-      <div className="pickup-page">
-        <PublicSiteHeader />
-        <main className="pickup-route">
-          <div className="pickup-shell">
-            <div className="pickup-loading">
-              <span className="pickup-loading__icon">⏳</span>
-              <p>수거 요청 화면을 준비하고 있어요</p>
-            </div>
-          </div>
-        </main>
-      </div>
-    );
+    return <PickupPageLoading />;
   }
 
   if (!isAuthenticated) {
@@ -2306,6 +2386,31 @@ function PublicPickupRequestPage() {
       )}
     </div>
   );
+}
+
+// 신청을 받는 중인지 먼저 확인한 뒤 신청서(또는 중단 안내)를 연다.
+// 중단 안내는 로그인 여부와 무관하게 보여 준다 — 로그인시킨 뒤에 막지 않는다.
+function PublicPickupRequestPage() {
+  usePageMeta({
+    title: "교재 위탁판매 신청",
+    description:
+      "안 쓰는 수능 교재를 CJ 픽업으로 보내고 검수 후 정산까지. 예상 권수와 박스별 규격을 입력해 수거를 신청하세요.",
+  });
+  const [intake, setIntake] = useState(null); // null = 확인 중
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchPickupIntakeStatus().then((status) => {
+      if (!cancelled) setIntake(status);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!intake) return <PickupPageLoading />;
+  if (intake.paused) return <PickupPaused />;
+  return <PickupRequestFlow />;
 }
 
 export default PublicPickupRequestPage;

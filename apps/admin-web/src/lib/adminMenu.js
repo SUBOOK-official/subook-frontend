@@ -36,6 +36,7 @@ export const ADMIN_MENU = [
           { label: "수거 접수 대기", to: "/admin/pickups?status=pending", keywords: ["CJ 접수", "대기"] },
           { label: "검수 작업", to: "/admin/pickups?tab=inspection", keywords: ["입고", "등급", "가격 책정"] },
           { label: "박스 규격 설정", to: "/admin/pickups", keywords: ["박스", "규격", "CJ"] },
+          { label: "수거 신청 중단·재개", to: "/admin/pickups", keywords: ["신청 막기", "신청 받기", "일시 중단", "신청 닫기", "신청 열기"] },
         ],
       },
       {
