@@ -19,6 +19,7 @@ import {
   TABLE_CLASS,
   TD_CLASS,
   TH_CLASS,
+  WarnNote,
   ilseongPath,
   useIlseongFeedback,
 } from "./IlseongUi";
@@ -130,7 +131,7 @@ const CASES = [
   },
   {
     q: "새 기기에서 로그인이 안 된대요",
-    a: <>쓸 수 있는 기기 수가 꽉 찬 거예요. 학생을 찾아 '로그인한 기기'에서 안 쓰는 기기를 [해제]해 주세요. 필기와 진도는 그대로 남아요.</>,
+    a: <>기기 수가 꽉 찼거나, 기기를 바꿀 수 있는 횟수를 다 쓴 거예요. 한 계정은 기기 2대까지 쓰고, 학생이 스스로 기기를 바꾸는 것은 30일에 2번까지예요. 학생을 찾아 '로그인한 기기'에서 안 쓰는 기기를 [해제]해 주면 새 기기로 로그인할 수 있어요. 필기와 진도는 그대로 남아요.</>,
   },
   {
     q: "사지 않은 사람에게 교재를 열어 줘야 해요",
@@ -231,7 +232,7 @@ function UserDetail({ userId }) {
               </div>
             </Section>
           </div>
-          <Devices devices={data.devices} onChanged={reload} userId={userId} />
+          <Devices devices={data.devices} max={data.maxDevices} onChanged={reload} swaps={data.deviceSwaps} userId={userId} />
           <Books detail={data} onChanged={reload} onGranted={detail.setData} userId={userId} />
         </>
       ) : null}
@@ -319,7 +320,8 @@ function Books({ userId, detail, onGranted, onChanged }) {
   );
 }
 
-function Devices({ userId, devices, onChanged }) {
+// swaps = 학생이 스스로 기기를 바꾼 횟수와 한도(앱 저장소 ADR 0049). 여기서 해 주는 해제는 그 횟수에 넣지 않는다.
+function Devices({ userId, devices, onChanged, swaps, max }) {
   const { confirm, toast } = useIlseongFeedback();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -346,7 +348,14 @@ function Devices({ userId, devices, onChanged }) {
   };
 
   return (
-    <Section sub="기기 수를 넘어 새 기기로 로그인하지 못할 때 쓰지 않는 기기를 해제해요." title="로그인한 기기">
+    <Section
+      sub={
+        swaps
+          ? `한 계정은 기기 ${max}대까지 쓰고, 학생이 스스로 기기를 바꿀 수 있는 횟수는 ${swaps.windowDays}일에 ${swaps.limit}번이에요. 횟수를 다 쓴 학생은 여기서 해제해 주면 새 기기로 로그인할 수 있어요. 여기서 한 해제는 횟수에 넣지 않아요.`
+          : "기기 수를 넘어 새 기기로 로그인하지 못할 때 쓰지 않는 기기를 해제해요."
+      }
+      title="로그인한 기기"
+    >
       <ErrorNote className="mb-3" error={error} />
       {devices.length === 0 ? (
         <EmptyNote>로그인한 기기가 없어요.</EmptyNote>
@@ -378,6 +387,16 @@ function Devices({ userId, devices, onChanged }) {
           </table>
         </div>
       )}
+      {swaps ? (
+        <p className="mt-3 text-sm text-slate-600">
+          최근 {swaps.windowDays}일 동안 학생이 스스로 기기를 바꾼 횟수:{" "}
+          <strong className="font-bold tabular-nums text-slate-900">{swaps.used}번</strong> / {swaps.limit}번
+          {swaps.nextAt ? ` · ${formatDateTime(swaps.nextAt)}부터 학생이 다시 바꿀 수 있어요` : ""}
+        </p>
+      ) : null}
+      {swaps && swaps.used >= swaps.limit ? (
+        <WarnNote className="mt-2">횟수를 다 쓴 계정이에요. 기기를 자주 바꾸는 까닭을 물어본 뒤에 해제해 주세요. 한 계정을 여러 사람이 돌려 쓰면 이렇게 돼요.</WarnNote>
+      ) : null}
     </Section>
   );
 }
