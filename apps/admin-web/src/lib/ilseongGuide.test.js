@@ -12,7 +12,9 @@ test("교재 한 권의 준비 상태", () => {
   assert.equal(bookState(ready), "ready");
   assert.equal(bookState(noPdf), "none");
   assert.equal(bookState(noRanges), "ranges");
-  assert.equal(bookState({ pageCount: 10, days: [] }), "ranges");
+  // 하루 분량으로 나누지 않은 교재는 쪽만 있으면 볼 수 있다
+  assert.equal(bookState({ pageCount: 10, days: [] }), "ready");
+  assert.equal(bookState({ pageCount: null, days: [] }), "none");
   assert.deepEqual(pageCounts([{ books: [ready, noPdf] }, { books: [noRanges] }]), { total: 3, ready: 1, none: 1, ranges: 1 });
 });
 
@@ -102,6 +104,10 @@ test("새 학습지 만들기: 고칠 것과 보낼 값", () => {
   assert.match(setupProblem({ ...form, subjects: [{ name: "" }] }), /과목 이름/);
   assert.match(setupProblem({ ...form, subjects: [{ name: "국어" }, { name: "국어 " }] }), /두 번/);
   assert.match(setupProblem({ ...form, bookCount: "0" }), /교재 수/);
-  assert.match(setupProblem({ ...form, dayCount: "61" }), /하루 분량 수/);
+  assert.match(setupProblem({ ...form, dayCount: "401" }), /하루 분량 수/);
+  assert.match(setupProblem({ ...form, dayCount: "" }), /하루 분량 수/);
+  // 하루 분량으로 나누지 않는 교재(0)와 많은 교재(200)
+  assert.equal(setupProblem({ ...form, dayCount: "0" }), null);
+  assert.equal(setupProblem({ ...form, dayCount: "200" }), null);
   assert.match(setupProblem({ ...form, unitWord: " " }), /부르는 말/);
 });

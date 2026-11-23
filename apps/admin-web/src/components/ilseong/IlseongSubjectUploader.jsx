@@ -167,16 +167,21 @@ export default function IlseongSubjectUploader({ books, words = { unit: "주차"
       for (const entry of todo) {
         const bookId = entry.book.id;
         setRun({ label: entry.book.label, done: 0, total: entry.pages, overall: overall / all });
+        // 이 교재의 쪽 모양(세로 ÷ 가로)은 본문 쪽의 크기를 재서 정한다. 해설이나 표지가 다른 크기면 여백을 넣어 맞춘다
+        const aspect = await source.aspectOf(Array.from({ length: entry.bodyPages }, (_, k) => entry.first + k));
         const { uploadId } = await ilseongAdmin.request("POST", `/api/admin/books/${bookId}/uploads`);
         for (let k = 0; k < entry.pages; k += 1) {
           if (closed.current) return;
-          const blob = await source.page(sourcePageOf(entry, k + 1));
-          await putPageWithRetry(`/api/admin/books/${bookId}/uploads/${uploadId}/pages/${k + 1}`, blob);
+          const blob = await source.page(sourcePageOf(entry, k + 1), aspect);
+          await putPageWithRetry(`/api/admin/books/${bookId}/uploads/${uploadId}/pages/${k + 1}?aspect=${aspect}`, blob);
           overall += 1;
           if (!closed.current) setRun({ label: entry.book.label, done: k + 1, total: entry.pages, overall: overall / all });
         }
         if (closed.current) return;
-        await ilseongAdmin.request("POST", `/api/admin/books/${bookId}/uploads/${uploadId}/commit`, { pageCount: entry.pages });
+        await ilseongAdmin.request("POST", `/api/admin/books/${bookId}/uploads/${uploadId}/commit`, {
+          pageCount: entry.pages,
+          pageAspect: aspect,
+        });
         await ilseongAdmin.request("PUT", `/api/admin/books/${bookId}`, {
           pageCount: entry.pages,
           bumpVersion: false,
@@ -314,7 +319,7 @@ export default function IlseongSubjectUploader({ books, words = { unit: "주차"
         ) : null}
 
         {source?.padded() ? (
-          <WarnNote>크기가 B5와 다른 쪽은 흰 여백을 넣어 B5 모양에 맞췄어요. 앱에서는 쪽 가운데에 조금 작게 보여요.</WarnNote>
+          <WarnNote>크기가 다른 쪽이 섞여 있어요. 그런 쪽은 흰 여백을 넣어 그 교재의 쪽 모양에 맞췄어요.</WarnNote>
         ) : null}
         {run ? (
           <Progress label={`${run.label} 올리는 중 ${run.done}/${run.total} · 전체 ${Math.round(run.overall * 100)}%`} ratio={run.overall} />

@@ -19,12 +19,12 @@ export const stepNumber = (key) => STEPS.findIndex((step) => step.key === key) +
  * 교재 한 권이 앱에서 볼 준비가 됐는지.
  *  - "none"   PDF(쪽 이미지)를 아직 올리지 않았다 → 앱에 '준비 중'으로 보인다
  *  - "ranges" 쪽은 올렸는데 하루 분량마다의 쪽 범위가 비어 있다 → 하루 분량을 눌러도 쪽이 열리지 않는다
- *  - "ready"  볼 수 있다
+ *  - "ready"  볼 수 있다. 하루 분량으로 나누지 않은 교재(단어장·부록처럼 쪽만 보는 책)는 쪽만 올리면 된다
  */
 export function bookState(book) {
   if (!book?.pageCount) return "none";
   const days = book.days ?? [];
-  if (days.length === 0) return "ranges";
+  if (days.length === 0) return "ready";
   return days.every((day) => day.startPage != null && day.endPage != null) ? "ready" : "ranges";
 }
 
@@ -202,6 +202,8 @@ export function homeTodos({ seriesList, sales, system, config, serverStale = fal
 // ── 새 학습지 만들기 ─────────────────────────────────────────
 
 /** 교재 한 권·하루 분량을 부르는 말로 자주 쓰는 것. 마지막의 빈 값은 "직접 넣기". */
+/** 교재 한 권의 하루 분량 수(앱 서버의 한도와 같다). 0 = 하루 분량으로 나누지 않는 교재. */
+export const MAX_DAYS = 400;
 export const UNIT_WORDS = ["주차", "회", "권"];
 export const DAY_WORDS = ["Day", "일차", "강"];
 
@@ -214,7 +216,9 @@ export function setupProblem(form) {
   const books = Number(form.bookCount);
   if (!Number.isInteger(books) || books < 1 || books > 60) return "교재 수는 1–60 사이로 넣어 주세요.";
   const days = Number(form.dayCount);
-  if (!Number.isInteger(days) || days < 1 || days > 60) return "하루 분량 수는 1–60 사이로 넣어 주세요.";
+  if (String(form.dayCount ?? "").trim() === "" || !Number.isInteger(days) || days < 0 || days > MAX_DAYS) {
+    return `하루 분량 수는 0–${MAX_DAYS} 사이로 넣어 주세요. 하루 분량으로 나누지 않는 교재면 0을 넣어요.`;
+  }
   if (!String(form.unitWord || "").trim()) return "교재를 부르는 말을 넣어 주세요.";
   if (!String(form.dayWord || "").trim()) return "하루 분량을 부르는 말을 넣어 주세요.";
   return null;

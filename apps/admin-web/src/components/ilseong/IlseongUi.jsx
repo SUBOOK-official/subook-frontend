@@ -183,7 +183,8 @@ export function Progress({ label, ratio }) {
 }
 
 /** 쪽 이미지 미리 보기 줄. pages: { key, url, label, title }[] — 누르면 새 탭에서 크게 본다. */
-export function PageThumbs({ pages }) {
+/** aspect = 쪽의 세로 ÷ 가로(없으면 B5 세로). 쪽 모양이 다른 그림은 잘라 내지 않고 칸 안에 다 보이게 넣는다. */
+export function PageThumbs({ pages, aspect = 1.4125 }) {
   return (
     <div className="grid max-h-80 grid-cols-[repeat(auto-fill,minmax(84px,1fr))] gap-2 overflow-y-auto rounded-xl bg-slate-50 p-2">
       {pages.map((page) => (
@@ -195,7 +196,7 @@ export function PageThumbs({ pages }) {
           target="_blank"
           title={page.title}
         >
-          <img alt={page.alt || ""} className="block aspect-[182/257] w-full object-cover" loading="lazy" src={page.url} />
+          <img alt={page.alt || ""} className="block w-full object-contain" loading="lazy" src={page.url} style={{ aspectRatio: `1 / ${aspect}` }} />
           <span className="absolute bottom-1 right-1 rounded bg-slate-900/70 px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-white">{page.label}</span>
         </a>
       ))}

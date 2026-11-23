@@ -4,18 +4,15 @@
 
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
-/** 앱이 쓰는 쪽 이미지의 가로. 세로는 쪽 모양에 맞춘다(B5면 2825). */
-const PAGE_WIDTH = 2000;
-const MIN_WIDTH = 1000;
+import { commonAspect, fitInShape, needsPadNotice, shapeOf } from "./ilseongPageShape.js";
+
+/** 이미지로 올릴 때 긴 변이 이보다 작으면 앱에서 흐리게 보여 받지 않는다. */
+const MIN_LONG_SIDE = 1000;
 const MAX_PAGES = 1000;
 const MAX_SOURCE_PAGES = 4000;
-/**
- * 앱의 쪽은 B5 세로(182×257mm) 모양이다. 앱 서버도 같은 기준으로 한 번 더 본다.
- * 크기가 다른 세로 교재(단어장 등)는 흰 여백을 넣어 이 모양에 맞춘다. 가로로 긴 쪽은 펼침면을 잘못 내보낸 것으로 보고 받지 않는다.
- */
-const PAGE_RATIO = 182 / 257;
-const PAGE_HEIGHT = Math.round(PAGE_WIDTH / PAGE_RATIO);
-const RATIO_TOLERANCE = 0.03;
+// 쪽 모양(세로 ÷ 가로)은 교재마다 다를 수 있다(앱 저장소 docs/adr/0048). 고른 파일의 쪽 크기를 재서 그 교재의 모양을 정하고
+// (ilseongPageShape.js), 모든 쪽을 그 모양의 이미지로 만든다. 모양이 다른 쪽(표지·접지)은 흰 여백을 넣어 맞춘다.
+// 가로로 긴 교재도 그대로 받는다. 앱과 앱 서버는 여기서 정한 모양을 그대로 쓴다.
 const JPEG_QUALITY = 0.9;
 const MAX_BYTES = 4 * 1024 * 1024;
 
@@ -31,37 +28,14 @@ const isImage = (file) => /^image\/(jpeg|png)$/.test(file.type) || /\.(jpe?g|png
 // 파일 이름 순서가 쪽 순서다. 숫자는 수로 견준다(p2가 p10보다 앞)
 const byName = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" });
 
-/** B5 세로 모양인가(조금의 차이는 봐준다). */
-export function isPageShape(width, height) {
-  return Math.abs(width / height - PAGE_RATIO) <= PAGE_RATIO * RATIO_TOLERANCE;
-}
-
-/** 가로로 긴 쪽은 받지 않는다(펼침면). B5가 아닌 세로 쪽은 여백을 넣어 맞추므로 여기서는 통과시킨다. */
-function checkShape(width, height, label) {
-  if (width > height) {
-    throw new PagePrepareError(`${label}: 가로로 긴 쪽이에요. 펼침면이 아니라 한 쪽씩 내보낸 파일인지 확인해 주세요.`);
-  }
-}
-
-/**
- * B5 모양이 아닌 쪽을 B5 모양의 흰 바탕 가운데에 맞춰 넣을 때의 자리.
- * @returns {{ width: number, height: number, x: number, y: number }} 바탕(PAGE_WIDTH×PAGE_HEIGHT) 안에서 그림이 놓일 크기와 왼쪽 위
- */
-export function fitInPage(width, height) {
-  const scale = Math.min(PAGE_WIDTH / width, PAGE_HEIGHT / height);
-  const w = Math.round(width * scale);
-  const h = Math.round(height * scale);
-  return { width: w, height: h, x: Math.round((PAGE_WIDTH - w) / 2), y: Math.round((PAGE_HEIGHT - h) / 2) };
-}
-
-/** 그린 쪽을 B5 모양의 흰 바탕 가운데에 옮겨 그린다. 원래 캔버스는 비운다. */
-function padToPage(drawn) {
+/** 그린 쪽을 교재의 쪽 모양 바탕(흰색) 가운데에 옮겨 그린다. 원래 캔버스는 비운다. */
+function padToShape(drawn, shape) {
   const canvas = document.createElement("canvas");
-  canvas.width = PAGE_WIDTH;
-  canvas.height = PAGE_HEIGHT;
+  canvas.width = shape.width;
+  canvas.height = shape.height;
   const context = canvas.getContext("2d");
   if (!context) throw new PagePrepareError("이 브라우저에서는 이미지를 바꿀 수 없어요. 크롬에서 해 주세요.");
-  const place = fitInPage(drawn.width, drawn.height);
+  const place = fitInShape(drawn.width, drawn.height, shape);
   context.fillStyle = "#fff";
   context.fillRect(0, 0, canvas.width, canvas.height);
   context.imageSmoothingQuality = "high";
@@ -81,9 +55,10 @@ async function toJpeg(canvas, label) {
   return blob;
 }
 
-async function toPage(canvas, no, padded = false) {
+/** aspect = 이 교재의 쪽 모양(모든 쪽이 같다). padded = 이 쪽은 모양이 달라 여백이 눈에 띈다. */
+async function toPage(canvas, no, shape, padded = false) {
   const blob = await toJpeg(canvas, `${no}쪽`);
-  return { no, blob, url: URL.createObjectURL(blob), padded };
+  return { no, blob, url: URL.createObjectURL(blob), padded, aspect: shape.aspect };
 }
 
 /** PDF 파일을 연다. 다 쓰면 task.destroy()로 닫는다. */
@@ -110,27 +85,35 @@ async function openPdf(file) {
   }
 }
 
-/**
- * PDF의 한 쪽을 앱이 쓰는 크기의 캔버스로 그린다. label은 오류 안내에 쓰는 쪽 이름.
- * B5 모양이 아닌 세로 쪽은 B5 바탕 가운데에 맞춰 넣고 canvas.padded = true로 알린다.
- */
-async function renderPdfPage(doc, no, label) {
+/** PDF 한 쪽의 크기(회전까지 반영한, 보이는 그대로의 가로·세로). */
+async function pdfPageSize(doc, no) {
   const page = await doc.getPage(no);
   const natural = page.getViewport({ scale: 1 });
-  checkShape(natural.width, natural.height, label);
-  const fits = isPageShape(natural.width, natural.height);
-  const scale = fits ? PAGE_WIDTH / natural.width : fitInPage(natural.width, natural.height).width / natural.width;
-  const viewport = page.getViewport({ scale });
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.round(viewport.width);
-  canvas.height = Math.round(viewport.height);
-  // print로 그리면 화면 갱신 주기를 기다리지 않는다. 다른 탭을 보고 있어도 멈추지 않는다
-  await page.render({ canvas, viewport, intent: "print" }).promise;
   page.cleanup();
-  if (fits) return canvas;
-  const padded = padToPage(canvas);
-  padded.padded = true;
-  return padded;
+  return { width: natural.width, height: natural.height };
+}
+
+/**
+ * PDF의 한 쪽을 교재의 쪽 모양(shape) 크기의 캔버스로 그린다.
+ * 모양이 다른 쪽은 바탕 가운데에 맞춰 넣고, 여백이 눈에 띄면 canvas.padded = true로 알린다.
+ */
+async function renderPdfPage(doc, no, shape) {
+  const page = await doc.getPage(no);
+  const natural = page.getViewport({ scale: 1 });
+  const place = fitInShape(natural.width, natural.height, shape);
+  const fills = place.width === shape.width && place.height === shape.height;
+  const viewport = page.getViewport({ scale: place.width / natural.width });
+  const canvas = document.createElement("canvas");
+  canvas.width = fills ? shape.width : Math.round(viewport.width);
+  canvas.height = fills ? shape.height : Math.round(viewport.height);
+  // 쪽 모양이 같으면 바탕 크기로 바로 그린다. 세로는 반올림만큼(1% 안) 맞춰 늘인다(다시 줄였다 늘리면 글자가 흐려진다)
+  const transform = fills ? [1, 0, 0, shape.height / viewport.height, 0, 0] : undefined;
+  // print로 그리면 화면 갱신 주기를 기다리지 않는다. 다른 탭을 보고 있어도 멈추지 않는다
+  await page.render({ canvas, viewport, intent: "print", transform }).promise;
+  page.cleanup();
+  const out = fills ? canvas : padToShape(canvas, shape);
+  out.padded = needsPadNotice(natural.width, natural.height, shape);
+  return out;
 }
 
 async function fromPdf(file, out, onProgress, stopped) {
@@ -139,9 +122,13 @@ async function fromPdf(file, out, onProgress, stopped) {
     const total = doc.numPages;
     if (total > MAX_PAGES) throw new PagePrepareError(`쪽이 너무 많아요(${total}쪽). 교재 한 권만 올려 주세요.`);
     onProgress(0, total);
+    // 먼저 쪽 크기만 재서 이 교재의 쪽 모양을 정한다
+    const sizes = [];
+    for (let no = 1; no <= total && !stopped(); no += 1) sizes.push(await pdfPageSize(doc, no));
+    const shape = shapeOf(commonAspect(sizes));
     for (let no = 1; no <= total && !stopped(); no += 1) {
-      const canvas = await renderPdfPage(doc, no, `${no}쪽`);
-      out.push(await toPage(canvas, no, canvas.padded === true));
+      const canvas = await renderPdfPage(doc, no, shape);
+      out.push(await toPage(canvas, no, shape, canvas.padded === true));
       onProgress(no, total);
     }
   } finally {
@@ -153,6 +140,8 @@ async function fromImages(files, out, onProgress, stopped) {
   if (files.length > MAX_PAGES) throw new PagePrepareError(`이미지가 너무 많아요(${files.length}장). 교재 한 권만 올려 주세요.`);
   const sorted = [...files].sort(byName);
   onProgress(0, sorted.length);
+  // 이미지는 첫 장의 모양이 그 교재의 쪽 모양이다
+  let shape = null;
   for (let index = 0; index < sorted.length && !stopped(); index += 1) {
     const file = sorted[index];
     let bitmap;
@@ -162,23 +151,24 @@ async function fromImages(files, out, onProgress, stopped) {
       throw new PagePrepareError(`그림으로 읽지 못한 파일이 있어요: ${file.name}`);
     }
     try {
-      if (bitmap.width < MIN_WIDTH) {
-        throw new PagePrepareError(`${file.name}: 가로가 ${bitmap.width}px이라 너무 작아요. ${MIN_WIDTH}px 이상이어야 해요.`);
+      if (Math.max(bitmap.width, bitmap.height) < MIN_LONG_SIDE) {
+        throw new PagePrepareError(
+          `${file.name}: ${bitmap.width}×${bitmap.height}px이라 너무 작아요. 긴 변이 ${MIN_LONG_SIDE}px 이상이어야 해요.`,
+        );
       }
-      checkShape(bitmap.width, bitmap.height, file.name);
-      const width = Math.min(bitmap.width, PAGE_WIDTH);
+      shape ??= shapeOf(bitmap.height / bitmap.width);
+      const place = fitInShape(bitmap.width, bitmap.height, shape);
       const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = Math.round((bitmap.height * width) / bitmap.width);
+      canvas.width = shape.width;
+      canvas.height = shape.height;
       const context = canvas.getContext("2d");
       if (!context) throw new PagePrepareError("이 브라우저에서는 이미지를 바꿀 수 없어요. 크롬에서 해 주세요.");
-      // 투명한 PNG는 흰 바탕으로
+      // 투명한 PNG와 여백은 흰 바탕으로
       context.fillStyle = "#fff";
       context.fillRect(0, 0, canvas.width, canvas.height);
       context.imageSmoothingQuality = "high";
-      context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-      const fits = isPageShape(bitmap.width, bitmap.height);
-      out.push(await toPage(fits ? canvas : padToPage(canvas), index + 1, !fits));
+      context.drawImage(bitmap, place.x, place.y, place.width, place.height);
+      out.push(await toPage(canvas, index + 1, shape, needsPadNotice(bitmap.width, bitmap.height, shape)));
     } finally {
       bitmap.close();
     }
@@ -187,7 +177,8 @@ async function fromImages(files, out, onProgress, stopped) {
 }
 
 /**
- * 교재 한 권: PDF 한 개, 또는 쪽 순서대로 이름을 붙인 이미지 여러 장을 받아 쪽마다 { no, blob, url }로 만든다.
+ * 교재 한 권: PDF 한 개, 또는 쪽 순서대로 이름을 붙인 이미지 여러 장을 받아 쪽마다 { no, blob, url, padded, aspect }로 만든다.
+ * aspect = 이 교재의 쪽 모양(세로 ÷ 가로). 모든 쪽이 같은 값이고, 올릴 때 앱 서버에 함께 알린다.
  * stopped()가 참이 되면(창을 닫았을 때) 그만두고 빈 목록을 준다.
  */
 export async function preparePages(files, onProgress, stopped) {
@@ -217,8 +208,11 @@ export async function preparePages(files, onProgress, stopped) {
 /**
  * 여러 PDF를 이름 순서대로 이어 붙인 하나의 쪽 묶음. 과목 전체(모든 주차)를 한 번에 올릴 때 쓴다.
  * 쪽이 수백 장이라 미리 다 그려 두지 않고, 올릴 때 한 쪽씩 그린다.
- * @returns {Promise<{ files: {name: string, pages: number}[], total: number, page(no: number): Promise<Blob>,
- *                     padded(): boolean, close(): Promise<void> }>}  padded() = 지금까지 그린 쪽 가운데 여백을 넣어 맞춘 쪽이 있었나
+ * @returns {Promise<{ files: {name: string, pages: number}[], total: number, close(): Promise<void>,
+ *                     aspectOf(nos: number[]): Promise<number>, page(no: number, aspect?: number): Promise<Blob>,
+ *                     padded(): boolean }>}
+ *   aspectOf(nos) = 그 쪽들(교재 한 권)의 쪽 모양. page(no, aspect) = 그 모양으로 그린 쪽(aspect가 없으면 그 쪽 그대로의 모양).
+ *   padded() = 지금까지 그린 쪽 가운데 모양이 달라 여백이 눈에 띄는 쪽이 있었나
  */
 export async function openPageSource(files) {
   if (files.length === 0 || !files.every(isPdf)) throw new PagePrepareError("PDF 파일만 올릴 수 있어요.");
@@ -242,23 +236,42 @@ export async function openPageSource(files) {
     throw new PagePrepareError(`쪽이 너무 많아요(${total}쪽).`);
   }
   let anyPadded = false;
+  /** 이어 붙인 쪽 번호 → 그 쪽이 든 PDF와 그 안의 쪽 번호 */
+  const locate = (no) => {
+    let rest = no;
+    for (const entry of opened) {
+      if (rest >= 1 && rest <= entry.pages) {
+        return { doc: entry.doc, no: rest, label: opened.length > 1 ? `${entry.name} ${rest}쪽` : `${rest}쪽` };
+      }
+      rest -= entry.pages;
+    }
+    throw new PagePrepareError(`${no}쪽이 없어요.`);
+  };
+  const sizes = new Map();
+  const sizeOf = async (no) => {
+    if (!sizes.has(no)) {
+      const at = locate(no);
+      sizes.set(no, await pdfPageSize(at.doc, at.no));
+    }
+    return sizes.get(no);
+  };
   return {
     files: list,
     total,
     close,
     padded: () => anyPadded,
-    async page(no) {
-      let rest = no;
-      for (const entry of opened) {
-        if (rest <= entry.pages) {
-          const label = opened.length > 1 ? `${entry.name} ${rest}쪽` : `${rest}쪽`;
-          const canvas = await renderPdfPage(entry.doc, rest, label);
-          if (canvas.padded === true) anyPadded = true;
-          return toJpeg(canvas, label);
-        }
-        rest -= entry.pages;
-      }
-      throw new PagePrepareError(`${no}쪽이 없어요.`);
+    async aspectOf(nos) {
+      const measured = [];
+      for (const no of nos) measured.push(await sizeOf(no));
+      return commonAspect(measured);
+    },
+    async page(no, aspect) {
+      const at = locate(no);
+      const own = await sizeOf(no);
+      const shape = shapeOf(aspect ?? own.height / own.width);
+      const canvas = await renderPdfPage(at.doc, at.no, shape);
+      if (aspect !== undefined && canvas.padded === true) anyPadded = true;
+      return toJpeg(canvas, at.label);
     },
   };
 }

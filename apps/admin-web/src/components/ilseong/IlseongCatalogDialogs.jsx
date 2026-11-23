@@ -11,6 +11,7 @@ import {
   numberedLabel,
   parseLabelLines,
 } from "../../lib/ilseongCatalog";
+import { MAX_DAYS } from "../../lib/ilseongGuide";
 import { ErrorNote, FIELD_CLASS, Field, MoveButtons, SMALL_BUTTON, WarnNote, useIlseongFeedback } from "./IlseongUi";
 
 // 학습지 화면의 창들: 학습지 설정, 과목, 교재 더하기, 교재 이름·하루 분량 구성.
@@ -220,7 +221,7 @@ export function AddBooksDialog({ series, subject, onClose, onSaved }) {
   const [count, setCount] = useState("1");
   const [names, setNames] = useState(() => nextLabels(existing, unit, 1).join("\n"));
   const [edited, setEdited] = useState(false);
-  const [dayCount, setDayCount] = useState(String(subject.books.at(-1)?.days.length || 7));
+  const [dayCount, setDayCount] = useState(String(subject.books.at(-1)?.days.length ?? 7));
   const { saving, error, setError, save } = useSave(onSaved);
 
   const labels = parseLabelLines(names);
@@ -246,7 +247,7 @@ export function AddBooksDialog({ series, subject, onClose, onSaved }) {
   return (
     <AdminDialog
       busy={saving}
-      footer={<Footer disabled={Boolean(problem) || dayNumber < 1} formId={formId} onClose={onClose} saveLabel={`${labels.length || ""}권 만들기`} saving={saving} />}
+      footer={<Footer disabled={Boolean(problem) || dayCount === "" || dayNumber > MAX_DAYS} formId={formId} onClose={onClose} saveLabel={`${labels.length || ""}권 만들기`} saving={saving} />}
       onClose={onClose}
       open
       size="lg"
@@ -258,7 +259,7 @@ export function AddBooksDialog({ series, subject, onClose, onSaved }) {
             <input autoFocus className={`${FIELD_CLASS} tabular-nums`} inputMode="numeric" onChange={(event) => changeCount(event.target.value)} value={count} />
           </Field>
           <Field label={`한 권에 하루 분량(${day}) 몇 개?`}>
-            <input className={`${FIELD_CLASS} tabular-nums`} inputMode="numeric" onChange={(event) => { setError(null); setDayCount(digits(event.target.value, 2)); }} value={dayCount} />
+            <input className={`${FIELD_CLASS} tabular-nums`} inputMode="numeric" onChange={(event) => { setError(null); setDayCount(digits(event.target.value, 3)); }} value={dayCount} />
           </Field>
         </div>
         <Field label="교재 이름 (한 줄에 하나)">
@@ -270,7 +271,10 @@ export function AddBooksDialog({ series, subject, onClose, onSaved }) {
           />
         </Field>
         <p className="-mt-2 text-[13px] leading-relaxed text-slate-500">
-          앱에 이 이름 그대로 보여요. 하루 분량은 {numberedLabel(day, 1)}부터 {numberedLabel(day, Math.max(dayNumber, 1))}까지 만들어지고, 만든 뒤에 이름을 바꾸거나 더하고 뺄 수 있어요.
+          앱에 이 이름 그대로 보여요.{" "}
+          {dayNumber > 0
+            ? `하루 분량은 ${numberedLabel(day, 1)}부터 ${numberedLabel(day, dayNumber)}까지 만들어지고, 만든 뒤에 이름을 바꾸거나 더하고 뺄 수 있어요.`
+            : "하루 분량을 0으로 두면 나누지 않는 교재가 돼요(단어장·부록처럼 쪽만 보는 책). 만든 뒤에 더할 수 있어요."}
         </p>
         {problem && labels.length > 0 ? <WarnNote>{problem}</WarnNote> : null}
 
@@ -337,7 +341,7 @@ export function StructureDialog({ series, book, onClose, onSaved }) {
       busy={saving}
       footer={
         <Footer
-          disabled={days.length === 0 || !label.trim()}
+          disabled={!label.trim()}
           formId={formId}
           left={
             <button className={`btn-danger-weak ${SMALL_BUTTON}`} disabled={saving || Boolean(block)} onClick={() => void remove()} title={block ?? undefined} type="button">
@@ -362,7 +366,7 @@ export function StructureDialog({ series, book, onClose, onSaved }) {
             <p className="text-sm font-semibold text-slate-600">{day} {days.length}개</p>
             <button
               className={`btn-secondary ${SMALL_BUTTON}`}
-              disabled={days.length >= 60}
+              disabled={days.length >= MAX_DAYS}
               onClick={() => {
                 setError(null);
                 setDays([...days, { key: `n${added}`, id: null, label: nextLabels(days.map((entry) => entry.label), day, 1)[0], completed: false, pages: false }]);
@@ -399,7 +403,6 @@ export function StructureDialog({ series, book, onClose, onSaved }) {
                 ) : (
                   <button
                     className={`btn-danger-weak shrink-0 ${SMALL_BUTTON}`}
-                    disabled={days.length <= 1}
                     onClick={() => {
                       setError(null);
                       setDays(days.filter((_, i) => i !== index));

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ilseongAdmin, useIlseongData } from "../../lib/ilseongAdmin";
 import { IlseongAdminError } from "../../lib/ilseongAdminClient";
 import { PagePrepareError, preparePages, releasePages } from "../../lib/ilseongPageImages";
+import { sameAspect, shapeName } from "../../lib/ilseongPageShape";
 import { pageNumbersLabel } from "../../lib/ilseongPageLayout";
 import { ErrorNote, PageThumbs, Progress, SMALL_BUTTON, WarnNote, useIlseongFeedback } from "./IlseongUi";
 
@@ -83,10 +84,15 @@ export default function IlseongPageUploader({ book, onBusy, onDone }) {
   };
 
   const upload = async (pages) => {
+    // 이 교재의 쪽 모양(세로 ÷ 가로). 고른 파일에서 잰 값이고 모든 쪽이 같다
+    const aspect = pages[0].aspect;
     if (book.pageCount !== null) {
+      const reshaped = !sameAspect(book.pageAspect, aspect);
       const ok = await confirm({
         title: `${book.title}의 쪽 이미지를 바꿀까요?`,
-        message: `지금 올라가 있는 ${book.pageCount}쪽 대신 새 ${pages.length}쪽이 학생 앱에 보여요. 학생이 쓴 필기는 그대로 남아요.`,
+        message: reshaped
+          ? `지금 올라가 있는 ${book.pageCount}쪽 대신 새 ${pages.length}쪽이 학생 앱에 보여요. 쪽 모양이 전과 달라서, 학생이 이미 쓴 필기는 자리가 어긋나 보일 수 있어요.`
+          : `지금 올라가 있는 ${book.pageCount}쪽 대신 새 ${pages.length}쪽이 학생 앱에 보여요. 학생이 쓴 필기는 그대로 남아요.`,
         confirm: "바꾸기",
       });
       if (!ok || closed.current) return;
@@ -97,12 +103,13 @@ export default function IlseongPageUploader({ book, onBusy, onDone }) {
       const { uploadId } = await ilseongAdmin.request("POST", `/api/admin/books/${book.id}/uploads`);
       for (const page of pages) {
         if (closed.current) return;
-        await putPageWithRetry(`/api/admin/books/${book.id}/uploads/${uploadId}/pages/${page.no}`, page.blob);
+        await putPageWithRetry(`/api/admin/books/${book.id}/uploads/${uploadId}/pages/${page.no}?aspect=${aspect}`, page.blob);
         if (!closed.current) setStep({ kind: "uploading", pages, done: page.no });
       }
       if (closed.current) return;
       const saved = await ilseongAdmin.request("POST", `/api/admin/books/${book.id}/uploads/${uploadId}/commit`, {
         pageCount: pages.length,
+        pageAspect: aspect,
       });
       releasePages(pages);
       held.current = [];
@@ -148,7 +155,7 @@ export default function IlseongPageUploader({ book, onBusy, onDone }) {
           ) : null}
           {showServer && state ? (
             // 앱 서버가 준 주소는 경로뿐이라(서명 포함) 앱 서버 주소를 앞에 붙인다
-            <PageThumbs pages={preview(state.pages.map((page) => ({ ...page, url: ilseongAdmin.absoluteUrl(page.url) })))} />
+            <PageThumbs aspect={book.pageAspect ?? undefined} pages={preview(state.pages.map((page) => ({ ...page, url: ilseongAdmin.absoluteUrl(page.url) })))} />
           ) : null}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
             <button className="btn-secondary !px-4 !py-2" onClick={() => input.current?.click()} type="button">
@@ -171,9 +178,14 @@ export default function IlseongPageUploader({ book, onBusy, onDone }) {
           <p className="text-sm text-slate-600">
             {step.pages.length}쪽을 준비했어요. <strong className="font-bold text-slate-900">{book.title}</strong> 교재가 맞는지, 쪽 순서가 맞는지 보고 올려 주세요.
           </p>
-          <PageThumbs pages={preview(step.pages)} />
+          <PageThumbs aspect={step.pages[0].aspect} pages={preview(step.pages)} />
+          {shapeName(step.pages[0].aspect) ? (
+            <p className="text-sm text-slate-600">
+              이 교재는 {shapeName(step.pages[0].aspect)}이에요. 앱에서도 이 모양 그대로 보여요.
+            </p>
+          ) : null}
           {step.pages.some((page) => page.padded) ? (
-            <WarnNote>크기가 B5와 다른 쪽은 흰 여백을 넣어 B5 모양에 맞췄어요. 앱에서는 쪽 가운데에 조금 작게 보여요.</WarnNote>
+            <WarnNote>크기가 다른 쪽이 섞여 있어요. 그런 쪽은 흰 여백을 넣어 이 교재의 쪽 모양에 맞췄어요.</WarnNote>
           ) : null}
           {step.kind === "uploading" ? (
             <Progress label={`올리는 중 ${step.done}/${step.pages.length}`} ratio={step.done / step.pages.length} />

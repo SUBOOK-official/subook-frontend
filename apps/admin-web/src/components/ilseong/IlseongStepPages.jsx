@@ -211,12 +211,18 @@ function BookEditor({ book, dayWord, onClose, onSaved, onUploaded }) {
         <IlseongPageUploader book={book} onBusy={setUploading} onDone={onUploaded} />
         <hr className="border-slate-100" />
         <form className="space-y-3" id={formId} onSubmit={submit}>
-          <div>
-            <p className="text-sm font-semibold text-slate-600">{dayWord}마다 몇 쪽부터 몇 쪽까지인지</p>
-            <p className="mt-1 text-sm leading-relaxed text-slate-500">
-              학생이 {dayWord} 하나를 누르면 여기 적은 쪽이 열려요. 비워 두면 그 칸은 앱에서 열리지 않아요.
+          {days.length > 0 ? (
+            <div>
+              <p className="text-sm font-semibold text-slate-600">{dayWord}마다 몇 쪽부터 몇 쪽까지인지</p>
+              <p className="mt-1 text-sm leading-relaxed text-slate-500">
+                학생이 {dayWord} 하나를 누르면 여기 적은 쪽이 열려요. 비워 두면 그 칸은 앱에서 열리지 않아요.
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm leading-relaxed text-slate-500">
+              이 교재는 하루 분량으로 나누지 않았어요. 쪽만 올리면 학생 앱에서 처음부터 넘겨 볼 수 있어요.
             </p>
-          </div>
+          )}
           {days.map((day, index) => (
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2" key={day.dayNo}>
               <span className="w-24 shrink-0 truncate text-sm font-semibold text-slate-600" title={day.label}>{day.label}</span>

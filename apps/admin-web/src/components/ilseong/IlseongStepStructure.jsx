@@ -2,7 +2,7 @@ import { useId, useState } from "react";
 import { BusyText } from "../Loading";
 import { ilseongAdmin } from "../../lib/ilseongAdmin";
 import { SUBJECT_COLORS, findBook, moved, numberedLabel } from "../../lib/ilseongCatalog";
-import { DAY_WORDS, UNIT_WORDS, setupBody, setupProblem } from "../../lib/ilseongGuide";
+import { DAY_WORDS, MAX_DAYS, UNIT_WORDS, setupBody, setupProblem } from "../../lib/ilseongGuide";
 import { AddBooksDialog, StructureDialog, SubjectDialog } from "./IlseongCatalogDialogs";
 import {
   ErrorNote,
@@ -87,7 +87,7 @@ export function SetupForm({ onCreated }) {
 
   const problem = setupProblem(form);
   const books = Math.min(Number(form.bookCount) || 0, 60);
-  const days = Math.min(Number(form.dayCount) || 0, 60);
+  const days = Math.min(Number(form.dayCount) || 0, MAX_DAYS);
   const named = form.subjects.filter((subject) => subject.name.trim()).length;
   const range = (word, count) =>
     count <= 0 ? "" : count === 1 ? numberedLabel(word, 1) : count === 2 ? `${numberedLabel(word, 1)}, ${numberedLabel(word, 2)}` : `${numberedLabel(word, 1)}, ${numberedLabel(word, 2)} … ${numberedLabel(word, count)}`;
@@ -152,8 +152,11 @@ export function SetupForm({ onCreated }) {
 
       <div className="space-y-4">
         <Field className="max-w-[14rem]" label="교재 한 권에 하루 분량 몇 개?">
-          <input className={`${FIELD_CLASS} tabular-nums`} inputMode="numeric" onChange={(event) => set("dayCount")(digits(event.target.value))} value={form.dayCount} />
+          <input className={`${FIELD_CLASS} tabular-nums`} inputMode="numeric" onChange={(event) => set("dayCount")(digits(event.target.value, 3))} value={form.dayCount} />
         </Field>
+        <p className="-mt-2 text-[13px] leading-relaxed text-slate-500">
+          단어장이나 부록처럼 하루 분량으로 나누지 않는 교재면 0을 넣어요. 그런 교재는 앱에서 쪽만 넘겨 보고, 완료 기록은 남지 않아요.
+        </p>
         <WordPicker
           label="하루 분량을 부르는 말"
           onChange={set("dayWord")}
