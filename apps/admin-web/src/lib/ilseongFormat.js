@@ -35,6 +35,15 @@ export function formatCount(value) {
   return Number(value || 0).toLocaleString("ko-KR");
 }
 
+/**
+ * 한 과목에서 열린 교재를 한 줄로. 앱 서버가 준 summary(예: "1–8주차", "1주차, 파이널 1회 외 2")를 쓰고,
+ * 없으면(예전 서버) 순서 번호로 만든다.
+ */
+export function booksLabel(book) {
+  if (book?.summary) return book.summary;
+  return weeksLabel(book?.weeks);
+}
+
 /** 1, 2, 3, 5 → "1–3, 5주차". 8주 전체면 "1–8주차". */
 export function weeksLabel(weeks) {
   const sorted = [...(weeks || [])].sort((a, b) => a - b);
@@ -52,8 +61,8 @@ export function weeksLabel(weeks) {
 // tone: IlseongUi의 Badge 색
 export const CODE_STATUS = {
   ISSUED: { label: "등록 전", tone: "blue" },
-  REDEEMED: { label: "등록함", tone: "green" },
-  REVOKED: { label: "폐기", tone: "red" },
+  REDEEMED: { label: "등록됨", tone: "green" },
+  REVOKED: { label: "거둠", tone: "red" },
 };
 
 const PROVIDERS = {
@@ -76,21 +85,36 @@ const PLATFORMS = { IOS: "iPhone·iPad", ANDROID: "안드로이드", WEB: "웹" 
 export const platformLabel = (platform) => PLATFORMS[platform] ?? platform;
 
 const ACTIONS = {
-  CODE_BATCH_ISSUE: "코드 만들기",
   USER_GRANT: "교재 직접 등록",
   MEMBER_PREGRANT: "교재 미리 등록",
   MEMBER_PREGRANT_CANCEL: "미리 등록 취소",
-  CODE_REVOKE: "코드 폐기",
-  CODE_BATCH_REVOKE: "묶음 폐기",
+  CODE_REVOKE: "등록 거두기",
   DEVICE_UNLINK: "기기 해제",
   BOOK_UPDATE: "교재 쪽 설정",
   PAGES_UPLOAD: "쪽 이미지 올리기",
   APP_CONFIG_UPDATE: "앱 설정",
+  SERIES_CREATE: "학습지 만들기",
+  SERIES_UPDATE: "학습지 설정",
+  SERIES_DELETE: "학습지 지우기",
+  SERIES_ORDER: "학습지 순서",
+  SUBJECT_CREATE: "과목 만들기",
+  SUBJECT_UPDATE: "과목 이름·색",
+  SUBJECT_DELETE: "과목 지우기",
+  SUBJECT_ORDER: "과목 순서",
+  BOOK_CREATE: "교재 만들기",
+  BOOK_STRUCTURE: "교재 이름·구성",
+  BOOK_ORDER: "교재 순서",
+  BOOK_DELETE: "교재 지우기",
+  PRODUCT_CREATE: "앱 상품 만들기",
+  PRODUCT_UPDATE: "앱 상품 고치기",
+  // 예전 기록(코드 화면이 있던 때)
+  CODE_BATCH_ISSUE: "코드 만들기",
+  CODE_BATCH_REVOKE: "묶음 폐기",
 };
 
 export const actionLabel = (action) => ACTIONS[action] ?? action;
 
-const TARGET_KINDS = { code: "코드", batch: "묶음", book: "교재" };
+const TARGET_KINDS = { code: "등록", batch: "묶음", book: "교재", series: "학습지", subject: "과목", product: "앱 상품" };
 
 /**
  * 관리 기록의 대상("user:12/device:3", "book:5", "app-config", "member:수북 회원 UUID")
@@ -105,7 +129,10 @@ export function actionTarget(target) {
   if (member) return { text: "수북 회원", userId: null, memberRef: member[1] };
   if (text === "app-config") return { text: "앱 설정", userId: null, memberRef: null };
   const [kind, id] = text.split(":");
-  return { text: TARGET_KINDS[kind] && id ? `${TARGET_KINDS[kind]} ${id}번` : text, userId: null, memberRef: null };
+  if (text === "series") return { text: "학습지", userId: null, memberRef: null };
+  // 과목·상품은 번호가 아니라 코드(KOR, P1)로 가리킨다
+  const suffix = kind === "subject" || kind === "product" ? "" : "번";
+  return { text: TARGET_KINDS[kind] && id ? `${TARGET_KINDS[kind]} ${id}${suffix}` : text, userId: null, memberRef: null };
 }
 
 /** 1.0.2 같은 버전을 숫자 묶음으로. 견줄 수 없으면 null. */

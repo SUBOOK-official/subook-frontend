@@ -109,7 +109,7 @@ export default function IlseongPageUploader({ book, onBusy, onDone }) {
       onBusy(false);
       toast(
         saved.clearedDays.length > 0
-          ? `${pages.length}쪽을 올렸어요. DAY ${saved.clearedDays.join(", ")}의 쪽 범위를 다시 넣어 주세요`
+          ? `${pages.length}쪽을 올렸어요. 쪽 수가 줄어 ${saved.clearedDays.join(", ")}번째 칸의 쪽 범위가 지워졌어요. 다시 넣어 주세요`
           : `${book.title} ${pages.length}쪽을 올렸어요`,
       );
       onDone(saved.book);

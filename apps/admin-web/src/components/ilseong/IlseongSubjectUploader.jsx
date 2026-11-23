@@ -3,26 +3,30 @@ import AdminDialog from "../AdminDialog";
 import { BusyText } from "../Loading";
 import { ilseongAdmin } from "../../lib/ilseongAdmin";
 import { PagePrepareError, openPageSource } from "../../lib/ilseongPageImages";
-import { DEFAULT_WEEK_LAYOUT, layoutDayRanges, layoutPageCount, planSubjectUpload } from "../../lib/ilseongPageLayout";
+import { defaultLayoutText, layoutDayRanges, layoutPageCount, planSubjectUpload } from "../../lib/ilseongPageLayout";
 import { putPageWithRetry } from "./IlseongPageUploader";
 import { CheckRow, ErrorNote, FIELD_CLASS, Field, PageThumbs, Progress, WarnNote, useIlseongFeedback } from "./IlseongUi";
 
 /**
- * 한 과목의 모든 주차를 PDF로 한 번에 올린다. PDF는 한 파일이어도, 여러 파일이어도 된다(이름 순서로 잇는다).
- * 주차마다 "도입, DAY 1–7"의 쪽 수를 적으면 그만큼씩 잘라 그 주차 교재에 넣고 DAY별 쪽 범위도 함께 정한다.
- * 올리다 끊기면 끝난 주차는 그대로 두고, 다시 누르면 남은 주차부터 이어서 올린다.
+ * 한 과목의 모든 교재를 PDF로 한 번에 올린다. PDF는 한 파일이어도, 여러 파일이어도 된다(이름 순서로 잇는다).
+ * 교재마다 "도입, 하루 분량 1, 2, …"의 쪽 수를 적으면 그만큼씩 잘라 그 교재에 넣고 하루 분량별 쪽 범위도 함께 정한다.
+ * 올리다 끊기면 끝난 교재는 그대로 두고, 다시 누르면 남은 교재부터 이어서 올린다.
  *
- * onClose(바뀌었나): 한 주차라도 올라갔으면 true — 바깥 목록을 다시 읽으라는 뜻.
+ * words: 이 학습지에서 교재 한 권·하루 분량을 부르는 말({ unit: "주차", day: "Day" }).
+ * onClose(바뀌었나): 한 권이라도 올라갔으면 true — 바깥 목록을 다시 읽으라는 뜻.
  */
-export default function IlseongSubjectUploader({ books, onClose }) {
+export default function IlseongSubjectUploader({ books, words = { unit: "주차", day: "Day" }, onClose }) {
   const { confirm, toast } = useIlseongFeedback();
   const weeks = useMemo(() => [...books].sort((a, b) => a.week - b.week), [books]);
   const subject = weeks[0].subjectName;
+  const unit = words.unit;
+  // 교재마다 하루 분량 수가 같으면 구성을 한 줄로 넣고, 다르면 처음부터 교재마다 넣는다
+  const sameShape = weeks.every((book) => book.days.length === weeks[0].days.length);
   const [files, setFiles] = useState([]);
   const [source, setSource] = useState(null);
   const [reading, setReading] = useState(false);
-  const [layouts, setLayouts] = useState(() => weeks.map(() => DEFAULT_WEEK_LAYOUT));
-  const [perWeek, setPerWeek] = useState(false);
+  const [layouts, setLayouts] = useState(() => weeks.map((book) => defaultLayoutText(book.days.length)));
+  const [perWeek, setPerWeek] = useState(!sameShape);
   const [covers, setCovers] = useState([]);
   const [run, setRun] = useState(null);
   const [doneWeeks, setDoneWeeks] = useState([]);
@@ -110,7 +114,7 @@ export default function IlseongSubjectUploader({ books, onClose }) {
       for (const entry of plans) {
         if (stale) break;
         const blob = await source.page(entry.first);
-        made.push({ week: entry.book.week, url: URL.createObjectURL(blob) });
+        made.push({ id: entry.book.id, label: entry.book.label, url: URL.createObjectURL(blob) });
       }
       if (stale || closed.current) {
         made.forEach((cover) => URL.revokeObjectURL(cover.url));
@@ -133,32 +137,32 @@ export default function IlseongSubjectUploader({ books, onClose }) {
 
   const upload = async () => {
     if (!source) return;
-    const todo = plans.filter((entry) => !doneWeeks.includes(entry.book.week));
+    const todo = plans.filter((entry) => !doneWeeks.includes(entry.book.id));
     const replaced = todo.filter((entry) => entry.book.pageCount !== null);
     const ok = await confirm({
-      title: `${subject} ${todo.length}개 주차를 올릴까요?`,
+      title: `${subject} 교재 ${todo.length}권을 올릴까요?`,
       message:
         replaced.length > 0
-          ? `${replaced.map((entry) => `${entry.book.week}주차`).join(", ")}는 지금 올라가 있는 쪽 대신 새 쪽이 학생 앱에 보여요. 학생이 쓴 필기는 그대로 남아요.`
-          : "다 올라간 주차부터 학생 앱에 보여요.",
+          ? `${replaced.map((entry) => entry.book.label).join(", ")}: 지금 올라가 있는 쪽 대신 새 쪽이 학생 앱에 보여요. 학생이 쓴 필기는 그대로 남아요.`
+          : "다 올라간 교재부터 학생 앱에 보여요.",
       confirm: "올리기",
     });
     if (!ok || closed.current) return;
     setError(null);
     const all = plans.reduce((sum, entry) => sum + entry.pages, 0);
-    let overall = plans.filter((entry) => doneWeeks.includes(entry.book.week)).reduce((sum, entry) => sum + entry.pages, 0);
+    let overall = plans.filter((entry) => doneWeeks.includes(entry.book.id)).reduce((sum, entry) => sum + entry.pages, 0);
     const finished = [...doneWeeks];
     try {
       for (const entry of todo) {
         const bookId = entry.book.id;
-        setRun({ week: entry.book.week, done: 0, total: entry.pages, overall: overall / all });
+        setRun({ label: entry.book.label, done: 0, total: entry.pages, overall: overall / all });
         const { uploadId } = await ilseongAdmin.request("POST", `/api/admin/books/${bookId}/uploads`);
         for (let k = 0; k < entry.pages; k += 1) {
           if (closed.current) return;
           const blob = await source.page(entry.first + k);
           await putPageWithRetry(`/api/admin/books/${bookId}/uploads/${uploadId}/pages/${k + 1}`, blob);
           overall += 1;
-          if (!closed.current) setRun({ week: entry.book.week, done: k + 1, total: entry.pages, overall: overall / all });
+          if (!closed.current) setRun({ label: entry.book.label, done: k + 1, total: entry.pages, overall: overall / all });
         }
         if (closed.current) return;
         await ilseongAdmin.request("POST", `/api/admin/books/${bookId}/uploads/${uploadId}/commit`, { pageCount: entry.pages });
@@ -167,10 +171,10 @@ export default function IlseongSubjectUploader({ books, onClose }) {
           bumpVersion: false,
           days: layoutDayRanges(entry.book, entry.layout),
         });
-        finished.push(entry.book.week);
+        finished.push(entry.book.id);
         if (!closed.current) setDoneWeeks([...finished]);
       }
-      toast(`${subject} ${plans.length}개 주차, ${all}쪽을 올렸어요`);
+      toast(`${subject} 교재 ${plans.length}권, ${all}쪽을 올렸어요`);
       onClose(true);
     } catch (uploadError) {
       if (closed.current) return;
@@ -189,7 +193,7 @@ export default function IlseongSubjectUploader({ books, onClose }) {
         <div className="flex justify-end gap-2">
           <button className="btn-secondary !px-4 !py-2" disabled={busy} onClick={close} type="button">닫기</button>
           <button className="btn-primary !w-auto !px-4 !py-2" disabled={!ready || busy} onClick={() => void upload()} type="button">
-            {run ? <BusyText>올리는 중</BusyText> : doneWeeks.length > 0 ? "이어서 올리기" : ready ? `${plans.length}개 주차 ${planned}쪽 올리기` : "올리기"}
+            {run ? <BusyText>올리는 중</BusyText> : doneWeeks.length > 0 ? "이어서 올리기" : ready ? `${plans.length}권 ${planned}쪽 올리기` : "올리기"}
           </button>
         </div>
       }
@@ -200,7 +204,7 @@ export default function IlseongSubjectUploader({ books, onClose }) {
     >
       <div className="space-y-4 px-6 py-5">
         <p className="text-sm leading-relaxed text-slate-600">
-          모든 주차를 한 쪽씩 내보낸 PDF를 올리면 주차별로 나눠 넣어요. 파일이 여러 개면 이름 순서대로 이어요(예: 01, 02, …).
+          이 과목의 모든 {unit}를 한 쪽씩 내보낸 PDF를 올리면 교재별로 나눠 넣어요. 파일이 여러 개면 이름 순서대로 이어요(예: 01, 02, …).
         </p>
 
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -222,29 +226,30 @@ export default function IlseongSubjectUploader({ books, onClose }) {
 
         <hr className="border-slate-100" />
 
-        <Field label="한 주차의 쪽 구성: 도입, DAY 1, DAY 2, … 의 쪽 수">
+        <Field label={`교재 한 권의 쪽 구성: 도입, ${words.day} 1, ${words.day} 2, … 의 쪽 수(쉼표로 나눠 적어요)`}>
           <input
-            aria-label="모든 주차의 쪽 구성"
+            aria-label="모든 교재의 쪽 구성"
             className={FIELD_CLASS}
             disabled={busy || perWeek}
             onChange={(event) => setAll(event.target.value)}
-            placeholder={perWeek ? "아래에서 주차마다 넣어요" : DEFAULT_WEEK_LAYOUT}
+            placeholder={perWeek ? "아래에서 교재마다 넣어요" : defaultLayoutText(weeks[0].days.length) || `숫자 ${weeks[0].days.length + 1}개`}
             value={perWeek ? "" : layouts[0]}
           />
         </Field>
-        <CheckRow checked={perWeek} disabled={busy} onChange={setPerWeek}>
-          주차마다 구성이 달라요. 칸을 비운 주차는 올리지 않아요.
+        <CheckRow checked={perWeek} disabled={busy || !sameShape} onChange={setPerWeek}>
+          교재마다 구성이 달라요. 칸을 비운 교재는 올리지 않아요.
         </CheckRow>
         {perWeek ? (
           <div className="space-y-2">
             {weeks.map((book, index) => (
               <label className="flex items-center gap-3" key={book.id}>
-                <span className="w-14 shrink-0 text-sm font-semibold text-slate-600">{book.week}주차</span>
+                <span className="w-28 shrink-0 truncate text-sm font-semibold text-slate-600" title={book.label}>{book.label}</span>
                 <input
-                  aria-label={`${book.week}주차 쪽 구성`}
+                  aria-label={`${book.label} 쪽 구성`}
                   className={`${FIELD_CLASS} flex-1`}
                   disabled={busy}
                   onChange={(event) => setOne(index, event.target.value)}
+                  placeholder={`숫자 ${book.days.length + 1}개`}
                   value={layouts[index]}
                 />
                 <span className="w-12 shrink-0 text-right text-[13px] tabular-nums text-slate-400">
@@ -258,33 +263,33 @@ export default function IlseongSubjectUploader({ books, onClose }) {
         {plan.problem ? <WarnNote>쪽 구성: {plan.problem}.</WarnNote> : null}
         {mismatch ? (
           <WarnNote>
-            PDF는 {source.total}쪽인데 구성대로 나누면 {plans.length}개 주차 {planned}쪽이에요. 쪽 수가 같아야 올릴 수 있어요.
+            PDF는 {source.total}쪽인데 구성대로 나누면 교재 {plans.length}권 {planned}쪽이에요. 쪽 수가 같아야 올릴 수 있어요.
           </WarnNote>
         ) : null}
 
         {ready ? (
           <>
             <p className="text-sm leading-relaxed text-slate-600">
-              이렇게 나눠요. 주차마다 첫 쪽이 그 주차의 표지인지 확인해 주세요.{" "}
-              <span className="text-slate-500">{plans.map((entry) => `${entry.book.week}주차 ${entry.first}–${entry.first + entry.pages - 1}쪽`).join(" · ")}</span>
+              이렇게 나눠요. 교재마다 첫 쪽이 그 교재의 첫 쪽이 맞는지 확인해 주세요.{" "}
+              <span className="text-slate-500">{plans.map((entry) => `${entry.book.label} ${entry.first}–${entry.first + entry.pages - 1}쪽`).join(" · ")}</span>
             </p>
             <PageThumbs
               pages={covers.map((cover) => ({
-                key: cover.week,
+                key: cover.id,
                 url: cover.url,
-                label: `${cover.week}주차`,
-                title: `${cover.week}주차 첫 쪽 크게 보기`,
-                alt: `${cover.week}주차 첫 쪽`,
+                label: cover.label,
+                title: `${cover.label} 첫 쪽 크게 보기`,
+                alt: `${cover.label} 첫 쪽`,
               }))}
             />
           </>
         ) : null}
 
         {run ? (
-          <Progress label={`${run.week}주차 올리는 중 ${run.done}/${run.total} · 전체 ${Math.round(run.overall * 100)}%`} ratio={run.overall} />
+          <Progress label={`${run.label} 올리는 중 ${run.done}/${run.total} · 전체 ${Math.round(run.overall * 100)}%`} ratio={run.overall} />
         ) : null}
         {!run && doneWeeks.length > 0 ? (
-          <WarnNote>{doneWeeks.map((week) => `${week}주차`).join(", ")}까지 올라갔어요. 다시 누르면 남은 주차부터 이어서 올려요.</WarnNote>
+          <WarnNote>{weeks.filter((book) => doneWeeks.includes(book.id)).map((book) => book.label).join(", ")}까지 올라갔어요. 다시 누르면 남은 교재부터 이어서 올려요.</WarnNote>
         ) : null}
         <ErrorNote error={error} />
       </div>

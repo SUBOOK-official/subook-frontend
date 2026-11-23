@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { grantCreator, grantState, memberAppPanel, memberLoginBlock } from "./ilseongMemberApp.js";
+import { grantCreator, grantState, memberAppExtraAction, memberAppPanel, memberAppProducts, memberLoginBlock } from "./ilseongMemberApp.js";
 
 const ok = { account_status: "active", identity_enabled: true, identity_status: "verified", merged_into: null };
 const unverified = { ...ok, identity_status: "unverified" };
@@ -56,6 +56,27 @@ test("수북 쪽 상태를 아직 모르거나 읽지 못했을 때", () => {
   assert.equal(memberLoginBlock(null), null);
   // 앱 서버의 답이 없으면 버튼을 내지 않는다
   assert.equal(memberAppPanel(ok, undefined).action, null);
+});
+
+test("앱 상품이 여럿이면 고를 수 있는 것을 나눈다", () => {
+  const set4 = { code: "ILSEONG_2028_SET4", name: "일성월심", ownsAll: false, waiting: null };
+  const final = { code: "P1", name: "파이널", ownsAll: false, waiting: null };
+  // 하나뿐이면 고르지 않는다
+  assert.deepEqual(memberAppProducts({ ...none, products: [set4] }), { grantable: [set4], waiting: [], many: false });
+  assert.equal(memberAppProducts(none).many, false, "예전 서버의 답(products 없음)");
+  // 하나는 미리 등록해 뒀고 하나는 아직: 취소가 버튼이고, 다른 상품을 더 등록할 수 있다
+  const oneWaiting = { ...waiting, products: [{ ...set4, waiting: { id: 1 } }, final] };
+  assert.deepEqual(memberAppProducts(oneWaiting).grantable, [final]);
+  assert.equal(memberAppProducts(oneWaiting).waiting.length, 1);
+  assert.equal(memberAppPanel(ok, oneWaiting).action, "cancel");
+  assert.equal(memberAppExtraAction(ok, oneWaiting), "pregrant");
+  assert.equal(memberAppExtraAction(ok, { ...oneWaiting, user: { id: 4 } }), "grant");
+  // 다 가졌거나 다 기다리는 중이면 더 등록할 것이 없다
+  assert.equal(memberAppExtraAction(ok, { ...waiting, products: [{ ...set4, waiting: { id: 1 } }, { ...final, ownsAll: true }] }), null);
+  // 로그인할 수 없는 회원에게는 더 등록하지 않는다
+  assert.equal(memberAppExtraAction({ ...ok, account_status: "blocked" }, oneWaiting), null);
+  // 기다리는 것이 없으면 원래 버튼이 등록이다
+  assert.equal(memberAppExtraAction(ok, { ...none, products: [set4, final] }), null);
 });
 
 test("등록 기록의 표시", () => {

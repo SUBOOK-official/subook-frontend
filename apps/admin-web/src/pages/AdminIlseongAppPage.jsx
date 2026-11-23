@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { ILSEONG_APP_REFUND_POLICIES } from "@shared-domain/ilseongApp";
+import IlseongProducts from "../components/ilseong/IlseongProducts";
 import { callIlseongSalesApi as callIlseongApi } from "../lib/ilseongAdmin";
 
-// 일성월심 앱 패키지(수북 판매 연결) — 앱 서버 연결 상태, 판매 켜기/끄기, 환불 시 처리 방식,
-// 앱 등록 대기열, 주문별 앱 등록 상태.
+// 일성월심 앱 › 상품·판매 — 앱 상품과 그것을 파는 수북 상품(만들기·잇기·공개), 앱 서버 연결 상태,
+// 판매 켜기/끄기, 환불 시 처리 방식, 앱 등록 대기열, 주문별 앱 등록 상태.
 // 앱 코드는 이 화면에 보여 주지 않는다: 교재는 구매한 회원이 수북 계정으로 앱에 로그인하면 등록된다(2026-11-18).
-// 일성월심 앱 관리 화면(AdminIlseongConsolePage)의 "수북 판매 연결" 보기로 들어간다.
+// 일성월심 앱 관리 화면(AdminIlseongConsolePage)의 "상품·판매" 보기로 들어간다.
 const LINE_STATUS_LABELS = {
   pending: "등록 준비 중",
   issued: "앱 로그인 대기",
@@ -91,7 +92,7 @@ export function IlseongSalesPanel() {
       if (!ok) return;
     }
     if (!form.salesEnabled && overview?.settings?.sales_enabled) {
-      const ok = window.confirm("판매를 끄면 앱 패키지 상품이 모두 비공개로 바뀝니다. 이미 결제된 주문의 앱 등록은 계속됩니다. 진행할까요?");
+      const ok = window.confirm("판매를 끄면 앱 상품에 이은 수북 상품이 모두 비공개로 바뀝니다. 이미 결제된 주문의 앱 등록은 계속됩니다. 진행할까요?");
       if (!ok) return;
     }
     const result = await runAction({
@@ -146,6 +147,8 @@ export function IlseongSalesPanel() {
           </p>
         ) : null}
 
+        <IlseongProducts onStoreChanged={loadOverview} salesEnabled={overview?.settings?.sales_enabled === true} storeProducts={products} />
+
         <SectionCard
           title="연결·판매 설정"
           actions={
@@ -156,7 +159,7 @@ export function IlseongSalesPanel() {
         >
           {!loading && !configured ? (
             <p className="mb-4 text-sm text-slate-600">
-              어드민 서버 환경 변수 ILSEONG_API_BASE_URL·ILSEONG_PARTNER_SECRET가 없어 판매를 켤 수 없습니다. 앱 패키지 상품은 공개되지 않습니다.
+              어드민 서버 환경 변수 ILSEONG_API_BASE_URL·ILSEONG_PARTNER_SECRET가 없어 판매를 켤 수 없습니다. 앱 상품에 이은 수북 상품은 공개되지 않습니다.
             </p>
           ) : null}
           {!loading && configured && !guideTemplateReady ? (
@@ -316,27 +319,6 @@ export function IlseongSalesPanel() {
               )}
             </div>
           ) : null}
-        </SectionCard>
-
-        <SectionCard title="앱 패키지 상품">
-          {products.length === 0 ? (
-            <p className="text-sm text-slate-600">
-              아직 지정된 상품이 없습니다. 상품 재고 → 상품 상세에서 「앱 패키지로 지정」을 누르면 여기에 나옵니다.
-            </p>
-          ) : (
-            <ul className="divide-y divide-slate-100 text-sm">
-              {products.map((product) => (
-                <li key={product.product_id} className="flex flex-wrap items-center justify-between gap-2 py-2">
-                  <span className="text-slate-900">
-                    #{product.product_id} {product.title}{product.option ? ` · ${product.option}` : ""}
-                  </span>
-                  <span className="text-xs text-slate-500">
-                    {product.app_product_code} · {product.is_listed ? "공개" : "비공개"}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
         </SectionCard>
       </div>
   );

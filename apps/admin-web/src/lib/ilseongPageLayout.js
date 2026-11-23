@@ -1,8 +1,14 @@
-// 교재 쪽 구성 계산 — 한 과목의 모든 주차를 PDF로 한 번에 올릴 때, 어느 쪽부터 어느 쪽까지가 몇 주차인지,
-// 그 주차 안에서 DAY마다 몇 쪽부터 몇 쪽까지인지를 정한다. 화면 없이 계산만 한다.
+// 교재 쪽 구성 계산 — 한 과목의 모든 교재를 PDF로 한 번에 올릴 때, 어느 쪽부터 어느 쪽까지가 어느 교재인지,
+// 그 교재 안에서 하루 분량마다 몇 쪽부터 몇 쪽까지인지를 정한다. 화면 없이 계산만 한다.
+// 교재마다 하루 분량의 수가 다를 수 있다(학습지 구성은 운영진이 정한다).
 
 /** 일성월심 한 주차의 기본 구성(도입 2쪽, DAY 1–5 6쪽씩, DAY 6·7 4쪽씩 = 40쪽). */
 export const DEFAULT_WEEK_LAYOUT = "2, 6, 6, 6, 6, 6, 4, 4";
+
+/** 하루 분량이 7개인 교재는 일성월심의 기본 구성을 채워 둔다. 그 밖은 비워 두고 직접 적게 한다. */
+export function defaultLayoutText(dayCount) {
+  return dayCount === 7 ? DEFAULT_WEEK_LAYOUT : "";
+}
 
 /**
  * "2, 6, 6, 6, 6, 6, 4, 4" → { intro, days }. 빈 칸은 그 주차를 올리지 않는다는 뜻(null).
@@ -13,8 +19,8 @@ export function parseWeekLayout(text, dayCount) {
   if (parts.length === 0) return null;
   if (parts.some((part) => !/^\d{1,3}$/.test(part))) throw new Error("숫자만 쉼표로 나눠 적어 주세요");
   const numbers = parts.map(Number);
-  if (numbers.length !== dayCount + 1) throw new Error(`숫자 ${dayCount + 1}개(도입, DAY 1–${dayCount})를 적어 주세요`);
-  if (numbers.slice(1).some((pages) => pages < 1)) throw new Error("DAY마다 1쪽 이상이어야 해요");
+  if (numbers.length !== dayCount + 1) throw new Error(`숫자 ${dayCount + 1}개(도입 1개 + 하루 분량 ${dayCount}개)를 적어 주세요`);
+  if (numbers.slice(1).some((pages) => pages < 1)) throw new Error("하루 분량마다 1쪽 이상이어야 해요");
   return { intro: numbers[0], days: numbers.slice(1) };
 }
 

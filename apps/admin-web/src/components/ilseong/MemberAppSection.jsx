@@ -3,9 +3,9 @@ import { Link } from "react-router-dom";
 import { supabase } from "@shared-supabase/adminSupabaseClient";
 import { ilseongAdmin, useIlseongData } from "../../lib/ilseongAdmin";
 import { formatDate, formatDateTime } from "../../lib/ilseongFormat";
-import { grantCreator, grantState, memberAppPanel } from "../../lib/ilseongMemberApp";
+import { grantCreator, grantState, memberAppExtraAction, memberAppPanel, memberAppProducts } from "../../lib/ilseongMemberApp";
 import { BusyText, InlineLoading } from "../Loading";
-import { Badge, BookList, ErrorNote, IlseongFeedbackProvider, WarnNote, ilseongPath, useIlseongFeedback } from "./IlseongUi";
+import { Badge, BookList, ErrorNote, IlseongFeedbackProvider, ProductPickerDialog, WarnNote, ilseongPath, useIlseongFeedback } from "./IlseongUi";
 
 // 수북 회원 상세(고객 › 회원)의 「일성월심 앱」 칸.
 // 이 회원의 앱 상태(앱 계정이 있는지, 등록된 교재, 미리 등록해 둔 것)를 보여 주고, 앱 교재를 미리 등록하거나 취소한다.
@@ -25,7 +25,7 @@ const ACTIONS = {
     confirm: {
       title: "이 회원에게 앱 교재를 미리 등록할까요?",
       message:
-        "이 회원이 수북 계정으로 일성월심 앱에 로그인하면 판매 중인 교재가 모두 등록돼요. 수북에서 구매한 회원은 자동으로 등록되니, 구매 없이 열어 줄 때만 써 주세요.\n로그인하기 전까지는 여기서 취소할 수 있어요.",
+        "이 회원이 수북 계정으로 일성월심 앱에 로그인하면 그 상품의 교재가 모두 등록돼요. 수북에서 구매한 회원은 자동으로 등록되니, 구매 없이 열어 줄 때만 써 주세요.\n로그인하기 전까지는 여기서 취소할 수 있어요.",
       confirm: "미리 등록",
     },
   },
@@ -36,7 +36,7 @@ const ACTIONS = {
     confirm: {
       title: "이 회원에게 앱 교재를 등록할까요?",
       message:
-        "이미 앱을 쓰는 회원이라, 판매 중인 교재가 바로 이 회원의 책장에 등록돼요. 수북에서 구매한 회원은 자동으로 등록되니, 구매 없이 열어 줄 때만 써 주세요.\n등록한 뒤에는 일성월심 앱 › 앱 회원 화면에서 다시 거둘 수 있어요.",
+        "이미 앱을 쓰는 회원이라, 그 상품의 교재가 바로 이 회원의 책장에 등록돼요. 수북에서 구매한 회원은 자동으로 등록되니, 구매 없이 열어 줄 때만 써 주세요.\n등록한 뒤에는 일성월심 앱 › 앱 회원 화면에서 다시 거둘 수 있어요.",
       confirm: "등록",
     },
   },
@@ -94,15 +94,23 @@ function Panel({ memberId }) {
   const data = app.data;
   const panel = memberAppPanel(login, data);
   const action = panel.action ? ACTIONS[panel.action] : null;
+  // 앱 상품이 여럿이면 어느 상품인지 고른다. 고르는 창: { kind: "pregrant" | "grant" | "cancel" }
+  const choices = memberAppProducts(data);
+  const extra = memberAppExtraAction(login, data);
+  const [picking, setPicking] = useState(null);
 
-  const run = async () => {
-    if (!action || busy) return;
-    if (!(await confirm(action.confirm))) return;
+  /** kind의 일을 한다. productCode가 없으면 서버가 하나뿐인 상품으로(취소는 기다리는 것 모두) 처리한다. */
+  const send = async (kind, productCode) => {
+    const doing = ACTIONS[kind];
+    setPicking(null);
     setBusy(true);
     setError(null);
     try {
-      app.setData(await ilseongAdmin.request(action.method, `${path}/books`));
-      toast(action.done);
+      const next = doing.method === "DELETE"
+        ? await ilseongAdmin.request("DELETE", `${path}/books${productCode ? `?product=${encodeURIComponent(productCode)}` : ""}`)
+        : await ilseongAdmin.request("POST", `${path}/books`, productCode ? { productCode } : {});
+      app.setData(next);
+      toast(doing.done);
     } catch (requestError) {
       setError(requestError);
       // 그 사이에 회원이 로그인했거나 다른 직원이 먼저 눌렀을 수 있다: 지금 상태를 다시 읽어 보여 준다
@@ -112,25 +120,63 @@ function Panel({ memberId }) {
     }
   };
 
+  const run = async (kind = panel.action) => {
+    if (!kind || busy) return;
+    const needsPick = kind === "cancel" ? choices.waiting.length > 1 : choices.many;
+    if (needsPick) {
+      setPicking({ kind });
+      return;
+    }
+    if (!(await confirm(ACTIONS[kind].confirm))) return;
+    await send(kind, kind === "cancel" ? choices.waiting[0]?.code : choices.grantable[0]?.code);
+  };
+
   const history = (data?.grants ?? []).filter((grant) => grant.state !== "WAITING");
+  const pickList = picking?.kind === "cancel"
+    ? choices.waiting.map((product) => ({ code: product.code, name: product.name }))
+    : (data?.products ?? []).map((product) => ({
+        code: product.code,
+        name: product.name,
+        disabled: product.ownsAll || Boolean(product.waiting),
+        note: product.ownsAll ? "이미 모두 등록돼 있어요" : product.waiting ? "미리 등록해 뒀어요" : null,
+      }));
 
   return (
     <section className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h4 className="text-sm font-bold text-slate-900">일성월심 앱</h4>
         {action ? (
-          <button
-            className={`${panel.action === "cancel" ? "btn-danger-weak" : "btn-primary"} !w-auto !px-3 !py-1.5 text-xs`}
-            disabled={busy}
-            onClick={() => void run()}
-            type="button"
-          >
-            {busy ? <BusyText>처리 중...</BusyText> : action.button}
-          </button>
+          <span className="flex flex-wrap gap-2">
+            {extra ? (
+              <button className="btn-secondary !w-auto !px-3 !py-1.5 text-xs" disabled={busy} onClick={() => void run(extra)} type="button">
+                다른 상품 등록
+              </button>
+            ) : null}
+            <button
+              className={`${panel.action === "cancel" ? "btn-danger-weak" : "btn-primary"} !w-auto !px-3 !py-1.5 text-xs`}
+              disabled={busy}
+              onClick={() => void run()}
+              type="button"
+            >
+              {busy ? <BusyText>처리 중...</BusyText> : action.button}
+            </button>
+          </span>
         ) : data?.ownsAll ? (
           <Badge tone="green">교재 등록됨</Badge>
         ) : null}
       </div>
+      {picking ? (
+        <ProductPickerDialog
+          confirmLabel={ACTIONS[picking.kind].confirm.confirm}
+          danger={picking.kind === "cancel"}
+          message={ACTIONS[picking.kind].confirm.message}
+          onClose={() => setPicking(null)}
+          onPick={(code) => void send(picking.kind, code)}
+          open
+          products={pickList}
+          title={picking.kind === "cancel" ? "어느 상품의 미리 등록을 취소할까요?" : "어느 상품의 교재를 등록할까요?"}
+        />
+      ) : null}
 
       <div className="rounded-xl border border-slate-200 p-4 text-sm">
         {!data ? <ErrorNote error={app.error} onRetry={() => void app.reload()} /> : null}
@@ -158,7 +204,9 @@ function Panel({ memberId }) {
                 ) : data.waiting ? (
                   <span className="inline-flex flex-wrap items-center gap-2">
                     <Badge tone="blue">미리 등록해 둠</Badge>
-                    <span className="font-normal text-slate-600">이 회원이 수북 계정으로 앱에 로그인하면 등록돼요</span>
+                    <span className="font-normal text-slate-600">
+                      {choices.many ? `${choices.waiting.map((product) => product.name).join(", ")} · ` : ""}이 회원이 수북 계정으로 앱에 로그인하면 등록돼요
+                    </span>
                   </span>
                 ) : (
                   <span className="font-normal text-slate-400">없음</span>
@@ -177,7 +225,7 @@ function Panel({ memberId }) {
 
             {panel.action === "pregrant" ? (
               <p className="mt-3 leading-relaxed text-slate-500">
-                미리 등록해 두면, 이 회원이 수북 계정으로 앱에 로그인할 때 판매 중인 교재가 모두 등록돼요.
+                미리 등록해 두면, 이 회원이 수북 계정으로 앱에 로그인할 때 그 상품의 교재가 모두 등록돼요.
               </p>
             ) : null}
             {panel.block ? (
@@ -206,7 +254,7 @@ function Panel({ memberId }) {
                       <li className="flex flex-wrap items-center gap-x-2 gap-y-1" key={grant.id}>
                         <Badge tone={state.tone}>{state.label}</Badge>
                         <span>
-                          {grantCreator(grant)} · {formatDateTime(grant.createdAt)} 등록
+                          {choices.many && grant.productName ? `${grant.productName} · ` : ""}{grantCreator(grant)} · {formatDateTime(grant.createdAt)} 등록
                           {grant.state === "CANCELLED"
                             ? ` → ${grant.cancelledByName || "직원"} · ${formatDateTime(grant.cancelledAt)} 취소`
                             : grant.claimedAt

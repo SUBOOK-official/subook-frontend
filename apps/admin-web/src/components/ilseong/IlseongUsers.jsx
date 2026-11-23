@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { ilseongAdmin, useIlseongData } from "../../lib/ilseongAdmin";
 import { formatCount, formatDate, formatDateTime, platformLabel, providersLabel } from "../../lib/ilseongFormat";
 import { ChevronLeftIcon, SearchIcon } from "../icons";
-import { CodeCard } from "./IlseongCodes";
+import IlseongGrantCard from "./IlseongGrantCard";
 import {
   Badge,
   EmptyNote,
@@ -11,6 +11,7 @@ import {
   FIELD_CLASS,
   Facts,
   LoadingNote,
+  ProductPickerDialog,
   SMALL_BUTTON,
   Section,
   SubjectDot,
@@ -151,14 +152,15 @@ function UserDetail({ userId }) {
                 ]}
               />
             </Section>
-            <Section sub="가진 교재의 DAY 중 끝낸 수" title="진도">
+            <Section sub="가진 교재의 하루 분량 가운데 끝낸 수" title="진도">
               <div className="space-y-3.5">
-                {data.progress.map((subject) => (
+                {data.progress.filter((subject) => subject.ownedBooks > 0).length === 0 ? <p className="text-sm text-slate-400">등록된 교재가 없어요.</p> : null}
+                {data.progress.filter((subject) => subject.ownedBooks > 0).map((subject) => (
                   <div key={subject.code}>
                     <div className="flex items-center justify-between gap-2 text-sm">
                       <span className="text-slate-800"><SubjectDot color={subject.color} />{subject.name}</span>
                       <span className="tabular-nums text-slate-500">
-                        {subject.ownedBooks === 0 ? "교재 없음" : `${formatCount(subject.completedDays)} / ${formatCount(subject.totalDays)}`}
+                        {formatCount(subject.completedDays)} / {formatCount(subject.totalDays)}
                       </span>
                     </div>
                     <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-slate-100">
@@ -191,20 +193,19 @@ function Books({ userId, detail, onGranted, onChanged }) {
   const { confirm, toast } = useIlseongFeedback();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  const [picking, setPicking] = useState(false);
 
-  const grant = async () => {
-    const ok = await confirm({
-      title: "이 회원에게 교재를 등록할까요?",
-      message:
-        "판매 중인 교재가 모두 이 회원의 책장에 등록돼요. 수북에서 구매한 회원은 자동으로 등록되니, 구매 없이 열어 줄 때만 써 주세요.\n등록한 뒤에는 아래 목록에서 다시 거둘 수 있어요.",
-      confirm: "등록",
-    });
-    if (!ok) return;
+  // 직접 등록할 수 있는 상품(판매 중인 앱 상품). 이 회원이 이미 다 가진 상품은 고를 수 없다
+  const products = detail.grantable ?? [];
+  const open = products.filter((product) => !product.ownsAll);
+
+  const grant = async (product) => {
+    setPicking(false);
     setBusy(true);
     setError(null);
     try {
-      onGranted(await ilseongAdmin.request("POST", `/api/admin/users/${userId}/books`));
-      toast("교재를 등록했어요");
+      onGranted(await ilseongAdmin.request("POST", `/api/admin/users/${userId}/books`, { productCode: product.code }));
+      toast(`${product.name}의 교재를 등록했어요`);
     } catch (requestError) {
       setError(requestError);
     } finally {
@@ -212,11 +213,25 @@ function Books({ userId, detail, onGranted, onChanged }) {
     }
   };
 
+  const start = async () => {
+    if (products.length > 1) {
+      setPicking(true);
+      return;
+    }
+    const ok = await confirm({
+      title: "이 회원에게 교재를 등록할까요?",
+      message:
+        `${open[0].name}의 교재가 모두 이 회원의 책장에 등록돼요. 수북에서 구매한 회원은 자동으로 등록되니, 구매 없이 열어 줄 때만 써 주세요.\n등록한 뒤에는 아래 목록에서 다시 거둘 수 있어요.`,
+      confirm: "등록",
+    });
+    if (ok) await grant(open[0]);
+  };
+
   return (
     <Section
       right={
-        detail.user.deletedAt ? null : (
-          <button className={`btn-primary !w-auto ${SMALL_BUTTON}`} disabled={busy} onClick={() => void grant()} type="button">
+        detail.user.deletedAt || open.length === 0 ? null : (
+          <button className={`btn-primary !w-auto ${SMALL_BUTTON}`} disabled={busy} onClick={() => void start()} type="button">
             교재 직접 등록
           </button>
         )
@@ -224,6 +239,16 @@ function Books({ userId, detail, onGranted, onChanged }) {
       sub="수북에서 구매한 회원은 앱에 로그인하면 자동으로 등록돼요."
       title="등록한 교재"
     >
+      {picking ? (
+        <ProductPickerDialog
+          message={"고른 상품의 교재가 모두 이 회원의 책장에 등록돼요. 구매 없이 열어 줄 때만 써 주세요.\n등록한 뒤에는 아래 목록에서 다시 거둘 수 있어요."}
+          onClose={() => setPicking(false)}
+          onPick={(code) => void grant(products.find((product) => product.code === code))}
+          open
+          products={products.map((product) => ({ code: product.code, name: product.name, disabled: product.ownsAll, note: product.ownsAll ? "이미 모두 등록돼 있어요" : null }))}
+          title="어느 상품의 교재를 등록할까요?"
+        />
+      ) : null}
       <ErrorNote className="mb-3" error={error} />
       {detail.codes.length === 0 ? (
         <EmptyNote>등록한 교재가 없어요.</EmptyNote>
@@ -231,7 +256,7 @@ function Books({ userId, detail, onGranted, onChanged }) {
         <div className="divide-y divide-slate-100">
           {detail.codes.map((code) => (
             <div className="py-4 first:pt-0 last:pb-0" key={code.id}>
-              <CodeCard code={code} onChanged={onChanged} />
+              <IlseongGrantCard code={code} onChanged={onChanged} />
             </div>
           ))}
         </div>

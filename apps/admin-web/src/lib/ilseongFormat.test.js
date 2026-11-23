@@ -13,6 +13,7 @@ import {
   platformLabel,
   providersLabel,
   serverCheckAge,
+  booksLabel,
   weeksLabel,
 } from "./ilseongFormat.js";
 
@@ -34,10 +35,13 @@ test("주차 묶음: 이어진 주차는 범위로 줄인다", () => {
   assert.equal(weeksLabel([3, 1, 2, 5]), "1–3, 5주차");
   assert.equal(weeksLabel([4]), "4주차");
   assert.equal(weeksLabel([1, 3, 5]), "1, 3, 5주차");
+  // 앱 서버가 준 한 줄(summary)이 있으면 그것을 쓴다(이름을 자유롭게 붙일 수 있어 번호로 만들 수 없다)
+  assert.equal(booksLabel({ weeks: [1, 2], summary: "1주차, 파이널 1회" }), "1주차, 파이널 1회");
+  assert.equal(booksLabel({ weeks: [1, 2, 3] }), "1–3주차");
 });
 
 test("앱 서버가 주는 값을 운영자가 읽는 말로 바꾼다", () => {
-  assert.equal(CODE_STATUS.REDEEMED.label, "등록함");
+  assert.equal(CODE_STATUS.REDEEMED.label, "등록됨");
   assert.equal(providersLabel(["SUBOOK"]), "수북 계정");
   assert.equal(providersLabel(["KAKAO", "APPLE"]), "카카오, 애플");
   assert.equal(providersLabel(["SUBOOK_STAFF"]), "수북 관리자");
@@ -49,6 +53,9 @@ test("앱 서버가 주는 값을 운영자가 읽는 말로 바꾼다", () => {
   assert.equal(actionLabel("USER_GRANT"), "교재 직접 등록");
   assert.equal(actionLabel("MEMBER_PREGRANT"), "교재 미리 등록");
   assert.equal(actionLabel("MEMBER_PREGRANT_CANCEL"), "미리 등록 취소");
+  assert.equal(actionLabel("BOOK_CREATE"), "교재 만들기");
+  assert.equal(actionLabel("PRODUCT_UPDATE"), "앱 상품 고치기");
+  assert.equal(actionLabel("CODE_REVOKE"), "등록 거두기");
   assert.equal(actionLabel("SOMETHING_NEW"), "SOMETHING_NEW");
 });
 
@@ -57,7 +64,12 @@ test("관리 기록의 대상: 회원이면 그 번호를 함께 준다", () => 
   assert.deepEqual(actionTarget("user:7/code:41"), { text: "7번 회원", userId: 7, memberRef: null });
   assert.deepEqual(actionTarget("book:5"), { text: "교재 5번", userId: null, memberRef: null });
   assert.deepEqual(actionTarget("batch:9"), { text: "묶음 9번", userId: null, memberRef: null });
-  assert.deepEqual(actionTarget("code:33"), { text: "코드 33번", userId: null, memberRef: null });
+  assert.deepEqual(actionTarget("code:33"), { text: "등록 33번", userId: null, memberRef: null });
+  // 학습지 구성·상품 기록: 과목과 상품은 번호가 아니라 코드로 가리킨다
+  assert.deepEqual(actionTarget("series:2"), { text: "학습지 2번", userId: null, memberRef: null });
+  assert.deepEqual(actionTarget("subject:S3"), { text: "과목 S3", userId: null, memberRef: null });
+  assert.deepEqual(actionTarget("product:P1"), { text: "앱 상품 P1", userId: null, memberRef: null });
+  assert.deepEqual(actionTarget("series"), { text: "학습지", userId: null, memberRef: null });
   assert.deepEqual(actionTarget("app-config"), { text: "앱 설정", userId: null, memberRef: null });
   assert.deepEqual(actionTarget("something"), { text: "something", userId: null, memberRef: null });
   // 아직 앱에 로그인하지 않은 수북 회원에게 미리 등록한 기록: 수북 회원 화면으로 잇는다

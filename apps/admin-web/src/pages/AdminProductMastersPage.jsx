@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAdminListState, useDebouncedSearch } from "../lib/useAdminListState";
 import AdminSavedViews from "../components/AdminSavedViews";
 import AdminViewTabs from "../components/AdminViewTabs";
@@ -14,7 +14,6 @@ import { isSupabaseConfigured, supabase } from "@shared-supabase/adminSupabaseCl
 import { formatCurrency, formatDate } from "@shared-domain/format";
 import { productStatusLabel as STATUS_LABEL } from "@shared-domain/status";
 import StatusBadge from "@shared-domain/StatusBadge";
-import { ILSEONG_APP_PRODUCT_CODE } from "@shared-domain/ilseongApp";
 import { CloseIcon, PlusIcon, SearchIcon } from "../components/icons";
 import { downloadInventoryAuditXlsx } from "../lib/inventoryAuditExport";
 import { COVER_BUCKET, uploadImageToBucket } from "../lib/adminImageUpload";
@@ -127,6 +126,7 @@ function daysAgoStr(days) {
 }
 
 function AdminProductMastersPage() {
+  const navigate = useNavigate();
   const [list, updateList] = useAdminListState({ q: "", page: 1, brand: "", subject: "", book_type: "", status: "", issue: "", sort: "updated", product: "" });
   const currentPage = list.page;
   const setCurrentPage = (page) => updateList({ page }, { replace: false });
@@ -688,21 +688,20 @@ function AdminProductMastersPage() {
     await loadProducts();
   };
 
-  // 일성월심 앱 패키지 지정/해제 — 결제가 확인되면 구매한 회원의 앱에 교재가 등록되고 안내 알림톡이 나간다.
-  // 판매가 꺼져 있으면 지정과 동시에 숨겨지고, 켜기 전에는 공개할 수 없다(어드민 > 일성월심 앱).
+  // 일성월심 앱 상품에서 떼기 — 앱 상품에 잇는 일은 어느 앱 상품인지 골라야 해서
+  // 일성월심 앱 › 상품·판매에서 한다(거기서 상품을 새로 만들거나 이 상품의 번호로 잇는다).
   const handleAppPackageToggle = async () => {
     if (!detailTarget || appPackageBusy || !appPackage) return;
     const next = appPackage.is_app_package !== true;
-    if (next && !window.confirm(
-      `이 상품을 일성월심 앱 패키지(${ILSEONG_APP_PRODUCT_CODE})로 지정합니다.\n결제가 확인되면 구매한 회원의 일성월심 앱에 교재가 등록됩니다.${
-        appPackage.sales_enabled ? "" : "\n앱 패키지 판매가 꺼져 있어 상품이 숨김으로 바뀝니다."
-      }`,
-    )) return;
+    if (next) {
+      navigate("/admin/ilseong?view=sales");
+      return;
+    }
+    if (!window.confirm("이 상품을 일성월심 앱 상품에서 뗍니다.\n이 상품을 사도 앱에 교재가 등록되지 않게 됩니다. 이미 결제된 주문의 등록은 그대로입니다.")) return;
     setAppPackageBusy(true);
     const { data, error } = await supabase.rpc("admin_set_ilseong_app_product", {
       p_product_id: detailTarget.id,
       p_is_app_package: next,
-      p_app_product_code: ILSEONG_APP_PRODUCT_CODE,
     });
     setAppPackageBusy(false);
     if (error) {
@@ -710,7 +709,7 @@ function AdminProductMastersPage() {
       return;
     }
     setAppPackage(data);
-    showToast(next ? "일성월심 앱 패키지로 지정했습니다." : "앱 패키지 지정을 해제했습니다.", "success");
+    showToast("일성월심 앱 상품에서 뗐습니다.", "success");
     await openDetail(detailTarget);
     await loadProducts();
   };
@@ -1225,7 +1224,7 @@ function AdminProductMastersPage() {
                   ) : null}
                   {appPackage?.is_app_package ? (
                     <p className="mt-1.5 inline-flex rounded bg-emerald-50 px-1.5 py-0.5 text-[11px] font-bold text-emerald-700">
-                      일성월심 앱 패키지 · {appPackage.app_product_code}
+                      일성월심 앱 상품 · {appPackage.app_product_code}
                       {appPackage.sales_enabled ? "" : " · 판매 꺼짐(공개 불가)"}
                     </p>
                   ) : null}
@@ -1252,10 +1251,12 @@ function AdminProductMastersPage() {
                     className="whitespace-nowrap rounded-[10px] border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-slate-500 hover:bg-slate-50 disabled:opacity-50"
                     disabled={appPackageBusy}
                     onClick={handleAppPackageToggle}
-                    title="결제가 확인되면 구매한 회원의 일성월심 앱에 교재가 등록되는 상품"
+                    title={appPackage.is_app_package
+                      ? "이 상품을 사도 앱에 교재가 등록되지 않게 합니다"
+                      : "일성월심 앱 › 상품·판매에서 이 상품의 번호로 앱 상품에 잇습니다"}
                     type="button"
                   >
-                    {appPackageBusy ? "처리 중" : appPackage.is_app_package ? "앱 패키지 해제" : "앱 패키지로 지정"}
+                    {appPackageBusy ? "처리 중" : appPackage.is_app_package ? "앱 상품에서 떼기" : "앱 상품에 잇기"}
                   </button>
                 ) : null}
                 <button

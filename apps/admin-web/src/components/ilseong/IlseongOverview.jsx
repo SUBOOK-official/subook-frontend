@@ -3,15 +3,15 @@ import { useIlseongData } from "../../lib/ilseongAdmin";
 import { formatCount, formatEpochSeconds, serverCheckAge } from "../../lib/ilseongFormat";
 import { Badge, ErrorNote, Facts, LoadingNote, Section, WarnNote, ilseongPath } from "./IlseongUi";
 
-// 요약 — 앱 학생 수·공부 현황·코드 수와 앱 서버 상태.
+// 요약 — 앱 학생 수·공부 현황·교재 등록 현황과 앱 서버 상태.
 
 const TILES = [
   ["학생", "users", "명"],
   ["최근 7일 가입", "newUsers7d", "명"],
   ["최근 7일 공부한 학생", "activeLearners7d", "명"],
-  ["오늘 끝낸 DAY", "completionsToday", "개"],
-  ["등록된 코드", "codesRedeemed", "개"],
-  ["등록 전 코드", "codesWaiting", "개"],
+  ["오늘 끝낸 분량", "completionsToday", "개"],
+  ["교재가 등록된 학생", "bookOwners", "명"],
+  ["앱 로그인을 기다리는 등록", "waitingPurchases", "건"],
 ];
 
 export default function IlseongOverview() {
@@ -36,7 +36,9 @@ export default function IlseongOverview() {
                 </div>
               ))}
             </dl>
-            <p className="mt-2 text-[13px] text-slate-400">관리자 계정과 탈퇴한 계정은 빼고 세요.</p>
+            <p className="mt-2 text-[13px] text-slate-400">
+              관리자 계정과 탈퇴한 계정은 빼고 세요. '앱 로그인을 기다리는 등록'은 구매했거나 미리 등록해 두었는데 아직 앱에 로그인하지 않은 건수예요.
+            </p>
           </div>
 
           <ServerStatus />
@@ -45,8 +47,8 @@ export default function IlseongOverview() {
             <div className="grid gap-3 md:grid-cols-3">
               {[
                 ["users", "앱에 교재가 안 보인다고 할 때", "앱 회원에서 학생을 찾아 등록한 교재를 봐요. 구매 없이 열어 줄 때는 그 화면에서 교재를 직접 등록해요."],
-                ["sales", "구매한 주문이 앱에 등록됐는지 볼 때", "수북 판매 연결에서 주문번호로 찾아요. 구매한 수북 계정으로 앱에 로그인하면 등록돼요."],
-                ["users", "기기를 바꿔 로그인이 안 될 때", "앱 회원에서 학생을 찾아 쓰지 않는 기기를 해제해요."],
+                ["sales", "구매한 주문이 앱에 등록됐는지 볼 때", "상품·판매에서 주문번호로 찾아요. 구매한 수북 계정으로 앱에 로그인하면 등록돼요."],
+                ["books", "새 학습지나 교재를 낼 때", "학습지·교재에서 구성을 만들고 쪽 이미지를 올린 뒤, 상품·판매에서 상품을 만들어요."],
               ].map(([view, heading, body]) => (
                 <Link className="rounded-xl bg-slate-50 px-4 py-3.5 transition-colors hover:bg-slate-100" key={heading} to={ilseongPath(view)}>
                   <p className="text-sm font-bold text-slate-900">{heading}</p>

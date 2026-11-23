@@ -5,7 +5,8 @@
 //          { account_status: active|blocked|withdrawal_pending|withdrawn|missing,
 //            identity_enabled, identity_status: verified|unverified|merged, merged_into }
 //   app    앱 서버의 GET /api/admin/subook-members/{수북 회원 UUID} — 앱 계정, 가진 교재, 미리 등록해 둔 것
-//          { user, books, ownsAll, waiting, grants }
+//          { user, books, ownsAll, waiting, grants, products }
+//          products = 판매 중인 앱 상품마다 { code, name, ownsAll, waiting } (앱 상품이 여럿이면 등록할 상품을 고른다)
 // 앱 서버는 로그인 때 "정상 회원 + 휴대폰 인증 완료"만 받는다(앱 저장소 docs/adr/0035, 0038).
 
 const PHONE_NOTICE =
@@ -55,6 +56,32 @@ export function memberAppPanel(login, app) {
   if (app.ownsAll || block) return { action: null, block: app.ownsAll ? null : block, notice: null };
   if (app.user) return { action: "grant", block: null, notice: null };
   return { action: "pregrant", block: null, notice: login === null ? UNKNOWN_NOTICE : phoneNotice(login) };
+}
+
+/**
+ * 앱 상품이 여럿일 때 고를 수 있는 것.
+ *   grantable  지금 등록(또는 미리 등록)할 수 있는 상품: 다 가지지 않았고 기다리는 등록도 없는 것
+ *   waiting    미리 등록해 두어 취소할 수 있는 상품
+ *   many       판매 중인 앱 상품이 둘 이상인가(하나뿐이면 고르지 않고 바로 한다)
+ */
+export function memberAppProducts(app) {
+  const products = app?.products ?? [];
+  return {
+    grantable: products.filter((product) => !product.ownsAll && !product.waiting),
+    waiting: products.filter((product) => product.waiting),
+    many: products.length > 1,
+  };
+}
+
+/**
+ * 미리 등록해 둔 것이 있어 버튼이 [미리 등록 취소]일 때, 다른 상품을 더 등록할 수 있으면 그 일("pregrant" | "grant").
+ * 앱 상품이 하나뿐이거나 로그인할 수 없는 회원이면 null.
+ */
+export function memberAppExtraAction(login, app) {
+  if (!app?.waiting || memberLoginBlock(login)) return null;
+  const { grantable, many } = memberAppProducts(app);
+  if (!many || grantable.length === 0) return null;
+  return app.user ? "grant" : "pregrant";
 }
 
 function phoneNotice(login) {

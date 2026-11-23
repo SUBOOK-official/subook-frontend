@@ -38,8 +38,6 @@ function Form({ saved, onSaved }) {
     androidMinVersion: saved.androidMinVersion ?? "",
     iosStoreUrl: saved.iosStoreUrl ?? "",
     androidStoreUrl: saved.androidStoreUrl ?? "",
-    iosRedeemInApp: saved.iosRedeemInApp,
-    androidRedeemInApp: saved.androidRedeemInApp,
     iosBlockCapture: saved.iosBlockCapture,
     androidBlockCapture: saved.androidBlockCapture,
     iosReviewBuild: saved.iosReviewBuild ?? "",
@@ -178,16 +176,6 @@ function Form({ saved, onSaved }) {
             이 빌드를 쓰는 사람은 누구나 버튼을 볼 수 있어요(아이디와 비밀번호를 모르면 들어올 수는 없어요). 출시한 뒤에는 꼭 비워 주세요.
           </WarnNote>
         ) : null}
-      </Section>
-
-      <Section
-        sub="코드를 넣는 화면이 있던 예전 시험용 앱에만 적용돼요. 지금 앱에는 코드를 넣는 곳이 없어서 바꿔도 달라지지 않아요. 끄면 예전 앱은 코드 입력 화면 대신 웹에서 등록하는 방법을 안내해요."
-        title="예전 앱의 코드 등록 화면"
-      >
-        <div className="space-y-2.5">
-          <CheckRow checked={form.iosRedeemInApp} disabled={busy} onChange={set("iosRedeemInApp")}>아이폰·아이패드 예전 앱에서 코드 등록</CheckRow>
-          <CheckRow checked={form.androidRedeemInApp} disabled={busy} onChange={set("androidRedeemInApp")}>안드로이드 예전 앱에서 코드 등록</CheckRow>
-        </div>
       </Section>
 
       <ErrorNote error={error} />

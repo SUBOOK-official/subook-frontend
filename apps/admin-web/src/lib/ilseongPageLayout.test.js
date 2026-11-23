@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  defaultLayoutText,
   DEFAULT_WEEK_LAYOUT,
   continueDayRange,
   dayPagesLabel,
@@ -29,7 +30,11 @@ test("구성 글: 쉼표·띄어쓰기 어느 쪽으로 나눠도 읽고, 빈 �
 });
 
 test("구성 글이 틀리면 고칠 곳을 알려 준다", () => {
-  assert.throws(() => parseWeekLayout("2, 6, 6", 7), /숫자 8개\(도입, DAY 1–7\)/);
+  assert.throws(() => parseWeekLayout("2, 6, 6", 7), /숫자 8개\(도입 1개 \+ 하루 분량 7개\)/);
+  // 하루 분량의 수는 교재마다 다를 수 있다
+  assert.deepEqual(parseWeekLayout("0, 10, 12", 2), { intro: 0, days: [10, 12] });
+  assert.equal(defaultLayoutText(7), DEFAULT_WEEK_LAYOUT);
+  assert.equal(defaultLayoutText(4), "");
   assert.throws(() => parseWeekLayout("2, 6, 6, 6, 6, 6, 4, 4, 4", 7), /숫자 8개/);
   assert.throws(() => parseWeekLayout("2, 여섯, 6, 6, 6, 6, 4, 4", 7), /숫자만/);
   assert.throws(() => parseWeekLayout("2, 6.5, 6, 6, 6, 6, 4, 4", 7), /숫자만/);

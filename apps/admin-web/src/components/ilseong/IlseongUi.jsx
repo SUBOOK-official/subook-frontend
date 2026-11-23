@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { Link } from "react-router-dom";
 import AdminDialog from "../AdminDialog";
 import { InlineLoading } from "../Loading";
-import { weeksLabel } from "../../lib/ilseongFormat";
+import { booksLabel } from "../../lib/ilseongFormat";
 
 // 「일성월심 앱」 화면들이 함께 쓰는 조각. 색·모서리·글자 크기는 수북 관리자의 다른 화면과 같은 값을 쓴다.
 
@@ -48,15 +48,17 @@ export function SubjectDot({ color, size = 8 }) {
   return <span aria-hidden="true" className="mr-1.5 inline-block shrink-0 rounded-full align-middle" style={{ background: color, width: size, height: size }} />;
 }
 
-/** 코드·묶음이 여는 교재: 과목마다 "국어 1–8주차". */
+/** 등록·상품이 여는 교재: 과목마다 "국어 1–8주차". 학습지가 둘 이상 섞여 있으면 학습지 이름을 앞에 붙인다. */
 export function BookList({ books }) {
   if (!books?.length) return <span className="text-slate-400">교재 없음</span>;
+  const mixed = new Set(books.map((book) => book.seriesName ?? "")).size > 1;
   return (
     <span className="flex flex-wrap gap-x-4 gap-y-1">
       {books.map((book) => (
         <span className="whitespace-nowrap" key={book.code}>
           <SubjectDot color={book.color} />
-          {book.name} {weeksLabel(book.weeks)}
+          {mixed && book.seriesName ? <span className="text-slate-400">{book.seriesName} · </span> : null}
+          {book.name} {booksLabel(book)}
         </span>
       ))}
     </span>
@@ -163,6 +165,69 @@ export function CheckRow({ checked, onChange, disabled = false, children }) {
       />
       <span>{children}</span>
     </label>
+  );
+}
+
+/** 목록 한 칸을 위·아래로 옮기는 작은 버튼 한 쌍. onMove(-1 | 1). */
+export function MoveButtons({ label, canUp, canDown, disabled = false, onMove }) {
+  const className =
+    "flex h-6 w-6 items-center justify-center rounded-md text-[11px] text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 disabled:pointer-events-none disabled:opacity-30";
+  return (
+    <span className="inline-flex shrink-0 items-center">
+      <button aria-label={`${label} 위로`} className={className} disabled={disabled || !canUp} onClick={(event) => { event.stopPropagation(); onMove(-1); }} type="button">▲</button>
+      <button aria-label={`${label} 아래로`} className={className} disabled={disabled || !canDown} onClick={(event) => { event.stopPropagation(); onMove(1); }} type="button">▼</button>
+    </span>
+  );
+}
+
+/**
+ * 여러 상품 가운데 하나를 고르는 창(직접 등록·미리 등록·취소에서 쓴다).
+ * products: { code, name, note?, disabled? }[] — 고르면 onPick(code).
+ */
+export function ProductPickerDialog({ open, title, message, products, confirmLabel = "등록", danger = false, onPick, onClose }) {
+  const selectable = (products ?? []).filter((product) => !product.disabled);
+  const [picked, setPicked] = useState(null);
+  const current = selectable.some((product) => product.code === picked) ? picked : selectable[0]?.code ?? null;
+  return (
+    <AdminDialog
+      footer={
+        <div className="flex justify-end gap-2">
+          <button className="btn-secondary !px-4 !py-2" onClick={onClose} type="button">닫기</button>
+          <button className={`${danger ? "btn-danger" : "btn-primary !w-auto"} !px-4 !py-2`} disabled={!current} onClick={() => onPick(current)} type="button">
+            {confirmLabel}
+          </button>
+        </div>
+      }
+      onClose={onClose}
+      open={open}
+      size="sm"
+      title={title}
+    >
+      <div className="space-y-3 px-6 py-5">
+        {message ? <p className="whitespace-pre-line text-sm leading-relaxed text-slate-700">{message}</p> : null}
+        <div className="space-y-2">
+          {(products ?? []).map((product) => (
+            <label
+              className={`flex items-start gap-2.5 rounded-xl border px-3.5 py-3 text-sm ${product.disabled ? "border-slate-100 text-slate-400" : current === product.code ? "border-brand bg-blue-50/40 text-slate-900" : "border-slate-200 text-slate-800"}`}
+              key={product.code}
+            >
+              <input
+                checked={current === product.code}
+                className="mt-1 h-4 w-4 shrink-0 accent-[#3182f6]"
+                disabled={product.disabled}
+                name="ilseong-product"
+                onChange={() => setPicked(product.code)}
+                type="radio"
+              />
+              <span className="min-w-0">
+                <span className="block font-semibold">{product.name}</span>
+                {product.note ? <span className="mt-0.5 block text-[13px] text-slate-500">{product.note}</span> : null}
+              </span>
+            </label>
+          ))}
+        </div>
+      </div>
+    </AdminDialog>
   );
 }
 
