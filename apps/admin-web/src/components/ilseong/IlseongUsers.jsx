@@ -203,7 +203,6 @@ function UserDetail({ userId }) {
                   ["가입한 날", formatDate(data.user.createdAt)],
                   ["마지막 공부", data.lastStudyDate ? formatDate(data.lastStudyDate) : "아직 없음"],
                   ["공부한 날", `${formatCount(data.studyDays)}일`],
-                  ["크레딧", formatCount(data.creditBalance)],
                 ]}
               />
             </Section>

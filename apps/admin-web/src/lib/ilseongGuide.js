@@ -226,7 +226,6 @@ export function setupBody(form) {
     name: form.name.trim(),
     unitWord: form.unitWord.trim(),
     dayWord: form.dayWord.trim(),
-    creditRule: form.creditRule,
     subjects: form.subjects
       .map((subject) => ({ name: String(subject.name || "").trim(), color: subject.color }))
       .filter((subject) => subject.name),

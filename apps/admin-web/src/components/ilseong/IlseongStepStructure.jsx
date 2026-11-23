@@ -1,7 +1,7 @@
 import { useId, useState } from "react";
 import { BusyText } from "../Loading";
 import { ilseongAdmin } from "../../lib/ilseongAdmin";
-import { CREDIT_RULES, SUBJECT_COLORS, findBook, moved, numberedLabel } from "../../lib/ilseongCatalog";
+import { SUBJECT_COLORS, findBook, moved, numberedLabel } from "../../lib/ilseongCatalog";
 import { DAY_WORDS, UNIT_WORDS, setupBody, setupProblem } from "../../lib/ilseongGuide";
 import { AddBooksDialog, StructureDialog, SubjectDialog } from "./IlseongCatalogDialogs";
 import {
@@ -68,7 +68,6 @@ export function SetupForm({ onCreated }) {
     dayCount: "7",
     unitWord: "주차",
     dayWord: "Day",
-    creditRule: "INK",
   });
   const [nextKey, setNextKey] = useState(1);
   const [saving, setSaving] = useState(false);
@@ -162,20 +161,6 @@ export function SetupForm({ onCreated }) {
           preview={form.dayWord.trim() && days > 0 ? `학생 앱에 이렇게 보여요: ${range(form.dayWord, days)}` : "하루치 공부 한 칸의 이름이에요."}
           value={form.dayWord}
         />
-      </div>
-
-      <div className="space-y-2">
-        <p className="text-sm font-semibold text-slate-600">하루 분량을 끝낸 학생에게 크레딧을 어떻게 줄까요?</p>
-        {CREDIT_RULES.map((option) => (
-          <label className={`flex items-start gap-2.5 rounded-xl border px-3.5 py-3 text-sm ${form.creditRule === option.value ? "border-brand bg-blue-50/40" : "border-slate-200"}`} key={option.value}>
-            <input checked={form.creditRule === option.value} className="mt-1 h-4 w-4 shrink-0 accent-[#3182f6]" name="setup-credit" onChange={() => set("creditRule")(option.value)} type="radio" />
-            <span>
-              <span className="block font-semibold text-slate-900">{option.label}{option.value === "INK" ? <span className="ml-1.5 font-normal text-slate-500">대부분 이걸 골라요</span> : null}</span>
-              <span className="mt-0.5 block leading-relaxed text-slate-500">{option.hint}</span>
-            </span>
-          </label>
-        ))}
-        <p className="text-[13px] text-slate-500">크레딧 양과 필기 기준은 만든 뒤 [이름·크레딧 설정]에서 바꿀 수 있어요.</p>
       </div>
 
       {problem && form.name.trim() ? <WarnNote>{problem}</WarnNote> : null}

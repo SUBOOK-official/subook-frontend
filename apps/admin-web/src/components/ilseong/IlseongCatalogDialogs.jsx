@@ -3,12 +3,10 @@ import AdminDialog from "../AdminDialog";
 import { BusyText } from "../Loading";
 import { ilseongAdmin } from "../../lib/ilseongAdmin";
 import {
-  CREDIT_RULES,
   SUBJECT_COLORS,
   bookDeleteBlock,
   labelsProblem,
   moved,
-  neededPages,
   nextLabels,
   numberedLabel,
   parseLabelLines,
@@ -64,35 +62,18 @@ export function SeriesDialog({ series = null, onClose, onSaved }) {
   const [subjectWord, setSubjectWord] = useState(series?.subjectWord ?? "과목");
   const [unitWord, setUnitWord] = useState(series?.unitWord ?? "주차");
   const [dayWord, setDayWord] = useState(series?.dayWord ?? "Day");
-  const [rule, setRule] = useState(series?.credit.rule ?? "INK");
-  const [perDay, setPerDay] = useState(String(series?.credit.perDay ?? 100));
-  const [ratio, setRatio] = useState(String(series?.credit.inkRatio ?? 70));
-  const [inkMin, setInkMin] = useState(String(series?.credit.inkMin ?? 0.5));
   const { saving, error, setError, save } = useSave(onSaved);
 
-  const ratioNumber = Number(ratio) || 0;
   const wordsChanged = series && (subjectWord.trim() !== series.subjectWord || unitWord.trim() !== series.unitWord || dayWord.trim() !== series.dayWord);
   const empty = series && series.subjects.length === 0;
 
   const submit = async (event) => {
     event.preventDefault();
-    if (rule === "TAP" && series?.credit.rule !== "TAP") {
-      const ok = await confirm({
-        title: "완료만 누르면 크레딧을 주게 할까요?",
-        message: "공부하지 않고 완료 버튼만 눌러도 크레딧이 쌓여요. 앱에서 필기할 수 없는 학습지에만 써 주세요.",
-        confirm: "이대로 저장",
-      });
-      if (!ok) return;
-    }
     const body = {
       name: name.trim(),
       subjectWord: subjectWord.trim(),
       unitWord: unitWord.trim(),
       dayWord: dayWord.trim(),
-      creditRule: rule,
-      creditPerDay: Number(perDay) || 0,
-      creditInkRatio: ratioNumber || undefined,
-      creditInkMin: Number(inkMin) || undefined,
     };
     await save(series ? "PUT" : "POST", series ? `/api/admin/series/${series.id}` : "/api/admin/series", body,
       series ? `${body.name} 저장했어요` : `${body.name} 만들었어요`, toast);
@@ -118,7 +99,7 @@ export function SeriesDialog({ series = null, onClose, onSaved }) {
       onClose={onClose}
       open
       size="lg"
-      title={series ? `${series.name} 이름·크레딧 설정` : "학습지 만들기"}
+      title={series ? `${series.name} 이름 설정` : "학습지 만들기"}
     >
       <form className="space-y-6 px-6 py-5" id={formId} onSubmit={submit}>
         <Field label="학습지 이름">
@@ -149,57 +130,6 @@ export function SeriesDialog({ series = null, onClose, onSaved }) {
           {wordsChanged ? <WarnNote>이미 만든 교재와 하루 분량의 이름은 그대로예요. 바꾸려면 1단계에서 교재마다 [이름·하루 분량 고치기]를 눌러 주세요.</WarnNote> : null}
         </div>
 
-        <div className="space-y-3">
-          <div>
-            <p className="text-sm font-bold text-slate-900">크레딧 기준</p>
-            <p className="mt-1 text-sm leading-relaxed text-slate-500">학생이 {dayWord.trim() || "Day"} 하나를 끝냈을 때 크레딧을 어떻게 줄지 정해요.</p>
-          </div>
-          <div className="space-y-2">
-            {CREDIT_RULES.map((option) => (
-              <label className={`flex items-start gap-2.5 rounded-xl border px-3.5 py-3 text-sm ${rule === option.value ? "border-brand bg-blue-50/40" : "border-slate-200"}`} key={option.value}>
-                <input checked={rule === option.value} className="mt-1 h-4 w-4 shrink-0 accent-[#3182f6]" name="credit-rule" onChange={() => setRule(option.value)} type="radio" />
-                <span>
-                  <span className="block font-semibold text-slate-900">{option.label}</span>
-                  <span className="mt-0.5 block leading-relaxed text-slate-500">{option.hint}</span>
-                </span>
-              </label>
-            ))}
-          </div>
-          {rule !== "NONE" ? (
-            <div className="grid gap-3 sm:grid-cols-3">
-              <Field label={`${dayWord.trim() || "Day"} 하나의 크레딧`}>
-                <input className={`${FIELD_CLASS} tabular-nums`} inputMode="numeric" onChange={(event) => setPerDay(digits(event.target.value, 6))} required value={perDay} />
-              </Field>
-              {rule === "INK" ? (
-                <>
-                  <Field label="필기한 쪽 비율(%)">
-                    <input className={`${FIELD_CLASS} tabular-nums`} inputMode="numeric" onChange={(event) => setRatio(digits(event.target.value, 3))} required value={ratio} />
-                  </Field>
-                  <Field label="한 쪽의 최소 필기량">
-                    <input
-                      className={`${FIELD_CLASS} tabular-nums`}
-                      inputMode="decimal"
-                      onChange={(event) => setInkMin(event.target.value.replace(/[^\d.]/g, "").slice(0, 5))}
-                      required
-                      value={inkMin}
-                    />
-                  </Field>
-                </>
-              ) : null}
-            </div>
-          ) : null}
-          {rule === "INK" ? (
-            <div className="space-y-1.5 rounded-xl bg-slate-50 px-4 py-3 text-[13px] leading-relaxed text-slate-600">
-              <p>
-                {ratioNumber >= 1 && ratioNumber <= 100
-                  ? `6쪽짜리 분량이면 ${neededPages(6, ratioNumber)}쪽, 4쪽짜리면 ${neededPages(4, ratioNumber)}쪽에 필기해야 받아요.`
-                  : "비율은 1–100 사이로 넣어 주세요."}
-              </p>
-              <p>최소 필기량은 쪽 가로 길이의 몇 배만큼 썼는지예요. 0.5면 쪽 가로 절반 길이의 줄 하나, 글자 예닐곱 자쯤이에요. 점 하나나 스친 자국은 세지 않아요.</p>
-              <p>완료할 때 필기가 모자랐던 학생은 필기를 채운 뒤 앱에서 [크레딧 받기]를 누르면 받아요. 쪽 이미지를 올리지 않은 교재는 필기를 셀 수 없어 크레딧이 없어요.</p>
-            </div>
-          ) : null}
-        </div>
         <ErrorNote error={error} />
       </form>
     </AdminDialog>

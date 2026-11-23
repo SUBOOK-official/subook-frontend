@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useIlseongData, useIlseongSales } from "../../lib/ilseongAdmin";
-import { creditRuleText } from "../../lib/ilseongCatalog";
 import { STEPS, seriesProgress, seriesStatus, stepNumber } from "../../lib/ilseongGuide";
 import { ChevronLeftIcon } from "../icons";
 import { SeriesDialog } from "./IlseongCatalogDialogs";
@@ -171,13 +170,12 @@ function SeriesDetail({ series, catalog, sales }) {
             <h2 className="text-xl font-bold tracking-tight text-slate-900">{series.name}</h2>
             <Badge tone={status.tone}>{status.label}</Badge>
           </div>
-          <button className={`btn-secondary ${SMALL_BUTTON}`} onClick={() => setSettings(true)} type="button">이름·크레딧 설정</button>
+          <button className={`btn-secondary ${SMALL_BUTTON}`} onClick={() => setSettings(true)} type="button">이름 설정</button>
         </div>
         <p className="mt-1 text-sm text-slate-500">
           {current
             ? <>지금 할 일: <strong className="font-semibold text-slate-800">{stepNumber(current)}단계 {STEPS.find((step) => step.key === current).title}</strong></>
             : status.note}
-          <span className="text-slate-400"> · 크레딧: {creditRuleText(series.credit)}</span>
         </p>
       </div>
       <ErrorNote error={sales.error} onRetry={() => void sales.reload()} />

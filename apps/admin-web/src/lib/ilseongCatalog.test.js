@@ -2,11 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   bookDeleteBlock,
-  creditRuleText,
   findBook,
   labelsProblem,
   moved,
-  neededPages,
   nextLabels,
   numberedLabel,
   parseLabelLines,
@@ -48,16 +46,6 @@ test("이름 목록: 줄마다 하나, 빈 줄은 빼고, 고쳐야 할 것을 �
   assert.match(labelsProblem(["가", "가"]), /같은 이름이 이미 있어요/);
   assert.match(labelsProblem(["가".repeat(31)]), /30자까지/);
   assert.match(labelsProblem(Array.from({ length: 61 }, (_, i) => `${i}회`)), /60개까지/);
-});
-
-test("크레딧 기준을 한 줄로", () => {
-  assert.equal(creditRuleText({ rule: "INK", perDay: 100, inkRatio: 70, inkMin: 0.5 }), "그날 쪽의 70% 이상에 필기하면 100 크레딧");
-  assert.equal(creditRuleText({ rule: "TAP", perDay: 1500 }), "완료하면 1,500 크레딧");
-  assert.equal(creditRuleText({ rule: "NONE", perDay: 100 }), "크레딧 없음");
-  // 앱 서버와 같은 올림
-  assert.equal(neededPages(6, 70), 5);
-  assert.equal(neededPages(4, 70), 3);
-  assert.equal(neededPages(1, 10), 1);
 });
 
 test("구성에서 교재를 찾고 순서를 옮긴다", () => {

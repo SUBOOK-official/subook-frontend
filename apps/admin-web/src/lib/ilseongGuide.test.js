@@ -92,10 +92,10 @@ test("홈의 할 일: 아무 문제도 없고 다 팔고 있으면 비어 있다
 });
 
 test("새 학습지 만들기: 고칠 것과 보낼 값", () => {
-  const form = { name: " 파이널 ", subjects: [{ name: "국어", color: "#F5B700" }, { name: " ", color: "#12B886" }], bookCount: "8", dayCount: "7", unitWord: "회", dayWord: "Day", creditRule: "INK" };
+  const form = { name: " 파이널 ", subjects: [{ name: "국어", color: "#F5B700" }, { name: " ", color: "#12B886" }], bookCount: "8", dayCount: "7", unitWord: "회", dayWord: "Day" };
   assert.equal(setupProblem(form), null);
   assert.deepEqual(setupBody(form), {
-    name: "파이널", unitWord: "회", dayWord: "Day", creditRule: "INK",
+    name: "파이널", unitWord: "회", dayWord: "Day",
     subjects: [{ name: "국어", color: "#F5B700" }], bookCount: 8, dayCount: 7,
   });
   assert.match(setupProblem({ ...form, name: "" }), /학습지 이름/);

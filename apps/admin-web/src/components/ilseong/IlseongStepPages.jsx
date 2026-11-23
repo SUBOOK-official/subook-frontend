@@ -211,7 +211,7 @@ function BookEditor({ book, dayWord, onClose, onSaved, onUploaded }) {
           <div>
             <p className="text-sm font-semibold text-slate-600">{dayWord}마다 몇 쪽부터 몇 쪽까지인지</p>
             <p className="mt-1 text-sm leading-relaxed text-slate-500">
-              학생이 {dayWord} 하나를 누르면 여기 적은 쪽이 열려요. 비워 두면 그 칸은 앱에서 열리지 않고, 필기 기준 크레딧도 받을 수 없어요.
+              학생이 {dayWord} 하나를 누르면 여기 적은 쪽이 열려요. 비워 두면 그 칸은 앱에서 열리지 않아요.
             </p>
           </div>
           {days.map((day, index) => (

@@ -6,12 +6,6 @@
 /** 과목 색으로 고르기 좋은 색. 앱의 흰 바탕에서 글자·막대로 읽히는 진하기다. */
 export const SUBJECT_COLORS = ["#F5B700", "#12B886", "#7C5CFC", "#3182F6", "#E8590C", "#E64980", "#0CA678", "#4C6EF5", "#868E96"];
 
-export const CREDIT_RULES = [
-  { value: "INK", label: "필기해야 줘요", hint: "그날 분량의 쪽 가운데 정한 비율 이상에 필기가 있어야 크레딧을 줘요. 완료만 눌러서는 받지 못해요." },
-  { value: "TAP", label: "완료하면 줘요", hint: "완료를 누르면 바로 줘요. 앱에서 필기하지 않는 학습지(단어장 등)에만 써 주세요." },
-  { value: "NONE", label: "주지 않아요", hint: "이 학습지에서는 크레딧이 쌓이지 않아요." },
-];
-
 /** 부르는 말 + 번호. 영문으로 시작하는 말은 앞에("Day 3"), 그 밖은 뒤에("3주차") 붙인다(앱 서버와 같은 규칙). */
 export function numberedLabel(word, no) {
   const w = String(word || "").trim();
@@ -55,19 +49,6 @@ export function labelsProblem(labels, { max = 60, maxLength = 30, taken = [] } =
     seen.add(label);
   }
   return null;
-}
-
-/** 크레딧 기준을 한 줄로. */
-export function creditRuleText(credit) {
-  if (!credit || credit.rule === "NONE") return "크레딧 없음";
-  const amount = Number(credit.perDay || 0).toLocaleString("ko-KR");
-  if (credit.rule === "TAP") return `완료하면 ${amount} 크레딧`;
-  return `그날 쪽의 ${credit.inkRatio}% 이상에 필기하면 ${amount} 크레딧`;
-}
-
-/** 그 비율이면 몇 쪽 가운데 몇 쪽에 필기해야 하는지 보기로 보여 준다(앱 서버와 같은 올림). */
-export function neededPages(totalPages, ratio) {
-  return Math.max(1, Math.ceil((totalPages * ratio) / 100));
 }
 
 /** 구성 전체에서 교재 번호로 교재·과목·학습지를 찾는다. */
