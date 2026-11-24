@@ -37,7 +37,6 @@ function sanitizeFileName(name) {
 export async function uploadImageToBucket(bucket, file, prefix = "edit") {
   validateImageFile(file);
   // 한도 이하는 원본 그대로 올린다. 넘는 사진만 JPEG로 다시 저장해 저장소 한도(15MB) 안으로 맞춘다.
-  // 가로 사진을 세로로 돌린 PNG가 원본의 10배 넘게 불어나 등록이 막히던 경우가 여기서 풀린다.
   const upload = file.size > MAX_IMAGE_BYTES ? await shrinkImageToLimit(file, MAX_IMAGE_BYTES) : file;
   const path = `${prefix}/${Date.now()}-${Math.random().toString(36).slice(2, 10)}-${sanitizeFileName(upload.name)}`;
   try {
