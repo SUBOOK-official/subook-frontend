@@ -6,7 +6,7 @@ import { ChevronRightIcon } from "../icons";
 import { Badge, Disclosure, ErrorNote, Facts, LoadingNote, SMALL_BUTTON, Section, ilseongPath } from "./IlseongUi";
 
 // 홈 — 들어오면 "지금 할 일"부터 보인다. 할 일은 화면이 있는 것을 보고 스스로 정한다(lib/ilseongGuide.js):
-// 앱 서버 문제, 앱에 등록하지 못한 주문, 켜 둔 채 잊은 설정, 학습지마다 다음 단계.
+// 앱 서버 문제, 앱에 등록하지 못한 주문, 학생이 알려 온 교재 오류, 켜 둔 채 잊은 설정, 학습지마다 다음 단계.
 // 그 아래에 하려는 일로 바로 가는 길과 숫자 몇 개.
 
 const TODO_TONE = { red: "bg-rose-500", orange: "bg-amber-500", blue: "bg-brand" };
@@ -40,6 +40,7 @@ export default function IlseongHome() {
     system: status,
     config: config.data,
     serverStale: Boolean(age?.stale),
+    openReports: overview.data?.openReports,
   });
   const firstError = catalog.error ?? overview.error ?? sales.error;
 

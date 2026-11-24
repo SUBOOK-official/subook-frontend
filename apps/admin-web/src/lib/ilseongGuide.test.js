@@ -78,6 +78,16 @@ test("홈의 할 일: 급한 것부터, 학습지마다 한 줄", () => {
   assert.match(todos[4].hint, /1단계 구성 만들기/);
 });
 
+test("홈의 할 일: 학생이 알려 온 교재 오류가 남아 있으면 알린다", () => {
+  const quiet = { seriesList: [], sales: null, system: null, config: null };
+  assert.deepEqual(homeTodos({ ...quiet, openReports: 0 }), []);
+  assert.deepEqual(homeTodos({ ...quiet, openReports: undefined }), []);
+  const [todo] = homeTodos({ ...quiet, openReports: 3 });
+  assert.equal(todo.key, "reports");
+  assert.match(todo.text, /3건/);
+  assert.equal(todo.action.to, "/admin/ilseong?view=reports");
+});
+
 test("홈의 할 일: 아무 문제도 없고 다 팔고 있으면 비어 있다", () => {
   const listed = [{ product_id: 7, app_product_code: "SET", is_listed: true }];
   assert.deepEqual(homeTodos({

@@ -113,7 +113,7 @@ export function sellBlockers({ sales, stock }) {
  * 홈의 "지금 할 일". 급한 것부터.
  * @returns {{ key: string, tone: "red"|"orange"|"blue", text: string, hint?: string, action?: { label: string, to: string } }[]}
  */
-export function homeTodos({ seriesList, sales, system, config, serverStale = false }) {
+export function homeTodos({ seriesList, sales, system, config, serverStale = false, openReports = 0 }) {
   const todos = [];
   const dev = "개발자에게 알려 주세요.";
 
@@ -141,6 +141,16 @@ export function homeTodos({ seriesList, sales, system, config, serverStale = fal
       text: `결제는 됐는데 앱에 교재를 등록하지 못한 주문이 ${failed}건 있어요.`,
       hint: "[다시 처리]를 눌러 주세요. 그래도 안 되면 개발자에게 알려 주세요.",
       action: { label: "주문 보기", to: `${ilseongPath("users")}#orders` },
+    });
+  }
+  const reports = Number(openReports || 0);
+  if (reports > 0) {
+    todos.push({
+      key: "reports",
+      tone: "orange",
+      text: `학생이 알려 온 교재 오류가 ${reports}건 있어요.`,
+      hint: "교재의 그 쪽을 확인하고, 고쳤거나 고칠 것이 아니면 처리함으로 표시해 주세요.",
+      action: { label: "신고 보기", to: ilseongPath("reports") },
     });
   }
   if (config?.noticeMode === "BLOCK") {
