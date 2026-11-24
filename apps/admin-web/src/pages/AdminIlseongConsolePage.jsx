@@ -4,8 +4,10 @@ import AdminShell from "../components/AdminShell";
 import IlseongActions from "../components/ilseong/IlseongActions";
 import IlseongAppConfig from "../components/ilseong/IlseongAppConfig";
 import IlseongHome from "../components/ilseong/IlseongHome";
+import IlseongPush from "../components/ilseong/IlseongPush";
 import IlseongReports from "../components/ilseong/IlseongReports";
 import IlseongSeries from "../components/ilseong/IlseongSeries";
+import IlseongStats from "../components/ilseong/IlseongStats";
 import IlseongUsers from "../components/ilseong/IlseongUsers";
 import { IlseongFeedbackProvider, ilseongPath } from "../components/ilseong/IlseongUi";
 
@@ -16,6 +18,8 @@ import { IlseongFeedbackProvider, ilseongPath } from "../components/ilseong/Ilse
 //   학습지      학습지 하나를 만들어 팔기까지 네 단계(?view=books&series=번호, 새로 만들기는 series=new)
 //   학생·문의   학생 찾기(?view=users&id=회원번호), 주문으로 확인하기, 문의마다의 안내
 //   오류 신고   학생이 앱에서 알려 온 교재 오류(오탈자). 확인하고 처리함으로 표시한다
+//   알림 보내기 학생의 기기에 알림 하나를 보낸다(모든 학생 또는 학습지 하나). 최근에 보낸 것도 여기서 본다
+//   통계        산 학생이 앱을 쓰는지: 가입부터 완료까지, 기간(7·30·90일)의 숫자, 날짜별·교재별
 //   앱 설정     공지·점검, 환불과 앱 받는 곳, 잘 쓰지 않는 설정
 //   기록        누가 무엇을 바꿨는지
 // 앱 서버의 관리 API를 이 화면이 직접 부른다(직원 로그인은 lib/ilseongAdminClient.js, 앱 저장소 docs/adr/0037).
@@ -28,6 +32,8 @@ const VIEWS = [
   { key: "books", label: "학습지" },
   { key: "users", label: "학생·문의" },
   { key: "reports", label: "오류 신고" },
+  { key: "push", label: "알림 보내기" },
+  { key: "stats", label: "통계" },
   { key: "app-config", label: "앱 설정" },
   { key: "actions", label: "기록" },
 ];
@@ -49,6 +55,8 @@ export default function AdminIlseongConsolePage() {
     const series = searchParams.get("series");
     content = <IlseongSeries seriesId={series === "new" ? "new" : parseId(series)} />;
   } else if (view.key === "reports") content = <IlseongReports />;
+  else if (view.key === "push") content = <IlseongPush />;
+  else if (view.key === "stats") content = <IlseongStats />;
   else if (view.key === "app-config") content = <IlseongAppConfig />;
   else if (view.key === "actions") content = <IlseongActions />;
   else content = <IlseongHome />;

@@ -77,7 +77,7 @@ export const ADMIN_MENU = [
           },
           {
             // 일성월심 학습 앱 관리(앱 서버의 관리 기능을 이 화면이 직접 부른다).
-            // 화면 안에서 홈·학습지·학생·문의·앱 설정·기록으로 나뉜다(?view=)
+            // 화면 안에서 홈·학습지·학생·문의·오류 신고·알림 보내기·통계·앱 설정·기록으로 나뉜다(?view=)
             key: "ilseong-app",
             label: "일성월심 앱",
             to: "/admin/ilseong",
@@ -92,6 +92,8 @@ export const ADMIN_MENU = [
           { label: "일성월심 학습지", to: "/admin/ilseong?view=books", keywords: ["과목 추가", "주차 추가", "교재 추가", "교재 쪽", "PDF 올리기", "쪽 이미지", "판매 상품 만들기", "사이트 상품", "판매 시작", "판매 중지", "앱 패키지 판매"] },
           { label: "일성월심 새 학습지 만들기", to: "/admin/ilseong?view=books&series=new", keywords: ["학습지 만들기", "새 학습지", "학습지 내기"] },
           { label: "일성월심 교재 오류 신고", to: "/admin/ilseong?view=reports", keywords: ["오탈자", "오류 신고", "교재 오류", "틀린 곳", "정오표"] },
+          { label: "일성월심 알림 보내기", to: "/admin/ilseong?view=push", keywords: ["알림", "푸시", "공지 알림", "메시지"] },
+          { label: "일성월심 앱 통계", to: "/admin/ilseong?view=stats", keywords: ["통계", "이용 현황", "공부 시간", "사용 통계"] },
           { label: "일성월심 앱 설정·공지", to: "/admin/ilseong?view=app-config", keywords: ["앱 공지", "점검", "최소 버전", "캡처 막기", "환불 시 앱 이용", "앱 받는 곳"] },
           { label: "일성월심 앱 관리 기록", to: "/admin/ilseong?view=actions", keywords: ["앱 관리 기록", "누가 바꿨는지"] },
         ],

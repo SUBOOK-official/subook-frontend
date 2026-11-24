@@ -172,6 +172,16 @@ export function appConfigRisks(saved, next) {
   return { risks, minVersionRaised: iosRaised || androidRaised };
 }
 
+/**
+ * 화면이 부른 주소가 앱 서버에 아직 없을 때(앱 서버가 예전 판이면 404, 앱 서버가 붙이는 오류 이름이 없다)
+ * 운영자가 읽을 말로 바꾼다. 그 밖의 오류는 받은 그대로 돌려준다.
+ */
+export function olderServerError(error) {
+  if (!error) return null;
+  if (error.status !== 404 || error.code) return error;
+  return new Error("앱 서버에 아직 이 기능이 없어요. 개발자에게 알려 주세요.");
+}
+
 /** 서버 점검 결과가 오래됐는지. 점검은 5분마다 돈다. */
 export function serverCheckAge(checkedAtSeconds, nowMs = Date.now()) {
   const minutes = Math.max(0, Math.round((nowMs / 1000 - checkedAtSeconds) / 60));

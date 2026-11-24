@@ -10,6 +10,7 @@ import {
   formatDateTime,
   formatEpochSeconds,
   isHigherVersion,
+  olderServerError,
   platformLabel,
   providersLabel,
   serverCheckAge,
@@ -123,6 +124,20 @@ test("앱 설정: 학생이 앱을 못 쓰게 되거나 교재 보호가 풀리�
   assert.equal(capture.minVersionRaised, false);
   // 꺼져 있던 것을 켜는 것은 묻지 않는다
   assert.deepEqual(appConfigRisks({ ...SAVED, iosBlockCapture: false }, SAVED).risks, []);
+});
+
+test("앱 서버가 예전 판이라 그 주소가 없으면 읽을 수 있는 말로 바꾼다", () => {
+  const missing = Object.assign(new Error("No static resource api/admin/stats."), { status: 404, code: undefined });
+  assert.equal(olderServerError(missing).message, "앱 서버에 아직 이 기능이 없어요. 개발자에게 알려 주세요.");
+  // 앱 서버가 이름을 붙여 준 404(없는 회원 등)와 그 밖의 오류는 그대로 둔다
+  const named = Object.assign(new Error("회원을 찾을 수 없어요."), { status: 404, code: "USER_NOT_FOUND" });
+  assert.equal(olderServerError(named), named);
+  const offline = Object.assign(new Error("앱 서버에 연결하지 못했어요."), { status: 0, code: "NETWORK" });
+  assert.equal(olderServerError(offline), offline);
+  const plain = new Error("문제가 생겼어요.");
+  assert.equal(olderServerError(plain), plain);
+  assert.equal(olderServerError(null), null);
+  assert.equal(olderServerError(undefined), null);
 });
 
 test("서버 점검 결과는 15분 넘게 오지 않으면 멈춘 것으로 본다", () => {
