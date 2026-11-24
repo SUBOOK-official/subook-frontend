@@ -8,5 +8,5 @@
   {"id":"AUTH-03","priority":"P1","name":"인증 완료 회원 분기","precondition":"인증 완료 회원, 목적지 /faq","steps":"인증 콜백 진입","expected":"/faq 이동"},
   {"id":"IMG-01","priority":"P2","name":"용량 경계 바로 아래","precondition":"PNG 메타데이터, 15728639바이트","steps":"현재 uploadImageToBucket 호출","expected":"허용, 변환 1회·저장소 호출 4회"},
   {"id":"IMG-02","priority":"P2","name":"용량 경계 일치","precondition":"PNG 메타데이터, 15728640바이트","steps":"현재 uploadImageToBucket 호출","expected":"허용, 변환 1회·저장소 호출 4회"},
-  {"id":"IMG-03","priority":"P2","name":"용량 경계 바로 위","precondition":"PNG 메타데이터, 15728641바이트","steps":"현재 uploadImageToBucket 호출","expected":"용량 오류, 변환·저장소 호출 0회"}
+  {"id":"IMG-03","priority":"P2","name":"용량 경계 바로 위","precondition":"PNG 메타데이터, 15728641바이트","steps":"현재 uploadImageToBucket 호출","expected":"허용, JPEG 축소 1회 후 변환 1회·저장소 호출 4회"}
 ]

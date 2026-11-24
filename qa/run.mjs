@@ -146,14 +146,13 @@ try {
   const source=helper.replace(/^import .*;\r?\n/gm,'').replace(/^export /gm,'');
   for(const [index,size] of [15*1024*1024-1,15*1024*1024,15*1024*1024+1].entries()) {
     await check(`IMG-0${index+1}`,async()=>{
-      let uploads=0,variants=0,errorMessage=null;
-      const context=vm.createContext({uploadProductImage,createImageVariants:async()=>{variants++;return [400,900,1600].map(width=>({width,blob:{size:100,type:'image/jpeg'}}));},supabase:{storage:{from:()=>({upload:async()=>{uploads++;return {error:null};},getPublicUrl:()=>({data:{publicUrl:'https://storage.test/image'}}),remove:async()=>({error:null})})}}});
+      let uploads=0,variants=0,shrinks=0,errorMessage=null;
+      const context=vm.createContext({uploadProductImage,shrinkImageToLimit:async()=>{shrinks++;return {name:'boundary.jpg',type:'image/jpeg',size:1024};},createImageVariants:async()=>{variants++;return [400,900,1600].map(width=>({width,blob:{size:100,type:'image/jpeg'}}));},supabase:{storage:{from:()=>({upload:async()=>{uploads++;return {error:null};},getPublicUrl:()=>({data:{publicUrl:'https://storage.test/image'}}),remove:async()=>({error:null})})}}});
       vm.runInContext(source,context);
       try{await context.uploadImageToBucket('inspection-images',{name:'boundary.png',type:'image/png',size},'boundary');}catch(e){errorMessage=e.message;}
-      if(index<2){assert.equal(errorMessage,null);assert.equal(variants,1);assert.equal(uploads,4);}
-      else{assert.match(errorMessage,/15MB/);assert.equal(variants,0);assert.equal(uploads,0);
-        if(errorMessage.includes('(15.0MB)'))observations.push({id:'BR-IMG-001',status:'OPEN',severity:'Minor',priority:'P3 proposed',type:'UX improvement',message:errorMessage,bytes:size});}
-      return {bytes:size,result:errorMessage?'reject':'allow',variantCalls:variants,storageCalls:uploads,errorMessage};
+      // 2026-11-24: 한도 초과 사진은 차단 대신 JPEG로 줄여 올린다(GIF만 차단). 경계 위는 축소 1회 후 허용.
+      assert.equal(errorMessage,null);assert.equal(variants,1);assert.equal(uploads,4);assert.equal(shrinks,index<2?0:1);
+      return {bytes:size,result:'allow',shrinkCalls:shrinks,variantCalls:variants,storageCalls:uploads,errorMessage};
     });
   }
 } catch(error) {

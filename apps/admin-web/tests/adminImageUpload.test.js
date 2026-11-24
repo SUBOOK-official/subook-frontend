@@ -10,10 +10,16 @@ const source = (await readFile(new URL("../src/lib/adminImageUpload.js", import.
   .replace(/^import .*;\r?\n/gm, "")
   .replace(/^export /gm, "");
 
-function setup(uploadError = null) {
+function setup(uploadError = null, shrink = null) {
   const uploads = [];
+  const shrinks = [];
   const context = vm.createContext({
     uploadProductImage,
+    // 실제 축소는 브라우저 캔버스가 한다. 여기서는 한도 초과 파일만 넘어오는지와 결과물 전달을 본다.
+    shrinkImageToLimit: shrink || (async (file, maxBytes) => {
+      shrinks.push({ file, maxBytes });
+      return { size: 4 * MB, type: "image/jpeg", name: file.name.replace(/\.[^/.]+$/, ".jpg") };
+    }),
     createImageVariants: async () => [400, 900, 1600].map((width) => ({ width, blob: { size: 100, type: "image/jpeg" } })),
     supabase: { storage: { from: (bucket) => ({
       upload: async (path, file, options) => {
@@ -25,14 +31,14 @@ function setup(uploadError = null) {
     }) } },
   });
   vm.runInContext(source, context);
-  return { upload: context.uploadImageToBucket, uploads };
+  return { upload: context.uploadImageToBucket, uploads, shrinks };
 }
 
 const image = (size, type = "image/png") => ({ size, type, name: "상세 사진.png" });
 const MB = 1024 * 1024;
 
 test("10MB 초과~15MB 상세사진은 축소본 3개를 저장한 뒤 원본 그대로 업로드한다", async () => {
-  const { upload, uploads } = setup();
+  const { upload, uploads, shrinks } = setup();
   for (const size of [10 * MB + 1, 12 * MB, 15 * MB]) {
     const file = image(size);
     const url = await upload("inspection-images", file, "register");
@@ -46,13 +52,42 @@ test("10MB 초과~15MB 상세사진은 축소본 3개를 저장한 뒤 원본 �
     assert.deepEqual(uploads.slice(-4, -1).map((item) => item.options.contentType), ["image/jpeg", "image/jpeg", "image/jpeg"]);
     assert.equal(url, `https://storage.test/inspection-images/${sent.path}`);
   }
+  assert.equal(shrinks.length, 0);
 });
 
-test("15MB 초과·빈 파일·미지원 형식은 서버 전송 전에 차단한다", async () => {
-  const { upload, uploads } = setup();
-  await assert.rejects(upload("inspection-images", image(15 * MB + 1)), /15MB/);
+test("15MB를 넘는 JPG·PNG·WebP는 막지 않고 JPEG로 줄인 파일을 올린다", async () => {
+  const { upload, uploads, shrinks } = setup();
+  // 18.1MB = 가로 사진을 세로로 돌린 PNG가 불어나 운영에서 등록이 막혔던 크기
+  for (const [size, type] of [[15 * MB + 1, "image/png"], [Math.round(18.1 * MB), "image/png"], [40 * MB, "image/jpeg"], [16 * MB, "image/webp"]]) {
+    const file = image(size, type);
+    const url = await upload("inspection-images", file, "register");
+    assert.equal(shrinks.at(-1).file, file);
+    assert.equal(shrinks.at(-1).maxBytes, 15 * MB);
+    const sent = uploads.at(-1);
+    assert.notEqual(sent.file, file);
+    assert.equal(sent.file.size, 4 * MB);
+    assert.equal(sent.options.contentType, "image/jpeg");
+    assert.match(sent.path, /^register\/[a-zA-Z0-9._-]+\.jpg$/);
+    assert.equal(url, `https://storage.test/inspection-images/${sent.path}`);
+  }
+  assert.equal(shrinks.length, 4);
+  assert.equal(uploads.length, 16);
+});
+
+test("15MB 초과 GIF·빈 파일·미지원 형식은 서버 전송 전에 차단한다", async () => {
+  const { upload, uploads, shrinks } = setup();
+  await assert.rejects(upload("inspection-images", image(15 * MB + 1, "image/gif")), /GIF는 한 장당 15MB/);
   await assert.rejects(upload("inspection-images", image(0)), /빈 이미지/);
   await assert.rejects(upload("inspection-images", image(100, "image/svg+xml")), /JPG\/PNG\/WebP\/GIF/);
+  assert.equal(uploads.length, 0);
+  assert.equal(shrinks.length, 0);
+});
+
+test("줄이지 못한 사진은 저장소로 보내지 않고 안내한다", async () => {
+  const { upload, uploads } = setup(null, async () => {
+    throw new Error("사진 용량을 줄이지 못했습니다. 더 작은 사진으로 다시 시도해 주세요.");
+  });
+  await assert.rejects(upload("inspection-images", image(18 * MB)), /용량을 줄이지 못했습니다/);
   assert.equal(uploads.length, 0);
 });
 

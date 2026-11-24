@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { DETAIL_BUCKET, MAX_IMAGE_MB, uploadImageToBucket } from "../lib/adminImageUpload";
+import { DETAIL_BUCKET, uploadImageToBucket } from "../lib/adminImageUpload";
 
 /**
  * 검수 사진 업로드 컴포넌트.
@@ -65,7 +65,7 @@ function InspectionImageUploader({ bookId, disabled, onUploaded }) {
       {error ? (
         <p className="text-xs font-bold text-red-600">{error}</p>
       ) : (
-        <p className="text-xs text-slate-500">JPG/PNG/WebP/GIF, 한 장당 최대 {MAX_IMAGE_MB}MB. 업로드한 URL이 아래 검수 사진 URL 목록에 자동 추가됩니다.</p>
+        <p className="text-xs text-slate-500">JPG/PNG/WebP/GIF. 업로드한 URL이 아래 검수 사진 URL 목록에 자동 추가됩니다.</p>
       )}
     </div>
   );

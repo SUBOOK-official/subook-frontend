@@ -4,6 +4,7 @@
 import { supabase } from "@shared-supabase/adminSupabaseClient";
 import { uploadProductImage } from "@shared-supabase/productImageStorage";
 import { createImageVariants } from "@shared-domain/createImageVariants";
+import { shrinkImageToLimit } from "./imageShrink.js";
 
 export const COVER_BUCKET = "product-covers";
 export const DETAIL_BUCKET = "inspection-images";
@@ -20,8 +21,10 @@ export function validateImageFile(file) {
     throw new Error("JPG/PNG/WebP/GIF만 업로드 가능합니다.");
   }
   if (!file.size) throw new Error("빈 이미지 파일은 업로드할 수 없습니다.");
-  if (file.size > MAX_IMAGE_BYTES) {
-    throw new Error(`이미지는 한 장당 ${MAX_IMAGE_MB}MB 이하여야 합니다. (${(file.size / 1024 / 1024).toFixed(1)}MB)`);
+  // JPG·PNG·WebP는 한도를 넘어도 업로드 직전에 용량을 줄여 올린다(uploadImageToBucket).
+  // GIF는 다시 저장하면 움직임이 사라지므로 줄이지 않고 막는다.
+  if (file.type === "image/gif" && file.size > MAX_IMAGE_BYTES) {
+    throw new Error(`GIF는 한 장당 ${MAX_IMAGE_MB}MB 이하여야 합니다.`);
   }
 }
 
@@ -33,10 +36,13 @@ function sanitizeFileName(name) {
 
 export async function uploadImageToBucket(bucket, file, prefix = "edit") {
   validateImageFile(file);
-  const path = `${prefix}/${Date.now()}-${Math.random().toString(36).slice(2, 10)}-${sanitizeFileName(file.name)}`;
+  // 한도 이하는 원본 그대로 올린다. 넘는 사진만 JPEG로 다시 저장해 저장소 한도(15MB) 안으로 맞춘다.
+  // 가로 사진을 세로로 돌린 PNG가 원본의 10배 넘게 불어나 등록이 막히던 경우가 여기서 풀린다.
+  const upload = file.size > MAX_IMAGE_BYTES ? await shrinkImageToLimit(file, MAX_IMAGE_BYTES) : file;
+  const path = `${prefix}/${Date.now()}-${Math.random().toString(36).slice(2, 10)}-${sanitizeFileName(upload.name)}`;
   try {
-    const variants = await createImageVariants(file);
-    return await uploadProductImage(supabase, bucket, path, file, variants);
+    const variants = await createImageVariants(upload);
+    return await uploadProductImage(supabase, bucket, path, upload, variants);
   } catch (error) {
     // Supabase의 새 코드와 기존 "maximum allowed size" 응답을 모두 처리한다.
     // https://supabase.com/docs/guides/storage/debugging/error-codes
