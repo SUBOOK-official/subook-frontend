@@ -197,12 +197,14 @@ export function createIlseongAdminClient({
       return response.json();
     },
 
-    /** 쪽 이미지 하나를 올린다(JPEG 본문 그대로). */
+    /** 그림 하나를 올린다(JPEG 본문 그대로). 서버가 답을 주면(표지) 그 답을, 안 주면(쪽 이미지, 204) undefined를 돌려준다. */
     async putJpeg(path, blob) {
-      await authorized((session) => [
+      const response = await authorized((session) => [
         `${session.baseUrl}${path}`,
         { method: "PUT", headers: { Authorization: `Bearer ${session.accessToken}`, "Content-Type": "image/jpeg" }, body: blob },
       ]);
+      if (response.status === 204) return undefined;
+      return response.json();
     },
 
     /** 앱 서버가 준 경로(/pages/… 서명 주소)를 브라우저가 열 수 있는 전체 주소로. 로그인 전이면 null. */

@@ -3,7 +3,9 @@ import { Link, useNavigate } from "react-router-dom";
 import { useIlseongData, useIlseongSales } from "../../lib/ilseongAdmin";
 import { STEPS, seriesProgress, seriesStatus, stepNumber } from "../../lib/ilseongGuide";
 import { ChevronLeftIcon } from "../icons";
+import { ilseongAdmin } from "../../lib/ilseongAdmin";
 import { SeriesDialog } from "./IlseongCatalogDialogs";
+import IlseongCoverDialog from "./IlseongCoverDialog";
 import { PagesStep } from "./IlseongStepPages";
 import { SellStep, StoreStep } from "./IlseongStepStore";
 import { SetupForm, StructureStep } from "./IlseongStepStructure";
@@ -133,6 +135,7 @@ function SeriesDetail({ series, catalog, sales }) {
   // 지금 할 단계는 펼쳐 두고, 나머지는 누른 것만 펼친다. 단계가 넘어가면 새 단계가 저절로 펼쳐진다
   const [opened, setOpened] = useState({});
   const [settings, setSettings] = useState(false);
+  const [cover, setCover] = useState(false);
   const isOpen = (key) => opened[key] ?? key === current;
   const toggle = (key) => setOpened((prev) => ({ ...prev, [key]: !isOpen(key) }));
   const stateOf = (key, locked) => (locked ? "locked" : key === current ? "current" : done[key] ? "done" : "todo");
@@ -167,10 +170,16 @@ function SeriesDetail({ series, catalog, sales }) {
         <BackLink />
         <div className="mt-1.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           <div className="flex flex-wrap items-center gap-2">
+            {series.coverUrl ? (
+              <img alt="" className="h-10 rounded border border-slate-200 object-cover" src={ilseongAdmin.absoluteUrl(series.coverUrl)} style={{ aspectRatio: "1 / 1.4125" }} />
+            ) : null}
             <h2 className="text-xl font-bold tracking-tight text-slate-900">{series.name}</h2>
             <Badge tone={status.tone}>{status.label}</Badge>
           </div>
-          <button className={`btn-secondary ${SMALL_BUTTON}`} onClick={() => setSettings(true)} type="button">이름 설정</button>
+          <div className="flex flex-wrap gap-2">
+            <button className={`btn-secondary ${SMALL_BUTTON}`} onClick={() => setCover(true)} type="button">{series.coverUrl ? "표지 바꾸기" : "표지 넣기"}</button>
+            <button className={`btn-secondary ${SMALL_BUTTON}`} onClick={() => setSettings(true)} type="button">이름 설정</button>
+          </div>
         </div>
         <p className="mt-1 text-sm text-slate-500">
           {current
@@ -211,6 +220,7 @@ function SeriesDetail({ series, catalog, sales }) {
         <SellStep onChanged={() => sales.reload()} progress={progress} sales={sales.data} series={series} />
       </Step>
 
+      {cover ? <IlseongCoverDialog onChanged={catalog.setData} onClose={() => setCover(false)} series={series} /> : null}
       {settings ? (
         <SeriesDialog
           onClose={() => setSettings(false)}
