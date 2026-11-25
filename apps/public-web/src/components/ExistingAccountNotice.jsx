@@ -32,7 +32,7 @@ export default function ExistingAccountNotice({ accounts = [], remembered = fals
       } else {
         navigate(provider === "reset" ? "/forgot-password" : "/login", { state: {
           from: safeMemberNext(next),
-          notice: `${account.email_hint}에 해당하는 전체 이메일 주소로 로그인해 주세요.`,
+          notice: `${account.email_hint} 계정의 이메일과 비밀번호를 입력해 주세요.`,
         } });
       }
     } catch (err) { onSwitchingAccount?.(false); setError(err.message); setActive(""); }
